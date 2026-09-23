@@ -11,7 +11,7 @@
 // green|red). The validate agent reads that, never the commit message: "the check was run"
 // is then observed, not claimed (llm-as-a-verifier: trust observed output, not narration).
 import { execFileSync, spawnSync } from 'node:child_process';
-import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync } from 'node:fs';
 import { basename, dirname, join, relative } from 'node:path';
 import { planCommitRows, rowFiles } from './prompt.mjs';
 import { readState, roundOf, toplevelOf } from './state.mjs';
@@ -29,11 +29,10 @@ export function changedFiles(toplevel) {
 }
 
 // The round's own paperwork is never fenced: the implementer writes BLOCKED.md and
-// `wf prompt` rewrites state while the commit is open. `wf design` writes SPEC.md and
-// SPEC-REVIEW.md at the worktree root, `wf review` writes REVIEW.md there (TJEW-700: every class B
-// commit was fenced on them).
-const ROOT_PAPERWORK = new Set(['SPEC.md', 'SPEC-REVIEW.md', 'REVIEW.md']);
-export const isRoundPaperwork = (file, folder) => file.startsWith('.wf/') || ROOT_PAPERWORK.has(file) || (folder && file.startsWith(folder.replace(/\\/g, '/').replace(/\/?$/, '/')));
+// `wf prompt` rewrites state while the commit is open. SPEC, SPEC-REVIEW and REVIEW are in the round
+// folder too (until 2026-09-23 they sat at the worktree root, and TJEW-700's class B commits were
+// fenced on them there).
+export const isRoundPaperwork = (file, folder) => file.startsWith('.wf/') || (folder && file.startsWith(folder.replace(/\\/g, '/').replace(/\/?$/, '/')));
 
 export function fenceViolations(changed, allowed, folder) {
 	const ok = new Set(allowed);
@@ -175,6 +174,17 @@ export function runCheck() {
 		process.exit(1);
 	}
 	logRun('green');
+	const blocked = folder && state?.commit ? join(toplevel, folder, 'BLOCKED.md') : null;
+	if (blocked && existsSync(blocked)) renameSync(blocked, join(toplevel, folder, resolvedBlockedName(state.commit, readdirSync(join(toplevel, folder)))));
+}
+
+// A block the row got past becomes its record: BLOCKED.md → BLOCKED-commit<n>.md, one name in every
+// round (682 and 700 renamed theirs by hand three different ways). The next block starts a fresh BLOCKED.md.
+export function resolvedBlockedName(n, taken) {
+	for (let i = 1; ; i++) {
+		const name = `BLOCKED-commit${n}${i === 1 ? '' : `-${i}`}.md`;
+		if (!taken.includes(name)) return name;
+	}
 }
 
 // basename, not endsWith: `deliver.selfcheck.mjs` ends with `check.mjs` too.

@@ -1,6 +1,6 @@
 # SPEC template
 
-The skeleton of `<worktree>/SPEC.md`. The section order is fixed — Shay reads top-down and
+The skeleton of `<round folder>/SPEC.md`. The section order is fixed — Shay reads top-down and
 stops when a line is wrong. Why each section exists: `DESIGN-SESSION.md`. The notation in
 `## Candidates`: `CALL-STACK-FORMAT.md`.
 

@@ -7,6 +7,7 @@ import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { basePortForBranch, slugForBranch } from '../../scripts/worktree-ports.mjs';
+import { roundFile } from './state.mjs';
 
 export const VERDICTS = ['approved', 'changes-requested', 'dismissed'];
 // Plannotator's annotate surface says `approved`; its review surface says `lgtm` (measured 0.27.16,
@@ -102,7 +103,7 @@ export function readVerdict(text) {
 }
 
 export function specShaFor(worktree) {
-  const f = join(worktree, 'SPEC.md');
+  const f = roundFile(worktree, 'SPEC.md');
   if (!existsSync(f)) return null;
   return `sha256:${createHash('sha256').update(readFileSync(f, 'utf8').replace(/\r\n/g, '\n')).digest('hex')}`;
 }

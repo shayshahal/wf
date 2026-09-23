@@ -6,12 +6,13 @@ with it the browser opens and the result folds itself into the file; without it 
 command writes the skeleton and opens `$VISUAL` / `$EDITOR` / `code`, and Shay writes
 the `path:line — text` lines by hand. Either way the same files land.
 
-**T1 — `wf design <round>`** writes `<worktree>/SPEC-REVIEW.md`. It requires SPEC.md,
+**T1 — `wf design <round>`** writes `<round folder>/SPEC-REVIEW.md`. It requires SPEC.md,
 marks `step design --waiting-on shay`, opens the spec for annotation (Plannotator
 `annotate --gate`), and folds the result into the REVIEW-FORMAT.md shape: one comment
 line each plus a final `verdict:` line.
 
-**T2 — `wf review <round> [--base dev]`** writes `<worktree>/REVIEW.md`. It marks
+**T2 — `wf review <round> [--base dev]`** writes `<round folder>/REVIEW.md`, then commits and pushes it to the PR branch so the
+merge carries it. It marks
 `step review --waiting-on shay`, writes the skeleton first (server URLs, files changed
 vs base, class, spec sha), opens the branch-vs-base diff (Plannotator `review
 --diff-type branch`), then appends the folded comments and verdict.

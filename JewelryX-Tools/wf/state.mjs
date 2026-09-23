@@ -22,6 +22,13 @@ export function readState(toplevel) {
 	}
 }
 
+// Every file a person reads (SPEC, SPEC-REVIEW, REVIEW, BLOCKED…) lives in the round folder and is
+// committed with the fix. Until 2026-09-23 SPEC, SPEC-REVIEW and REVIEW sat at the worktree root,
+// where they were rarely committed and reap lost them.
+export function roundFile(toplevel, name) {
+	return join(toplevel, readState(toplevel)?.folder ?? '', name);
+}
+
 // Merge: every writer keeps the fields it does not own.
 export function writeState(toplevel, patch) {
 	const state = { ...(readState(toplevel) ?? {}), ...patch };

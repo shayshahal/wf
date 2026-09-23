@@ -1,7 +1,7 @@
 // check.selfcheck.mjs — node JewelryX-Tools/wf/check.selfcheck.mjs → exit 0 when green.
 // Pure arms only (no git, no runners): the fence, the repro line, and the task list
 // buildTasks derives from a fixture diff.
-import { checkRunLine, buildTasks, fenceViolations, isRoundPaperwork, reproCommand, tokenize } from './check.mjs';
+import { checkRunLine, buildTasks, fenceViolations, isRoundPaperwork, reproCommand, resolvedBlockedName, tokenize } from './check.mjs';
 
 let failures = 0;
 const check = (name, cond, detail = '') =>
@@ -15,7 +15,10 @@ check('a file outside the row is a violation', violations.length === 1 && violat
 check('the round folder is never fenced', isRoundPaperwork(`${folder}/BLOCKED.md`, folder));
 check('.wf state is never fenced', isRoundPaperwork('.wf/state.json', folder));
 check('a lookalike sibling folder is still fenced', !isRoundPaperwork('bug-reports/BJEW-12/PLAN.md', folder));
-check('T1/T2 files at the root are never fenced', ['SPEC.md', 'SPEC-REVIEW.md', 'REVIEW.md'].every((f) => isRoundPaperwork(f, folder)));
+check('T1/T2 files in the round folder are never fenced', ['SPEC.md', 'SPEC-REVIEW.md', 'REVIEW.md'].every((f) => isRoundPaperwork(`${folder}/${f}`, folder)));
+check('a SPEC.md at the worktree root is fenced now: it belongs in the round folder', !isRoundPaperwork('SPEC.md', folder));
+check('a resolved block is named by its commit', resolvedBlockedName(2, ['PLAN.md']) === 'BLOCKED-commit2.md');
+check('a second resolved block on the same commit gets a suffix', resolvedBlockedName(2, ['BLOCKED-commit2.md']) === 'BLOCKED-commit2-2.md');
 check('a SPEC.md below the root is still fenced', !isRoundPaperwork('packages/backend/SPEC.md', folder));
 
 const research = ['# r', '', '## Repro', 'command: uv run --frozen pytest tests/test_auth.py -k otp', 'red output:', '1 failed', '', '## Seen before'].join('\r\n');

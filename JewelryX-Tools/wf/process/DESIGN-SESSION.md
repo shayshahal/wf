@@ -5,10 +5,9 @@ Shay and one agent, one pane, ~15 minutes, before any code on a Class B or C rou
 moves, in order. `SPEC-TEMPLATE.md` is the skeleton, `CALL-STACK-FORMAT.md` the notation,
 `REVIEW-FORMAT.md` what comes back.
 
-**Where the files live.** `SPEC.md`, `SPEC-REVIEW.md` and `REVIEW.md` sit at the **worktree
-root** while the round runs — `wf design`, `wf review` and `wf step` read them there — and are
-moved into the round's folder at delivery, by hand today (`wf archive-round` later). BJEW-586
-left all three on `dev`; PR #175 is the cleanup.
+**Where the files live.** `SPEC.md`, `SPEC-REVIEW.md` and `REVIEW.md` live in the **round folder**
+(`bug-reports/<round>/`, the `folder` in `.wf/state.json`) with the rest of the round, and ship with
+the PR. Until 2026-09-23 they sat at the worktree root and were moved by hand (BJEW-586: PR #175).
 
 ## 1 · prime
 

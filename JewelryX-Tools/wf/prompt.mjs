@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { basePortForBranch } from '../../scripts/worktree-ports.mjs';
 import { readState, roundOf, toplevelOf, writeState } from './state.mjs';
 
-const REVISE = '\nRead `SPEC-REVIEW.md` at the worktree root (wf design writes it there); revise `SPEC.md` and `{{folder}}/PLAN.md` to answer every annotation; change nothing it does not mention.\n';
+const REVISE = '\nRead `{{folder}}/SPEC-REVIEW.md` (wf design writes it there); revise `{{folder}}/SPEC.md` and `{{folder}}/PLAN.md` to answer every annotation; change nothing it does not mention.\n';
 
 // A `## Commits` row is a table line whose first cell is the commit number; header and
 // `|---|` separator rows are not. `line` is verbatim (that is what the prompt shows).

@@ -16,7 +16,7 @@ Row {{n}}:
 1. Make the change the Build stack describes for these files. Match the style around it.
 2. `pnpm wf check` — silent means green. Red prints only the errors.
 3. Green → `git add <row files>` and commit with the row's message exactly. Done.
-4. Red → fix, back to 2. **The same check red three times → stop and write BLOCKED.md.**
+4. Red → fix, back to 2. **The same check red three times → stop and write `{{folder}}/BLOCKED.md`.**
 
 ## Fence
 
@@ -29,6 +29,9 @@ Row {{n}}:
 - Do not "also fix" what you notice nearby. Put it in your reply; someone else decides.
 
 ## `{{folder}}/BLOCKED.md` (≤20 lines)
+
+Once the row is green, `wf check` renames it `BLOCKED-commit{{n}}.md`, the record of the block.
+Never rename or delete it yourself.
 
 ```
 # {{round}} — blocked at commit {{n}}

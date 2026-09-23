@@ -14,6 +14,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { lastField, readVerdict, specShaFor } from './review-format.mjs';
+import { roundFile } from './state.mjs';
 
 export const STEPS = ['classify', 'research', 'plan', 'design', 'implement', 'review', 'pr', 'merged', 'held'];
 const WAITING = ['shay', 'einat', 'saar', 'ci'];
@@ -23,7 +24,7 @@ export function t1Gap(toplevel) {
   const current = specShaFor(toplevel);
   if (!current) return 'no SPEC.md';
   let text;
-  try { text = readFileSync(join(toplevel, 'SPEC-REVIEW.md'), 'utf8'); } catch { return 'no SPEC-REVIEW.md'; }
+  try { text = readFileSync(roundFile(toplevel, 'SPEC-REVIEW.md'), 'utf8'); } catch { return 'no SPEC-REVIEW.md'; }
   const reviewed = lastField(text, 'spec-sha');
   if (reviewed !== current) return `SPEC-REVIEW.md is of ${reviewed ?? 'no sha'}, SPEC.md is now ${current}`;
   const verdict = readVerdict(text);
@@ -90,8 +91,8 @@ export async function runStep(argv) {
   }
   const toplevel = sh(['rev-parse', '--show-toplevel']);
   // research and plan are ungated: they are the steps that produce the gates.
-  if (step === 'design' && !existsSync(join(toplevel, 'SPEC.md'))) {
-    console.error('wf step design: no SPEC.md at the worktree root — the design phase writes it before exiting');
+  if (step === 'design' && !existsSync(roundFile(toplevel, 'SPEC.md'))) {
+    console.error('wf step design: no SPEC.md in the round folder — the design phase writes it before exiting');
     process.exit(2);
   }
   const round = flag('round') ?? sh(['rev-parse', '--abbrev-ref', 'HEAD']);

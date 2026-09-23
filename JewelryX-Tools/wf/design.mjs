@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// wf design <round> — T1: annotate SPEC.md in the round's worktree, fold → SPEC-REVIEW.md.
+// wf design <round> — T1: annotate the round folder's SPEC.md, fold → SPEC-REVIEW.md next to it.
 // Shay annotates only `## For T1` (SPEC-TEMPLATE.md): it is extracted to .wf/SPEC-T1.md and
 // that file is what opens. The sha in SPEC-REVIEW.md is still the whole SPEC.md's.
 // BJEW-454 rev 1 (312 lines) came back «information overload, i cannot follow this».
@@ -9,6 +9,7 @@ import { isPlannotatorPresent, annotateFile } from './adapters/plannotator.mjs';
 import { openInEditor } from './editor.mjs';
 import { resolveWorktree } from './resolve-worktree.mjs';
 import { appendDatedSection, devUrlsFor, foldFeedbackLine, renderHeader, renderSkeleton, specShaFor } from './review-format.mjs';
+import { roundFile } from './state.mjs';
 import { runStep } from './step.mjs';
 
 // The `## For T1` section of a SPEC, or null when the SPEC has none (older shape: annotate it whole).
@@ -24,9 +25,9 @@ export async function runDesign(argv) {
     process.exit(2);
   }
   const { path: worktree } = resolveWorktree(round);
-  const spec = join(worktree, 'SPEC.md');
+  const spec = roundFile(worktree, 'SPEC.md');
   if (!existsSync(spec)) {
-    console.error('no SPEC.md yet — the design session writes it');
+    console.error(`no ${spec} yet — the design session writes it`);
     process.exit(2);
   }
   const prev = process.cwd();
@@ -37,7 +38,7 @@ export async function runDesign(argv) {
     process.chdir(prev);
   }
   const header = () => renderHeader({ round, specSha: specShaFor(worktree), urls: devUrlsFor(worktree) });
-  const file = join(worktree, 'SPEC-REVIEW.md');
+  const file = roundFile(worktree, 'SPEC-REVIEW.md');
   const t1 = forT1Section(readFileSync(spec, 'utf8'));
   let toAnnotate = spec;
   if (t1) {
