@@ -3,7 +3,7 @@
 // (2026-09-23: a reap change whose self-check crashed). `wf update` fetches and installs;
 // wf.mjs calls autoUpdate() first on every run, so a push from SOURCE is live on the next
 // wf command, with one stderr line saying so. wf left the JewelryX repo the same day (Shay).
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -76,6 +76,10 @@ export function autoUpdate(wfPath, argv) {
 	try { published = git(gitDir, ['rev-parse', '--verify', '-q', REF]); } catch { return false; }
 	const installed = installedRevision();
 	if (!shouldUpdate({ runningFromLive, installed, published })) return false;
+	// Forward only: a copy installed from a commit not yet pushed is newer than origin/main, and
+	// "different" installed origin/main over it (2026-09-23, the flatten: back to the old layout).
+	// Exit 1 = installed is not an ancestor; an unknown installed commit (128) still updates.
+	if (spawnSync('git', [`--git-dir=${gitDir}`, 'merge-base', '--is-ancestor', installed, published]).status === 1) return false;
 	try {
 		if (!install(gitDir, published)) return false;
 	} catch (e) {
