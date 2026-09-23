@@ -11,6 +11,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runCheck } from './check.mjs';
 import { planCommitRows } from './prompt.mjs';
+import { openQuestionGate } from './ask.mjs';
 import { readState, roundOf, toplevelOf, writeState } from './state.mjs';
 import { runStep } from './step.mjs';
 
@@ -31,7 +32,13 @@ const git = (toplevel, args) => execFileSync('git', ['-C', toplevel, ...args], {
 
 export async function runDeliver() {
 	const toplevel = toplevelOf();
-	const { id, folder } = roundOf(readState(toplevel), toplevel);
+	const state = readState(toplevel);
+	const gate = openQuestionGate(state);
+	if (gate) {
+		console.error(`wf deliver: ${gate}`);
+		process.exit(2);
+	}
+	const { id, folder } = roundOf(state, toplevel);
 	const plan = join(toplevel, folder ?? '', 'PLAN.md');
 	if (!folder || !existsSync(plan)) {
 		console.error(`wf deliver: no ${folder ?? 'round folder'}/PLAN.md`);

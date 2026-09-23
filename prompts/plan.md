@@ -41,6 +41,8 @@ open: <b2b|admin> </path under the app> as <buyer|seller|admin> [mobile]
 ## Rules
 
 - **One approach.** No alternatives, no "option B". The Approach line says why.
+- `TICKET.md ## Intent` is what was asked, verbatim; validation checks the diff against it. Every
+  Intent line is built by a row or named under `## Not doing` with why. Never reword it.
 - The repro in RESEARCH.md is green after the last commit; that commit's check is `repro`.
 - Every file that will change is in a commit row. The implementer is fenced to those files; a
   file you forgot costs a round-trip to you.

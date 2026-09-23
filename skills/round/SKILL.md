@@ -27,6 +27,10 @@ The few things that differ between pi and Claude Code are in *Dispatch in this h
    Write `TICKET.md` — title, the thread in order, each image described by what it shows,
    reporter, and "Shay said" only if Shay's message said something. Never write a fact you did
    not check (a branch is not a deployment). That is the only Monday call an agent never makes.
+   `TICKET.md` opens with `## Intent`: what was asked, in the askers' own words (the reporter's
+   lines, Einat's rules, Shay's scope answers), quoted exactly, each with who and when, in thread
+   order. Never paraphrase, summarise, widen or add to it: validation judges the round against
+   it, and `wf prompt` refuses a `TICKET.md` without it. Image descriptions and your notes go below.
    A TJEW item that is a sentence is not a ticket: ask Shay ≤5 scope questions first (what it
    must do, for whom, what it must *not* touch — widen until he says "out of scope") and write
    the answers into `TICKET.md` under `## Scope`. That is where the plan's `## Not doing` comes from.
@@ -48,11 +52,11 @@ Read the phase's file, not the reply: `RESEARCH.md`, `PLAN.md`, `git log` + `BLO
 | research | `wf step plan` → dispatch `wf prompt plan` the same way. |
 | plan, class A | `wf step implement` → dispatch `wf prompt implement 1`. |
 | plan, class B/C | `wf step plan --class <B\|C>` (the plan's `Class:` line; paths measure nothing before the first commit). Start the design session (see *Dispatch in this harness*; it reads `{{wf}}/process/DESIGN-SESSION.md` and TICKET/RESEARCH/PLAN). It writes `SPEC.md` in the round folder with Shay and, on "shared", runs `wf step design`, which refuses to run without `SPEC.md`. Tell Shay: `<id>: T1 open — then wf design <branch>`. Stop. |
-| plan, Asks non-empty | Show Shay the Asks verbatim, one line each with the default. Stop. Shay's answer → `wf decide` records it → continue as class says. |
+| plan, Asks non-empty | `wf ask "<the Ask>" --default "<its default>"` for each, then show Shay the lines it printed. Stop. His answer → `wf decide --q <n> "<his words>"` per question → continue as class says. |
 | T1 approved | `wf step implement` → dispatch `wf prompt implement 1`. Annotated → dispatch `wf prompt plan --revise` (it reads `SPEC-REVIEW.md`). |
 | commit n green | dispatch `wf prompt implement n+1`; after the last: class B/C first dispatches `wf prompt as-built` (it writes `proof/CALL-STACK-AS-BUILT.md`, which `wf review` requires), then every class dispatches `wf prompt validate`. Both use model `anthropic/claude-sonnet-5` and tools `read,bash,write`. |
-| validate | verdict `matches plan` → `wf deliver`. `deviates` → show Shay the deviation lines; Shay says fix (→ `wf prompt fix-review` with VALIDATION.md as the review) or accept (→ deliver). |
-| BLOCKED | Show Shay the Question line, verbatim, with the round id. Stop. Answer → append it under `## Answer` in BLOCKED.md, dispatch `wf prompt implement n` again (fresh agent; it reads BLOCKED.md). |
+| validate | verdict `matches plan` → `wf deliver`. `deviates` → `wf ask "fix or accept: <the deviates / not met lines>"`, show Shay the line. Stop. His answer → `wf decide` → fix (`wf prompt fix-review` with VALIDATION.md as the review) or accept (deliver). |
+| BLOCKED | `wf ask --blocked` (it takes the Question line), show Shay the line it printed, with the round id. Stop. His answer → `wf decide "<his words>"` (it lands under `## Answer` in BLOCKED.md) → dispatch `wf prompt implement n` again (fresh agent; it reads BLOCKED.md). |
 | deliver | prints the PR url. `wf step review`; post `MONDAY.md` as a comment (its English lines in plain Hebrew) and set the item to *Fixed in Local* (Bugs board; it has no *In Review*, Shay 2026-09-23). Tell Shay `<id>: PR #n — opening the fix and the review`. Run `wf show` from the worktree first (it returns at once: a browser window on the round's stack, logged in, on the plan's `open:` page), then `wf review <branch>` yourself from the worktree (bash timeout 3600 s): it opens plannotator on the diff and blocks until Shay submits. Read the `verdict:` line it wrote to `REVIEW.md`, then `wf review <branch> --done`. |
 | T2 approved | `gh pr merge <n> --merge` (Shay's approval is the merge; never merge without it), then `git push origin --delete <branch>` (not `--delete-branch`: gh would try to check out `dev` in the round's worktree, and `dev` is checked out in the root). `wf step merged` → `wf reap <branch>`. The item stays *Fixed in Local*: Shay sets the QA statuses himself when he moves dev to QA. |
 | T2 annotated (`changes-requested`) | dispatch `wf prompt fix-review` (reads `REVIEW.md`; one commit, fenced to the files it names). `wf check` fences against the last PLAN.md row, so a fix in a file no row lists first gets a new row (`fix(review): …`, its files, `repro`) and `wf prompt implement <n>` to record it (3187601171). Then deliver again, which opens the review again. |
@@ -66,7 +70,9 @@ fix the prompt file.
 
 Only these, only when they happen:
 - a plan is waiting (class B/C): one line with the command
-- Asks or a BLOCKED question: verbatim, one line each
+- Asks or a BLOCKED question: verbatim, one line each, each first recorded with `wf ask`. A
+  question that is only in this chat dies with the session; `wf prompt` and `wf deliver` refuse
+  while a recorded one is open, so an answer is never skipped. Einat or Saar: `--to einat|saar`.
 - a PR is waiting: one line with the command
 - a round finished: `<id> merged, reaped`
 
@@ -76,7 +82,7 @@ No progress narration. No summaries of what the agent did. "What's waiting?" →
 
 ## Resume: "resume <id>" or a new session
 
-`wf status --all` says the phase and who it waits on. Dispatch the next phase from the
+`wf status --all` says the phase, who it waits on, and the open questions word for word. Dispatch the next phase from the
 table above. Nothing lives in your context that the files do not have.
 
 ## Authority — who may do what

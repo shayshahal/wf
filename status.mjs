@@ -6,6 +6,7 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { questionLines } from './ask.mjs';
 import { basePortForBranch, portlessOriginsForSlug, portsAndSlugsForBranches, slugForBranch } from './scripts/worktree-ports.mjs';
 
 export const WF_YOU_MARKER = '← YOU';
@@ -129,12 +130,14 @@ export function allLines({ paths, readState, detailFor, now = Date.now() }) {
   for (const { path, state } of rounds) {
     const group = state.step === 'held' ? 'held' : state.waiting_on === 'shay' ? 'waiting on you' : 'running';
     const cells = [state.id ?? state.round, state.step, state.waiting_on ?? 'running', formatAgeSince(state.since, now), detailFor(path, state) ?? ''];
-    groups[group].push(cells.join('  ').trimEnd());
+    // Open questions (wf ask) under their round: what the round waits for, not only on whom.
+    groups[group].push({ line: cells.join('  ').trimEnd(), questions: questionLines(state) });
   }
   const out = [];
   for (const [name, lines] of Object.entries(groups)) {
     if (!lines.length) continue;
-    out.push(`${name}:`, ...lines.sort().map((l) => `  ${l}`));
+    lines.sort((a, b) => (a.line < b.line ? -1 : a.line > b.line ? 1 : 0));
+    out.push(`${name}:`, ...lines.flatMap((l) => [`  ${l.line}`, ...l.questions.map((q) => `      ${q}`)]));
   }
   return out;
 }

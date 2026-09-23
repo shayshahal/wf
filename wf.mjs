@@ -29,9 +29,12 @@ if (cmd === 'step') {
 } else if (cmd === 'deliver') {
   const { runDeliver } = await import('./deliver.mjs');
   await runDeliver();
+} else if (cmd === 'ask') {
+  const { runAsk } = await import('./ask.mjs');
+  await runAsk(process.argv.slice(3));
 } else if (cmd === 'decide') {
-  const { runDecide } = await import('./step.mjs');
-  runDecide(process.argv.slice(3));
+  const { runDecide } = await import('./ask.mjs');
+  await runDecide(process.argv.slice(3));
 } else if (cmd === 'reap') {
   const { runReap } = await import('./reap.mjs');
   runReap(process.argv.slice(3));
@@ -58,6 +61,6 @@ if (cmd === 'step') {
   const { runStacks } = await import('./stacks.mjs');
   await runStacks(process.argv.slice(3));
 } else {
-  console.log('usage: wf <new|step|prompt|check|deliver|decide|status|reap|classify|design|show|review|seed|stacks|update> [...]');
+  console.log('usage: wf <new|step|prompt|check|deliver|ask|decide|status|reap|classify|design|show|review|seed|stacks|update> [...]');
   process.exit(2);
 }

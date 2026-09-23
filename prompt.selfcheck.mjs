@@ -3,7 +3,7 @@
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { planCommitRows, renderPrompt, rowFiles } from './prompt.mjs';
+import { planCommitRows, renderPrompt, rowFiles, ticketIntent } from './prompt.mjs';
 import { readState, writeState } from './state.mjs';
 
 let failures = 0;
@@ -42,6 +42,12 @@ writeState(dir, { commit: 2 });
 const state = readState(dir);
 check('writeState merges instead of replacing', state.id === 'BJEW-1' && state.commit === 2, JSON.stringify(state));
 writeFileSync(join(dir, 'broken.json'), 'x');
+const ticket = '# BJEW-1 — x\r\n\r\n## Intent\r\n\r\n- Einat, 2026-09-22: «the heart is cut»\r\n\r\n## Thread\r\n1. …\r\n';
+check('ticketIntent is the section body, verbatim, CRLF or not', ticketIntent(ticket) === '- Einat, 2026-09-22: «the heart is cut»', JSON.stringify(ticketIntent(ticket)));
+check('an Intent at the end of the file', ticketIntent('# t\n## Intent\nShay: hide deleted users\n') === 'Shay: hide deleted users');
+check('no ## Intent → null', ticketIntent('# t\n## Thread\n1. x\n') === null);
+check('an empty ## Intent → null', ticketIntent('# t\n## Intent\n\n## Thread\nx\n') === null);
+check('## Intent in a sub-heading does not count', ticketIntent('# t\n### Intent\nx\n') === null);
 check('readState of a stateless dir is null', readState(join(dir, 'nope')) === null);
 rmSync(dir, { recursive: true, force: true });
 

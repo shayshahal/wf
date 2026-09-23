@@ -9,6 +9,7 @@ import { dirname, join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { basePortForBranch } from './scripts/worktree-ports.mjs';
+import { openQuestionGate } from './ask.mjs';
 import { readState, roundOf, toplevelOf, writeState } from './state.mjs';
 
 const REVISE = '\nRead `{{folder}}/SPEC-REVIEW.md` (wf design writes it there); revise `{{folder}}/SPEC.md` and `{{folder}}/PLAN.md` to answer every annotation; change nothing it does not mention.\n';
@@ -40,6 +41,16 @@ export function renderPrompt(template, vars) {
 
 const templatesDir = join(dirname(fileURLToPath(import.meta.url)), 'prompts');
 
+// Pure: the body of TICKET.md's `## Intent` — the requester's words, verbatim — or null. Research and
+// plan start from it, and validate judges the diff against it, not only against the plan the round
+// wrote for itself (firstmate's "Captain's intent": the reviewer's acceptance criteria).
+export function ticketIntent(text) {
+	const body = text.replace(/\r\n/g, '\n').match(/^## Intent[ \t]*\n([\s\S]*?)(?=^## |(?![\s\S]))/m)?.[1].trim();
+	return body || null;
+}
+
+const INTENT_PHASES = ['research', 'plan', 'validate'];
+
 export function runPrompt(argv) {
 	const phase = argv[0];
 	if (!['research', 'plan', 'implement', 'as-built', 'validate', 'fix-review'].includes(phase)) {
@@ -53,7 +64,21 @@ export function runPrompt(argv) {
 		console.error('wf prompt: no round in .wf/state.json — `wf new <branch> --id <id>` first');
 		process.exit(2);
 	}
+	const gate = openQuestionGate(state);
+	if (gate) {
+		console.error(`wf prompt ${phase}: ${gate}`);
+		process.exit(2);
+	}
 	const vars = { round: id, folder };
+	if (INTENT_PHASES.includes(phase)) {
+		let ticket = '';
+		try { ticket = readFileSync(join(toplevel, folder, 'TICKET.md'), 'utf8'); } catch { /* reported below */ }
+		vars.intent = ticketIntent(ticket);
+		if (!vars.intent) {
+			console.error(`wf prompt ${phase}: ${folder}/TICKET.md has no \`## Intent\` — the requester's words, verbatim and attributed (round skill, Start 1)`);
+			process.exit(2);
+		}
+	}
 	// Direct ports (scripts/dev-worktree.mjs): Node on Windows cannot resolve *.localhost, so a
 	// spec's API calls need these (TJEW-663 verify, 2026-09-23: ENOTFOUND in auth.setup).
 	try {

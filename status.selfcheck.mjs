@@ -69,11 +69,13 @@ const allStates = new Map([
   [shay, { id: 'BJEW-2', step: 'review', waiting_on: 'shay', since: '2026-09-16T15:00:00.000Z' }],
   [mid, { id: 'BJEW-3', step: 'held', waiting_on: 'einat', since: '2026-09-17T13:00:00.000Z' }],
 ]);
+allStates.set(shay, { ...allStates.get(shay), questions: [{ n: 1, to: 'shay', text: 'hide or delete?', default: 'hide' }] });
 const readAll = (p) => allStates.get(p) ?? null;
 const all = allLines({ paths: [old, shay, mid, bare], readState: readAll, detailFor: (_p, s) => (s.step === 'implement' ? `commit ${s.commit} of 3` : s.step === 'review' ? 'https://pr/2' : ''), now });
 check('groups printed in order: waiting on you, running, held', all.filter((l) => !l.startsWith(' ')).join('|') === 'waiting on you:|running:|held:', all.join('|'));
 check('the waiting line is id, step, who, age, detail', all[1] === '  BJEW-2  review  shay  24h  https://pr/2', JSON.stringify(all[1]));
-check('a round nobody waits on reads "running"', all[3] === '  BJEW-1  implement  running  3m  commit 2 of 3', JSON.stringify(all[3]));
+check('an open question sits under its round, not sorted away from it', all[2] === '      ? q1 → shay: hide or delete? (default: hide)', JSON.stringify(all[2]));
+check('a round nobody waits on reads "running"', all[4] === '  BJEW-1  implement  running  3m  commit 2 of 3', JSON.stringify(all[4]));
 check('a worktree with no state is not a round', !all.join('|').includes('wt-bare'), all.join('|'));
 check('no rounds → no lines', allLines({ paths: [bare], readState: readAll, detailFor: () => '', now }).length === 0);
 check('liveRounds counts everything but merged and held', liveRounds({ paths: [old, shay, mid, bare], readState: readAll }).map((r) => r.state.id).join() === 'BJEW-1,BJEW-2', JSON.stringify(liveRounds({ paths: [old, shay, mid, bare], readState: readAll }).map((r) => r.state.id)));

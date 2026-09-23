@@ -37,31 +37,12 @@ const sh = (args) => execFileSync('git', args, { encoding: 'utf8' }).trim();
 
 export const planPath = (toplevel, state) => join(toplevel, state?.folder ?? '', 'PLAN.md');
 
-// `wf decide "<text>"` — the orchestrator writing down an answer Shay gave, where the
-// implementer will read it (SKILL.md: Asks → Shay's answer → wf decide records it).
+// `wf decide` (ask.mjs) writes an answer Shay gave where the implementer will read it.
 export function appendDecision(planText, text, date = new Date().toISOString().slice(0, 10)) {
   const line = `- ${date} ${text.trim()}`;
   const body = planText.replace(/\r\n/g, '\n');
   if (!/^## Decisions[ \t]*$/m.test(body)) return `${body.trimEnd()}\n\n## Decisions\n${line}\n`;
   return body.replace(/^## Decisions[ \t]*\n([\s\S]*?)(?=^## |(?![\s\S]))/m, (m, section) => `## Decisions\n${section.trimEnd() ? `${section.trimEnd()}\n` : ''}${line}\n\n`).trimEnd() + '\n';
-}
-
-export function runDecide(argv) {
-  const text = argv.filter((a) => !a.startsWith('-')).join(' ').trim();
-  if (!text) {
-    console.error('usage: wf decide "<the decision, one line>"');
-    process.exit(2);
-  }
-  const toplevel = sh(['rev-parse', '--show-toplevel']);
-  let prev = {};
-  try { prev = JSON.parse(readFileSync(join(toplevel, '.wf', 'state.json'), 'utf8')); } catch { /* no round yet */ }
-  const plan = planPath(toplevel, prev);
-  if (!existsSync(plan)) {
-    console.error(`wf decide: no ${plan} to record it in`);
-    process.exit(2);
-  }
-  writeFileSync(plan, appendDecision(readFileSync(plan, 'utf8'), text));
-  console.log(`recorded in ${plan} § Decisions`);
 }
 
 export async function runStep(argv) {
@@ -124,11 +105,16 @@ export async function runStep(argv) {
     klass = kept;
   }
   // Spread prev: id/folder (wf new) and commit (wf prompt implement) are not this step's to drop.
-  const state = { ...prev, round, class: klass, base, step, waiting_on: waitingOn, since: new Date().toISOString() };
+  // An open question (wf ask) keeps the round waiting on its person until `wf decide` closes it.
+  const state = { ...prev, round, class: klass, base, step, waiting_on: waitingOn ?? prev.questions?.[0]?.to ?? null, since: new Date().toISOString() };
   mkdirSync(join(toplevel, '.wf'), { recursive: true });
   writeFileSync(file, JSON.stringify(state, null, 2) + '\n');
   console.log(JSON.stringify(state));
-  // Notify every adapter whose is<Name>Present() is true — a failing adapter never fails the step.
+  await notifyAdapters(state);
+}
+
+// Notify every adapter whose is<Name>Present() is true — a failing adapter never fails the command.
+export async function notifyAdapters(state) {
   const dir = join(dirname(fileURLToPath(import.meta.url)), 'adapters');
   let names = [];
   try {
