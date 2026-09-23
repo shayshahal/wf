@@ -5,7 +5,7 @@
 // stacks (the permanent dev + qa stacks: up|down|status).
 import { fileURLToPath } from 'node:url';
 import { autoUpdate } from './update.mjs';
-// The installed copy follows tools/workflow-v2: a pushed change is live on the next run (update.mjs).
+// The installed copy follows shayshahal/wf main: a pushed change is live on the next run (update.mjs).
 autoUpdate(fileURLToPath(import.meta.url), process.argv.slice(2));
 const cmd = process.argv[2];
 if (cmd === 'step') {

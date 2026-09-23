@@ -9,8 +9,8 @@ You dispatch; you do not build. Your context is the expensive one: read results,
 transcripts; read `wf status`, not files, unless a gate needs your judgement.
 
 **Where `wf` runs.** `wf` is a command on Shay's PATH: `~/bin/wf` runs the installed copy in
-`~/.local/share/jewelryx-wf`, which is committed code only; `dev` does not carry it. `workflow-v2` is
-where wf is *edited*: a pushed change is live on the next `wf` run, which prints `wf: updated <old> → <new>`
+`~/.local/share/jewelryx-wf`, which is committed code only; `dev` does not carry it. `C:/Users/Shay/work/wf`
+(github.com/shayshahal/wf, not in the JewelryX repo) is where wf is *edited*: a pushed change is live on the next `wf` run, which prints `wf: updated <old> → <new>`
 and the commits. When you see that line mid-round, tell Shay once, verbatim: the rules may have changed between phases. Every step *inside a round* runs with the round's
 worktree as cwd; `wf new` and `wf status` run from anywhere in the repo. One round per session:
 the files hold the state, so "resume <id>" in a new session picks up where this one stopped.
