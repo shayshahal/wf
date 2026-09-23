@@ -4,7 +4,7 @@
 // wf.mjs calls autoUpdate() first on every run, so a push from SOURCE is live on the next
 // wf command, with one stderr line saying so. wf left the JewelryX repo the same day (Shay).
 import { execFileSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -16,6 +16,15 @@ const REF = 'refs/remotes/origin/main';
 
 const git = (gitDir, args) => execFileSync('git', [`--git-dir=${gitDir}`, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 const installedRevision = () => { try { return readFileSync(join(LIVE, 'REVISION'), 'utf8').trim(); } catch { return null; } };
+
+// Pure: skills, agents and docs are read as they are, from whatever worktree the agent is in. A
+// round cut from dev has no JewelryX-Tools/wf/ (its JewelryX-Tools/ is the team's v1), so every
+// such path in the installed copy points at the copy itself. `wf prompt` does the same per prompt.
+export function anchorToolPaths(text, live) {
+	return text.replace(/(?<![\w/.~-])JewelryX-Tools\/wf\//g, `${live.replace(/\\/g, '/')}/JewelryX-Tools/wf/`);
+}
+const markdownUnder = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+	e.isDirectory() ? markdownUnder(join(dir, e.name)) : e.name.endsWith('.md') ? [join(dir, e.name)] : []);
 
 // Pure: update only a running installed copy, only when the pushed branch moved.
 export function shouldUpdate({ runningFromLive, installed, published }) {
@@ -39,6 +48,7 @@ export function install(gitDir, rev) {
 		git(gitDir, ['archive', '--format=tar', '-o', join(fresh, '_wf.tar'), rev]);
 		execFileSync('tar', ['-xf', '_wf.tar'], { cwd: fresh });
 		rmSync(join(fresh, '_wf.tar'));
+		for (const f of markdownUnder(join(fresh, 'JewelryX-Tools', 'wf'))) writeFileSync(f, anchorToolPaths(readFileSync(f, 'utf8'), LIVE));
 		writeFileSync(join(fresh, 'REVISION'), `${rev}\n`);
 		// Swap whole, so a half-written copy is never live; links point at LIVE's path and follow.
 		const old = `${LIVE}.old`;
@@ -46,9 +56,13 @@ export function install(gitDir, rev) {
 		if (existsSync(LIVE)) renameSync(LIVE, old);
 		renameSync(fresh, LIVE);
 		rmSync(old, { recursive: true, force: true });
-		for (const dir of [join(homedir(), '.pi', 'agent', 'agents'), join(homedir(), '.claude', 'agents')]) {
-			if (existsSync(dir)) copyFileSync(join(LIVE, 'JewelryX-Tools', 'wf', 'agents', 'round-worker.md'), join(dir, 'round-worker.md'));
-		}
+		// Every wf agent into pi. Claude Code gets round-worker only: the others are written in pi's
+		// frontmatter (model: anthropic/…, tools: read, bash), and Claude Code uses Explore there.
+		const agents = join(LIVE, 'JewelryX-Tools', 'wf', 'agents');
+		const pi = join(homedir(), '.pi', 'agent', 'agents');
+		const claude = join(homedir(), '.claude', 'agents');
+		if (existsSync(pi)) for (const f of readdirSync(agents)) copyFileSync(join(agents, f), join(pi, f));
+		if (existsSync(claude)) copyFileSync(join(agents, 'round-worker.md'), join(claude, 'round-worker.md'));
 		return rev;
 	});
 }

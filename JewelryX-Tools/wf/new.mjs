@@ -10,7 +10,7 @@
 // three stacks); --force overrides. --id records id + folder in the new worktree's state
 // and creates <folder>/repro/ — that folder is what every `wf prompt` substitutes.
 import { execFileSync, spawnSync } from 'node:child_process';
-import { closeSync, mkdirSync, openSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { closeSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, rmdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -80,6 +80,8 @@ export function runNew(argv) {
 	const { items } = JSON.parse(execFileSync('wt', ['list', '--format', 'json'], { encoding: 'utf8' }));
 	const path = items.find((w) => w.branch === branch)?.worktree?.path;
 	if (!path) { console.error(`wf new: worktree for ${branch} not found`); process.exit(1); }
+	const unlinked = unlinkCompetingSkills(path);
+	if (unlinked.length) console.log(`wf new: unlinked ${unlinked.join(', ')} — the round skill is this worktree's one flow`);
 	// The wf that was invoked, not the round's copy: a round is cut from dev, which may not carry
 	// wf at all (BJEW-603, 2026-09-23: MODULE_NOT_FOUND after every hook had passed).
 	execFileSync('node', [fileURLToPath(new URL('./wf.mjs', import.meta.url)), 'step', 'classify', '--base', base, ...(klass ? ['--class', klass] : [])], { stdio: 'inherit', cwd: path });
@@ -92,6 +94,23 @@ export function runNew(argv) {
 	console.log(execFileSync('node', ['scripts/dev-worktree.mjs', '--urls', String(basePortForBranch(branch)), '--slug', slugForBranch(branch)], { encoding: 'utf8', cwd: path }).trimEnd());
 	console.log(SEED_CREDENTIALS);
 	console.log(`Worktree: ${path}`);
+}
+
+// Shay's rounds run one flow, the round skill. wt's pre-start hook runs link-tools, which links dev's
+// v1 orchestrators into every worktree, and both answer "start <id>". The links are local and
+// gitignored: removing them here changes nobody else's machine.
+const COMPETING_SKILLS = ['bug-fix-orchestrator', 'cr-implement-orchestrator'];
+export function unlinkCompetingSkills(worktree) {
+	const removed = [];
+	for (const dir of ['.pi/skills', '.claude/skills', '.agents/skills']) {
+		for (const name of COMPETING_SKILLS) {
+			const link = join(worktree, dir, name);
+			try { if (!lstatSync(link).isSymbolicLink()) continue; } catch { continue; }
+			rmdirSync(link); // the link only (junction or symlink), never the skill folder it points at
+			removed.push(`${dir}/${name}`);
+		}
+	}
+	return removed;
 }
 
 // A repro that uses import.meta — itself, or through a helper such as verification/tests/support/otp-lock.ts —
