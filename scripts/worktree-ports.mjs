@@ -3,7 +3,7 @@
 // admin P+20000 (scripts/dev-worktree.mjs — do not touch that scheme).
 // Mongo sits at 40000+(P-10000), clear of all three server ports.
 // Used by scripts/worktree-db.mjs, scripts/sanitize-worktree-env.mjs
-// (--base-port) and JewelryX-Tools/wf/status.mjs.
+// (--base-port) and wf (status.mjs, stacks.mjs, …).
 import { execFileSync } from 'node:child_process';
 
 export const MONGO_PORT_BASE = 40000;
