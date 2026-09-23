@@ -1,0 +1,53 @@
+# Local override for the permanent QA stack (`wf stacks`, JewelryX-Tools/wf/stacks.mjs).
+#
+# Layered over the QA worktree's own docker-compose.qa.yml (origin/qa, never edited):
+#   docker compose -p jewelryx-qa -f <qa>/docker-compose.qa.yml -f docker-compose.qa-local.yml \
+#     --env-file ~/.jewelryx-stacks/qa.env up -d --build
+# --env-file is the whole point: the worktree's own .env (if any) is never read, so no
+# real S3/SMS keys reach this stack. stacks.mjs writes qa.env (providers off).
+#
+# - its own mongo (jewelryx-mongo-qa: `worktree-db.mjs seed qa` finds it by that name),
+#   in the named volume jewelryx-qa_mongo_data (the qa file already declares mongo_data)
+# - no container_name clashes: the qa file pins jewelryx-backend etc.; reset to compose's
+#   project-scoped names (jewelryx-qa-backend-1 …)
+# - nginx on 127.0.0.1:${QA_HTTP_PORT} instead of :8000; portless aliases
+#   qa.jewelryx.localhost to it
+
+services:
+  mongo:
+    image: mongo:7
+    container_name: jewelryx-mongo-qa
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${QA_MONGO_PORT:?}:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  backend:
+    container_name: !reset null
+    depends_on:
+      mongo:
+        condition: service_healthy
+
+  frontend:
+    container_name: !reset null
+
+  admin-dashboard:
+    container_name: !reset null
+
+  nginx:
+    container_name: !reset null
+    ports: !override
+      - "127.0.0.1:${QA_HTTP_PORT:?}:80"
+
+volumes:
+  mongo_data:
+
+networks:
+  default:
+    name: jewelryx-qa-local-network

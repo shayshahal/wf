@@ -14,6 +14,8 @@ each round commits (`bug-reports/<round>/`, described in that repo's `bug-report
 - `JewelryX-Tools/wf/prompts/`: one prompt per phase, printed by `wf prompt <phase>`
 - `JewelryX-Tools/wf/process/`: classes, design session, review format, touchpoints
 - `scripts/worktree-ports.mjs`, `docs/agents/`, `.gitattributes`: what wf needs from the project
+- `docker-compose.qa-local.yml`: the override `wf stacks` layers over the QA worktree's compose file
+- `docs/plans/2026-09-17-workflow-v2.md`: the plan wf was built from
 
 The layout keeps JewelryX's paths, so nothing had to change when wf moved here.
 

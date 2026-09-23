@@ -21,9 +21,13 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { basePortForBranch, mongoPortForBase, portlessOriginsForSlug } from '../../scripts/worktree-ports.mjs';
 
+// TOOLS is wf's own root (docker-compose.qa-local.yml). The stacks themselves run from the project's
+// worktrees, where worktrunk puts them (worktree-path ~/.herdr/worktrees/{{ remote_repo }}/…): wf left
+// the JewelryX repo on 2026-09-23 and no longer sits next to them.
 const TOOLS = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
-const DEV_DIR = join(TOOLS, '..', 'dev');
-const QA_DIR = join(TOOLS, '..', 'qa');
+const WORKTREES = join(homedir(), '.herdr', 'worktrees', 'jeweleryx');
+const DEV_DIR = join(WORKTREES, 'dev');
+const QA_DIR = join(WORKTREES, 'qa');
 const STATE = join(homedir(), '.jewelryx-stacks');
 const TASK = 'JewelryX Stacks';
 const DEV_DB = 'jewelryx_dev';
@@ -142,7 +146,7 @@ async function must(cmd, args, opts) {
 }
 const tail = (s, n = 25) => s.trim().split(/\r?\n/).slice(-n).join('\n');
 const git = (dir, ...args) => must('git', ['-C', dir, ...args]).then((s) => s.trim());
-const node = (script, ...args) => must(process.execPath, [join(TOOLS, 'scripts', script), ...args]);
+const node = (script, ...args) => must(process.execPath, [join(DEV_DIR, 'scripts', script), ...args]);
 
 function commandLineOf(pid) {
   const ps = `(Get-CimInstance Win32_Process -Filter "ProcessId=${Number(pid)}").CommandLine`;
@@ -220,7 +224,7 @@ async function devLoop() {
       const env = { ...process.env, ...devEnv(mongoPortForBase(base)), WF_DEV_LOG: at('dev.log') };
       await node('worktree-db.mjs', 'up', 'dev', String(base));
       await seedIfNeeded('jewelryx-mongo-dev', DEV_DB, 'dev');
-      const child = spawn(process.execPath, [join(TOOLS, 'scripts', 'dev-worktree.mjs'), String(base), '--slug', 'dev'], {
+      const child = spawn(process.execPath, [join(DEV_DIR, 'scripts', 'dev-worktree.mjs'), String(base), '--slug', 'dev'], {
         cwd: DEV_DIR, env, stdio: 'ignore', windowsHide: true,
       });
       log('stacks.log', `dev: servers started (pid ${child.pid}, base ${base}, log ${at('dev.log')})`);
@@ -262,7 +266,7 @@ function isAlive(pid) {
 }
 
 async function qaPrepare() {
-  if (!existsSync(QA_DIR)) await must('git', ['-C', TOOLS, 'worktree', 'add', '--detach', QA_DIR, 'origin/qa']);
+  if (!existsSync(QA_DIR)) await must('git', ['-C', DEV_DIR, 'worktree', 'add', '--detach', QA_DIR, 'origin/qa']);
   // Detach (at the same commit) if it sits on a branch: nothing may ever be committed there.
   if ((await sh('git', ['-C', QA_DIR, 'symbolic-ref', '-q', 'HEAD'])).status === 0) await git(QA_DIR, 'checkout', '--detach');
   const jwtSecret = /^JWT_SECRET_KEY=(.+)$/m.exec(read('qa.env'))?.[1] ?? randomBytes(32).toString('hex');
@@ -340,8 +344,9 @@ async function qaLoop() {
 // ── commands ────────────────────────────────────────────────────────────────
 
 async function run() {
-  // The logon task starts in System32; `wt step eval` (hash_port) needs a git checkout as cwd.
-  process.chdir(TOOLS);
+  // The logon task starts in System32; `wt step eval` (hash_port) needs a git checkout as cwd. Not
+  // TOOLS: wf update renames that folder, and Windows refuses to rename a process's cwd.
+  process.chdir(DEV_DIR);
   mkdirSync(STATE, { recursive: true });
   const other = alivePid('runner.pid', 'stacks');
   if (other && other !== process.pid) return console.log(`stacks: already running (pid ${other})`);
