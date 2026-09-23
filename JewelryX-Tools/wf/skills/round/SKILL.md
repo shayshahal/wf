@@ -47,7 +47,7 @@ Read the phase's file, not the reply: `RESEARCH.md`, `PLAN.md`, `git log` + `BLO
 |---|---|
 | research | `wf step plan` → dispatch `wf prompt plan` the same way. |
 | plan, class A | `wf step implement` → dispatch `wf prompt implement 1`. |
-| plan, class B/C | `wf step plan --class <B\|C>` (the plan's `Class:` line; paths measure nothing before the first commit). Start the design session (see *Dispatch in this harness*; it reads `JewelryX-Tools/wf/process/DESIGN-SESSION.md` and TICKET/RESEARCH/PLAN). It writes `SPEC.md` with Shay and, on "shared", runs `wf step design`, which refuses to run without `SPEC.md`. Tell Shay: `<id>: T1 open — then wf design <branch>`. Stop. |
+| plan, class B/C | `wf step plan --class <B\|C>` (the plan's `Class:` line; paths measure nothing before the first commit). Start the design session (see *Dispatch in this harness*; it reads `JewelryX-Tools/wf/process/DESIGN-SESSION.md` and TICKET/RESEARCH/PLAN). It writes `SPEC.md` in the round folder with Shay and, on "shared", runs `wf step design`, which refuses to run without `SPEC.md`. Tell Shay: `<id>: T1 open — then wf design <branch>`. Stop. |
 | plan, Asks non-empty | Show Shay the Asks verbatim, one line each with the default. Stop. Shay's answer → `wf decide` records it → continue as class says. |
 | T1 approved | `wf step implement` → dispatch `wf prompt implement 1`. Annotated → dispatch `wf prompt plan --revise` (it reads `SPEC-REVIEW.md`). |
 | commit n green | dispatch `wf prompt implement n+1`; after the last: class B/C first dispatches `wf prompt as-built` (it writes `proof/CALL-STACK-AS-BUILT.md`, which `wf review` requires), then every class dispatches `wf prompt validate`. Both use model `anthropic/claude-sonnet-5` and tools `read,bash,write`. |

@@ -110,7 +110,7 @@ puts in front of Shay; the rest of the file is the worker's evidence. Two rounds
 591 lines; BJEW-454, 312) proved he reads the ASKs and the pick and skips the rest — so
 hand him exactly those.
 
-When Shay says **"shared"**: write `SPEC.md`, take its sha256, `wf step design` (it parks the
+When Shay says **"shared"**: write `SPEC.md` in the round folder (the `folder` in `.wf/state.json`), take its sha256, `wf step design` (it parks the
 round on shay), and **stop**. The worker implements exactly the frozen SPEC; a needed signature
 change is stop-and-report, not a decision.
 

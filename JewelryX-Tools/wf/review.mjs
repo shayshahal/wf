@@ -3,7 +3,7 @@
 // wf review <round> --done — verdict → step implement (changes-requested) | pr (approved).
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import { isPlannotatorPresent, reviewDiff } from './adapters/plannotator.mjs';
 import { openInEditor } from './editor.mjs';
 import { resolveWorktree } from './resolve-worktree.mjs';
@@ -32,18 +32,23 @@ const readState = (worktree) => {
   }
 };
 const persistedBase = (worktree) => readState(worktree).base ?? null;
-// REVIEW.md is written after deliver committed the round folder: commit it and push it to the PR
-// branch, so the merge carries the T2 record (dev has no branch protection: the push does not hold it).
+// REVIEW.md, and MONDAY.md (deliver writes it after committing the folder: it needs the PR url), come
+// after the delivery commit. Commit the whole round folder at T2 and push it to the PR branch, so the
+// merge carries every file bug-reports/README.md lists (dev has no branch protection: the push does
+// not hold the merge). Only 2 of 6 rounds on dev had MONDAY.md, the two delivered twice.
 const keepReview = (worktree, file, round) => {
-  const rel = relative(worktree, file).replace(/\\/g, '/');
+  const folder = readState(worktree).folder ?? relative(worktree, dirname(file)).replace(/\\/g, '/');
   const git = (args) => spawnSync('git', ['-C', worktree, ...args], { encoding: 'utf8' });
-  if (git(['status', '--porcelain', '--', rel]).stdout.trim() === '') return;
-  git(['add', '--', rel]);
+  // As deliver: exclude repro/.auth only while .gitignore does not already (git add refuses the exclude then).
+  const authIgnored = git(['check-ignore', '-q', `${folder}/repro/.auth`]).status === 0;
+  const paths = ['--', folder, ...(authIgnored ? [] : [`:(exclude)${folder}/repro/.auth`])];
+  if (git(['status', '--porcelain', ...paths]).stdout.trim() === '') return;
+  git(['add', ...paths]);
   const verdict = readVerdict(readFileSync(file, 'utf8')) ?? 'pending';
-  const committed = git(['commit', '-q', '-m', `docs(${readState(worktree).id ?? round}): T2 review — ${verdict}`, '--', rel]);
-  if (committed.status !== 0) return console.error(`wf review: could not commit ${rel}: ${`${committed.stdout}${committed.stderr}`.trim().split('\n').at(-1)}`);
+  const committed = git(['commit', '-q', '-m', `docs(${readState(worktree).id ?? round}): T2 review — ${verdict}`, ...paths]);
+  if (committed.status !== 0) return console.error(`wf review: could not commit ${folder}: ${`${committed.stdout}${committed.stderr}`.trim().split('\n').at(-1)}`);
   const pushed = git(['push', '-q']);
-  if (pushed.status !== 0) console.error(`wf review: committed ${rel}, the push failed — push before merging: ${pushed.stderr.trim().split('\n').at(-1)}`);
+  if (pushed.status !== 0) console.error(`wf review: committed ${folder}, the push failed — push before merging: ${pushed.stderr.trim().split('\n').at(-1)}`);
 };
 const changedFiles = (worktree, base) => {
   try {
