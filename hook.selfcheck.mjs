@@ -3,7 +3,7 @@
 // names and seed decisions, its dev-server commands. Nothing is run.
 import { gateVerdict, hookBlock, PROJECT, withHookBlock } from './hook.mjs';
 import { devCommands } from './stack/dev.mjs';
-import { mongoUrlFromDockerPort, seedPlan, worktreeDatabase, worktreeMongoUrl } from './stack/db.mjs';
+import { mongoUrlFromDockerPort, worktreeDatabase, worktreeMongoUrl } from './stack/db.mjs';
 import { sanitizeEnv } from './stack/env.mjs';
 
 let failures = 0;
@@ -12,7 +12,7 @@ const check = (name, cond, detail = '') =>
 
 // ── the block and its install
 const block = hookBlock('C:/wf/wf.mjs');
-check('every pre-start step calls wf hook with slug and port', ['env', 'node', 'verify', 'tools', 'python', 'db'].every((s) => block.includes(`${s} = 'node C:/wf/wf.mjs hook ${s} {{ branch | sanitize }} {{ branch | hash_port }}'`)), block);
+check('every pre-start step calls wf hook with slug and port', ['env', 'node', 'verify', 'tools', 'db'].every((s) => block.includes(`${s} = 'node C:/wf/wf.mjs hook ${s} {{ branch | sanitize }} {{ branch | hash_port }}'`)), block);
 check('the dev servers run under wt\'s tether', block.includes(`server = 'wt step tether -- node C:/wf/wf.mjs hook serve`));
 check('the tables are this project\'s only', block.split('\n').filter((l) => l.startsWith('[')).every((l) => l.startsWith(`[projects."${PROJECT}".`)));
 const user = 'worktree-path = "~/x"\n[aliases]\nurls = "echo && node {{ worktree_path }}/scripts/dev-worktree.mjs --urls 1"\nother = "x"\n';
@@ -39,8 +39,6 @@ check('a missing MEDIA_STORAGE_BACKEND is added (the backend defaults to s3)', /
 check('sanitizing twice changes nothing', sanitizeEnv(env, db) === env);
 
 // ── the database
-check('a hit restores only; a miss seeds first; --reset drops the target either way',
-  JSON.stringify([seedPlan({ archiveExists: true, reset: false }), seedPlan({ archiveExists: false, reset: true })]) === JSON.stringify([{ seed: false, dropTarget: false }, { seed: true, dropTarget: true }]));
 check('the seeder writes to the container\'s published port', mongoUrlFromDockerPort('0.0.0.0:47554\n[::]:47554\n') === 'mongodb://127.0.0.1:47554');
 // ── the dev servers (cases from the project's dev-worktree.mjs --check)
 const plain = devCommands('18001', { portless: false });

@@ -1,12 +1,12 @@
 // stack/db.mjs — one MongoDB per worktree: up, seed, down.
 //   up:   jewelryx-mongo-<slug> on 40000+(P-10000) (stack/mongo.compose.yml), healthy before it returns
 //   seed: the project's fixture set (packages/backend/scripts/seed_fixtures.py, docs/agents/seed.md),
-//         snapshotted once per `seed_fixtures.py --key` in ~/.cache/jewelryx-seed and restored into the worktree's DB
+//         run straight into the target database. No snapshot: seeding an empty database took
+//         6-8 s, restoring a cached mongodump ~11 s (measured 2026-09-24), and a snapshot needs a
+//         key that knows which project files decide the data.
 //   down: container, volume and compose network; each tolerates "already gone"
 import { spawnSync } from 'node:child_process';
-import { closeSync, existsSync, mkdirSync, openSync, renameSync, rmSync } from 'node:fs';
 import { createConnection } from 'node:net';
-import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { mongoPortForBase } from '../worktree.mjs';
@@ -17,32 +17,12 @@ export const composeProjectOf = (slug) => `jewelryx-wt-${slug}`;
 export const worktreeDatabase = (slug) => `jewelryx_${slug}`;
 export const worktreeMongoUrl = (base) => `mongodb://localhost:${mongoPortForBase(base)}`;
 
-// The seeder always writes this scratch database inside the worktree's own container; the archive
-// is restored from it into the worktree's database. A constant name lets one archive serve every
-// worktree.
-export const SEED_DB = 'jewelryx_seed';
-export const cacheDir = join(homedir(), '.cache', 'jewelryx-seed');
-
-// The snapshot's key is the project's: `seed_fixtures.py --key` changes whenever the seeded data
-// could (its SEED_INPUTS list), so which files matter stays next to the seeder, not here.
-export function seedCacheKey(worktree) {
-	const r = spawnSync('uv', ['run', '--quiet', '--directory', join(worktree, 'packages', 'backend'), 'python', '-m', 'scripts.seed_fixtures', '--key'], { encoding: 'utf8' });
-	const key = r.stdout?.trim();
-	if (r.status !== 0 || !/^[0-9a-f]{64}$/.test(key ?? '')) throw new Error(`worktree db: seed_fixtures --key failed (exit ${r.status}): ${(r.stderr ?? '').trim()}`);
-	return key;
-}
-
-// Pure: `docker port <container> 27017` → the URL the host-side seeder writes to. It must be the
-// container the archive is then dumped from: the worktree's .env names its own mongo, so seeding
-// another target from it dumped an empty scratch DB.
+// Pure: `docker port <container> 27017` → the URL the seeder writes to. The seeder's own .env may
+// name another mongo (the permanent stacks seed from dev's checkout), so it is always pointed at
+// the target container.
 export function mongoUrlFromDockerPort(output) {
 	const port = /:(\d+)\s*$/m.exec(output)?.[1];
 	return port ? `mongodb://127.0.0.1:${port}` : undefined;
-}
-
-// Pure: the only decision in the seed path.
-export function seedPlan({ archiveExists, reset }) {
-	return { seed: !archiveExists, dropTarget: Boolean(reset) };
 }
 
 function waitForPort(port, timeoutMs = 90000) {
@@ -91,53 +71,17 @@ export function mongoDown(slug) {
 }
 
 // `worktree` holds the seeder (a round's worktree, or dev for the permanent stacks); `slug` names
-// the container to seed; `database` is the target.
+// the container; `database` is the target. Seeding again puts every fixture back to its fixed
+// values (fixed ids, so counts never move); `reset` first drops everything else too.
 export function seedDatabase({ worktree, slug, database, reset = false }) {
 	const container = containerOf(slug);
-	const backendDir = join(worktree, 'packages', 'backend');
-	const key = seedCacheKey(worktree);
-	const archive = join(cacheDir, `${key}.archive`);
-	const plan = seedPlan({ archiveExists: existsSync(archive), reset });
 	const t0 = Date.now();
 	// `void` keeps dropDatabase()'s result document out of the hook log.
-	const mongosh = (js) => run('mongosh', 'docker', ['exec', container, 'mongosh', '--quiet', '--eval', `void (${js})`]);
-
-	if (plan.seed) {
-		// Cache miss: seed the scratch DB, then dump it. mongodump/mongorestore live inside the
-		// container, not on the host PATH.
-		mongosh(`db.getSiblingDB('${SEED_DB}').dropDatabase()`);
-		const mongoUrl = mongoUrlFromDockerPort(spawnSync('docker', ['port', container, '27017'], { encoding: 'utf8' }).stdout ?? '');
-		run('seeder', 'uv', ['run', '--directory', backendDir, 'python', '-m', 'scripts.seed_fixtures'], {
-			env: { ...process.env, DATABASE_NAME: SEED_DB, ...(mongoUrl && { MONGODB_URL: mongoUrl }) },
-		});
-		mkdirSync(cacheDir, { recursive: true });
-		// pid in the name: two worktrees can be created at once, and a shared partial would
-		// interleave two dumps into one archive.
-		const partial = `${archive}.${process.pid}.partial`;
-		const fd = openSync(partial, 'w');
-		try {
-			run('mongodump', 'docker', ['exec', container, 'mongodump', '--archive', '--quiet', `--db=${SEED_DB}`], { stdio: ['ignore', fd, 'inherit'] });
-		} finally {
-			closeSync(fd);
-		}
-		try {
-			renameSync(partial, archive);
-		} catch (e) {
-			// Windows refuses to rename over an archive another seed is restoring from (EPERM): that
-			// seed dumped the same key, so its archive stands and ours is dropped.
-			if (!existsSync(archive)) throw e;
-			rmSync(partial, { force: true });
-		}
-	}
-
-	if (plan.dropTarget) mongosh(`db.getSiblingDB('${database}').dropDatabase()`);
-	const fd = openSync(archive, 'r');
-	try {
-		run('mongorestore', 'docker', ['exec', '-i', container, 'mongorestore', '--archive', '--quiet', '--drop', `--nsFrom=${SEED_DB}.*`, `--nsTo=${database}.*`], {
-			stdio: [fd, 'inherit', 'inherit'],
-		});
-	} finally {
-		closeSync(fd);
-	}
-	console.log(`worktree db: seed ${plan.seed ? 'MISS (seeded + cached)' : 'HIT'}${reset ? ' --reset' : ''} ${database} ← ${key.slice(0, 12)}.archive in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+	if (reset) run('mongosh', 'docker', ['exec', container, 'mongosh', '--quiet', '--eval', `void (db.getSiblingDB('${database}').dropDatabase())`]);
+	const mongoUrl = mongoUrlFromDockerPort(spawnSync('docker', ['port', container, '27017'], { encoding: 'utf8' }).stdout ?? '');
+	if (!mongoUrl) throw new Error(`worktree db: ${container} publishes no port; is it up?`);
+	run('seeder', 'uv', ['run', '--quiet', '--directory', join(worktree, 'packages', 'backend'), 'python', '-m', 'scripts.seed_fixtures'], {
+		env: { ...process.env, DATABASE_NAME: database, MONGODB_URL: mongoUrl },
+	});
+	console.log(`worktree db: seeded${reset ? ' (reset)' : ''} ${database} in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
 }

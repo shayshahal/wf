@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// wf seed [--reset] — restore this worktree's fixture snapshot (stack/db.mjs). --reset drops the
+// wf seed [--reset] — put this worktree's fixtures back to their fixed values (stack/db.mjs). --reset drops the
 // worktree DB first, for when a repro dirtied the data mid-round. Fixtures: docs/agents/seed.md.
 import { execFileSync } from 'node:child_process';
 import { seedDatabase, worktreeDatabase } from './stack/db.mjs';

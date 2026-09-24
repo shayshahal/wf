@@ -2,7 +2,7 @@
 // does, so the hooks live here and reach wt through the user config, per project:
 //   wf hook install            write the block below into wt's user config (replaces an earlier one)
 //   wf hook <step> <slug> [P]  one step, called by wt with {{ branch | sanitize }} {{ branch | hash_port }}
-// Steps: pre-start env node verify tools python db (in parallel) · post-start serve · pre-remove
+// Steps: pre-start env node verify tools db (in parallel; db syncs python, starts mongo, seeds) · post-start serve · pre-remove
 // gate · post-remove down · alias urls.
 import { spawnSync } from 'node:child_process';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -17,13 +17,14 @@ const END = '# <<< wf worktree hooks';
 // Setup steps that are plain commands in the worktree. `node` stays one chain: pre-start steps run in
 // parallel, and as a sibling step `pnpm build:types` started a second `pnpm install` over the same
 // node_modules/.pnpm and killed the first with EPERM (measured 2026-09-20, three runs).
-// `tools` is the project's own linker (package.json tools:install).
+// `tools` is the project's own linker (package.json tools:install). The python environment is
+// synced inside `db`, because the seeder runs in it.
 export const COMMANDS = {
 	node: 'pnpm install --frozen-lockfile && pnpm build:types && pnpm build:data && pnpm build:filters',
 	verify: 'pnpm --dir verification install --ignore-workspace',
 	tools: 'node scripts/link-tools.mjs',
-	python: 'uv sync --dev --directory packages/backend',
 };
+const PYTHON_SYNC = 'uv sync --dev --directory packages/backend';
 
 // Pure: the block for wt's user config. `wf` is the wf.mjs the hooks call.
 export function hookBlock(wf) {
@@ -106,6 +107,7 @@ export async function runHook(argv) {
 	}
 	if (step === 'db') {
 		const { mongoUp, seedDatabase, worktreeDatabase } = await import('./stack/db.mjs');
+		sh(PYTHON_SYNC);
 		await mongoUp({ slug, base: port });
 		return seedDatabase({ worktree, slug, database: worktreeDatabase(slug) });
 	}
