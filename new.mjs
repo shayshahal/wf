@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 // new.mjs — wf new <branch> [--base <ref>] [--class B|C] [--id <token>]...
-// Create the worktree via wt switch --create (hooks always run — never raw git
-// worktree add), then classify it. --class asserts the class at creation (sticky,
+// Create the worktree (worktree.mjs createWorktree), then classify it. --class asserts the class at creation (sticky,
 // see step.mjs). --id <BJEW-nnn | monday item id> refuses to cut the worktree when a
 // round for that id already exists (a bug-reports folder or a commit naming it) —
 // BJEW-585 was fixed under a sibling item and the round burned 26 min rediscovering
@@ -9,12 +8,12 @@
 // It also refuses a third live round (SKILL.md: two at once, max — the box cannot run
 // three stacks); --force overrides. --id records id + folder in the new worktree's state
 // and creates <folder>/repro/ — that folder is what every `wf prompt` substitutes.
-import { execFileSync, spawnSync } from 'node:child_process';
-import { closeSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, rmdirSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { lstatSync, mkdirSync, readdirSync, rmdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { basePortForBranch, slugForBranch } from './scripts/worktree-ports.mjs';
+import { basePortForBranch, createWorktree, directUrls, slugForBranch, stackNameLines, stackNames } from './worktree.mjs';
 import { SEED_CREDENTIALS } from './seed.mjs';
 import { writeState } from './state.mjs';
 import { liveRounds, realReadState, realWorktrees } from './status.mjs';
@@ -62,24 +61,15 @@ export function runNew(argv) {
 		console.error(`wf new: work for ${ids.join(', ')} already exists — read it before cutting a round:\n  ${dupes.join('\n  ')}\n(--reopen if the ticket came back; rerun without --id to cut the worktree anyway)`);
 		process.exit(1);
 	}
-	// wt's post-start tether keeps the three dev servers alive in the background,
-	// and they inherit whatever stdout wt was given. Under a pipe (an agent harness,
-	// `wf new | tee`) that pipe never reaches EOF and wf new hangs on the tether —
-	// measured 40 min on 2026-09-20. A log file hands the tether a file descriptor
-	// of its own, so this returns as soon as wt exits.
 	const log = join(tmpdir(), `wf-new-${branch.replace(/[^A-Za-z0-9.-]/g, '-')}.log`);
-	const fd = openSync(log, 'w');
-	const created = spawnSync('wt', ['switch', '--create', branch, '--base', base, '--yes'], { stdio: ['ignore', fd, fd] });
-	closeSync(fd);
-	if (created.status !== 0) {
-		console.error(readFileSync(log, 'utf8').trimEnd());
-		console.error(`wf new: wt switch --create failed (exit ${created.status})`);
-		process.exit(created.status ?? 1);
+	let path;
+	try {
+		({ path } = createWorktree({ branch, base, log }));
+	} catch (e) {
+		console.error(`wf new: ${e.message}`);
+		process.exit(1);
 	}
 	console.log(`wf new: worktree ready (hook log: ${log})`);
-	const { items } = JSON.parse(execFileSync('wt', ['list', '--format', 'json'], { encoding: 'utf8' }));
-	const path = items.find((w) => w.branch === branch)?.worktree?.path;
-	if (!path) { console.error(`wf new: worktree for ${branch} not found`); process.exit(1); }
 	const unlinked = unlinkCompetingSkills(path);
 	if (unlinked.length) console.log(`wf new: unlinked ${unlinked.join(', ')} — the round skill is this worktree's one flow`);
 	// The wf that was invoked, not the round's copy: a round is cut from dev, which may not carry
@@ -91,7 +81,7 @@ export function runNew(argv) {
 	writeState(path, { id: ids[0] ?? branch, folder });
 	if (reopen && dupes.length) writeFileSync(join(path, folder, 'EARLIER.md'), `# Earlier work on ${ids.join(', ')}\n\nThis ticket came back. Every earlier fix below shipped and did not hold.\n\n${dupes.map((d) => `- ${d.trim()}`).join('\n')}\n`);
 	console.log(`Round folder: ${folder}`);
-	console.log(execFileSync('node', ['scripts/dev-worktree.mjs', '--urls', String(basePortForBranch(branch)), '--slug', slugForBranch(branch)], { encoding: 'utf8', cwd: path }).trimEnd());
+	console.log(stackNameLines(stackNames(slugForBranch(branch))));
 	console.log(SEED_CREDENTIALS);
 	console.log(`Worktree: ${path}`);
 }
@@ -118,14 +108,15 @@ export function unlinkCompetingSkills(worktree) {
 // (BJEW-461 Claude Code spike, 2026-09-23: the research budget went on the config, the defect was never
 // measured). Research starts from this file, which loads; 'wx' leaves a reopened round's own config alone.
 function writeReproConfig(file, base) {
+	const direct = directUrls(base);
 	const config = `// Written by wf new. Keep the repro self-contained: import only @playwright/test and node:*,
 // never import.meta (use __dirname) — see wf/new.mjs writeReproConfig.
 import { defineConfig, devices } from '@playwright/test';
 
 // This round's stack, direct ports: Node on Windows cannot resolve *.jewelryx.localhost.
-process.env.B2B_URL ??= 'http://localhost:${base}';
-process.env.ADMIN_URL ??= 'http://localhost:${base + 20_000}';
-process.env.API_URL ??= 'http://127.0.0.1:${base + 10_000}/api/v1';
+process.env.B2B_URL ??= '${direct.b2b}';
+process.env.ADMIN_URL ??= '${direct.admin}';
+process.env.API_URL ??= '${direct.api}';
 
 export default defineConfig({
 	testDir: '.',

@@ -7,7 +7,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { questionLines } from './ask.mjs';
-import { basePortForBranch, portlessOriginsForSlug, portsAndSlugsForBranches, slugForBranch } from './scripts/worktree-ports.mjs';
+import { basePortForBranch, listWorktrees, portsAndSlugsForBranches, slugForBranch, stackNames } from './worktree.mjs';
 
 export const WF_YOU_MARKER = '← YOU';
 
@@ -46,7 +46,7 @@ export async function collectRows({ paths, readState, pullRequests = [], now = D
         const port = await basePortFor(branch);
         const up = await probeB2b(port);
         // Display the portless name; the probe stays on the hashed port.
-        const name = slugFor ? portlessOriginsForSlug(await slugFor(branch)).b2b : null;
+        const name = slugFor ? stackNames(await slugFor(branch)).b2b : null;
         b2b = { port, up, name };
       } catch { b2b = null; }
     }
@@ -75,14 +75,13 @@ function branchOf(path) {
 }
 
 export function realWorktrees() {
-  const out = execFileSync('git', ['worktree', 'list', '--porcelain'], { encoding: 'utf8' });
-  // The porcelain already names each branch: seed branchOf, which spawned git once per worktree.
-  for (const block of out.replace(/\r\n/g, '\n').split('\n\n')) {
-    const path = /^worktree (.+)$/m.exec(block)?.[1]?.trim();
-    const branch = /^branch refs\/heads\/(.+)$/m.exec(block)?.[1]?.trim() ?? (/^detached$/m.test(block) ? 'HEAD' : null);
-    if (path && branch) branches.set(path, branch); // the bare entry has neither: branchOf asks git, as before
+  const trees = listWorktrees();
+  // The list already names each branch: seed branchOf, which spawned git once per worktree.
+  for (const t of trees) {
+    const branch = t.branch ?? (t.detached ? 'HEAD' : null);
+    if (branch) branches.set(t.path, branch); // the bare entry has neither: branchOf asks git, as before
   }
-  return out.split('\n').filter((l) => l.startsWith('worktree ')).map((l) => l.slice(9).trim());
+  return trees.map((t) => t.path);
 }
 
 export function realPrs() {

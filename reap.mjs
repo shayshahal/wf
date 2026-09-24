@@ -8,32 +8,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { copyFileSync, mkdirSync, rmSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { resolveWorktree } from './resolve-worktree.mjs';
-import { slugForBranch } from './scripts/worktree-ports.mjs';
-
-// Pure: the ordered steps. `rm` is done in-process (fs.rmSync), so it carries no cmd.
-export function reapPlan({ branch, path, slug, pid }) {
-	// git reports the path with forward slashes, a process command line carries backslashes:
-	// match either spelling or the sweep finds nothing.
-	const fwd = path.replace(/\\/g, '/').replace(/'/g, "''");
-	const bck = fwd.replace(/\//g, '\\');
-	const ps = `$ProgressPreference = 'SilentlyContinue'; Get-CimInstance Win32_Process -Filter "Name='node.exe' or Name='python.exe'" | Where-Object { ($_.CommandLine -like '*${fwd}*' -or $_.CommandLine -like '*${bck}*') -and $_.ProcessId -ne ${pid} } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`;
-	// Stragglers go first: a live dev server holds the tree, so `wt remove` failed while it ran.
-	// -EncodedCommand, not -Command: the steps run through cmd.exe on Windows, which cut the
-	// script at its first `|` ("'Where-Object' is not recognized") and killed nothing (BJEW-454 reap).
-	return [
-		{ label: 'kill stragglers', cmd: 'powershell', args: ['-NoProfile', '-EncodedCommand', Buffer.from(ps, 'utf16le').toString('base64')] },
-		{ label: 'wt remove', cmd: 'wt', args: ['remove', branch, '--no-delete-branch', '--force', '--foreground', '-y'] },
-		{ label: 'rm -rf worktree', rm: path },
-		{ label: 'git worktree prune', cmd: 'git', args: ['worktree', 'prune'] },
-		{ label: 'docker rm mongo', cmd: 'docker', args: ['rm', '-f', `jewelryx-mongo-${slug}`] },
-		{ label: 'docker volume rm', cmd: 'docker', args: ['volume', 'rm', `jewelryx-wt-mongo-${slug}`] },
-		// The compose network outlives its container; 23 of them exhausted docker's address pools and
-		// the next `wf new` failed: "all predefined address pools have been fully subnetted" (3187601171).
-		{ label: 'docker network rm', cmd: 'docker', args: ['network', 'rm', `jewelryx-wt-${slug}_default`] },
-		{ label: 'portless prune', cmd: 'portless', args: ['prune'], env: { CI: '1' } },
-	];
-}
+import { removalPlan, resolveWorktree, slugForBranch } from './worktree.mjs';
 
 // Pure: the uncommitted round paperwork in `git status --porcelain --untracked-files=all` output.
 // The root REVIEW.md is written after deliver commits the round folder, so it is uncommitted on
@@ -73,7 +48,7 @@ export function runReap(argv) {
 	const slug = slugForBranch(branch);
 	const force = process.env.WF_FORCE_REAP === '1';
 	if (force) keepPaperwork(path, slug);
-	for (const step of reapPlan({ branch, path, slug, pid: process.pid })) {
+	for (const step of removalPlan({ branch, path, slug, pid: process.pid })) {
 		const shown = step.rm ? `rm -rf ${step.rm}` : `${step.cmd} ${step.args.join(' ')}`;
 		if (!force) {
 			console.log(`would: ${shown}`);

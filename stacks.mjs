@@ -19,7 +19,7 @@ import { request } from 'node:http';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { basePortForBranch, mongoPortForBase, portlessOriginsForSlug } from './scripts/worktree-ports.mjs';
+import { basePortForBranch, mongoPortForBase, stackNames } from './worktree.mjs';
 
 // TOOLS is wf's own root (docker-compose.qa-local.yml). The stacks themselves run from the project's
 // worktrees, where worktrunk puts them (worktree-path ~/.herdr/worktrees/{{ remote_repo }}/…): wf left
@@ -106,7 +106,7 @@ export function qaWatchDecision({ deployed, remote, failed }) {
 }
 
 export function stackAddresses() {
-  const dev = portlessOriginsForSlug('dev');
+  const dev = stackNames('dev');
   return [
     ['dev b2b', `${dev.b2b}/b2b/`],
     ['dev admin', `${dev.admin}/admin/`],

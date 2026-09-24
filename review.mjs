@@ -6,7 +6,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { isPlannotatorPresent, reviewDiff } from './adapters/plannotator.mjs';
 import { openInEditor } from './editor.mjs';
-import { resolveWorktree } from './resolve-worktree.mjs';
+import { resolveWorktree } from './worktree.mjs';
 import { appendDatedSection, asBuiltFile, devUrlsFor, foldFeedbackLine, lastField, readVerdict, renderHeader, renderSkeleton, specShaFor, wfDir } from './review-format.mjs';
 import { roundFile } from './state.mjs';
 import { runStep } from './step.mjs';

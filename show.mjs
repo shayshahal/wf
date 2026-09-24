@@ -8,7 +8,7 @@ import { execFileSync, spawn } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, openSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { slugForBranch } from './scripts/worktree-ports.mjs';
+import { slugForBranch, stackNames } from './worktree.mjs';
 import { readState, roundOf, toplevelOf } from './state.mjs';
 
 // Pure: `b2b /catalog as buyer mobile` → { app, path, as, mobile }, or null.
@@ -50,7 +50,8 @@ export function runShow(argv) {
 		process.exit(2);
 	}
 	const branch = execFileSync('git', ['-C', toplevel, 'rev-parse', '--abbrev-ref', 'HEAD'], { encoding: 'utf8' }).trim();
-	const host = (app) => `http://${slugForBranch(branch)}.${app}.jewelryx.localhost`;
+	const names = stackNames(slugForBranch(branch));
+	const host = (app) => names[app];
 	// The spec imports the worktree's own verification/ login helpers, so it runs from inside it.
 	const dir = join(toplevel, '.wf', 'show');
 	mkdirSync(dir, { recursive: true });

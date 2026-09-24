@@ -18,7 +18,7 @@ function t1GapFor(review) {
   return out;
 }
 
-import { resolveWorktree } from './resolve-worktree.mjs';
+import { resolveWorktree } from './worktree.mjs';
 
 let failures = 0;
 const check = (name, cond, detail = '') =>

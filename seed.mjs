@@ -3,7 +3,7 @@
 // (workflow-v2 Task 2d). --reset drops the worktree DB first, for when a repro
 // dirtied the data mid-round. Fixtures: docs/agents/seed.md.
 import { execFileSync } from 'node:child_process';
-import { slugForBranch } from './scripts/worktree-ports.mjs';
+import { slugForBranch } from './worktree.mjs';
 
 // Printed by `wf new`. The full fixture list (ids, statuses, balances) is in
 // docs/agents/seed.md; these three logins are what a round needs on line one.

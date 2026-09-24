@@ -8,7 +8,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { basePortForBranch } from './scripts/worktree-ports.mjs';
+import { basePortForBranch, directUrls } from './worktree.mjs';
 import { openQuestionGate } from './ask.mjs';
 import { readState, roundOf, toplevelOf, writeState } from './state.mjs';
 
@@ -79,11 +79,11 @@ export function runPrompt(argv) {
 			process.exit(2);
 		}
 	}
-	// Direct ports (scripts/dev-worktree.mjs): Node on Windows cannot resolve *.localhost, so a
-	// spec's API calls need these (TJEW-663 verify, 2026-09-23: ENOTFOUND in auth.setup).
+	// Direct ports: Node on Windows cannot resolve *.localhost, so a spec's API calls need these
+	// (TJEW-663 verify, 2026-09-23: ENOTFOUND in auth.setup).
 	try {
 		const base = basePortForBranch(execFileSync('git', ['-C', toplevel, 'rev-parse', '--abbrev-ref', 'HEAD'], { encoding: 'utf8' }).trim());
-		Object.assign(vars, { b2b: `http://localhost:${base}`, api: `http://127.0.0.1:${base + 10_000}/api/v1`, admin: `http://localhost:${base + 20_000}` });
+		Object.assign(vars, directUrls(base));
 	} catch { /* not in a round worktree */ }
 	let template = readFileSync(join(templatesDir, `${phase}.md`), 'utf8');
 	if (phase === 'plan' && argv.includes('--revise')) template += REVISE;

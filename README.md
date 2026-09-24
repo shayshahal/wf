@@ -15,7 +15,8 @@ each round commits (`bug-reports/<round>/`, described in that repo's `bug-report
 - `agents/`: `round-worker` (every phase), `codebase-locator` and `codebase-analyzer` (research, pi only)
 - `process/`: classes, design session, review format, touchpoints
 - `classes.gitattributes`: the class-B pathspec for JewelryX, read by `classify.mjs`
-- `scripts/worktree-ports.mjs`, `docs/agents/seed.md`: what wf needs from the project
+- `worktree.mjs`: the one interface to worktrees: list, names and ports, create, remove
+- `docs/agents/seed.md`: what wf needs from the project
 - `docker-compose.qa-local.yml`: the override `wf stacks` layers over the QA worktree's compose file
 - `docs/plans/2026-09-17-workflow-v2.md`: the plan wf was built from
 - `decisions/parse.mjs`: the decision-record parser. It needs the JewelryX checkout (yaml, ajv, the

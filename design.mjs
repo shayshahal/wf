@@ -7,7 +7,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { isPlannotatorPresent, annotateFile } from './adapters/plannotator.mjs';
 import { openInEditor } from './editor.mjs';
-import { resolveWorktree } from './resolve-worktree.mjs';
+import { resolveWorktree } from './worktree.mjs';
 import { appendDatedSection, devUrlsFor, foldFeedbackLine, renderHeader, renderSkeleton, specShaFor } from './review-format.mjs';
 import { roundFile } from './state.mjs';
 import { runStep } from './step.mjs';

@@ -34,7 +34,7 @@ down); stale routes are cleared with `portless prune`.
 
 DB per worktree: `docker-compose.worktree.yml` starts
 `jewelryx-mongo-<slug>` on 40000+(P−10000) (see
-`scripts/worktree-ports.mjs`); the pre-start `db` step brings it
+`worktree.mjs`); the pre-start `db` step brings it
 up and seeds it with the backend's own seeders (categories +
 admin, `SEED_ADMIN=true`) in under 60 s. The env step points
 `MONGODB_URL`/`DATABASE_NAME` (`jewelryx_<slug>`) at it, so no

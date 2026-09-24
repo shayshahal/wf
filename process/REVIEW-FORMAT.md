@@ -12,8 +12,8 @@ class: <A | B | C | —>
 base: <git ref the diff is against | n/a (SPEC review)>
 spec-sha: <sha256:<hex> of SPEC.md | n/a>
 date: <YYYY-MM-DD>
-urls: <B2B:/Admin:/Backend: lines from `node scripts/dev-worktree.mjs --urls <port>`
-      | n/a — port not derivable without wt>
+urls: <B2B:/Admin:/Backend: lines, worktree.mjs stackNameLines
+      | n/a — a detached worktree has no stack>
 ```
 
 The port comes from `wt list --format json` (`dev_server.url` of the matching

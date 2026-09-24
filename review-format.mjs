@@ -1,12 +1,11 @@
 // review-format.mjs — the REVIEW-FORMAT.md contract in code, shared by T1 (SPEC-REVIEW.md)
 // and T2 (REVIEW.md): foldFeedbackLine(jsonLine) + renderHeader/renderSkeleton (pure),
 // plus worktree IO helpers (specShaFor, devUrlsFor, appendDatedSection).
-import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { basePortForBranch, slugForBranch } from './scripts/worktree-ports.mjs';
+import { listWorktrees, slugForBranch, stackNameLines, stackNames } from './worktree.mjs';
 import { roundFile } from './state.mjs';
 
 export const VERDICTS = ['approved', 'changes-requested', 'dismissed'];
@@ -108,17 +107,13 @@ export function specShaFor(worktree) {
   return `sha256:${createHash('sha256').update(readFileSync(f, 'utf8').replace(/\r\n/g, '\n')).digest('hex')}`;
 }
 
-// Branch → slug → `dev-worktree.mjs --urls <port> --slug`: prints the portless
-// .localhost names. Without wt there is no branch, so return null and the
-// header says so.
+// The worktree's stack names for the header. A detached worktree has no branch, so return null
+// and the header says so.
 export function devUrlsFor(worktree) {
   try {
-    const wt = JSON.parse(execFileSync('wt', ['list', '--format', 'json'], { encoding: 'utf8' }));
-    const item = (wt.items ?? []).find((i) => i.worktree?.path?.replace(/\\/g, '/') === worktree.replace(/\\/g, '/'));
-    const branch = item?.branch;
+    const branch = listWorktrees(worktree).find((t) => t.path.replace(/\\/g, '/') === worktree.replace(/\\/g, '/'))?.branch;
     if (!branch) return null;
-    const root = execFileSync('git', ['-C', worktree, 'rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim();
-    return execFileSync('node', [join(root, 'scripts', 'dev-worktree.mjs'), '--urls', String(basePortForBranch(branch)), '--slug', slugForBranch(branch)], { encoding: 'utf8' }).trim();
+    return stackNameLines(stackNames(slugForBranch(branch)));
   } catch {
     return null;
   }
