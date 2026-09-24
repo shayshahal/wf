@@ -9,8 +9,9 @@ across reboots. Without it portless auto-starts its own proxy on the first serve
 HTTP: the tether passes `PORTLESS_HTTPS=0`) but it dies with that session.
 
 Create worktrees only via `wf new <branch> [--base <ref>] [--class B|C] [--id <token>]...`
-(default base `origin/dev`) — it runs `wt switch --create --base` (pre/post-start hooks always
-fire; raw `git worktree add` skips the server) then `wf step classify`. `--id BJEW-nnn --id <item id>`
+(default base `origin/dev`) — it runs `wt switch --create --base --no-hooks`, then wf's own
+pre/post-start hooks (`wt hook <type> user:`), whichever folder it runs from; raw `git worktree add`
+skips the server) then `wf step classify`. `--id BJEW-nnn --id <item id>`
 refuses to cut the worktree when a `bug-reports/` folder or a commit already names the id — read
 that first. `--class B|C` asserts the class at creation: a design-first round has no code to
 measure, and `wf step classify` only ever upgrades (A→B→C), never downgrades.

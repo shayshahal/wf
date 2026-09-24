@@ -3,7 +3,7 @@
 //   read:   `git worktree list --porcelain`: 54 ms, against 2.6 s for `wt list --format json`
 //           (measured 2026-09-24, 23 worktrees)
 //   names:  wt's own filters (hash_port, sanitize), so wf and the wt hooks agree on every port and name
-//   create: `wt switch --create`: its hooks install, build, seed and start the stack
+//   create: `wt switch --create --no-hooks`, then wf's hooks (hook.mjs) install, build, seed and serve
 //   remove: removalPlan: stop the tree's processes, `wt remove`, then what `wt remove` leaves behind
 // Ports: P = hash_port(branch) (B2B, 10000-19999), API P+10000, admin P+20000, mongo 40000+(P-10000).
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -89,6 +89,10 @@ export function stackNameLines(names) {
 
 // ── create ───────────────────────────────────────────────────────────────────
 
+// Created with no hooks, then only wf's (`wt hook <type> user:`) run inside it. worktrunk reads the
+// project's hooks from the folder the command runs in, and 20 older checkouts still carry the
+// .config/wt.toml that left JewelryX in #222: from one of them, `wt switch --create` ran those too,
+// against scripts the new checkout no longer has, and the create failed (2026-09-24).
 // wt's post-start tether keeps the dev servers alive in the background, and they inherit whatever
 // stdout wt was given. Under a pipe (an agent harness, `wf new | tee`) that pipe never reaches EOF
 // and the caller hangs on the tether (measured 40 min on 2026-09-20). A log file hands the tether a
@@ -96,10 +100,18 @@ export function stackNameLines(names) {
 // the log.
 export function createWorktree({ branch, base, log }) {
 	const fd = openSync(log, 'w');
-	const created = spawnSync('wt', ['switch', '--create', branch, '--base', base, '--yes', '--no-cd'], { stdio: ['ignore', fd, fd] });
+	const step = (label, args, cwd) => {
+		const r = spawnSync('wt', args, { stdio: ['ignore', fd, fd], cwd });
+		if (r.status === 0) return;
+		closeSync(fd);
+		throw new Error(`${readFileSync(log, 'utf8').trimEnd()}\n${label} failed (exit ${r.status})`);
+	};
+	step('wt switch --create', ['switch', '--create', branch, '--base', base, '--yes', '--no-cd', '--no-hooks']);
+	const tree = resolveWorktree(branch);
+	step('pre-start hooks', ['hook', 'pre-start', 'user:', '--yes'], tree.path);
+	step('post-start hooks', ['hook', 'post-start', 'user:', '--yes'], tree.path);
 	closeSync(fd);
-	if (created.status !== 0) throw new Error(`${readFileSync(log, 'utf8').trimEnd()}\nwt switch --create failed (exit ${created.status})`);
-	return resolveWorktree(branch);
+	return tree;
 }
 
 // ── remove ───────────────────────────────────────────────────────────────────

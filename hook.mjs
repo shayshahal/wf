@@ -89,9 +89,6 @@ export async function runHook(argv) {
 		return console.log(`wf hook install: hooks for ${PROJECT} → ${file} (calling ${wf})`);
 	}
 	const worktree = process.cwd();
-	// Change-over: a checkout that still ships its own .config/wt.toml runs those hooks; running ours
-	// too would install and serve twice. Delete this once no branch in use carries the file.
-	if (existsSync(join(worktree, '.config', 'wt.toml'))) return;
 	if (!slug) throw new Error(`usage: wf hook <step> <slug> [base-port]  (got: ${argv.join(' ')})`);
 	if (step in COMMANDS) return sh(COMMANDS[step]);
 	if (step === 'env') {
