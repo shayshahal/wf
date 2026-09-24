@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 // status.mjs — wf status [--json]: one table row per git worktree:
-// round · class · step · waiting_on · age · PR#/state · b2b :port ✓|✗. waiting_on=shay first, marked ← YOU.
+// round · class · step · waiting_on · age · PR#/state · stack <url>|:port ✓|✗. waiting_on=shay first, marked ← YOU.
 // `wf status --all` is the morning screen instead: every worktree that holds a round,
 // one line each, grouped waiting on you / running / held. No LLM, no network but `gh pr view`.
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { questionLines } from './ask.mjs';
-import { basePortForBranch, listWorktrees, portsAndSlugsForBranches, slugForBranch, stackNames } from './worktree.mjs';
+import { stackNames } from './project.mjs';
+import { basePortForBranch, listWorktrees, portsAndSlugsForBranches, slugForBranch } from './worktree.mjs';
 
 export const WF_YOU_MARKER = '← YOU';
 
@@ -32,25 +33,25 @@ export function prLabel(pr) {
 
 // Pure core: rows from injected worktree paths, state reader and open-PRs list.
 // `readState(path)` returns the parsed state.json or null; `pullRequests` is the gh array or [].
-// `basePortFor(branch)` maps a round to its wt base port; `probeB2b(port)` reports server-up.
+// `basePortFor(branch)` maps a round to its wt base port; `probeStack(port)` reports server-up.
 // Both are injected so the selfcheck stays offline (real impls below). A failing probe is ✗, never fatal.
-export async function collectRows({ paths, readState, pullRequests = [], now = Date.now(), basePortFor = null, probeB2b = null, slugFor = null }) {
+export async function collectRows({ paths, readState, pullRequests = [], now = Date.now(), basePortFor = null, probeStack = null, slugFor = null }) {
   const rows = [];
   for (const path of paths) {
     const state = readState(path);
     const pr = pullRequests.find((p) => p.headRefName === state?.round || branchOf(path) === p.headRefName);
-    let b2b = null;
+    let stack = null;
     const branch = state?.round ?? branchOf(path);
-    if (branch && basePortFor && probeB2b) {
+    if (branch && basePortFor && probeStack) {
       try {
         const port = await basePortFor(branch);
-        const up = await probeB2b(port);
-        // Display the portless name; the probe stays on the hashed port.
-        const name = slugFor ? stackNames(await slugFor(branch)).b2b : null;
-        b2b = { port, up, name };
-      } catch { b2b = null; }
+        const up = await probeStack(port);
+        // Display the first app's name (the one on the base port); the probe stays on the port.
+        const name = slugFor ? Object.values(stackNames(await slugFor(branch)))[0] : null;
+        stack = { port, up, name };
+      } catch { stack = null; }
     }
-    rows.push({ path, state, pr: pr ? prLabel(pr) : '-', b2b });
+    rows.push({ path, state, pr: pr ? prLabel(pr) : '-', stack });
   }
   // waiting_on=shay first; within a group the longest-waiting first; stateless worktrees last.
   const ageMs = (r) => (r.state?.since ? now - Date.parse(r.state.since) : -Infinity);
@@ -104,14 +105,14 @@ export function realReadState(path) {
 
 export function formatRow(r, now = Date.now()) {
   const s = r.state;
-  const b2b = r.b2b ? ` · b2b ${r.b2b.name ?? `:${r.b2b.port}`} ${r.b2b.up ? '✓' : '✗'}` : '';
-  if (!s) return `${r.path}  —${b2b}`;
+  const stack = r.stack ? ` · stack ${r.stack.name ?? `:${r.stack.port}`} ${r.stack.up ? '✓' : '✗'}` : '';
+  if (!s) return `${r.path}  —${stack}`;
   const you = s.waiting_on === 'shay' ? ` ${WF_YOU_MARKER}` : '';
-  return `${s.round} · ${s.class ?? '—'} · ${s.step} · ${s.waiting_on ?? '—'} · ${formatAgeSince(s.since, now)} · ${r.pr}${b2b}${you}`;
+  return `${s.round} · ${s.class ?? '—'} · ${s.step} · ${s.waiting_on ?? '—'} · ${formatAgeSince(s.since, now)} · ${r.pr}${stack}${you}`;
 }
 
-// 1-second HEAD probe of the worktree's b2b server. Any answer (even 5xx) is up; only refusal/timeout is down.
-export async function realProbeB2b(port) {
+// 1-second HEAD probe of the server on the worktree's base port. Any answer (even 5xx) is up; only refusal/timeout is down.
+export async function realProbeStack(port) {
   try {
     await fetch(`http://localhost:${port}/`, { method: 'HEAD', signal: AbortSignal.timeout(1000) });
     return true;
@@ -178,7 +179,7 @@ export async function runStatus(argv, inject = {}) {
     pullRequests: inject.pullRequests ?? realPrs(),
     now: inject.now ?? Date.now(),
     basePortFor: inject.basePortFor ?? ((b) => known.get(b)?.port ?? basePortForBranch(b)),
-    probeB2b: inject.probeB2b ?? realProbeB2b,
+    probeStack: inject.probeStack ?? realProbeStack,
     slugFor: inject.slugFor ?? ((b) => known.get(b)?.slug ?? slugForBranch(b)),
   });
   if (argv.includes('--json')) console.log(JSON.stringify(rows, null, 2));

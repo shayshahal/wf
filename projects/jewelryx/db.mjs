@@ -1,16 +1,20 @@
-// stack/db.mjs — one MongoDB per worktree: up, seed, down.
-//   up:   jewelryx-mongo-<slug> on 40000+(P-10000) (stack/mongo.compose.yml), healthy before it returns
+// projects/jewelryx/db.mjs — one MongoDB per worktree: up and seed (index.mjs teardown removes it).
+//   up:   jewelryx-mongo-<slug> on 40000+(P-10000) (mongo.compose.yml), healthy before it returns
 //   seed: the project's fixture set (packages/backend/scripts/seed_fixtures.py, docs/agents/seed.md),
 //         run straight into the target database. No snapshot: seeding an empty database took
 //         6-8 s, restoring a cached mongodump ~11 s (measured 2026-09-24), and a snapshot needs a
 //         key that knows which project files decide the data.
-//   down: container, volume and compose network; each tolerates "already gone"
 import { spawnSync } from 'node:child_process';
 import { createConnection } from 'node:net';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { mongoPortForBase } from '../worktree.mjs';
 
+// Pure: mongo host port for a base port P. Throws outside 10000-19999.
+export function mongoPortForBase(basePort) {
+	const p = Number(basePort);
+	if (!Number.isInteger(p) || p < 10000 || p > 19999) throw new Error(`base port out of range 10000-19999: ${basePort}`);
+	return 40000 + (p - 10000);
+}
 export const containerOf = (slug) => `jewelryx-mongo-${slug}`;
 export const volumeOf = (slug) => `jewelryx-wt-mongo-${slug}`;
 export const composeProjectOf = (slug) => `jewelryx-wt-${slug}`;
@@ -57,17 +61,6 @@ export async function mongoUp({ slug, base }) {
 	});
 	const waited = await waitForPort(mongoPort);
 	console.log(`worktree db: ${containerOf(slug)} listening on ${mongoPort} (waited ${waited.toFixed(1)}s)`);
-}
-
-// Returns the failures; an already-removed piece is not one.
-export function mongoDown(slug) {
-	const failures = [];
-	for (const args of [['rm', '-f', containerOf(slug)], ['volume', 'rm', volumeOf(slug)], ['network', 'rm', `${composeProjectOf(slug)}_default`]]) {
-		const r = spawnSync('docker', args, { encoding: 'utf8' });
-		const out = (r.stdout ?? '') + (r.stderr ?? '');
-		if (r.status !== 0 && !/no such (container|volume|network)|not found/i.test(out)) failures.push(`docker ${args.join(' ')}: ${out.trim()}`);
-	}
-	return failures;
 }
 
 // `worktree` holds the seeder (a round's worktree, or dev for the permanent stacks); `slug` names

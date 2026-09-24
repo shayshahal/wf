@@ -4,11 +4,13 @@
 // Substitutes {{round}} {{folder}} from .wf/state.json, and for `implement N` the row
 // N of PLAN.md `## Commits` verbatim ({{row}}), {{n}} and {{total}}.
 // `implement N` also records `commit: N` in state — that is what `wf check` fences on.
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { basePortForBranch, directUrls } from './worktree.mjs';
+import { baseBranch, directUrls, name as projectName } from './project.mjs';
+import { anchorToolPaths } from './update.mjs';
+import { basePortForBranch } from './worktree.mjs';
 import { openQuestionGate } from './ask.mjs';
 import { readState, roundOf, toplevelOf, writeState } from './state.mjs';
 
@@ -69,7 +71,7 @@ export function runPrompt(argv) {
 		console.error(`wf prompt ${phase}: ${gate}`);
 		process.exit(2);
 	}
-	const vars = { round: id, folder };
+	const vars = { round: id, folder, base: `origin/${baseBranch}` };
 	if (INTENT_PHASES.includes(phase)) {
 		let ticket = '';
 		try { ticket = readFileSync(join(toplevel, folder, 'TICKET.md'), 'utf8'); } catch { /* reported below */ }
@@ -79,7 +81,7 @@ export function runPrompt(argv) {
 			process.exit(2);
 		}
 	}
-	// Direct ports: Node on Windows cannot resolve *.localhost, so a spec's API calls need these
+	// The project's direct URLs, {{<app>}}: Node on Windows cannot resolve *.localhost, so a spec's API calls need these
 	// (TJEW-663 verify, 2026-09-23: ENOTFOUND in auth.setup).
 	try {
 		const base = basePortForBranch(execFileSync('git', ['-C', toplevel, 'rev-parse', '--abbrev-ref', 'HEAD'], { encoding: 'utf8' }).trim());
@@ -87,6 +89,9 @@ export function runPrompt(argv) {
 	} catch { /* not in a round worktree */ }
 	let template = readFileSync(join(templatesDir, `${phase}.md`), 'utf8');
 	if (phase === 'plan' && argv.includes('--revise')) template += REVISE;
+	// The project's notes for this phase: what its repo, apps and tests look like (projects/<name>/prompts/).
+	const notes = join(templatesDir, '..', 'projects', projectName, 'prompts', `${phase}.md`);
+	if (existsSync(notes)) template += `\n${readFileSync(notes, 'utf8')}`;
 	if (phase === 'implement') {
 		const n = Number(argv[1]);
 		const plan = join(toplevel, folder, 'PLAN.md');
@@ -105,17 +110,12 @@ export function runPrompt(argv) {
 		Object.assign(vars, { n, total: rows.length, row: row.line });
 		writeState(toplevel, { commit: n });
 	}
-	// A round's tree is cut from origin/dev, whose own `wf` may predate these commands: point the
-	// agent at the wf that composed its prompt, not at whatever `pnpm wf` resolves to in its tree.
+	// A round's tree is cut from the base branch, whose own `wf` may predate these commands: point the
+	// agent at the wf that composed its prompt, not at whatever `wf` resolves to in its tree.
 	const wf = `node ${fileURLToPath(new URL('./wf.mjs', import.meta.url)).replace(/\\/g, '/')}`;
-	// Same for the docs a prompt cites: they live on the tooling branch only, so dev's agents never
-	// load them as instructions (link-tools links every JewelryX-Tools skill into a dev worktree).
+	// Same for the docs a prompt cites: a round's worktree does not hold wf.
 	const home = fileURLToPath(new URL('./', import.meta.url)).replace(/\\/g, '/').replace(/\/$/, '');
-	process.stdout.write(
-		renderPrompt(template, vars)
-			.replace(/`pnpm wf /g, `\`${wf} `)
-			.split('{{wf}}').join(home),
-	);
+	process.stdout.write(anchorToolPaths(renderPrompt(template, vars).replace(/`wf /g, `\`${wf} `), home, projectName));
 }
 
 if (process.argv[1]?.endsWith('prompt.mjs')) runPrompt(process.argv.slice(2));

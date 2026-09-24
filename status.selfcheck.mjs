@@ -36,7 +36,7 @@ check('missing PR shows -', formatRow(rows[1], now).includes(' · -'), formatRow
 check('age renders hours', formatAgeSince('2026-09-17T14:00:00.000Z', now) === '1h', formatAgeSince('2026-09-17T14:00:00.000Z', now));
 check('prLabel tolerates null', prLabel(null) === '-');
 
-// b2b arm (offline: stubbed port derivation + probe, no wt, no network).
+// stack arm (offline: stubbed port derivation + probe, no wt, no network).
 const ports = { 'feat/y': 15748, 'feat/x': 15749, 'feat/z': 15750 };
 const ups = { 15748: true, 15749: false, 15750: true };
 const brows = await collectRows({
@@ -45,10 +45,10 @@ const brows = await collectRows({
   pullRequests: [],
   now,
   basePortFor: async (branch) => ports[branch],
-  probeB2b: async (port) => ups[port] ?? false,
+  probeStack: async (port) => ups[port] ?? false,
 });
-check('b2b column shows port + ✓ when the probe answers', formatRow(brows.find((r) => r.path === shay), now).includes('b2b :15748 ✓'));
-check('b2b column shows port + ✗ when the probe refuses', formatRow(brows.find((r) => r.path === old), now).includes('b2b :15749 ✗'));
+check('stack column shows port + ✓ when the probe answers', formatRow(brows.find((r) => r.path === shay), now).includes('stack :15748 ✓'));
+check('stack column shows port + ✗ when the probe refuses', formatRow(brows.find((r) => r.path === old), now).includes('stack :15749 ✗'));
 
 // Portless arm: with a slug the column shows the .localhost name (probe unchanged).
 const slugs = { 'feat/y': 'feat-y', 'feat/x': 'feat-x' };
@@ -58,10 +58,10 @@ const nrows = await collectRows({
   pullRequests: [],
   now,
   basePortFor: async (branch) => ports[branch],
-  probeB2b: async (port) => ups[port] ?? false,
+  probeStack: async (port) => ups[port] ?? false,
   slugFor: async (branch) => slugs[branch],
 });
-check('b2b column shows the portless name when a slug is known', formatRow(nrows.find((r) => r.path === shay), now).includes('b2b http://feat-y.b2b.jewelryx.localhost ✓'), formatRow(nrows.find((r) => r.path === shay), now));
+check('stack column shows the first app name when a slug is known', formatRow(nrows.find((r) => r.path === shay), now).includes('stack http://feat-y.b2b.jewelryx.localhost ✓'), formatRow(nrows.find((r) => r.path === shay), now));
 
 // --all arm: the grouped morning screen over the same fixture worktrees (offline, detail stubbed).
 const allStates = new Map([

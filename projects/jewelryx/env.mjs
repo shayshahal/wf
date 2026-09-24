@@ -1,4 +1,4 @@
-// stack/env.mjs — a new worktree's packages/backend/.env, after `wt step copy-ignored` copied dev's:
+// projects/jewelryx/env.mjs — a new worktree's packages/backend/.env, after `wt step copy-ignored` copied dev's:
 // production credentials out, its own database in. The shared dev tree points at the production S3
 // bucket and carries live SES keys; a worktree that inherits them writes test uploads to production
 // (bug-reports/_OPEN-QUESTIONS.md, 2026-09-03).

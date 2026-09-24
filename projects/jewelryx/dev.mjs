@@ -1,13 +1,13 @@
-// stack/dev.mjs — a worktree's three dev servers on its ports, each behind its portless name.
-//   node stack/dev.mjs <base-port> --slug <slug>    (cwd = the worktree; `wf hook serve` and `wf stacks`)
-// Ports: B2B on P, API on P+10000, admin on P+20000 (worktree.mjs). Every line also lands in
+// projects/jewelryx/dev.mjs — a worktree's three dev servers on its ports, each behind its portless name.
+//   node projects/jewelryx/dev.mjs <base-port> --slug <slug>    (cwd = the worktree; `wf hook serve` and `wf stacks`)
+// Ports: B2B on P, API on P+10000, admin on P+20000 (index.mjs). Every line also lands in
 // .wf/logs/dev.log, prefixed by server name, so an agent can read why a tethered server died;
 // WF_DEV_LOG moves it (the permanent dev stack must not leave .wf/ in the dev checkout).
 import { createWriteStream, mkdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { PassThrough } from 'node:stream';
-import { stackNames } from '../worktree.mjs';
+import { stackNames } from './index.mjs';
 
 // `portless --name <app> --app-port <port> -- <cmd>`: the exact dotted name, so no worktree prefix
 // is added (portless's own prefix is the branch's last segment, not our slug). PORTLESS=0 runs <cmd>
@@ -71,7 +71,7 @@ export async function runDev({ worktree, basePort, slug }) {
 	await result.catch(() => { process.exitCode = 1; });
 }
 
-if (process.argv[1]?.replace(/\\/g, '/').endsWith('stack/dev.mjs')) {
+if (process.argv[1]?.replace(/\\/g, '/').endsWith('jewelryx/dev.mjs')) {
 	const i = process.argv.indexOf('--slug');
 	await runDev({ worktree: process.cwd(), basePort: process.argv[2], slug: i >= 0 ? process.argv[i + 1] : undefined });
 }

@@ -5,6 +5,7 @@
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { roundsDir } from './project.mjs';
 
 export function toplevelOf(cwd = process.cwd()) {
 	return execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8', cwd }).trim();
@@ -41,5 +42,5 @@ export function writeState(toplevel, patch) {
 // `wf new --id` did not run (a hand-cut worktree).
 export function roundOf(state, toplevel) {
 	const id = state?.id ?? state?.round ?? null;
-	return { id, folder: state?.folder ?? (id ? `bug-reports/${id}` : null), toplevel };
+	return { id, folder: state?.folder ?? (id ? `${roundsDir}/${id}` : null), toplevel };
 }

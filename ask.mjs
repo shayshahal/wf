@@ -3,15 +3,16 @@
 // line. A question that lived only in a session's chat died with the session (2026-09-23: a pane
 // closed with its question to Shay unanswered). Idea from firstmate: obligations are closed by
 // records, not by recollection.
-//   wf ask "<question>" [--to shay|einat|saar] [--default "<default>"]   → q<n>, waiting_on = --to
+//   wf ask "<question>" [--to shay|<the project's people>] [--default "<default>"]   → q<n>, waiting_on = --to
 //   wf ask --blocked [--to …]                                            → the Question line of BLOCKED.md
 //   wf decide [--q <n>] "<answer, their words>"                          → closes q<n>
 // `wf prompt` and `wf deliver` refuse while a question is open (openQuestionGate).
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { appendDecision, notifyAdapters, planPath } from './step.mjs';
+import { people } from './project.mjs';
 import { readState, roundFile, toplevelOf, writeState } from './state.mjs';
 
-const PEOPLE = ['shay', 'einat', 'saar'];
+const PEOPLE = ['shay', ...people];
 
 // Pure: the state with one more open question. The round now waits on the oldest open question's person.
 // Numbers only go up (last_question): "q1" in chat names one question for the whole round.
@@ -111,7 +112,7 @@ export async function runAsk(argv) {
 		source = 'BLOCKED.md';
 	}
 	if (!text) {
-		console.error('usage: wf ask "<question>" [--to shay|einat|saar] [--default "<default>"] · wf ask --blocked');
+		console.error(`usage: wf ask "<question>" [--to ${PEOPLE.join('|')}] [--default "<default>"] · wf ask --blocked`);
 		process.exit(2);
 	}
 	const next = writeState(toplevel, addQuestion(state, { to, text, dflt: a.default, source }));

@@ -8,8 +8,9 @@ import { execFileSync, spawn } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, openSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { slugForBranch, stackNames } from './worktree.mjs';
-import { readState, roundOf, toplevelOf } from './state.mjs';
+import { slugForBranch } from '../../worktree.mjs';
+import { readState, roundOf, toplevelOf } from '../../state.mjs';
+import { logins, stackNames } from './index.mjs';
 
 // Pure: `b2b /catalog as buyer mobile` → { app, path, as, mobile }, or null.
 export function parseOpen(line) {
@@ -24,13 +25,6 @@ export function openLineOf(planText) {
 	const m = walk && /^open:[ \t]*`?([^`\n]+?)`?[ \t]*$/m.exec(walk[1]);
 	return m ? m[1] : null;
 }
-
-// Seed logins (docs/agents/seed.md, seed.mjs SEED_CREDENTIALS).
-const LOGINS = {
-	buyer: ['buyer@seed.jewelryx', 'seed1234'],
-	seller: ['seller@seed.jewelryx', 'seed1234'],
-	admin: ['admin@jewelryx.com', 'admin123'],
-};
 
 export function runShow(argv) {
 	const toplevel = toplevelOf();
@@ -57,7 +51,7 @@ export function runShow(argv) {
 	mkdirSync(dir, { recursive: true });
 	const src = join(dirname(fileURLToPath(import.meta.url)), 'show');
 	for (const f of ['show.spec.ts', 'pw.config.ts']) copyFileSync(join(src, f), join(dir, f));
-	const [email, password] = LOGINS[open.as];
+	const [email, password] = logins[open.as];
 	const log = openSync(join(dir, 'show.log'), 'w');
 	// node on the CLI directly, not `pnpm exec`: on Windows pnpm needs shell: true, and a detached
 	// child under a shell writes nothing to the log (measured: 0 bytes detached+shell, 16 detached

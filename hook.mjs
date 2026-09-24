@@ -1,39 +1,27 @@
-// hook.mjs — what worktrunk runs around a JewelryX worktree. The project does not use worktrunk; wf
+// hook.mjs — what worktrunk runs around a project's worktree. The project does not use worktrunk; wf
 // does, so the hooks live here and reach wt through the user config, per project:
 //   wf hook install            write the block below into wt's user config (replaces an earlier one)
 //   wf hook <step> <slug> [P]  one step, called by wt with {{ branch | sanitize }} {{ branch | hash_port }}
-// Steps: pre-start env node verify tools db (in parallel; db syncs python, starts mongo, seeds) · post-start serve · pre-remove
-// gate · post-remove down · alias urls.
+// Steps: pre-start = the project's setup steps (in parallel) · post-start serve · pre-remove gate ·
+// post-remove down (the project's teardown) · alias urls. What each does is the project's (project.mjs).
 import { spawnSync } from 'node:child_process';
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { stackNameLines, stackNames } from './worktree.mjs';
+import { repo, serve, setup, stackNames, teardown } from './project.mjs';
+import { urlLines } from './worktree.mjs';
 
-export const PROJECT = 'github.com/Raynw-MediaTech/jeweleryx';
 const BEGIN = '# >>> wf worktree hooks';
 const END = '# <<< wf worktree hooks';
-
-// Setup steps that are plain commands in the worktree. `node` stays one chain: pre-start steps run in
-// parallel, and as a sibling step `pnpm build:types` started a second `pnpm install` over the same
-// node_modules/.pnpm and killed the first with EPERM (measured 2026-09-20, three runs).
-// `tools` is the project's own linker (package.json tools:install). The python environment is
-// synced inside `db`, because the seeder runs in it.
-export const COMMANDS = {
-	node: 'pnpm install --frozen-lockfile && pnpm build:types && pnpm build:data && pnpm build:filters',
-	verify: 'pnpm --dir verification install --ignore-workspace',
-	tools: 'node scripts/link-tools.mjs',
-};
-const PYTHON_SYNC = 'uv sync --dev --directory packages/backend';
 
 // Pure: the block for wt's user config. `wf` is the wf.mjs the hooks call.
 export function hookBlock(wf) {
 	const call = (step, args = '{{ branch | sanitize }} {{ branch | hash_port }}') => `'node ${wf} hook ${step} ${args}'`;
-	const t = (name) => `[projects."${PROJECT}".${name}]`;
+	const t = (name) => `[projects."${repo}".${name}]`;
 	return [
 		`${BEGIN} (written by \`wf hook install\`; change wf/hook.mjs, not this block)`,
 		t('pre-start'),
-		...['env', ...Object.keys(COMMANDS), 'db'].map((s) => `${s} = ${call(s)}`),
+		...Object.keys(setup).map((s) => `${s} = ${call(s)}`),
 		'',
 		t('post-start'),
 		`server = 'wt step tether -- node ${wf} hook serve {{ branch | sanitize }} {{ branch | hash_port }}'`,
@@ -68,6 +56,14 @@ export function gateVerdict({ state, force }) {
 	return state.step === 'merged' ? null : `round step is "${state.step ?? 'unknown'}" (expected "merged"); run wf step merged first`;
 }
 
+// Pure: the teardown steps that failed. A piece that is already gone is not a failure.
+export function teardownFailures(runs) {
+	return runs.flatMap(({ t, r }) => {
+		const out = `${r.stdout ?? ''}${r.stderr ?? ''}`;
+		return r.status === 0 || /no such (container|volume|network)|not found/i.test(out) ? [] : [`${t.cmd} ${t.args.join(' ')}: ${out.trim()}`];
+	});
+}
+
 function userConfigPath() {
 	const out = spawnSync('wt', ['config', 'show'], { encoding: 'utf8' }).stdout ?? '';
 	const path = /USER CONFIG @ (\S+)/.exec(out)?.[1];
@@ -86,32 +82,15 @@ export async function runHook(argv) {
 		const file = userConfigPath();
 		const wf = fileURLToPath(new URL('./wf.mjs', import.meta.url)).replace(/\\/g, '/');
 		writeFileSync(file, withHookBlock(existsSync(file) ? readFileSync(file, 'utf8') : '', hookBlock(wf)));
-		return console.log(`wf hook install: hooks for ${PROJECT} → ${file} (calling ${wf})`);
+		return console.log(`wf hook install: hooks for ${repo} → ${file} (calling ${wf})`);
 	}
 	const worktree = process.cwd();
 	if (!slug) throw new Error(`usage: wf hook <step> <slug> [base-port]  (got: ${argv.join(' ')})`);
-	if (step in COMMANDS) return sh(COMMANDS[step]);
-	if (step === 'env') {
-		sh('wt step copy-ignored --from dev --require-include');
-		// wf's own files in the worktree (.wf/: state, logs) stay out of git without the project
-		// naming them: the exclude file is shared by every worktree of the repository.
-		const exclude = join(spawnSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { encoding: 'utf8' }).stdout.trim(), 'info', 'exclude');
-		mkdirSync(dirname(exclude), { recursive: true });
-		if (!(existsSync(exclude) ? readFileSync(exclude, 'utf8') : '').split(/\r?\n/).includes('.wf/')) appendFileSync(exclude, '\n.wf/\n');
-		const { sanitizeWorktreeEnv } = await import('./stack/env.mjs');
-		const { worktreeDatabase, worktreeMongoUrl } = await import('./stack/db.mjs');
-		return sanitizeWorktreeEnv(worktree, { url: worktreeMongoUrl(port), name: worktreeDatabase(slug) });
+	if (Object.hasOwn(setup, step)) {
+		const s = setup[step];
+		return typeof s === 'string' ? sh(s) : s({ worktree, slug, port });
 	}
-	if (step === 'db') {
-		const { mongoUp, seedDatabase, worktreeDatabase } = await import('./stack/db.mjs');
-		sh(PYTHON_SYNC);
-		await mongoUp({ slug, base: port });
-		return seedDatabase({ worktree, slug, database: worktreeDatabase(slug) });
-	}
-	if (step === 'serve') {
-		const { runDev } = await import('./stack/dev.mjs');
-		return runDev({ worktree, basePort: port, slug });
-	}
+	if (step === 'serve') return serve({ worktree, slug, port });
 	if (step === 'gate') {
 		const file = join(worktree, '.wf', 'state.json');
 		let state;
@@ -122,13 +101,10 @@ export async function runHook(argv) {
 		process.exit(1);
 	}
 	if (step === 'down') {
-		const { mongoDown } = await import('./stack/db.mjs');
-		const failures = mongoDown(slug);
-		// Routes whose server died with the worktree; CI=1 keeps portless from prompting.
-		spawnSync('portless', ['prune'], { stdio: 'inherit', shell: true, env: { ...process.env, CI: '1' } });
+		const failures = teardownFailures(teardown(slug).map((t) => ({ t, r: spawnSync(t.cmd, t.args, { encoding: 'utf8', shell: process.platform === 'win32', env: { ...process.env, ...t.env } }) })));
 		if (failures.length) { console.error(failures.join('\n')); process.exit(1); }
 		return console.log(`worktree down: ${slug}`);
 	}
-	if (step === 'urls') return console.log(stackNameLines(stackNames(slug)));
+	if (step === 'urls') return console.log(urlLines(stackNames(slug)));
 	throw new Error(`wf hook: unknown step "${step}"`);
 }

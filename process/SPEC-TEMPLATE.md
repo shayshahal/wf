@@ -62,7 +62,7 @@ one line that says why not the runner-up.
 ### INFER — decided here, from a named source
 <n. the decision — then the source that decided it, measured where possible>
 
-### ASK — <Shay (engineering) | Einat (product ⇒ Class C)>
+### ASK — <Shay (engineering) | the product owner (⇒ Class C)>
 > **ASK-n (<who>) — <the question, verbatim, in the addressee's language>**
 > <what is already measured, and what each answer costs>
 

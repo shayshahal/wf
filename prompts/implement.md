@@ -14,7 +14,7 @@ Row {{n}}:
 ## Loop
 
 1. Make the change the Build stack describes for these files. Match the style around it.
-2. `pnpm wf check` — silent means green. Red prints only the errors.
+2. `wf check` — silent means green. Red prints only the errors.
 3. Green → `git add <row files>` and commit with the row's message exactly. Done.
 4. Red → fix, back to 2. **The same check red three times → stop and write `{{folder}}/BLOCKED.md`.**
 
@@ -25,7 +25,7 @@ Row {{n}}:
 - Do not change a signature the Build stack does not mark `+` or `~`.
 - **Never edit `{{folder}}/repro/` or a test file the row does not list.** A red check is
   information about the code, not about the check. Making the grader pass is not the job.
-- Do not run any test the row's check does not name. Never a full suite, never `pnpm dev`.
+- Do not run any test the row's check does not name. Never a full suite, never start the app yourself.
 - Do not "also fix" what you notice nearby. Put it in your reply; someone else decides.
 
 ## `{{folder}}/BLOCKED.md` (≤20 lines)

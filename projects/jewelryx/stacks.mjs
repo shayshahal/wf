@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // stacks.mjs — wf stacks up|down|status: the two permanent local stacks (Shay, 2026-09-23).
-//   DEV  the `dev` worktree served live by wf's stack/dev.mjs (slug dev, base port =
+//   DEV  the `dev` worktree served live by wf's projects/jewelryx/dev.mjs (slug dev, base port =
 //        hash_port("dev") like any round), own mongo jewelryx-mongo-dev seeded once by
-//        stack/db.mjs. Never pulls: it serves whatever the dev folder holds.
+//        db.mjs. Never pulls: it serves whatever the dev folder holds.
 //   QA   the qa worktree (detached at origin/qa, never committed to) built with its own
 //        docker-compose.qa.yml + docker-compose.qa-local.yml, project jewelryx-qa, nginx on
 //        127.0.0.1:8090 ← portless alias qa.jewelryx.localhost. Every 5 min origin/qa is
@@ -19,10 +19,11 @@ import { request } from 'node:http';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { basePortForBranch, mongoPortForBase, stackNames } from './worktree.mjs';
-import { mongoUp, seedDatabase } from './stack/db.mjs';
+import { basePortForBranch } from '../../worktree.mjs';
+import { mongoPortForBase, mongoUp, seedDatabase } from './db.mjs';
+import { stackNames } from './index.mjs';
 
-// TOOLS is wf's own root (docker-compose.qa-local.yml). The stacks themselves run from the project's
+// TOOLS is this folder (dev.mjs, docker-compose.qa-local.yml). The stacks themselves run from the project's
 // worktrees, where worktrunk puts them (worktree-path ~/.herdr/worktrees/{{ remote_repo }}/…): wf left
 // the JewelryX repo on 2026-09-23 and no longer sits next to them.
 const TOOLS = dirname(fileURLToPath(import.meta.url));
@@ -162,11 +163,11 @@ function killTree(file, marker) {
   if (pid) spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { windowsHide: true });
   return pid;
 }
-// By command line, not by pid file: when the runner dies its stack/dev.mjs child can die
+// By command line, not by pid file: when the runner dies its dev.mjs child can die
 // with it while the servers under it live on, orphaned, holding the ports and portless names
 // (2026-09-23). Each server runs under `portless --name dev.<role>.jewelryx`; a round's is
 // `--name <slug>.<role>…`, so the anchored `--name dev.` never matches a round.
-export const DEV_SERVER_PATTERN = String.raw`--name dev\.(b2b|admin|api)\.jewelryx |(dev-worktree|stack[\\/]dev)\.mjs \d+ --slug dev(\s|"|$)`;
+export const DEV_SERVER_PATTERN = String.raw`--name dev\.(b2b|admin|api)\.jewelryx |(dev-worktree|stack[\\/]dev|jewelryx[\\/]dev)\.mjs \d+ --slug dev(\s|"|$)`;
 function killDevServers() {
   const ps = `Get-CimInstance Win32_Process | ? { $_.CommandLine -match '${DEV_SERVER_PATTERN}' } | % { $_.ProcessId }`;
   const encoded = Buffer.from(ps, 'utf16le').toString('base64'); // the pattern's quote would not survive -Command
@@ -225,7 +226,7 @@ async function devLoop() {
       const env = { ...process.env, ...devEnv(mongoPortForBase(base)), WF_DEV_LOG: at('dev.log') };
       await mongoUp({ slug: 'dev', base });
       await seedIfNeeded('jewelryx-mongo-dev', DEV_DB, 'dev');
-      const child = spawn(process.execPath, [join(TOOLS, 'stack', 'dev.mjs'), String(base), '--slug', 'dev'], {
+      const child = spawn(process.execPath, [join(TOOLS, 'dev.mjs'), String(base), '--slug', 'dev'], {
         cwd: DEV_DIR, env, stdio: 'ignore', windowsHide: true,
       });
       log('stacks.log', `dev: servers started (pid ${child.pid}, base ${base}, log ${at('dev.log')})`);

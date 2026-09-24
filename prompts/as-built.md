@@ -7,7 +7,7 @@ You are a fresh, read-only agent. You did not write this code. Write one file:
 **Budget: 12 tool calls.** Read `{{folder}}/SPEC.md`: `## For T1`, the chosen candidate
 in `## Recommendation` and that candidate's call stack. Take its sha: `sha256sum {{folder}}/SPEC.md`. Check that
 `{{folder}}/SPEC-REVIEW.md`'s last `spec-sha:` is the same sha. Then read `git diff <base>...HEAD`, where
-`<base>` = `git merge-base origin/dev HEAD`.
+`<base>` = `git merge-base {{base}} HEAD`.
 
 ## Write it (≤40 lines), in {{wf}}/process/CALL-STACK-FORMAT.md § As-built
 

@@ -12,7 +12,7 @@ class: <A | B | C | —>
 base: <git ref the diff is against | n/a (SPEC review)>
 spec-sha: <sha256:<hex> of SPEC.md | n/a>
 date: <YYYY-MM-DD>
-urls: <B2B:/Admin:/Backend: lines, worktree.mjs stackNameLines
+urls: <one `<app>: <url>` line per app, worktree.mjs urlLines
       | n/a — a detached worktree has no stack>
 ```
 

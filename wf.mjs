@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // wf.mjs — dispatcher: node wf.mjs <cmd> [...]
 // Commands: step, status, new, classify (delegated to ./classify.mjs when installed),
-// design + show + review (human touchpoints, Task 2b), seed (fixture restore, Task 2d),
-// stacks (the permanent dev + qa stacks: up|down|status).
+// design + review (human touchpoints, Task 2b), and the project's own (project.mjs commands:
+// JewelryX's seed, show, stacks).
 import { fileURLToPath } from 'node:url';
 import { autoUpdate } from './update.mjs';
 // The installed copy follows shayshahal/wf main: a pushed change is live on the next run (update.mjs).
@@ -19,9 +19,6 @@ if (cmd === 'hook') {
 } else if (cmd === 'new') {
   const { runNew } = await import('./new.mjs');
   runNew(process.argv.slice(3));
-} else if (cmd === 'seed') {
-  const { runSeed } = await import('./seed.mjs');
-  runSeed(process.argv.slice(3));
 } else if (cmd === 'status') {
   const { runStatus } = await import('./status.mjs');
   await runStatus(process.argv.slice(3));
@@ -53,19 +50,17 @@ if (cmd === 'hook') {
 } else if (cmd === 'design') {
   const { runDesign } = await import('./design.mjs');
   await runDesign(process.argv.slice(3));
-} else if (cmd === 'show') {
-  const { runShow } = await import('./show.mjs');
-  runShow(process.argv.slice(3));
 } else if (cmd === 'review') {
   const { runReview } = await import('./review.mjs');
   await runReview(process.argv.slice(3));
 } else if (cmd === 'update') {
   const { runUpdate } = await import('./update.mjs');
   runUpdate();
-} else if (cmd === 'stacks') {
-  const { runStacks } = await import('./stacks.mjs');
-  await runStacks(process.argv.slice(3));
 } else {
-  console.log('usage: wf <new|step|prompt|check|deliver|ask|decide|status|reap|classify|design|show|review|seed|stacks|update> [...]');
-  process.exit(2);
+  const { commands } = await import('./project.mjs');
+  if (Object.hasOwn(commands, cmd)) await commands[cmd](process.argv.slice(3));
+  else {
+    console.log(`usage: wf <new|step|prompt|check|deliver|ask|decide|status|reap|classify|design|review|update|${Object.keys(commands).join('|')}> [...]`);
+    process.exit(2);
+  }
 }

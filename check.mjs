@@ -4,15 +4,15 @@
 // of its output, exit 1. Everything is derived from the working-tree diff and the
 // PLAN.md row `wf prompt implement N` recorded in .wf/state.json:
 //   fence   — no file outside row N's `files` cell may have changed
-//   backend — ruff check + ruff format --check, pytest for the changed tests
-//   frontend— svelte-check for the touched packages, vitest for the changed tests
-//   check   — the row's own `check` cell: `repro` (RESEARCH.md) or a test path
+//   project — the project's commands for the changed files and the row's test path (project.mjs checks)
+//   repro   — the row's `check` cell `repro`: the command RESEARCH.md records
 // Every run appends one JSON line to .wf/checks.log (row, the row's check, each task's exit,
 // green|red). The validate agent reads that, never the commit message: "the check was run"
 // is then observed, not claimed (llm-as-a-verifier: trust observed output, not narration).
 import { execFileSync, spawnSync } from 'node:child_process';
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync } from 'node:fs';
-import { basename, dirname, join, relative } from 'node:path';
+import { basename, join } from 'node:path';
+import { checks } from './project.mjs';
 import { planCommitRows, rowFiles } from './prompt.mjs';
 import { readState, roundOf, toplevelOf } from './state.mjs';
 
@@ -53,20 +53,9 @@ export function tokenize(line) {
 	return [...line.matchAll(/"([^"]*)"|(\S+)/g)].map((m) => m[1] ?? m[2]);
 }
 
-const isPyTest = (f) => /(^|\/)tests?\//.test(f) || /(^|\/)test_[^/]+\.py$/.test(f);
-const isJsTest = (f) => /\.(test|spec)\.[cm]?[jt]s$/.test(f);
-
-// Pure: the commands to run, in order. `pkgFor(file)` returns { name, dir, svelte } for a
-// frontend file or null; `repro` is the RESEARCH.md command line (or null).
-export function buildTasks({ changed, row, pkgFor, repro }) {
-	const tasks = [];
-	const add = (t) => { if (!tasks.some((x) => x.label === t.label)) tasks.push(t); };
-	const backend = changed.filter((f) => f.startsWith('packages/backend/') && f.endsWith('.py'));
-	const rel = (f) => (f.startsWith('packages/backend/') ? f.slice('packages/backend/'.length) : f);
-	if (backend.length) {
-		add({ label: `ruff check ${backend.map(rel).join(' ')}`, cmd: 'uv', args: ['run', '--frozen', 'ruff', 'check', ...backend.map(rel)], cwd: 'packages/backend' });
-		add({ label: `ruff format --check ${backend.map(rel).join(' ')}`, cmd: 'uv', args: ['run', '--frozen', 'ruff', 'format', '--check', ...backend.map(rel)], cwd: 'packages/backend' });
-	}
+// Pure: the commands to run, in order. `projectTasks(test)` is the project's commands for the diff
+// plus `test` (the row's test path, or null); `repro` is the RESEARCH.md command line (or null).
+export function buildTasks({ row, projectTasks, repro }) {
 	// The command is the first `code span` when there is one — a cell may add a note after it
 	// (TJEW-700 row 6: "`vitest run …ts` (fixture carries …)" took `number)` as the path).
 	const cell = row?.check ?? '';
@@ -76,58 +65,11 @@ export function buildTasks({ changed, row, pkgFor, repro }) {
 	// The cell is a command (`pytest packages/backend/tests/x.py`, `vitest run …/x.test.ts`):
 	// the path is its last word (TJEW-700: the whole cell was sliced as a path → `ackend/tests/…`).
 	const checkPath = check.split(/\s+/).pop() ?? '';
-	const pytests = backend.filter(isPyTest);
-	if (checkPath.endsWith('.py') && !pytests.includes(checkPath)) pytests.push(checkPath);
-	if (pytests.length) add({ label: `pytest ${pytests.map(rel).join(' ')}`, cmd: 'uv', args: ['run', '--frozen', 'pytest', ...pytests.map(rel)], cwd: 'packages/backend' });
-
-	const pkgs = new Map();
-	for (const f of changed.filter((f) => f.startsWith('packages/frontend/'))) {
-		const pkg = pkgFor(f);
-		if (!pkg) continue;
-		if (!pkgs.has(pkg.name)) pkgs.set(pkg.name, { ...pkg, tests: [] });
-		if (isJsTest(f)) pkgs.get(pkg.name).tests.push(relative(pkg.dir, f).replace(/\\/g, '/'));
-	}
-	for (const pkg of pkgs.values()) {
-		if (pkg.svelte) add({ label: `svelte-check ${pkg.name}`, cmd: 'pnpm', args: ['--filter', pkg.name, 'exec', 'svelte-check', '--threshold', 'error', '--incremental', '--tsgo'], cwd: '.' });
-		if (pkg.tests.length) add({ label: `vitest ${pkg.name} ${pkg.tests.join(' ')}`, cmd: 'pnpm', args: ['--filter', pkg.name, 'exec', 'vitest', 'run', ...pkg.tests], cwd: '.' });
-	}
-
-	if (check === 'repro') {
-		if (!repro) return [...tasks, { label: 'repro', missing: 'RESEARCH.md ## Repro has no `command:` line' }];
-		const [cmd, ...args] = tokenize(repro);
-		add({ label: repro, cmd, args, cwd: '.' });
-	} else if (checkPath.endsWith('.ts')) {
-		if (checkPath.startsWith('verification/')) add({ label: `playwright ${checkPath}`, cmd: 'pnpm', args: ['exec', 'playwright', 'test', checkPath], cwd: '.' });
-		else {
-			// vitest lives in the package, not at the root (TJEW-700 row 3: `Command "vitest" not found`).
-			const pkg = checkPath.startsWith('packages/frontend/') ? pkgFor(checkPath) : null;
-			if (pkg) { const t = relative(pkg.dir, checkPath).replace(/\\/g, '/'); add({ label: `vitest ${pkg.name} ${t}`, cmd: 'pnpm', args: ['--filter', pkg.name, 'exec', 'vitest', 'run', t], cwd: '.' }); }
-			else add({ label: `vitest ${checkPath}`, cmd: 'pnpm', args: ['exec', 'vitest', 'run', checkPath], cwd: '.' });
-		}
-	} else if (check && !checkPath.endsWith('.py')) {
-		// A cell wf cannot run used to pass with no check at all (TJEW-682: `repro --grep …`).
-		return [...tasks, { label: 'check', missing: `PLAN.md row check "${cell}" is not runnable — use \`repro\`, one repo-rooted test path, or — (fence only)` }];
-	}
-	return tasks;
-}
-
-// Nearest package.json above a frontend file; svelte-check only where a svelte.config lives.
-// `dir` comes back repo-relative, because buildTasks makes test paths relative to it.
-export function realPkgFor(toplevel) {
-	const cache = new Map();
-	return (file) => {
-		let dir = dirname(join(toplevel, file));
-		const stop = join(toplevel, 'packages', 'frontend');
-		while (dir.startsWith(stop) && dir !== stop) {
-			if (!cache.has(dir)) {
-				const manifest = join(dir, 'package.json');
-				cache.set(dir, existsSync(manifest) ? { name: JSON.parse(readFileSync(manifest, 'utf8')).name, dir: relative(toplevel, dir).replace(/\\/g, '/'), svelte: existsSync(join(dir, 'svelte.config.js')) } : null);
-			}
-			if (cache.get(dir)) return cache.get(dir);
-			dir = dirname(dir);
-		}
-		return null;
-	};
+	const tasks = projectTasks(check && check !== 'repro' ? checkPath : null);
+	if (check !== 'repro') return tasks;
+	if (!repro) return [...tasks, { label: 'repro', missing: 'RESEARCH.md ## Repro has no `command:` line' }];
+	const [cmd, ...args] = tokenize(repro);
+	return [...tasks, { label: repro, cmd, args, cwd: '.' }];
 }
 
 // Pure: the checks.log line for one run.
@@ -158,7 +100,7 @@ export function runCheck() {
 	}
 	const research = join(toplevel, folder ?? '', 'RESEARCH.md');
 	const repro = existsSync(research) ? reproCommand(readFileSync(research, 'utf8')) : null;
-	for (const task of buildTasks({ changed, row, pkgFor: realPkgFor(toplevel), repro })) {
+	for (const task of buildTasks({ row, projectTasks: (test) => checks({ toplevel, changed, test }), repro })) {
 		if (task.missing) {
 			console.error(`check: ${task.missing}`);
 			ran.push({ label: task.label, exit: null, missing: task.missing });

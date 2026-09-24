@@ -13,7 +13,7 @@ from it; it was not written from the plan):
 judge against the answer.
 
 **Budget: 15 tool calls.** Read `PLAN.md` fully, then `git diff <base>...HEAD` where
-`<base>` = `git merge-base origin/dev HEAD`. Read a touched file fully only when the diff
+`<base>` = `git merge-base {{base}} HEAD`. Read a touched file fully only when the diff
 alone cannot answer a row below.
 
 ## Write `{{folder}}/VALIDATION.md` (≤30 lines)

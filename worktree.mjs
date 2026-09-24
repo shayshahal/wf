@@ -2,13 +2,15 @@
 // removes a worktree through this file; nothing else runs `git worktree` or `wt switch/remove`.
 //   read:   `git worktree list --porcelain`: 54 ms, against 2.6 s for `wt list --format json`
 //           (measured 2026-09-24, 23 worktrees)
-//   names:  wt's own filters (hash_port, sanitize), so wf and the wt hooks agree on every port and name
+//   names:  wt's own filters (hash_port, sanitize), so wf and the wt hooks agree on every port and name;
+//           the project turns them into its apps' URLs (project.mjs)
 //   create: `wt switch --create --no-hooks`, then wf's hooks (hook.mjs) install, build, seed and serve
-//   remove: removalPlan: stop the tree's processes, `wt remove`, then what `wt remove` leaves behind
-// Ports: P = hash_port(branch) (B2B, 10000-19999), API P+10000, admin P+20000, mongo 40000+(P-10000).
+//   remove: removalPlan: stop the tree's processes, `wt remove`, then the project's teardown
+// Ports: P = hash_port(branch), 10000-19999; the project spreads its apps from there.
 import { execFileSync, spawnSync } from 'node:child_process';
-import { closeSync, openSync, readFileSync } from 'node:fs';
-import { basename } from 'node:path';
+import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync } from 'node:fs';
+import { basename, dirname, join } from 'node:path';
+import { teardown } from './project.mjs';
 
 const norm = (p) => p.replace(/\\/g, '/').replace(/\/+$/, '');
 
@@ -38,15 +40,6 @@ export function resolveWorktree(name, trees = listWorktrees()) {
 
 // ── names ────────────────────────────────────────────────────────────────────
 
-export const MONGO_PORT_BASE = 40000;
-
-// Pure: mongo host port for a base port P. Throws outside 10000-19999.
-export function mongoPortForBase(basePort) {
-	const p = Number(basePort);
-	if (!Number.isInteger(p) || p < 10000 || p > 19999) throw new Error(`base port out of range 10000-19999: ${basePort}`);
-	return MONGO_PORT_BASE + (p - 10000);
-}
-
 const wtEval = (expr) => execFileSync('wt', ['step', 'eval', expr], { encoding: 'utf8' }).trim();
 
 export function basePortForBranch(branch) {
@@ -68,23 +61,10 @@ export function portsAndSlugsForBranches(branches) {
 	}));
 }
 
-// Pure: a stack's names behind portless, http://<slug>.<app>.jewelryx.localhost, for a browser.
-// <slug> is passed in full: portless's own worktree prefix is the branch's last segment only
-// (measured 2026-09-22: branch tools/workflow-v2 gave workflow-v2, not tools-workflow-v2).
-export function stackNames(slug) {
-	const name = (app) => `http://${slug}.${app}.jewelryx.localhost`;
-	return { b2b: name('b2b'), admin: name('admin'), api: name('api') };
-}
-
-// Pure: a stack's direct addresses, for Node: Node on Windows cannot resolve *.localhost, and the
-// API is 127.0.0.1 because Node tries ::1 first for localhost (docs/agents/testing.md).
-export function directUrls(port) {
-	return { b2b: `http://localhost:${port}`, admin: `http://localhost:${port + 20_000}`, api: `http://127.0.0.1:${port + 10_000}/api/v1` };
-}
-
-// Pure: the lines wf prints under a round's header.
-export function stackNameLines(names) {
-	return [`B2B:     ${names.b2b}`, `Admin:   ${names.admin}`, `Backend: ${names.api}`].join('\n');
+// Pure: the lines wf prints under a round's header, one per app: `<app>: <url>`.
+export function urlLines(urls) {
+	const width = Math.max(...Object.keys(urls).map((app) => app.length)) + 2;
+	return Object.entries(urls).map(([app, url]) => `${`${app}:`.padEnd(width)}${url}`).join('\n');
 }
 
 // ── create ───────────────────────────────────────────────────────────────────
@@ -108,10 +88,20 @@ export function createWorktree({ branch, base, log }) {
 	};
 	step('wt switch --create', ['switch', '--create', branch, '--base', base, '--yes', '--no-cd', '--no-hooks']);
 	const tree = resolveWorktree(branch);
+	excludeWfFolder(tree.path);
 	step('pre-start hooks', ['hook', 'pre-start', 'user:', '--yes'], tree.path);
 	step('post-start hooks', ['hook', 'post-start', 'user:', '--yes'], tree.path);
 	closeSync(fd);
 	return tree;
+}
+
+// wf's own files in a worktree (.wf/: state, logs) stay out of git without the project naming
+// them: the exclude file is shared by every worktree of the repository.
+function excludeWfFolder(worktree) {
+	const common = execFileSync('git', ['-C', worktree, 'rev-parse', '--path-format=absolute', '--git-common-dir'], { encoding: 'utf8' }).trim();
+	const exclude = join(common, 'info', 'exclude');
+	mkdirSync(dirname(exclude), { recursive: true });
+	if (!(existsSync(exclude) ? readFileSync(exclude, 'utf8') : '').split(/\r?\n/).includes('.wf/')) appendFileSync(exclude, '\n.wf/\n');
 }
 
 // ── remove ───────────────────────────────────────────────────────────────────
@@ -132,11 +122,6 @@ export function removalPlan({ branch, path, slug, pid }) {
 		{ label: 'wt remove', cmd: 'wt', args: ['remove', branch, '--no-delete-branch', '--force', '--foreground', '-y'] },
 		{ label: 'rm -rf worktree', rm: path },
 		{ label: 'git worktree prune', cmd: 'git', args: ['worktree', 'prune'] },
-		{ label: 'docker rm mongo', cmd: 'docker', args: ['rm', '-f', `jewelryx-mongo-${slug}`] },
-		{ label: 'docker volume rm', cmd: 'docker', args: ['volume', 'rm', `jewelryx-wt-mongo-${slug}`] },
-		// The compose network outlives its container; 23 of them exhausted docker's address pools and
-		// the next `wf new` failed: "all predefined address pools have been fully subnetted" (3187601171).
-		{ label: 'docker network rm', cmd: 'docker', args: ['network', 'rm', `jewelryx-wt-${slug}_default`] },
-		{ label: 'portless prune', cmd: 'portless', args: ['prune'], env: { CI: '1' } },
+		...teardown(slug),
 	];
 }

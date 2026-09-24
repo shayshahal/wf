@@ -8,7 +8,7 @@ annotations are the whole job.
 1. Read every file an annotation names, fully.
 2. Make exactly the changes the annotations ask for. An annotation you disagree with is not
    silently skipped: build it or name it in your reply.
-3. `pnpm wf check` — silent means green.
+3. `wf check` — silent means green.
 4. Green → `git add <the files the annotations name>` and one commit,
    `fix(review): <what changed>`.
 

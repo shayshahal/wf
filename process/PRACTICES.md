@@ -3,7 +3,7 @@
 Four habits every round follows. They are enforced by the flows that cite
 them, not by tooling.
 
-**Worktree per round.** One round, one worktree, one branch off `dev`,
+**Worktree per round.** One round, one worktree, one branch off the project's base branch,
 created with `wf new`. No two agents share a checkout, no round reuses
 another's branch, and nothing lands except through a PR. Isolation is what
 makes every other practice measurable — a red run means this round's code,

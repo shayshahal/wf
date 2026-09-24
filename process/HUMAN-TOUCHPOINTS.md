@@ -11,7 +11,7 @@ marks `step design --waiting-on shay`, opens the spec for annotation (Plannotato
 `annotate --gate`), and folds the result into the REVIEW-FORMAT.md shape: one comment
 line each plus a final `verdict:` line.
 
-**T2 — `wf review <round> [--base dev]`** writes `<round folder>/REVIEW.md`, then commits and pushes it to the PR branch so the
+**T2 — `wf review <round> [--base <ref>]`** writes `<round folder>/REVIEW.md`, then commits and pushes it to the PR branch so the
 merge carries it. It marks
 `step review --waiting-on shay`, writes the skeleton first (server URLs, files changed
 vs base, class, spec sha), opens the branch-vs-base diff (Plannotator `review
@@ -42,7 +42,7 @@ order Shay wants to touch them (contract with mock data → screen in the browse
 wire → store), never stack order. When present, the worker runs `wf step review`
 after each slice and Shay reviews 100–200 lines at a time. Absent, one T2 at the end.
 
-**Asking.** Every question an agent might put to Shay or Einat is sorted first:
+**Asking.** Every question an agent might put to Shay or the product owner is sorted first:
 INFER what the code or the ticket already reveals — never ask it; ASK only what
 the human alone knows (a requirement, a business rule); RECOMMEND what expertise
 settles — state the pick, one line why, and the runner-up. Never a neutral menu,

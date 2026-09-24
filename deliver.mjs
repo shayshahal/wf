@@ -3,13 +3,14 @@
 //   1. `wf check` with the last PLAN.md row's check (the repro)
 //   2. the PR: PLAN.md verbatim + the pushed commits + VALIDATION.md (the validate agent's
 //      hop-by-hop as-built check; a word heuristic here printed "missing: loop" — TJEW-700)
-//   3. MONDAY.md in the round folder (the orchestrator posts it; wf never calls Monday)
+//   3. the project's tracker note in the round folder (the round skill posts it; wf never calls the tracker)
 //   4. `wf step review`
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runCheck } from './check.mjs';
+import { baseBranch, trackerNote } from './project.mjs';
 import { planCommitRows } from './prompt.mjs';
 import { openQuestionGate } from './ask.mjs';
 import { readState, roundOf, toplevelOf, writeState } from './state.mjs';
@@ -18,14 +19,6 @@ import { runStep } from './step.mjs';
 export function prBody({ planText, commitLines, validation }) {
 	const validated = validation ? `\n${validation.replace(/\r\n/g, '\n').trimEnd()}\n` : '';
 	return `${planText.replace(/\r\n/g, '\n').trimEnd()}\n\n## Commits (as pushed)\n${commitLines.join('\n')}\n${validated}`;
-}
-
-// Hebrew scaffolding; Cause/Approach come across verbatim from PLAN.md (wf has no
-// translator — a plan written in English arrives in English, marked for the poster).
-export function mondayComment({ planText, url }) {
-	const body = planText.replace(/\r\n/g, '\n');
-	const field = (name) => new RegExp(`^${name}:[ \\t]*(.+)$`, 'm').exec(body)?.[1]?.trim() ?? '';
-	return ['<!-- translate: the two quoted lines are PLAN.md verbatim -->', 'תוקן ✅', `סיבה: ${field('Cause')}`, `מה שונה: ${field('Approach')}`, `PR: ${url}`].join('\n') + '\n';
 }
 
 const git = (toplevel, args) => execFileSync('git', ['-C', toplevel, ...args], { encoding: 'utf8' }).trimEnd();
@@ -67,10 +60,10 @@ ${(pushed.stdout ?? '') + (pushed.stderr ?? '')}`.trimEnd());
 		process.exit(1);
 	}
 
-	const base = git(toplevel, ['merge-base', 'origin/dev', 'HEAD']);
+	const base = git(toplevel, ['merge-base', `origin/${baseBranch}`, 'HEAD']);
 	const commitLines = git(toplevel, ['log', '--format=- %h %s', `${base}..HEAD`]).split('\n').filter(Boolean);
 	if (!commitLines.length) {
-		console.error('wf deliver: no commits since origin/dev — nothing to deliver');
+		console.error(`wf deliver: no commits since origin/${baseBranch} — nothing to deliver`);
 		process.exit(1);
 	}
 	const body = join(tmpdir(), `wf-pr-${Date.now()}.md`);
@@ -83,13 +76,14 @@ ${(pushed.stdout ?? '') + (pushed.stderr ?? '')}`.trimEnd());
 	const url = existing.status === 0 ? JSON.parse(existing.stdout).url : null;
 	const pr = url
 		? spawnSync('gh', ['pr', 'edit', '--body-file', body], { cwd: toplevel, encoding: 'utf8' })
-		: spawnSync('gh', ['pr', 'create', '--base', 'dev', '--title', title, '--body-file', body], { cwd: toplevel, encoding: 'utf8' });
+		: spawnSync('gh', ['pr', 'create', '--base', baseBranch, '--title', title, '--body-file', body], { cwd: toplevel, encoding: 'utf8' });
 	if (pr.status !== 0) {
 		console.error(`FAILED: gh pr ${url ? 'edit' : 'create'}\n${(pr.stdout ?? '') + (pr.stderr ?? '')}`.trimEnd());
 		process.exit(1);
 	}
 	const prUrl = url ?? pr.stdout.trim().split('\n').at(-1);
-	writeFileSync(join(toplevel, folder, 'MONDAY.md'), mondayComment({ planText, url: prUrl }));
+	const note = trackerNote({ planText, url: prUrl });
+	writeFileSync(join(toplevel, folder, note.file), note.text);
 	console.log(prUrl);
 	await runStep(['review', '--waiting-on', 'shay']);
 }

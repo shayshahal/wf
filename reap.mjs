@@ -8,6 +8,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { copyFileSync, mkdirSync, rmSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { roundsDir } from './project.mjs';
 import { removalPlan, resolveWorktree, slugForBranch } from './worktree.mjs';
 
 // Pure: the uncommitted round paperwork in `git status --porcelain --untracked-files=all` output.
@@ -16,7 +17,7 @@ import { removalPlan, resolveWorktree, slugForBranch } from './worktree.mjs';
 export function paperworkToKeep(porcelain) {
 	return porcelain.split('\n').filter((l) => l.length > 3 && !l.startsWith(' D') && !l.startsWith('D '))
 		.map((l) => l.slice(3).split(' -> ').at(-1).replace(/^"|"$/g, ''))
-		.filter((f) => /^bug-reports\//.test(f) || /^(SPEC|SPEC-REVIEW|REVIEW)\.md$/.test(f));
+		.filter((f) => f.startsWith(`${roundsDir}/`) || /^(SPEC|SPEC-REVIEW|REVIEW)\.md$/.test(f));
 }
 
 function keepPaperwork(path, slug) {
@@ -24,7 +25,7 @@ function keepPaperwork(path, slug) {
 	try { porcelain = execFileSync('git', ['-C', path, 'status', '--porcelain', '--untracked-files=all'], { encoding: 'utf8' }); } catch { return; }
 	const files = paperworkToKeep(porcelain);
 	if (!files.length) return;
-	const dest = join(homedir(), '.cache', 'jewelryx-reaped', slug);
+	const dest = join(homedir(), '.cache', 'wf-reaped', slug);
 	for (const f of files) {
 		mkdirSync(dirname(join(dest, f)), { recursive: true });
 		copyFileSync(join(path, f), join(dest, f));
@@ -56,7 +57,7 @@ export function runReap(argv) {
 		}
 		if (step.rm) {
 			try {
-				// The dev server just killed holds packages/backend for a few seconds (EBUSY on Windows):
+				// A dev server just killed holds its folder for a few seconds (EBUSY on Windows):
 				// rmSync retries EBUSY/EPERM itself. BJEW-603 left the folder behind twice without this.
 				rmSync(step.rm, { recursive: true, force: true, maxRetries: 10, retryDelay: 1000 });
 				console.log(`${step.label}: ok`);

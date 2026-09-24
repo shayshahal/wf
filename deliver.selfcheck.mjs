@@ -1,6 +1,6 @@
 // deliver.selfcheck.mjs — node deliver.selfcheck.mjs → exit 0 when green.
 // Fixture PLAN.md → the PR body, MONDAY.md.
-import { mondayComment, prBody } from './deliver.mjs';
+import { prBody } from './deliver.mjs';
 
 let failures = 0;
 const check = (name, cond, detail = '') =>
@@ -29,9 +29,6 @@ check('PR body carries PLAN.md verbatim', body.includes('Cause: the send result 
 check('PR body carries the pushed commits and VALIDATION.md', body.includes('## Commits (as pushed)\n- abc123 fix(auth): x') && body.includes('## Validation\n+ send_otp_code: built'), body.slice(-160));
 check('PR body has no word-level as-built lines', !body.includes('## As built') && !/missing:|unplanned:/.test(body));
 
-const monday = mondayComment({ planText: plan, url: 'https://github.com/x/y/pull/7' });
-check('MONDAY.md is ≤6 lines', monday.trimEnd().split('\n').length <= 6, String(monday.trimEnd().split('\n').length));
-check('MONDAY.md carries cause, approach and the PR url', monday.includes('סיבה: the send result is discarded at auth.py:599') && monday.includes('מה שונה: capture it') && monday.includes('pull/7'), monday);
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');
 process.exit(failures ? 1 : 0);

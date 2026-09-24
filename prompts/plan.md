@@ -23,13 +23,13 @@ Approach: <one line: what changes, and why here and not elsewhere>
 
 ## Commits
 | # | message | files | check |
-| 1 | <conventional commit line> | <every file this commit touches, repo-relative (packages/…) — the fence matches them verbatim> | <the exact command that proves it: a pytest path, a vitest path, or `repro`> |
+| 1 | <conventional commit line> | <every file this commit touches, repo-relative — the fence matches them verbatim> | <the exact command that proves it: one test path, or `repro`> |
 
 ## Not doing
 <adjacent things a reader might expect, and that this round leaves alone — one line each>
 
 ## T2 walk
-open: <b2b|admin> </path under the app> as <buyer|seller|admin> [mobile]
+open: <the screen Shay opens first — its shape: *This project*>
 <one line: what to do on that screen to see the fix>
 
 ## Asks
@@ -46,13 +46,12 @@ open: <b2b|admin> </path under the app> as <buyer|seller|admin> [mobile]
 - The repro in RESEARCH.md is green after the last commit; that commit's check is `repro`.
 - Every file that will change is in a commit row. The implementer is fenced to those files; a
   file you forgot costs a round-trip to you.
-- The `open:` line is exactly that shape, nothing after it: `wf show` parses it.
+- The `open:` line is exactly the shape *This project* gives, nothing after it: a command may parse it.
 - Tests only for files in the rows. New test files are listed like any other file.
 - Each commit leaves the tree working and its check passes on its own.
 - If RESEARCH.md could not measure "Diverges at", commit 1 is the one that measures it.
-- `wf check` reads a check cell as exactly `repro` or one repo-rooted test path
-  (`vitest run packages/frontend/b2b/src/tests/x.test.ts`, never `--dir` + a package path): `repro --grep …` runs
-  nothing, and a check expected red fails the commit. A measuring commit's check is `—`
+- `wf check` reads a check cell as exactly `repro` or one repo-rooted test path (never `--dir` +
+  a package path): `repro --grep …` runs nothing, and a check expected red fails the commit. A measuring commit's check is `—`
   (fence only).
 - Do not run suites, do not start servers, do not commit anything.
 - CRLF: write through a script or the `edit` tool, never a heredoc.

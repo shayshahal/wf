@@ -6,7 +6,7 @@ moves, in order. `SPEC-TEMPLATE.md` is the skeleton, `CALL-STACK-FORMAT.md` the 
 `REVIEW-FORMAT.md` what comes back.
 
 **Where the files live.** `SPEC.md`, `SPEC-REVIEW.md` and `REVIEW.md` live in the **round folder**
-(`bug-reports/<round>/`, the `folder` in `.wf/state.json`) with the rest of the round, and ship with
+(the `folder` in `.wf/state.json`) with the rest of the round, and ship with
 the PR. Until 2026-09-23 they sat at the worktree root and were moved by hand (BJEW-586: PR #175).
 
 ## 1 · prime
@@ -48,9 +48,9 @@ source: a ticket line, a document §, a decision record, a model field, a measur
 value with no source is an **owed decision** — and that, not the pathspec, classifies the round:
 
 - the source is an engineering choice ⇒ **B**, and it is an ASK for Shay;
-- only Einat can name it (a sentence a user reads, a flow) ⇒ **C**. Post the question, ship the
+- only the product owner can name it (a sentence a user reads, a flow) ⇒ **C**. Post the question, ship the
   decided remainder, and record what you built anyway as `status: assumed`
-  (`verification/decisions/_about.md`);
+  (the project's decision records);
 - **a question you decided not to ask gets its own row too**, marked as such with the ruling
   that closes it. A round that silently leaves one out looks exactly like a round that never
   saw it.
@@ -82,10 +82,10 @@ Every question is sorted, with an addressee, and it is never a menu and never si
 | | |
 |---|---|
 | **INFER** | you decided — state the named source you decided from. Never ask what the code already answers |
-| **ASK** | only the human knows it. Say which human: Shay (engineering) · Einat (product, ⇒ Class C) |
+| **ASK** | only the human knows it. Say which human: Shay (engineering) · the product owner (⇒ Class C; who: the project's ROUND.md) |
 | **RECOMMEND** | expertise settles it: your pick, one line why, and the runner-up |
 
-An ASK for Einat is written **verbatim in her language**, and it reaches the board that way.
+An ASK for the product owner is written **verbatim in their language**, and it reaches the tracker that way.
 
 An ASK chooses between answers the ticket, the docx or the code already forces. **A feature the
 round was not asked to build is never an ASK** — BJEW-454 rev 1 offered a nightly overdue sweep

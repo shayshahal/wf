@@ -1,6 +1,6 @@
 ---
 name: round-worker
-description: One phase of a JewelryX round (research, plan, implement N, as-built, validate, fix-review), dispatched by the round skill with the output of `wf prompt`. Exits when its turn ends, so its pane closes by itself. Not for the design session, which Shay talks to.
+description: One phase of a round (research, plan, implement N, as-built, validate, fix-review), dispatched by the round skill with the output of `wf prompt`. Exits when its turn ends, so its pane closes by itself. Not for the design session, which Shay talks to.
 auto-exit: true
 ---
 

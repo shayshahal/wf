@@ -9,7 +9,7 @@ import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-export const LIVE = join(homedir(), '.local', 'share', 'jewelryx-wf');
+export const LIVE = join(homedir(), '.local', 'share', 'wf');
 // The editing clone: a push from it moves origin/main here at once, so the check needs no network.
 const SOURCE = join(homedir(), 'work', 'wf', '.git');
 const REF = 'refs/remotes/origin/main';
@@ -18,10 +18,12 @@ const git = (gitDir, args) => execFileSync('git', [`--git-dir=${gitDir}`, ...arg
 const installedRevision = () => { try { return readFileSync(join(LIVE, 'REVISION'), 'utf8').trim(); } catch { return null; } };
 
 // Pure: skills, agents and docs are read as they are, from whatever worktree the agent is in. A
-// round's worktree does not hold wf, so the text names wf's own files as {{wf}}/… and the installed
-// copy fills in its own path. `wf prompt` fills the same placeholder per prompt.
-export function anchorToolPaths(text, live) {
-	return text.split('{{wf}}').join(live.replace(/\\/g, '/'));
+// round's worktree does not hold wf, so the text names wf's own files as {{wf}}/… and the project's
+// notes as {{project}}/…, and the installed copy fills in its own path. `wf prompt` fills the same
+// placeholders per prompt.
+export function anchorToolPaths(text, live, project) {
+	const home = live.replace(/\\/g, '/');
+	return text.split('{{project}}').join(`${home}/projects/${project}`).split('{{wf}}').join(home);
 }
 const markdownUnder = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
 	e.isDirectory() ? markdownUnder(join(dir, e.name)) : e.name.endsWith('.md') ? [join(dir, e.name)] : []);
@@ -48,7 +50,11 @@ export function install(gitDir, rev) {
 		git(gitDir, ['archive', '--format=tar', '-o', join(fresh, '_wf.tar'), rev]);
 		execFileSync('tar', ['-xf', '_wf.tar'], { cwd: fresh });
 		rmSync(join(fresh, '_wf.tar'));
-		for (const f of markdownUnder(fresh)) writeFileSync(f, anchorToolPaths(readFileSync(f, 'utf8'), LIVE));
+		// The project's folder name, from the copy being installed. Read, not imported: the updater never
+		// loads project code, so a broken project cannot stop the update that fixes it.
+		const project = /projects\/([\w-]+)\/index\.mjs/.exec(readFileSync(join(fresh, 'project.mjs'), 'utf8'))?.[1];
+		if (!project) throw new Error('project.mjs names no projects/<name>/index.mjs');
+		for (const f of markdownUnder(fresh)) writeFileSync(f, anchorToolPaths(readFileSync(f, 'utf8'), LIVE, project));
 		writeFileSync(join(fresh, 'REVISION'), `${rev}\n`);
 		// Swap whole, so a half-written copy is never live; links point at LIVE's path and follow.
 		const old = `${LIVE}.old`;

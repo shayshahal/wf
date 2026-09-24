@@ -1,12 +1,13 @@
 // wf classify: any B file => class B. Class C is never set by paths;
 // only the orchestrator sets C (product-undecided).
-// Base: --base, else .wf/state.json.base (set by wf new), else origin/dev — a bare
+// Base: --base, else .wf/state.json.base (set by wf new), else origin/<the project's base branch> — a bare
 // `wf classify` on a round cut from tools/wf-runtime used to diff against origin/dev
 // and report the runtime's own commits as the round's (BJEW-585 pilot note 1).
 import { execFileSync, spawnSync } from "node:child_process";
 import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { baseBranch, contractPaths as contractPathsFile } from "./project.mjs";
 
 // Pure: the project's contract paths (one pathspec glob per line, # comments) as a gitattributes
 // file. Last match wins, so the default A comes first.
@@ -26,15 +27,15 @@ const persistedBase = () => {
     return JSON.parse(readFileSync(join(top, ".wf", "state.json"), "utf8")).base ?? null;
   } catch { return null; }
 };
-const hasOriginDev = spawnSync("git", ["rev-parse", "--verify", "-q", "origin/dev"]).status === 0;
-const base = bi === -1 ? (persistedBase() ?? (hasOriginDev ? "origin/dev" : "dev")) : (args[bi + 1] ?? "dev");
+const hasOriginBase = spawnSync("git", ["rev-parse", "--verify", "-q", `origin/${baseBranch}`]).status === 0;
+const base = bi === -1 ? (persistedBase() ?? (hasOriginBase ? `origin/${baseBranch}` : baseBranch)) : (args[bi + 1] ?? baseBranch);
 const asJson = args.includes("--json");
 const names = execFileSync("git", ["diff", "--name-only", `${base}...HEAD`], { encoding: "utf8" })
   .split("\n").map((s) => s.trim()).filter(Boolean);
 // Class B is the project's own list of contract paths, read from the round's worktree, so it moves
 // with the code it describes. It must exist: without it every path read as A, and a B endpoint
 // went through as A (fix/role-assign-dialog, 2026-09-23).
-const listFile = join(top, "docs", "agents", "contract-paths.txt");
+const listFile = join(top, contractPathsFile);
 let contractPaths;
 try { contractPaths = readFileSync(listFile, "utf8"); } catch { throw new Error(`classify: ${listFile} is missing; the project names its contract paths there`); }
 const attributesFile = join(tmpdir(), `wf-class-${process.pid}.gitattributes`);

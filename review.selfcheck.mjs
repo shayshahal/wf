@@ -56,7 +56,7 @@ const targetLine = { ...annotateLine, decision: "lgtm", target: { review: { base
 check('fold records what plannotator actually reviewed', foldFeedbackLine(targetLine).includes("reviewed: dev (124 files)"));
 check('lastField takes the newest dated section', lastField('base: dev\nverdict: approved\n## 2\nbase: tools/wf-runtime\n', 'base') === 'tools/wf-runtime');
 check('as-built file found anywhere in the diff', asBuiltFile(['x.ts', 'bug-reports/r/proof/CALL-STACK-AS-BUILT.md']) === 'bug-reports/r/proof/CALL-STACK-AS-BUILT.md');
-check('header lists the as-built file first under look at', renderHeader({ round: 'r', klass: 'B', base: 'dev', urls: 'B2B:     http://localhost:1\n', files: ['packages/frontend/b2b/src/routes/(auth)/login/+page.svelte', 'bug-reports/r/proof/CALL-STACK-AS-BUILT.md'] }).match(/^look at: .*$/m)[0].includes('CALL-STACK-AS-BUILT'));
+check('header lists the as-built file first under look at', renderHeader({ round: 'r', klass: 'B', base: 'dev', urls: 'b2b:   http://localhost:1\n', files: ['packages/frontend/b2b/src/routes/(auth)/login/+page.svelte', 'bug-reports/r/proof/CALL-STACK-AS-BUILT.md'] }).match(/^look at: .*$/m)[0].includes('CALL-STACK-AS-BUILT'));
 check('t1Gap null when SPEC-REVIEW approves the current sha', t1GapFor('spec-sha: <real>\nverdict: approved\n') === null);
 check('t1Gap names a re-spec', /is of sha256:0ld, SPEC.md is now sha256:/.test(t1GapFor('spec-sha: sha256:0ld\nverdict: approved\n')));
 check('t1Gap names a changes-requested verdict', /verdict is changes-requested/.test(t1GapFor('spec-sha: <real>\nverdict: changes-requested\n')));

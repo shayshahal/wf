@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// step.mjs — wf step <name> [--waiting-on shay|einat|saar|ci] [--round TJEW-xxx] [--base <ref>] [--class A|B|C]
+// step.mjs — wf step <name> [--waiting-on shay|<the project's people>|ci] [--round TJEW-xxx] [--base <ref>] [--class A|B|C]
 // `step classify` runs classify.mjs; the measured class can only UPGRADE the stored one
 // (A→B→C). A class asserted by --class (wf new --class B, or the orchestrator setting C)
 // is sticky: a design-first round has no committed code to measure, so the path
@@ -14,10 +14,11 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { lastField, readVerdict, specShaFor } from './review-format.mjs';
+import { people } from './project.mjs';
 import { roundFile } from './state.mjs';
 
 export const STEPS = ['classify', 'research', 'plan', 'design', 'implement', 'review', 'pr', 'merged', 'held'];
-const WAITING = ['shay', 'einat', 'saar', 'ci'];
+const WAITING = ['shay', ...people, 'ci'];
 const CLASSES = ['A', 'B', 'C'];
 // null = T1 approved the current SPEC.md; otherwise the one-line reason it did not.
 export function t1Gap(toplevel) {

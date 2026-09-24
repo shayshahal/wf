@@ -6,6 +6,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { isPlannotatorPresent, reviewDiff } from './adapters/plannotator.mjs';
 import { openInEditor } from './editor.mjs';
+import { baseBranch } from './project.mjs';
 import { resolveWorktree } from './worktree.mjs';
 import { appendDatedSection, asBuiltFile, devUrlsFor, foldFeedbackLine, lastField, readVerdict, renderHeader, renderSkeleton, specShaFor, wfDir } from './review-format.mjs';
 import { roundFile } from './state.mjs';
@@ -32,10 +33,10 @@ const readState = (worktree) => {
   }
 };
 const persistedBase = (worktree) => readState(worktree).base ?? null;
-// REVIEW.md, and MONDAY.md (deliver writes it after committing the folder: it needs the PR url), come
-// after the delivery commit. Commit the whole round folder at T2 and push it to the PR branch, so the
-// merge carries every file bug-reports/README.md lists (dev has no branch protection: the push does
-// not hold the merge). Only 2 of 6 rounds on dev had MONDAY.md, the two delivered twice.
+// REVIEW.md, and the tracker note (deliver writes it after committing the folder: it needs the PR url),
+// come after the delivery commit. Commit the whole round folder at T2 and push it to the PR branch, so
+// the merge carries every file of the round (JewelryX's dev has no branch protection: the push does
+// not hold the merge). Only 2 of 6 JewelryX rounds on dev had MONDAY.md, the two delivered twice.
 const keepReview = (worktree, file, round) => {
   const folder = readState(worktree).folder ?? relative(worktree, dirname(file)).replace(/\\/g, '/');
   const git = (args) => spawnSync('git', ['-C', worktree, ...args], { encoding: 'utf8' });
@@ -73,7 +74,7 @@ export async function runReview(argv) {
   // Base: --base, else the round's persisted base (wf new --base), else dev. A round cut from
   // tools/wf-runtime reviewed against dev showed 124 files and class B — the runtime's own commits.
   const bi = argv.indexOf('--base');
-  const base = bi === -1 ? (persistedBase(worktree) ?? 'dev') : (argv[bi + 1] ?? usage());
+  const base = bi === -1 ? (persistedBase(worktree) ?? baseBranch) : (argv[bi + 1] ?? usage());
   // The stored class is the asserted one (B/C never downgrade); the measurement is only a fallback.
   const klass = readState(worktree).class ?? classify(worktree, base);
   const files = changedFiles(worktree, base);

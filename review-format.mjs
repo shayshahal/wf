@@ -5,7 +5,8 @@ import { createHash } from 'node:crypto';
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { listWorktrees, slugForBranch, stackNameLines, stackNames } from './worktree.mjs';
+import { pageOf, stackNames } from './project.mjs';
+import { listWorktrees, slugForBranch, urlLines } from './worktree.mjs';
 import { roundFile } from './state.mjs';
 
 export const VERDICTS = ['approved', 'changes-requested', 'dismissed'];
@@ -42,22 +43,19 @@ export function foldFeedbackLine(input) {
 const today = () => new Date().toISOString().slice(0, 10);
 
 // Pure: header block both review files share. `base` null = SPEC review (no diff).
-// "look at:" — every changed SvelteKit page, as a URL on this worktree's server, so the
-// reviewer opens the screen and not only the diff (Shay, BJEW-600 pilot, 2026-09-19).
-// Route groups `(store)` drop out of the path; params stay as `[id]` for the reviewer to fill.
-const PAGE_RE = /^packages\/frontend\/(b2b|admin)\/src\/routes\/(.*?)\/?\+(?:page|layout)(?:\.server)?\.(?:svelte|ts)$/;
-export function lookAtLines(urls, files) {
+// "look at:" — every changed page, as a URL on this worktree's server, so the reviewer opens the
+// screen and not only the diff (Shay, BJEW-600 pilot, 2026-09-19). The project says which files are
+// pages (project.mjs pageOf); `urls` is the header's `<app>: <url>` lines.
+export function lookAtLines(urls, files, pageFor = pageOf) {
   if (!urls) return [];
-  const origin = (app) => urls.match(new RegExp(`^${app === 'b2b' ? 'B2B' : 'Admin'}:\\s*(\\S+)`, 'm'))?.[1];
+  const origin = (app) => urls.match(new RegExp(`^${app}:\\s*(\\S+)`, 'm'))?.[1];
   const seen = new Set();
   const out = [];
   for (const f of files) {
-    const m = PAGE_RE.exec(f);
-    if (!m) continue;
-    const base = origin(m[1]);
+    const page = pageFor(f);
+    const base = page && origin(page.app);
     if (!base) continue;
-    const path = m[2].split('/').filter((seg) => seg && !/^\(.*\)$/.test(seg)).join('/');
-    const url = `${base}/${m[1]}${path ? `/${path}` : ''}`;
+    const url = `${base}/${page.path}`;
     if (!seen.has(url)) { seen.add(url); out.push(`look at: ${url}`); }
   }
   return out;
@@ -113,7 +111,7 @@ export function devUrlsFor(worktree) {
   try {
     const branch = listWorktrees(worktree).find((t) => t.path.replace(/\\/g, '/') === worktree.replace(/\\/g, '/'))?.branch;
     if (!branch) return null;
-    return stackNameLines(stackNames(slugForBranch(branch)));
+    return urlLines(stackNames(slugForBranch(branch)));
   } catch {
     return null;
   }
