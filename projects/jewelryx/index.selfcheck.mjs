@@ -3,7 +3,7 @@
 // .env (env.mjs), its database (db.mjs) and its dev-server commands (dev.mjs). Nothing is run.
 import { mongoPortForBase, mongoUrlFromDockerPort, worktreeDatabase, worktreeMongoUrl } from './db.mjs';
 import { devCommands } from './dev.mjs';
-import { sanitizeEnv } from './env.mjs';
+import { includedFiles, sanitizeEnv } from './env.mjs';
 import { directUrls, pageOf, setup, stackNames, teardown, trackerNote } from './index.mjs';
 
 let failures = 0;
@@ -50,6 +50,12 @@ check('the database is the worktree\'s own: 40000+(P-10000), jewelryx_<slug>', /
 check('comments, unrelated keys and CRLF are kept', env.startsWith('# Backend configuration\r\n') && /^OTP_DEV_EXPOSE=true\r?$/m.test(env) && /^AWS_S3_REGION=eu-central-1\r?$/m.test(env));
 check('a missing MEDIA_STORAGE_BACKEND is added (the backend defaults to s3)', /^MEDIA_STORAGE_BACKEND=local$/m.test(sanitizeEnv('A=1\n', db)));
 check('sanitizing twice changes nothing', sanitizeEnv(env, db) === env);
+
+// ── the secrets a worktree copies
+check('.worktreeinclude: plain paths, leading / dropped, comments and blanks skipped', includedFiles('/.env\r\n# x\r\n\r\n/packages/backend/.env\r\n').join() === '.env,packages/backend/.env');
+let glob = '';
+try { includedFiles('/packages/*/.env'); } catch (e) { glob = e.message; }
+check('a pattern is refused, not silently skipped', glob.includes('is a pattern'), glob);
 
 // ── the database
 check('the seeder writes to the container\'s published port', mongoUrlFromDockerPort('0.0.0.0:47554\n[::]:47554\n') === 'mongodb://127.0.0.1:47554');

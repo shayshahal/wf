@@ -1,9 +1,37 @@
-// projects/jewelryx/env.mjs — a new worktree's packages/backend/.env, after `wt step copy-ignored` copied dev's:
-// production credentials out, its own database in. The shared dev tree points at the production S3
-// bucket and carries live SES keys; a worktree that inherits them writes test uploads to production
-// (bug-reports/_OPEN-QUESTIONS.md, 2026-09-03).
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+// projects/jewelryx/env.mjs — a new worktree's .env files: copied from this machine's secrets, then
+// packages/backend/.env gets production credentials out and its own database in. The secrets point
+// at the production S3 bucket and carry live SES keys; a worktree that inherits them writes test
+// uploads to production (bug-reports/_OPEN-QUESTIONS.md, 2026-09-03).
+import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { dirname, join } from 'node:path';
+
+// The machine's copy of the files the project's .worktreeinclude names, at the same paths. Until
+// 2026-09-24 new worktrees copied them from the dev worktree (`wt step copy-ignored --from dev`),
+// which made dev the secrets store as well as the dev stack's folder, so nobody dared pull it.
+export const SECRETS = join(homedir(), '.config', 'wf', 'jewelryx');
+
+// Pure: the repo-relative paths in a .worktreeinclude. Plain paths only: a glob would need a walk
+// of the secrets folder, and the project lists four files.
+export function includedFiles(text) {
+	return text.split(/\r?\n/).map((l) => l.trim()).filter((l) => l && !l.startsWith('#')).map((l) => {
+		if (/[*?[\]!]/.test(l)) throw new Error(`.worktreeinclude: "${l}" is a pattern; list plain paths`);
+		return l.replace(/^\//, '');
+	});
+}
+
+// Copies every listed file into the worktree. Throws naming the missing ones before copying any,
+// so a worktree never starts half-configured.
+export function copySecrets(worktree, from = SECRETS) {
+	const files = includedFiles(readFileSync(join(worktree, '.worktreeinclude'), 'utf8'));
+	const missing = files.filter((f) => !existsSync(join(from, f)));
+	if (missing.length) throw new Error(`missing in ${from}: ${missing.join(', ')} — put this machine's copies there (wf README, Install step 7)`);
+	for (const f of files) {
+		mkdirSync(dirname(join(worktree, f)), { recursive: true });
+		copyFileSync(join(from, f), join(worktree, f));
+	}
+	console.log(`Copied ${files.length} secret file(s) from ${from}`);
+}
 
 // MEDIA_STORAGE_BACKEND defaults to "s3" in app/core/config.py, so a missing key is as unsafe as a
 // wrong one: it must be present and set to "local".

@@ -73,8 +73,8 @@ function sh(command) {
 // seeder runs in it.
 export const setup = {
 	async env({ worktree, slug, port }) {
-		sh('wt step copy-ignored --from dev --require-include');
-		const { sanitizeWorktreeEnv } = await import('./env.mjs');
+		const { copySecrets, sanitizeWorktreeEnv } = await import('./env.mjs');
+		copySecrets(worktree);
 		const { worktreeDatabase, worktreeMongoUrl } = await import('./db.mjs');
 		sanitizeWorktreeEnv(worktree, { url: worktreeMongoUrl(port), name: worktreeDatabase(slug) });
 	},

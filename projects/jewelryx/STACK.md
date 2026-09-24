@@ -8,8 +8,9 @@ keeps the named worktree URLs below alive across reboots. Without it portless au
 proxy on the first server launch (plain HTTP: the tether passes `PORTLESS_HTTPS=0`) but it dies with
 that session.
 
-Setup (pre-start, in parallel): `env` copies dev's ignored files (`.worktreeinclude`), then
-rewrites `packages/backend/.env`: production credentials blanked, media storage local, the database
+Setup (pre-start, in parallel): `env` copies the files `.worktreeinclude` names from this machine's
+`~/.config/wf/jewelryx/` (same paths; it stops, naming them, when one is missing), then rewrites
+`packages/backend/.env`: production credentials blanked, media storage local, the database
 the worktree's own. `node` installs and builds the shared packages, `verify` installs
 `verification/`, `tools` runs the project's `scripts/link-tools.mjs`, `db` syncs python, starts
 mongo and seeds it.

@@ -53,10 +53,18 @@ Claude Code, plus what the project's `setup` runs (JewelryX: pnpm, uv, docker, p
 4. Skills: add `~/.local/share/wf/skills/round` and `~/.local/share/wf/skills/design-session` to
    pi's `settings.json` `skills`; for Claude Code, link them into `~/.claude/skills/`.
 5. `wf hook install`: worktrunk's user config gets the project's hooks, calling the installed copy.
-6. The project's clone: a bare repo with a worktree for its base branch (JewelryX:
-   `~/work/jeweleryx/.bare`, `dev` at `~/.herdr/worktrees/jeweleryx/dev`), and that worktree's
-   ignored files (JewelryX: the four `.env` files named in `.worktreeinclude`, from `.env.example`
-   plus the secrets). Every new worktree copies them from there.
+6. The project's clone: a bare repo, and a worktree for its base branch (JewelryX):
+   ```
+   git clone --bare https://github.com/Raynw-MediaTech/jeweleryx ~/work/jeweleryx/.bare
+   echo 'gitdir: ./.bare' > ~/work/jeweleryx/.git
+   git -C ~/work/jeweleryx/.bare config remote.origin.fetch '+refs/heads/*:refs/remotes/origin/*'
+   git -C ~/work/jeweleryx/.bare fetch origin      # a bare clone has no origin/dev until this
+   git -C ~/work/jeweleryx/.bare worktree add ~/.herdr/worktrees/jeweleryx/dev dev
+   ```
+7. The project's secrets, on this machine (JewelryX: the four `.env` files `.worktreeinclude` names,
+   from `.env.example` plus the real values) at the same paths under `~/.config/wf/<project>/`.
+   Every new worktree copies them from there; the base branch's worktree needs its own copy only
+   to run the permanent dev stack.
 
 ## Update
 
