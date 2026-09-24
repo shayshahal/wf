@@ -19,16 +19,14 @@ reply without a tool call: never announce a next step — take it, or write `RES
 3. From the locator answers, spawn `codebase-analyzer` on the one or two entry points that
    matter — "trace <entry> to where <the ticket's value/message> is produced; every error arm
    and where it lands". Parallel if two.
-4. Explore before you write: with `playwright-cli` (under *Where things are*) open the ticket's
-   screen on this round's stack, log in, find the element and read the values the ticket names.
-   A spec rewritten to discover a selector pays a browser launch and an OTP login every run.
+4. Explore before you write: with `playwright-cli` open the ticket's screen on this round's stack,
+   log in, find the element and read the values the ticket names (commands and why:
+   `docs/agents/testing.md`, *Exploring a page before writing a spec*).
    Then write the repro yourself (below), once, from the locators it printed, and run it once. It must be red on this checkout.
-   Start from `{{folder}}/repro/playwright.config.ts`: it loads and carries this round's URLs. Import only
-   `@playwright/test` and `node:*`, never `import.meta`: a support helper that uses it (`otp-lock.ts`) fails to load from here.
-   A symptom someone *sees* (cut, blurred, misaligned) is measured in pixels, not boxes: screenshot
-   the element as shipped and with the suspected constraint lifted, then compare. Boxes can all be
-   whole while what is drawn inside them is cut (BJEW-603: a stroke past its svg viewBox).
-   Green is a finding only after you have checked the pixels.
+   Start from `{{folder}}/repro/playwright.config.ts`: it loads and carries this round's URLs. The repro
+   sits outside `verification/`, which limits what it may import (`docs/agents/testing.md`).
+   Green is a finding only after you have measured what the ticket describes; a visual symptom is
+   measured in pixels (`docs/agents/testing.md`, *Visual symptoms*).
    Red means the defect's own assertion failed; a failed precondition (login, selector, missing data) is not red.
 5. Write `RESEARCH.md`. Every hop you cite is `file:line` from an analyzer answer or your own
    read — never from memory.
@@ -63,20 +61,11 @@ red output:
 
 ## Where things are
 
-- This round's stack, direct ports — use these in specs and configs: B2B `{{b2b}}` (app under `/b2b`),
-  API `{{api}}`, Admin `{{admin}}` (under `/admin`). Node on Windows cannot resolve the
-  `*.jewelryx.localhost` names `pnpm wf status` prints; only a browser can.
-- `pnpm wf status` prints the named URLs. Seed users and fixed ids:
-  `{{wf}}/docs/agents/seed.md`. Login is password + OTP; `OTP_DEV_EXPOSE=true` returns the code.
-- Hebrew/RTL: the admin takes its language from the `PARAGLIDE_LOCALE` cookie (`he`), else from the account's language. `locale: 'he-IL'` alone renders English.
-- Specs to copy from: `verification/`. Pytest: `packages/backend/tests/`.
-- `playwright-cli`, from the repo root (`PW=verification/node_modules/.bin/playwright-cli`; not there →
-  this checkout predates it: skip exploring). One browser stays open between commands; each
-  command prints its page snapshot with element refs and the Playwright code it ran.
-  `$PW open <url>` · `$PW resize 390 844` · `$PW fill <ref> "..."` · `$PW click <ref>` ·
-  `$PW find "text"` (a ref without reading the page) ·
-  `$PW eval "el => JSON.stringify(el.getBoundingClientRect())" <ref>` · `$PW close` when done, always.
-  Login as a person does: email, password, then the code from the DEV banner.
+- This round's stack, direct ports: use these in specs and configs. B2B `{{b2b}}` (app under `/b2b`),
+  API `{{api}}`, Admin `{{admin}}` (under `/admin`). `pnpm wf status` prints the named URLs, for a browser.
+- What a JewelryX test needs to know (login and OTP, Hebrew, visual symptoms, specs outside
+  `verification/`, `playwright-cli`): `docs/agents/testing.md`. Seed users and fixed ids:
+  `docs/agents/seed.md`. Specs to copy from: `verification/`. Pytest: `packages/backend/tests/`.
 
 ## Rules
 

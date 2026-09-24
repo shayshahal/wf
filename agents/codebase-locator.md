@@ -12,13 +12,8 @@ never run tests. **Budget: 12 tool calls.** Batch: several `rg` patterns in one 
 
 ## Where things are in JewelryX
 
-- Backend `packages/backend/app/` — `api/v1/endpoints/` (routes), `services/`, `repositories/`,
-  `models/` (Beanie documents), `schemas/`; tests in `packages/backend/tests/`.
-- B2B storefront `packages/frontend/b2b/src/` — `routes/` (SvelteKit, `+page.svelte`,
-  `+page.server.ts`, `*.remote.ts`), `lib/`. Admin the same under `packages/frontend/admin/src/`.
-- Shared `packages/frontend/shared/{types,data,filters,ui}/`.
-- Browser specs `verification/`; decisions already made `verification/decisions/`;
-  earlier rounds `bug-reports/<slug>/`.
+Read `docs/agents/layout.md` in the worktree first (one call): where each layer, its tests and the
+decision records live. Earlier rounds are in `bug-reports/<slug>/`.
 
 Search the ticket's words *and* the code's words: a screen label ("Send code") is usually a
 different string from its handler (`send_otp`). Try both.

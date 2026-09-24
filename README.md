@@ -14,13 +14,11 @@ each round commits (`bug-reports/<round>/`, described in that repo's `bug-report
 - `prompts/`: one prompt per phase, printed by `wf prompt <phase>`
 - `agents/`: `round-worker` (every phase), `codebase-locator` and `codebase-analyzer` (research, pi only)
 - `process/`: classes, design session, review format, touchpoints
-- `classes.gitattributes`: the class-B pathspec for JewelryX, read by `classify.mjs`
 - `worktree.mjs`: the one interface to worktrees: list, names and ports, create, remove
-- `docs/agents/seed.md`: what wf needs from the project
+- `hook.mjs`, `stack/`: what worktrunk runs around a worktree (setup, dev servers, database, gate,
+  cleanup); `wf hook install` writes the hooks into worktrunk's user config
 - `docker-compose.qa-local.yml`: the override `wf stacks` layers over the QA worktree's compose file
 - `docs/plans/2026-09-17-workflow-v2.md`: the plan wf was built from
-- `decisions/parse.mjs`: the decision-record parser. It needs the JewelryX checkout (yaml, ajv, the
-  schema) and nothing in wf calls it.
 
 Text names wf's own files as `{{wf}}/…`: `wf prompt` and the installed copy fill in the real path.
 
@@ -29,5 +27,11 @@ Text names wf's own files as `{{wf}}/…`: `wf prompt` and the installed copy fi
 Edit here (`~/work/wf`); never run wf from this folder. `~/bin/wf` runs the installed copy in
 `~/.local/share/jewelryx-wf`, which holds committed code only. After a push, the next `wf`
 command installs it by itself and prints `wf: updated <old> → <new>`. `wf update` fetches first.
+Once per machine, and after changing `hook.mjs`: `wf hook install` (from the installed copy, so
+the hooks call it).
 
 Self-checks: run each `*.selfcheck.mjs` from inside a JewelryX worktree.
+
+What wf reads from the project, in the round's worktree: `docs/agents/` (`testing.md`, `layout.md`,
+`seed.md`, `monday.md`, `contract-paths.txt` for class B) and the fixture seeder
+`packages/backend/scripts/seed_fixtures.py`. wf keeps no copy of any of them.

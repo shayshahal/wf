@@ -4,14 +4,25 @@
 // `wf classify` on a round cut from tools/wf-runtime used to diff against origin/dev
 // and report the runtime's own commits as the round's (BJEW-585 pilot note 1).
 import { execFileSync, spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
+
+// Pure: the project's contract paths (one pathspec glob per line, # comments) as a gitattributes
+// file. Last match wins, so the default A comes first.
+export function classAttributes(contractPaths) {
+  const globs = contractPaths.split(/\r?\n/).map((l) => l.trim()).filter((l) => l && !l.startsWith("#"));
+  return ["** wf-class=A", ...globs.map((g) => `${g} wf-class=B`)].join("\n") + "\n";
+}
+
+if (process.argv[1]?.replace(/\\/g, "/").endsWith("/classify.mjs")) classify();
+
+function classify() {
 const args = process.argv.slice(2);
 const bi = args.indexOf("--base");
+const top = execFileSync("git", ["rev-parse", "--show-toplevel"], { encoding: "utf8" }).trim();
 const persistedBase = () => {
   try {
-    const top = execFileSync("git", ["rev-parse", "--show-toplevel"], { encoding: "utf8" }).trim();
     return JSON.parse(readFileSync(join(top, ".wf", "state.json"), "utf8")).base ?? null;
   } catch { return null; }
 };
@@ -20,11 +31,16 @@ const base = bi === -1 ? (persistedBase() ?? (hasOriginDev ? "origin/dev" : "dev
 const asJson = args.includes("--json");
 const names = execFileSync("git", ["diff", "--name-only", `${base}...HEAD`], { encoding: "utf8" })
   .split("\n").map((s) => s.trim()).filter(Boolean);
-// The wf-class pathspec lives in the tools checkout's .gitattributes; a round cut from dev has none,
-// so check-attr there read every path as A (fix/role-assign-dialog, 2026-09-23: a B endpoint read A).
-// core.attributesFile ranks below the tree's own .gitattributes, so dev's lines win once they land.
-const toolsAttributes = fileURLToPath(new URL("./classes.gitattributes", import.meta.url)).replace(/\\/g, "/");
-const attrRun = names.length ? spawnSync("git", ["-c", `core.attributesFile=${toolsAttributes}`, "check-attr", "--stdin", "wf-class"], { input: names.join("\n"), encoding: "utf8" }) : null;
+// Class B is the project's own list of contract paths, read from the round's worktree, so it moves
+// with the code it describes. It must exist: without it every path read as A, and a B endpoint
+// went through as A (fix/role-assign-dialog, 2026-09-23).
+const listFile = join(top, "docs", "agents", "contract-paths.txt");
+let contractPaths;
+try { contractPaths = readFileSync(listFile, "utf8"); } catch { throw new Error(`classify: ${listFile} is missing; the project names its contract paths there`); }
+const attributesFile = join(tmpdir(), `wf-class-${process.pid}.gitattributes`);
+writeFileSync(attributesFile, classAttributes(contractPaths));
+const attrRun = names.length ? spawnSync("git", ["-c", `core.attributesFile=${attributesFile.replace(/\\/g, "/")}`, "check-attr", "--stdin", "wf-class"], { input: names.join("\n"), encoding: "utf8" }) : null;
+rmSync(attributesFile, { force: true });
 if (attrRun?.status) throw new Error(`git check-attr failed: ${attrRun.stderr}`);
 const attr = attrRun?.stdout ?? "";
 const files = attr.split("\n").filter(Boolean).map((line) => {
@@ -37,4 +53,5 @@ if (asJson) console.log(JSON.stringify({ class: klass, files }));
 else {
   for (const f of files) console.log(`${f.class}\t${f.path}`);
   console.log(`class: ${klass}`);
+}
 }

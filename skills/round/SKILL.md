@@ -18,7 +18,8 @@ The few things that differ between pi and Claude Code are in *Dispatch in this h
 
 ## Start: "start <id>"
 
-1. Fetch the Monday item (Bugs board `BJEW-`, Tasks board `TJEW-`; both boards by numeric id).
+1. Fetch the Monday item (Bugs board `BJEW-`, Tasks board `TJEW-`; both boards by numeric id; board
+   ids, status labels and how a comment to Einat reads: `docs/agents/monday.md` in the worktree).
    Read the **whole** thread first: every update and every reply, oldest first, and every asset —
    those attached to updates **and those in the item's file columns**
    (`monday_get_assets` → `public_url` → download into the round folder → `read` the image).
