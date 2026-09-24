@@ -16,9 +16,8 @@ urls: <B2B:/Admin:/Backend: lines, worktree.mjs stackNameLines
       | n/a — a detached worktree has no stack>
 ```
 
-The port comes from `wt list --format json` (`dev_server.url` of the matching
-worktree). `hash_port` in `.config/wt.toml` is computed by `wt` itself, so without
-`wt` there is nothing to hash — omit the URLs and say so, never invent a port.
+The names come from the worktree's branch (`worktree.mjs`, `wt`'s `sanitize`); a
+detached worktree has no stack — omit the URLs and say so, never invent one.
 
 ```
 files changed (<n>):

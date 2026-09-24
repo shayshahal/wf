@@ -1,8 +1,9 @@
 # Worktree lifecycle
 
 Run `pnpm wf …` from a worktree (`wf-runtime`, `dev`), never from the bare root — it has
-no `package.json`. After editing `.config/wt.toml`, run `wt config approvals add --yes` once, or
-the next create dies on a prompt nobody sees. Once per machine too, from an **elevated** shell
+no `package.json`. The worktree hooks are wf's, not the project's: `wf hook install` writes them
+into worktrunk's user config for this project only (`hook.mjs`); run it again after changing
+`hook.mjs`. User hooks need no approval. Once per machine, from an **elevated** shell
 (it binds port 80): `portless service install --no-tls` keeps the named worktree URLs below alive
 across reboots. Without it portless auto-starts its own proxy on the first server launch (plain
 HTTP: the tether passes `PORTLESS_HTTPS=0`) but it dies with that session.
@@ -32,19 +33,19 @@ IPv4-only). `wf status` probes b2b on the hashed port but prints the
 proxy and serves the hashed ports directly (fallback when the proxy is
 down); stale routes are cleared with `portless prune`.
 
-DB per worktree: `docker-compose.worktree.yml` starts
+DB per worktree: `stack/mongo.compose.yml` starts
 `jewelryx-mongo-<slug>` on 40000+(P−10000) (see
-`worktree.mjs`); the pre-start `db` step brings it
-up and seeds it with the backend's own seeders (categories +
-admin, `SEED_ADMIN=true`) in under 60 s. The env step points
+`worktree.mjs`); the pre-start `db` step (`stack/db.mjs`) brings it
+up and fills it with the project's fixture set
+(`packages/backend/scripts/seed_fixtures.py`). The env step points
 `MONGODB_URL`/`DATABASE_NAME` (`jewelryx_<slug>`) at it, so no
 worktree ever shares dev's Atlas database.
 
 Reap gate: `wt remove` runs a pre-remove hook that refuses
 unless `.wf/state.json` says `step: "merged"`. Override with
 `WF_FORCE_REAP=1`. Worktrees that never entered the workflow (no
-state file) are removable. Post-remove drops the mongo container
-and its volume. `wf archive-round` is the only normal caller of
+state file) are removable. Post-remove drops the mongo container,
+its volume and network, and prunes dead portless routes. `wf archive-round` is the only normal caller of
 `wt remove`.
 
 One round is one PR to `dev`: CI runs on it, review approves it,

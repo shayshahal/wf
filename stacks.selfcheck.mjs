@@ -40,6 +40,7 @@ const ours = [
   '"mise" x -- portless --name dev.api.jewelryx --app-port 22193 -- pnpm dev:backend',
   String.raw`node  "C:\mise\portless\dist\cli.js" --name dev.b2b.jewelryx --app-port 12193 -- pnpm dev:frontend --port 12193 --strictPort`,
   String.raw`"C:\Program Files\nodejs\node.exe" C:\wt\workflow-v2\scripts\dev-worktree.mjs 12193 --slug dev`,
+  String.raw`"C:\Program Files\nodejs\node.exe" C:\Users\Shay\.local\share\jewelryx-wf\stack\dev.mjs 12193 --slug dev`,
 ];
 const theirs = [
   '"mise" x -- portless --name fix-dev.b2b.jewelryx --app-port 18001 -- pnpm dev:frontend',

@@ -6,9 +6,14 @@
 import { fileURLToPath } from 'node:url';
 import { autoUpdate } from './update.mjs';
 // The installed copy follows shayshahal/wf main: a pushed change is live on the next run (update.mjs).
-autoUpdate(fileURLToPath(import.meta.url), process.argv.slice(2));
+// Not under a hook: wt runs the pre-start steps in parallel, and an update swaps the installed
+// folder while the others are still loading from it.
 const cmd = process.argv[2];
-if (cmd === 'step') {
+if (cmd !== 'hook') autoUpdate(fileURLToPath(import.meta.url), process.argv.slice(2));
+if (cmd === 'hook') {
+  const { runHook } = await import('./hook.mjs');
+  await runHook(process.argv.slice(3));
+} else if (cmd === 'step') {
   const { runStep } = await import('./step.mjs');
   await runStep(process.argv.slice(3));
 } else if (cmd === 'new') {

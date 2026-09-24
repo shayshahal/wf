@@ -6,7 +6,7 @@
 # --env-file is the whole point: the worktree's own .env (if any) is never read, so no
 # real S3/SMS keys reach this stack. stacks.mjs writes qa.env (providers off).
 #
-# - its own mongo (jewelryx-mongo-qa: `worktree-db.mjs seed qa` finds it by that name),
+# - its own mongo (jewelryx-mongo-qa: `stack/db.mjs` seeds it by that name),
 #   in the named volume jewelryx-qa_mongo_data (the qa file already declares mongo_data)
 # - no container_name clashes: the qa file pins jewelryx-backend etc.; reset to compose's
 #   project-scoped names (jewelryx-qa-backend-1 …)

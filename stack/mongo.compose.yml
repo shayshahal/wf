@@ -1,0 +1,26 @@
+# wf stack/mongo.compose.yml: one mongo per worktree.
+#
+# One mongo per worktree on a hashed host port, managed by
+# wf stack/db.mjs (pre-start up + seed, post-remove down).
+# Everything unique (container, port, volume, project) comes from
+# WT_SLUG / WT_MONGO_PORT in the environment. Same image as the base
+# compose (mongo:7).
+
+services:
+  mongo:
+    image: mongo:7
+    container_name: jewelryx-mongo-${WT_SLUG}
+    restart: unless-stopped
+    ports:
+      - "${WT_MONGO_PORT}:27017"
+    volumes:
+      - worktree-mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+volumes:
+  worktree-mongo-data:
+    name: jewelryx-wt-mongo-${WT_SLUG}
