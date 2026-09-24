@@ -1,12 +1,9 @@
 // hook.selfcheck.mjs — node hook.selfcheck.mjs → exit 0 when green.
 // Pure arms: the wt hook block and its install, the reap gate, the worktree's .env, its database
 // names and seed decisions, its dev-server commands. Nothing is run.
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { gateVerdict, hookBlock, PROJECT, withHookBlock } from './hook.mjs';
 import { devCommands } from './stack/dev.mjs';
-import { mongoUrlFromDockerPort, seedCacheKey, seedPlan, worktreeDatabase, worktreeMongoUrl } from './stack/db.mjs';
+import { mongoUrlFromDockerPort, seedPlan, worktreeDatabase, worktreeMongoUrl } from './stack/db.mjs';
 import { sanitizeEnv } from './stack/env.mjs';
 
 let failures = 0;
@@ -45,15 +42,6 @@ check('sanitizing twice changes nothing', sanitizeEnv(env, db) === env);
 check('a hit restores only; a miss seeds first; --reset drops the target either way',
   JSON.stringify([seedPlan({ archiveExists: true, reset: false }), seedPlan({ archiveExists: false, reset: true })]) === JSON.stringify([{ seed: false, dropTarget: false }, { seed: true, dropTarget: true }]));
 check('the seeder writes to the container\'s published port', mongoUrlFromDockerPort('0.0.0.0:47554\n[::]:47554\n') === 'mongodb://127.0.0.1:47554');
-const root = mkdtempSync(join(tmpdir(), 'wf-seedkey-'));
-const put = (rel, text) => { mkdirSync(join(root, rel, '..'), { recursive: true }); writeFileSync(join(root, rel), text); };
-for (const f of ['packages/backend/scripts/seed_fixtures.py', 'packages/backend/app/services/permission_seed.py', 'packages/backend/app/data/permission_events.py', 'packages/backend/app/models/user.py']) put(f, 'a\nb\n');
-const k1 = seedCacheKey(root);
-put('packages/backend/app/models/user.py', 'a\r\nb\r\n');
-check('the seed key is the same for CRLF and LF checkouts', seedCacheKey(root) === k1);
-put('packages/backend/app/models/order.py', 'new\n');
-check('the seed key changes when a model is added', seedCacheKey(root) !== k1);
-
 // ── the dev servers (cases from the project's dev-worktree.mjs --check)
 const plain = devCommands('18001', { portless: false });
 check('ports: API P+10000 on 127.0.0.1 for the servers, admin P+20000', plain[0].env.DEV_BACKEND_PORT === '28001' && plain[1].env.INTERNAL_API_URL === 'http://127.0.0.1:28001' && plain[2].command === 'pnpm dev:admin --port 38001 --strictPort');

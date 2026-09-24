@@ -1,11 +1,10 @@
 // stack/db.mjs — one MongoDB per worktree: up, seed, down.
 //   up:   jewelryx-mongo-<slug> on 40000+(P-10000) (stack/mongo.compose.yml), healthy before it returns
 //   seed: the project's fixture set (packages/backend/scripts/seed_fixtures.py, docs/agents/seed.md),
-//         snapshotted once per cache key in ~/.cache/jewelryx-seed and restored into the worktree's DB
+//         snapshotted once per `seed_fixtures.py --key` in ~/.cache/jewelryx-seed and restored into the worktree's DB
 //   down: container, volume and compose network; each tolerates "already gone"
 import { spawnSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
-import { closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, rmSync } from 'node:fs';
+import { closeSync, existsSync, mkdirSync, openSync, renameSync, rmSync } from 'node:fs';
 import { createConnection } from 'node:net';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -24,21 +23,13 @@ export const worktreeMongoUrl = (base) => `mongodb://localhost:${mongoPortForBas
 export const SEED_DB = 'jewelryx_seed';
 export const cacheDir = join(homedir(), '.cache', 'jewelryx-seed');
 
-// The key is the seeder plus every model: change either and the snapshot is re-made. LF-normalised
-// because Windows checkouts are CRLF and must hash the same as CI's.
+// The snapshot's key is the project's: `seed_fixtures.py --key` changes whenever the seeded data
+// could (its SEED_INPUTS list), so which files matter stays next to the seeder, not here.
 export function seedCacheKey(worktree) {
-	const backend = join(worktree, 'packages', 'backend');
-	const models = join(backend, 'app', 'models');
-	const files = [
-		join(backend, 'scripts', 'seed_fixtures.py'),
-		// The permission catalogue is seeded too: a new event must invalidate the cached archive.
-		join(backend, 'app', 'services', 'permission_seed.py'),
-		join(backend, 'app', 'data', 'permission_events.py'),
-		...readdirSync(models).filter((f) => f.endsWith('.py')).sort().map((f) => join(models, f)),
-	];
-	const hash = createHash('sha256');
-	for (const file of files) hash.update(readFileSync(file, 'utf8').replace(/\r\n/g, '\n'));
-	return hash.digest('hex');
+	const r = spawnSync('uv', ['run', '--quiet', '--directory', join(worktree, 'packages', 'backend'), 'python', '-m', 'scripts.seed_fixtures', '--key'], { encoding: 'utf8' });
+	const key = r.stdout?.trim();
+	if (r.status !== 0 || !/^[0-9a-f]{64}$/.test(key ?? '')) throw new Error(`worktree db: seed_fixtures --key failed (exit ${r.status}): ${(r.stderr ?? '').trim()}`);
+	return key;
 }
 
 // Pure: `docker port <container> 27017` → the URL the host-side seeder writes to. It must be the
