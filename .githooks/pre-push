@@ -1,0 +1,4 @@
+#!/bin/sh
+# A push to main is live on the next wf command (AGENTS.md): refuse one whose selfchecks are red.
+# Enabled once per clone: git config core.hooksPath .githooks (README, Install step 1).
+exec node "$(git rev-parse --show-toplevel)/selfcheck.mjs"

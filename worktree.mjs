@@ -16,11 +16,11 @@ const norm = (p) => p.replace(/\\/g, '/').replace(/\/+$/, '');
 
 // ── read ─────────────────────────────────────────────────────────────────────
 
-// Pure: `git worktree list --porcelain` → [{ path, branch, detached }]; branch is null when detached or bare.
+// Pure: `git worktree list --porcelain` → [{ path, branch, detached, bare }]; branch is null when detached or bare.
 export function parseWorktreeList(porcelain) {
 	return porcelain.replace(/\r\n/g, '\n').split('\n\n').flatMap((block) => {
 		const path = /^worktree (.+)$/m.exec(block)?.[1]?.trim();
-		return path ? [{ path, branch: /^branch refs\/heads\/(.+)$/m.exec(block)?.[1]?.trim() ?? null, detached: /^detached$/m.test(block) }] : [];
+		return path ? [{ path, branch: /^branch refs\/heads\/(.+)$/m.exec(block)?.[1]?.trim() ?? null, detached: /^detached$/m.test(block), bare: /^bare$/m.test(block) }] : [];
 	});
 }
 

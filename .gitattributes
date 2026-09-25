@@ -1,3 +1,5 @@
 # Agent and skill definitions: the pi and Claude Code loaders reject CRLF frontmatter
 # (the agent is silently dropped, not an error).
 *.md text eol=lf
+# Git hooks run under sh: a CRLF shebang line does not run.
+.githooks/* text eol=lf

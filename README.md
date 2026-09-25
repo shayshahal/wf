@@ -46,6 +46,7 @@ Needs: git, node ≥ 22, [worktrunk](https://github.com/max-sixty/worktrunk) (`w
 Claude Code, plus what the project's `setup` runs (JewelryX: pnpm, uv, docker, portless).
 
 1. `git clone https://github.com/shayshahal/wf ~/work/wf`: the editing clone. Never run wf from it.
+   Then `git -C ~/work/wf config core.hooksPath .githooks`: its pre-push hook runs every self-check.
 2. `node ~/work/wf/update.mjs`: installs the committed code into `~/.local/share/wf`, and wf's
    agents into pi (`~/.pi/agent/agents`) and Claude Code (`~/.claude/agents`, `round-worker` only).
 3. Put `wf` on the PATH: `~/bin/wf` is `exec node "$HOME/.local/share/wf/wf.mjs" "$@"`, and
@@ -74,5 +75,6 @@ After a push to `main`, the next `wf` command installs it by itself and prints
 
 ## Self-checks
 
-From this folder: `for f in *.selfcheck.mjs projects/*/*.selfcheck.mjs; do node "$f" || echo "FAIL $f"; done`.
-Pure checks, no network; `review.selfcheck.mjs` needs a git checkout (this one).
+From this folder: `node selfcheck.mjs` (every `*.selfcheck.mjs`, wf's and the projects', in parallel).
+Pure checks, no network; `review.selfcheck.mjs` needs a git checkout (this one). The pre-push hook
+runs it and refuses a red push.

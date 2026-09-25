@@ -25,7 +25,8 @@ unless `.wf/state.json` says `step: "merged"`. Override with
 state file) are removable. Post-remove runs the project's teardown. `wf reap` stops the tree's
 processes first, then removes it and runs the same teardown again (each step tolerates "already gone").
 
-One round is one PR to the base branch: CI runs on it, review approves it,
-it merges as a single squash. After the merge `wf archive-round`
-(Task 16, not yet) keeps the posted tracker note and archives the
-rest — only then does the reap gate open.
+One round is one PR to the base branch: CI runs on it, T2 approves it, and it merges with
+`gh pr merge <n> --merge` (a merge commit, not a squash: the round's commits stay as planned, one
+per PLAN.md row). The round folder merges with it and stays: it is the round's memory. Then
+`wf step merged` opens the reap gate and `wf reap <branch>` removes the worktree (skills/round/SKILL.md,
+*T2 approved*).

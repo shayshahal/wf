@@ -11,10 +11,10 @@ const check = (name, cond, detail = '') =>
 const porcelain = 'worktree C:/r/.bare\r\nbare\r\n\r\nworktree C:/wt/dev\r\nHEAD abc\r\nbranch refs/heads/dev\r\n\r\nworktree C:/wt/qa\r\nHEAD def\r\ndetached\r\n\r\nworktree C:/wt/fix-bjew-1\r\nHEAD 123\r\nbranch refs/heads/fix/bjew-1\r\n';
 const trees = parseWorktreeList(porcelain);
 check('the list parses CRLF porcelain: bare, branch, detached', JSON.stringify(trees) === JSON.stringify([
-  { path: 'C:/r/.bare', branch: null, detached: false },
-  { path: 'C:/wt/dev', branch: 'dev', detached: false },
-  { path: 'C:/wt/qa', branch: null, detached: true },
-  { path: 'C:/wt/fix-bjew-1', branch: 'fix/bjew-1', detached: false },
+  { path: 'C:/r/.bare', branch: null, detached: false, bare: true },
+  { path: 'C:/wt/dev', branch: 'dev', detached: false, bare: false },
+  { path: 'C:/wt/qa', branch: null, detached: true, bare: false },
+  { path: 'C:/wt/fix-bjew-1', branch: 'fix/bjew-1', detached: false, bare: false },
 ]), JSON.stringify(trees));
 check('resolve by branch', resolveWorktree('fix/bjew-1', trees).path === 'C:/wt/fix-bjew-1');
 check('resolve by folder name', resolveWorktree('qa', trees).path === 'C:/wt/qa');

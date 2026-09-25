@@ -8,8 +8,13 @@ import { autoUpdate } from './update.mjs';
 // The installed copy follows shayshahal/wf main: a pushed change is live on the next run (update.mjs).
 // Not under a hook: wt runs the pre-start steps in parallel, and an update swaps the installed
 // folder while the others are still loading from it.
+// `hook install` is run by hand, not by wt: it updates first, so the hooks it writes call the newest
+// copy (it did not, 2026-09-24: installed from the old copy after a push).
 const cmd = process.argv[2];
-if (cmd !== 'hook') autoUpdate(fileURLToPath(import.meta.url), process.argv.slice(2));
+if (cmd !== 'hook' || process.argv[3] === 'install') autoUpdate(fileURLToPath(import.meta.url), process.argv.slice(2));
+// Windows .cmd shims (portless, pnpm) need shell: true, and Node then prints DEP0190 on every spawn
+// that passes args (reap printed it on every run). Every argv wf spawns is one it built itself.
+process.noDeprecation = true;
 if (cmd === 'hook') {
   const { runHook } = await import('./hook.mjs');
   await runHook(process.argv.slice(3));

@@ -75,12 +75,14 @@ function branchOf(path) {
   return branches.get(path);
 }
 
+// The bare repository is listed by git but holds no checkout: no round, no stack (it showed as a row
+// probing whichever branch HEAD named, 2026-09-24).
 export function realWorktrees() {
-  const trees = listWorktrees();
+  const trees = listWorktrees().filter((t) => !t.bare);
   // The list already names each branch: seed branchOf, which spawned git once per worktree.
   for (const t of trees) {
     const branch = t.branch ?? (t.detached ? 'HEAD' : null);
-    if (branch) branches.set(t.path, branch); // the bare entry has neither: branchOf asks git, as before
+    if (branch) branches.set(t.path, branch);
   }
   return trees.map((t) => t.path);
 }

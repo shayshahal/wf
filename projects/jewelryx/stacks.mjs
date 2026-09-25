@@ -21,6 +21,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { basePortForBranch } from '../../worktree.mjs';
 import { mongoPortForBase, mongoUp, seedDatabase } from './db.mjs';
+import { copySecrets } from './env.mjs';
 import { stackNames } from './index.mjs';
 
 // TOOLS is this folder (dev.mjs, docker-compose.qa-local.yml). The stacks themselves run from the project's
@@ -226,6 +227,9 @@ async function devLoop() {
       const env = { ...process.env, ...devEnv(mongoPortForBase(base)), WF_DEV_LOG: at('dev.log') };
       await mongoUp({ slug: 'dev', base });
       await seedIfNeeded('jewelryx-mongo-dev', DEV_DB, 'dev');
+      // One source for the secrets: dev's .env files are rewritten from ~/.config/wf/jewelryx on every
+      // start, as a new worktree's are, so a changed key is changed in one place (2026-09-24).
+      copySecrets(DEV_DIR);
       const child = spawn(process.execPath, [join(TOOLS, 'dev.mjs'), String(base), '--slug', 'dev'], {
         cwd: DEV_DIR, env, stdio: 'ignore', windowsHide: true,
       });
