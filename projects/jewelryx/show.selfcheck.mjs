@@ -1,7 +1,7 @@
 // show.selfcheck.mjs — node show.selfcheck.mjs → exit 0 when green.
 import assert from 'node:assert/strict';
 import { opensWindows } from '../../editor.mjs';
-import { openLineOf, paneText, parseOpen, showArgs, unMsys } from './show.mjs';
+import { openLineOf, paneText, parseOpen, setupArgs, setupLinesOf, showArgs, unMsys } from './show.mjs';
 
 assert.deepEqual(parseOpen('b2b /catalog as buyer mobile'), { app: 'b2b', path: '/catalog', as: 'buyer', mobile: true });
 assert.deepEqual(parseOpen('admin /orders'), { app: 'admin', path: '/orders', as: 'admin', mobile: false });
@@ -25,6 +25,14 @@ assert.equal(unMsys('/b2b/orders?order=1', gitBash), '/b2b/orders?order=1');
 assert.equal(opensWindows({ CLAUDECODE: '1' }), false);
 assert.equal(opensWindows({}), true);
 const pane = paneText(parseOpen('b2b /inventory as seller'), { b2b: 'http://localhost:13111', admin: 'http://localhost:33111' });
-assert.match(pane, /log in: http:\/\/localhost:13111\/b2b\/login as seller@seed\.jewelryx \/ seed1234/);
-assert.match(pane, /then: {3}http:\/\/localhost:13111\/b2b\/inventory$/);
+assert.match(pane, /preview_start with name "b2b"/);
+assert.match(pane, /the page: http:\/\/localhost:13111\/b2b\/inventory\n/);
+assert.match(pane, /login: http:\/\/localhost:13111\/b2b\/login as seller@seed\.jewelryx \/ seed1234/);
+
+// The T2 walk's setup lines: the data the page needs, made once per plan through the CLI's api.
+const walked = '## T2 walk\nopen: b2b /inventory/13bd/variants as seller\nsetup: api createVariant {"path":{"product_id":"13bd"},"body":{"attribute_values":{"size":"45"}}} as seller\nsetup: `api listInventory {} as seller`\nLook at the header.\n\n## Asks\nsetup: not this one\n';
+assert.deepEqual(setupLinesOf(walked), ['api createVariant {"path":{"product_id":"13bd"},"body":{"attribute_values":{"size":"45"}}} as seller', 'api listInventory {} as seller']);
+assert.deepEqual(setupArgs(setupLinesOf(walked)[0]).slice(1), ['api', 'createVariant', '{"path":{"product_id":"13bd"},"body":{"attribute_values":{"size":"45"}}}', '--as', 'seller']);
+assert.equal(setupArgs('curl -X POST http://x'), null);
+assert.deepEqual(setupLinesOf('## T2 walk\nopen: b2b / as buyer\n'), []);
 console.log('all arms green');

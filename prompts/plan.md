@@ -30,8 +30,10 @@ Approach: <one line: what changes, and why here and not elsewhere>
 <adjacent things a reader might expect, and that this round leaves alone — one line each>
 
 ## T2 walk
-open: <the screen Shay opens first — its shape: *This project*>
-<one line: what to do on that screen to see the fix>
+open: <the screen where the fix shows, itself, not a list that leads to it — its shape: *This project*>
+setup: <only when that screen needs data the seed lacks: one call that makes it, the repro's own
+ precondition, one `setup:` line each — its shape: *This project*. wf runs them once, before the screen is shown>
+<one line: what the person looks at there to see the fix>
 
 ## Asks
 <only decisions nobody has made — a value with no source, a behaviour the ticket does not

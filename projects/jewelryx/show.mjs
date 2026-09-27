@@ -10,7 +10,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { opensWindows } from '../../editor.mjs';
-import { readState, roundOf, toplevelOf } from '../../state.mjs';
+import { readState, roundOf, toplevelOf, writeState } from '../../state.mjs';
 import { basePortForBranch, slugForBranch } from '../../worktree.mjs';
 import { logins, stackUrls } from './index.mjs';
 import { VERIFY_SKILL } from './round.mjs';
@@ -48,10 +48,25 @@ export function paneText(open, urls, users = logins) {
 	const page = (path) => `${urls[open.app]}/${open.app}${path}`;
 	const [user, password] = users[open.as];
 	return [
-		'T2 in the Browser pane (mcp__Claude_Browser__preview_start with the url; wf opens no window under Claude Code):',
-		`  log in: ${page('/login')} as ${user} / ${password} (a one-time code follows: it is on the page's DEV banner)`,
-		`  then:   ${page(open.path)}${open.mobile ? ' (mobile: resize the pane to 390x844)' : ''}`,
+		`T2 in the Browser pane (wf opens no window under Claude Code): mcp__Claude_Browser__preview_start with name "${open.app}" (the worktree's launch.json entry, so the pane can persist its login), then navigate:`,
+		`  the page: ${page(open.path)}${open.mobile ? ' (mobile: resize the pane to 390x844)' : ''}`,
+		`  if it asks for a login: ${page('/login')} as ${user} / ${password} (a one-time code follows: it is on the page's DEV banner), then the page again`,
 	].join('\n');
+}
+
+// Pure: the `setup:` lines under `## T2 walk`: commands, run from the worktree, that make the data the
+// `open:` page needs when the seed lacks it (prompts/plan.md). BJEW-562's T2 (2026-09-27) opened the
+// inventory list: the variants page and the shared variants it needs were a line for Shay to do by hand.
+export function setupLinesOf(planText) {
+	const walk = /^## T2 walk[ \t]*\n([\s\S]*?)(?=^## |(?![\s\S]))/m.exec((planText ?? '').replace(/\r\n/g, '\n'));
+	return walk ? [...walk[1].matchAll(/^setup:[ \t]*`?([^`\n]+?)`?[ \t]*$/gm)].map((m) => m[1]) : [];
+}
+
+// Pure: `api createVariant {"path":…} as seller` → the CLI's arguments, or null. One call of the
+// verification CLI's `api`, its JSON passed as one argument: no shell, whose quoting differs by OS.
+export function setupArgs(line) {
+	const m = /^api\s+(\w+)\s+(\{.*\})\s+as\s+(buyer|seller|admin)$/.exec(line.trim());
+	return m ? [`${VERIFY_SKILL}/control-jewelryx.mjs`, 'api', m[1], m[2], '--as', m[3]] : null;
 }
 
 // Pure: the CLI's arguments for a parsed `open:` line, in its own headed window ("show" session),
@@ -63,10 +78,16 @@ export function showArgs(open) {
 export function runShow(argv) {
 	const toplevel = toplevelOf();
 	let line = argv.map((a) => unMsys(a, process.env)).join(' ').trim();
+	let setups = [];
 	if (!line) {
-		const { folder } = roundOf(readState(toplevel), toplevel);
+		const state = readState(toplevel);
+		const { folder } = roundOf(state, toplevel);
 		const plan = folder && join(toplevel, folder, 'PLAN.md');
-		line = plan && existsSync(plan) ? openLineOf(readFileSync(plan, 'utf8')) : null;
+		const text = plan && existsSync(plan) ? readFileSync(plan, 'utf8') : null;
+		line = text && openLineOf(text);
+		// Once per plan: a second `wf show` would make the data twice.
+		const token = state?.briefs?.plan?.token ?? 'plan';
+		if (state?.t2_setup !== token) setups = setupLinesOf(text).map((cmd) => ({ cmd, token }));
 		if (!line) {
 			console.error('wf show: no `open:` line under PLAN.md ## T2 walk — pass it: wf show b2b /catalog as buyer mobile');
 			process.exit(2);
@@ -77,6 +98,16 @@ export function runShow(argv) {
 		console.error(`wf show: cannot read "${line}" — want: <b2b|admin> <path> [as buyer|seller|admin] [mobile]`);
 		process.exit(2);
 	}
+	for (const { cmd } of setups) {
+		const args = setupArgs(cmd);
+		const r = args && spawnSync(process.execPath, args, { cwd: toplevel, encoding: 'utf8' });
+		if (!r || r.status !== 0) {
+			console.error(`wf show: setup "${cmd}" ${r ? `failed:\n${`${r.stdout}${r.stderr}`.trim().slice(0, 600)}` : 'is not `api <fn> <json> as <buyer|seller|admin>`'}\nFix it in PLAN.md ## T2 walk, then wf show again.`);
+			process.exit(1);
+		}
+		console.log(`setup: ${cmd} → ${/HTTP \d+/.exec(r.stdout)?.[0] ?? 'ok'}`);
+	}
+	if (setups.length) writeState(toplevel, { t2_setup: setups[0].token });
 	if (!opensWindows()) {
 		const branch = spawnSync('git', ['-C', toplevel, 'rev-parse', '--abbrev-ref', 'HEAD'], { encoding: 'utf8' }).stdout.trim();
 		console.log(paneText(open, stackUrls({ slug: slugForBranch(branch), port: basePortForBranch(branch) })));
