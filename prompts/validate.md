@@ -12,7 +12,7 @@ from it; it was not written from the plan):
 `PLAN.md ## Decisions` holds later answers from the people asked; where one changes an Intent line,
 judge against the answer.
 
-**Budget: 15 tool calls.** Read `PLAN.md` fully, then `git diff <base>...HEAD` where
+**Budget: 15 tool calls**, plus what this project's notes (at the end) add. Read `PLAN.md` fully, then `git diff <base>...HEAD` where
 `<base>` = `git merge-base {{base}} HEAD`. Read a touched file fully only when the diff
 alone cannot answer a row below.
 
@@ -44,7 +44,8 @@ Verdict: matches plan | deviates
 ## Rules
 
 - Evidence is the diff and the files; never the commit messages' claims.
-- Do not run anything. Do not edit product code. Do not commit.
+- Do not run anything, except what this project's notes (at the end) ask for. Do not edit product
+  code. Do not commit.
 - CRLF: write through a script or the `edit` tool, never a heredoc.
 - Judge the behaviour the Intent describes, in the requester's words, not the plan's paraphrase of it.
 - Reply with ≤4 lines: the verdict, and each `deviates` / `unplanned` / `not met` line.

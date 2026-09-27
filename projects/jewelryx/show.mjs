@@ -2,21 +2,23 @@
 // show.mjs — wf show [<b2b|admin> <path> [as <buyer|seller|admin>] [mobile]]
 // Opens a browser window on this worktree's stack, already logged in as a seed user and
 // already on the page, and leaves it to Shay (T2: see the fix before reading the diff).
-// No args: the `open:` line under PLAN.md `## T2 walk`. Returns at once; the window stays
-// until Shay closes it.
-import { execFileSync, spawn } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, openSync, readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { slugForBranch } from '../../worktree.mjs';
+// No args: the `open:` line under PLAN.md `## T2 walk`. Returns once the page is open; the
+// window stays until Shay closes it.
+// The login and the page are the project's verification skill (round.mjs VERIFY_SKILL): its CLI
+// holds how JewelryX logs in, which this file used to repeat in a spec of its own.
+import { spawnSync } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { readState, roundOf, toplevelOf } from '../../state.mjs';
-import { logins, stackNames } from './index.mjs';
+import { VERIFY_SKILL } from './round.mjs';
 
-// Pure: `b2b /catalog as buyer mobile` → { app, path, as, mobile }, or null.
+// Pure: `b2b /catalog as buyer mobile` → { app, path, as, mobile }, or null. On the command line the
+// path may drop its slash (`wf show admin products`): Git Bash rewrites `/products` into
+// `C:/Program Files/Git/products` before node sees it, and that is refused rather than opened.
 export function parseOpen(line) {
-	const m = /^(b2b|admin)\s+(\/\S*)(?:\s+as\s+(buyer|seller|admin))?(\s+mobile)?\s*$/.exec((line ?? '').trim());
-	if (!m) return null;
-	return { app: m[1], path: m[2], as: m[3] ?? (m[1] === 'admin' ? 'admin' : 'buyer'), mobile: Boolean(m[4]) };
+	const m = /^(b2b|admin)\s+(\S+)(?:\s+as\s+(buyer|seller|admin))?(\s+mobile)?\s*$/.exec((line ?? '').trim());
+	if (!m || /^[A-Za-z]:[\\/]/.test(m[2])) return null;
+	return { app: m[1], path: m[2].startsWith('/') ? m[2] : `/${m[2]}`, as: m[3] ?? (m[1] === 'admin' ? 'admin' : 'buyer'), mobile: Boolean(m[4]) };
 }
 
 // Pure: the `open:` line under `## T2 walk`, or null.
@@ -24,6 +26,12 @@ export function openLineOf(planText) {
 	const walk = /^## T2 walk[ \t]*\n([\s\S]*?)(?=^## |(?![\s\S]))/m.exec((planText ?? '').replace(/\r\n/g, '\n'));
 	const m = walk && /^open:[ \t]*`?([^`\n]+?)`?[ \t]*$/m.exec(walk[1]);
 	return m ? m[1] : null;
+}
+
+// Pure: the CLI's arguments for a parsed `open:` line, in its own headed window ("show" session),
+// apart from the browser the round's agents drive.
+export function showArgs(open) {
+	return [`${VERIFY_SKILL}/control-jewelryx.mjs`, 'open', open.app, open.path, 'as', open.as, ...(open.mobile ? ['mobile'] : []), '--headed'];
 }
 
 export function runShow(argv) {
@@ -40,45 +48,15 @@ export function runShow(argv) {
 	}
 	const open = parseOpen(line);
 	if (!open) {
-		console.error(`wf show: cannot read "${line}" — want: <b2b|admin> </path> [as buyer|seller|admin] [mobile]`);
+		console.error(`wf show: cannot read "${line}" — want: <b2b|admin> <path> [as buyer|seller|admin] [mobile], the path without its leading slash in Git Bash`);
 		process.exit(2);
 	}
-	const branch = execFileSync('git', ['-C', toplevel, 'rev-parse', '--abbrev-ref', 'HEAD'], { encoding: 'utf8' }).trim();
-	const names = stackNames(slugForBranch(branch));
-	const host = (app) => names[app];
-	// The spec imports the worktree's own verification/ login helpers, so it runs from inside it.
-	const dir = join(toplevel, '.wf', 'show');
-	mkdirSync(dir, { recursive: true });
-	const src = join(dirname(fileURLToPath(import.meta.url)), 'show');
-	for (const f of ['show.spec.ts', 'pw.config.ts']) copyFileSync(join(src, f), join(dir, f));
-	const [email, password] = logins[open.as];
-	const log = openSync(join(dir, 'show.log'), 'w');
-	// node on the CLI directly, not `pnpm exec`: on Windows pnpm needs shell: true, and a detached
-	// child under a shell writes nothing to the log (measured: 0 bytes detached+shell, 16 detached
-	// alone). A failed login then left an empty show.log and a dead window (fix/role-assign-dialog T2).
-	const cli = join(toplevel, 'verification', 'node_modules', '@playwright', 'test', 'cli.js');
-	const child = spawn(process.execPath, [cli, 'test', '-c', '../.wf/show/pw.config.ts'], {
-		cwd: join(toplevel, 'verification'),
-		detached: true,
-		stdio: ['ignore', log, log],
-		env: {
-			...process.env,
-			// pw.config.ts sits in .wf/show/, outside verification/: its `@playwright/test` import resolves
-			// only when the worktree root happens to hoist it (the tools checkout does not: MODULE_NOT_FOUND).
-			NODE_PATH: join(toplevel, 'verification', 'node_modules'),
-			SHOW_APP: open.app,
-			SHOW_PATH: open.path,
-			SHOW_MOBILE: open.mobile ? '1' : '',
-			SHOW_AS: open.as,
-			B2B_URL: host('b2b'),
-			ADMIN_URL: host('admin'),
-			API_URL: `${host('api')}/api/v1`,
-			...(open.app === 'admin' ? { ADMIN_EMAIL: email, ADMIN_PASSWORD: password } : { B2B_OWNER_EMAIL: email, B2B_OWNER_PASSWORD: password }),
-			AUTH_DIR: join(dir, '.auth'),
-		},
-	});
-	child.unref();
-	console.log(`wf show: opening ${host(open.app)}/${open.app}${open.path} as ${email}${open.mobile ? ' (phone, 390px)' : ''} — the window stays until you close it (log: .wf/show/show.log)`);
+	if (!existsSync(join(toplevel, VERIFY_SKILL))) {
+		console.error(`wf show: this worktree has no ${VERIFY_SKILL} — its base predates the verification skill`);
+		process.exit(1);
+	}
+	const r = spawnSync(process.execPath, showArgs(open), { cwd: toplevel, stdio: 'inherit' });
+	process.exit(r.status ?? 1);
 }
 
 if (process.argv[1]?.endsWith('show.mjs')) runShow(process.argv.slice(2));
