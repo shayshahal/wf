@@ -166,6 +166,17 @@ Each step says what, why, and how it is checked. Steps 1–4 happen in JewelryX 
   - Jarmak asks for a comparison against the cheapest baseline.
   - The method is the one already used for playwright-cli, so the two results can be compared.
 - **Check:** the three runs are written down in the tools branch's notes before step 1.
+- **Result (2026-09-27), arm A, 3 valid runs** (`C:/Users/Shay/work/wf-bench/replay682/README.md`):
+  - **Medians:** 460 s, 45 turns including sub-agents, $1.04.
+  - **Correctness:**
+    - 2 of 3 runs went red on the defect's own assertions, for items 1, 4 and 5 only.
+    - Run 3 spent its whole budget on getting through wizard step 1 and measured nothing, which
+      is the trigger's pain, reproduced.
+    - Items 2 and 3 were measured in no run.
+  - **Login:** every repro wrote its own `login()` (11\u201312 lines).
+  - **Harness defects found, not fixed by this plan:**
+    - `subagent_interrupt` did not stop an agent, so an interrupted dispatch ran a full phase.
+    - A `codebase-locator` hung for 775 s.
 
 ### 1. Turn on the three pstack skills in Pi
 
@@ -201,6 +212,28 @@ Each step says what, why, and how it is checked. Steps 1–4 happen in JewelryX 
     second driver when the adopted one would do.
 - **Check:** the three-process sequence works in two worktrees at once. The spike's code is
   thrown away.
+- **Result (2026-09-27): (a), playwright-cli's own session.** It passed all three criteria. Notes
+  and the working snippets are in `C:/Users/Shay/work/wf-bench/spike-driver/`.
+  - **One logged-in page across processes.** `open`, a `run-code` login, then separate `goto`,
+    `screenshot` and `eval` calls all acted on one page, and `/b2b/orders` did not bounce to
+    login. Login took 7 s warm and 23 s on a cold vite.
+  - **Agents share it with no flags.** The CLI uses the `default` session, so an agent's plain
+    `playwright-cli snapshot` sees the logged-in page.
+  - **Worktrees are isolated by construction.** playwright-cli keys sessions by the nearest
+    `.playwright/` folder, or else by its own install root, which is inside each worktree's
+    `verification/node_modules` (`playwright-core/lib/tools/cli-client/registry.js`,
+    `findWorkspaceDir`). A second worktree saw `(no browsers)` while the first was logged in.
+    Two agents in *one* worktree do share a browser, which is how step 0's run 1 collided.
+  - **Specs skip login entirely.** `state-save` writes a storageState with the httpOnly
+    `b2b_access_token` and `b2b_refresh_token` cookies. A spec with only
+    `test.use({ storageState })` started on `/b2b/orders` logged in and passed in 1.1 s.
+  - **Gotchas for step 3:**
+    - `run-code` runs in a sandbox with no `process`, so the CLI templates values into the snippet.
+    - The browser never calls `/2fa/send`; the SvelteKit server does. The code is read from the DEV
+      banner (`span.font-mono.tracking-widest`), as `verification/tests/support/auth.ts` does.
+    - A headless session closes after an hour idle.
+    - `dev` has no `@playwright/cli` installed (its `verification/node_modules` predates
+      `2fb977b91`); round worktrees get it from `wf new`.
 
 ### 3. Build `control-jewelryx` and its SKILL.md
 
