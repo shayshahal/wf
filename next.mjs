@@ -1,0 +1,176 @@
+#!/usr/bin/env node
+// next.mjs — wf next: the one thing to do now in this round, from its state and its files (kit and
+// env plan, step 4). It was the round skill's *On each result* table, which only the orchestrator's
+// reading of it enforced. The orchestrator's loop: run `wf next`, do what it prints, run it again.
+// wf next does the bookkeeping itself (the step, a question the round now waits on) and prints
+// one of:
+//   dispatch <phase>: <the line to send a fresh round-worker>
+//   wait <person>: <what they owe>        tell them, verbatim; their answer → wf decide, then wf next
+//   design | deliver | review | merge: <what to run>   the orchestrator runs it, then wf next
+//   done
+import { execFileSync } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { addQuestion, blockedQuestion } from './ask.mjs';
+import { briefKey, handoffGap, HANDOFF_FILES, planAsks, planClass, rowDone, validationVerdict } from './handoff.mjs';
+import { baseBranch } from './project.mjs';
+import { planCommitRows } from './prompt.mjs';
+import { lastField, readVerdict, specShaFor } from './review-format.mjs';
+import { seams } from './seams.mjs';
+import { readState, toplevelOf, writeState } from './state.mjs';
+import { notifyAdapters, runStep } from './step.mjs';
+
+// A phase briefed this many times without a handoff goes to Shay, not to a third agent.
+const MAX_BRIEFS = 2;
+
+// Pure: the action for a snapshot of the round:
+//   { branch, entry, step, klass, questions, answered, briefs, commit,
+//     files: { research, plan, blocked, asBuilt, validation, review } (text or null),
+//     t1: { spec, reviewed, verdict } (SPEC.md's sha, SPEC-REVIEW.md's last spec-sha and verdict),
+//     subjects (commit subjects since the base), checks (.wf/checks.log lines) }
+// → { say, effects }, effects being { step: [args] } | { ask: { to, text, dflt, source } }.
+export function nextAction(s) {
+	const effects = [];
+	const act = (say) => ({ say, effects });
+	const briefs = s.briefs ?? {};
+	const brief = (phase, n) => briefs[briefKey(phase, n)];
+	const wf = `node ${s.entry}`;
+	// The line a fresh round-worker gets: it runs wf brief itself, so its brief is wf's own text.
+	const dispatch = (phase, args = [], gap = null) => {
+		const b = brief(phase, args[0]);
+		const label = [phase, ...args].join(' ');
+		if (b && gap && (b.count ?? 1) >= MAX_BRIEFS) return act(`wait shay: ${label} was briefed ${b.count} times and ${gap} — a harness gap (round skill, When a round goes wrong)`);
+		return act(`dispatch ${label}: run \`${wf} brief ${label}\` in this worktree and do exactly what it prints${b && gap ? ` (again: ${gap})` : ''}`);
+	};
+	const asked = (source) => [...(s.questions ?? []), ...(s.answered ?? [])].some((q) => q.source === source);
+	const open = s.questions ?? [];
+
+	if (open.length) return act(open.map((q) => `wait ${q.to}: q${q.n} ${q.text}${q.default ? ` (default: ${q.default})` : ''}`).join('\n'));
+	if (s.step === 'held') return act('wait shay: the round is held (wf step <name> resumes it)');
+	if (s.step === 'merged') return act('done');
+	if (s.step === 'pr') return act(`merge: T2 approved — \`gh pr merge --merge\`, \`git push origin --delete ${s.branch}\`, \`${wf} step merged\`, \`${wf} reap ${s.branch}\``);
+	if (s.step === 'review') {
+		if (readVerdict(s.files.review ?? '') === 'dismissed') return act(`wait shay: T2 was closed without a verdict — \`${wf} review ${s.branch}\` again when he is ready`);
+		return act(`review: T2 — the project's T2 first (ROUND.md), then \`${wf} review ${s.branch}\`; once it has a verdict, \`${wf} review ${s.branch} --done\``);
+	}
+
+	// research → plan
+	let step = s.step;
+	if (!step || step === 'classify' || step === 'research') {
+		const gap = handoffGap('research', s.files.research, brief('research'));
+		if (gap) return dispatch('research', [], gap);
+		effects.push({ step: ['plan'] });
+		step = 'plan';
+	}
+
+	// plan → its Asks, T1 (class B/C) or implement
+	let klass = s.klass ?? 'A';
+	if (step === 'plan' || step === 'design') {
+		const gap = handoffGap('plan', s.files.plan, brief('plan'));
+		if (gap) return dispatch('plan', [], gap);
+		const token = brief('plan')?.token ?? 'plan';
+		const asks = planAsks(s.files.plan).map((a, i) => ({ ...a, source: `PLAN.md#${token}:${i + 1}` })).filter((a) => !asked(a.source));
+		if (asks.length) {
+			for (const a of asks) effects.push({ ask: { to: 'shay', text: a.text, dflt: a.dflt, source: a.source } });
+			return act(asks.map((a) => `wait shay: ${a.text}${a.dflt ? ` (default: ${a.dflt})` : ''}`).join('\n'));
+		}
+		const planned = planClass(s.files.plan);
+		if ((planned === 'B' || planned === 'C') && planned !== klass && klass !== 'C') {
+			effects.push({ step: ['plan', '--class', planned] });
+			klass = planned;
+		}
+		if (klass === 'B' || klass === 'C') {
+			if (!s.t1.spec || step !== 'design') return act('design: start the design session (round skill, Dispatch in this harness); it writes SPEC.md with Shay and runs `wf step design`');
+			if (s.t1.reviewed === s.t1.spec && s.t1.verdict === 'changes-requested') return dispatch('plan', ['--revise'], null);
+			if (s.t1.reviewed !== s.t1.spec || s.t1.verdict !== 'approved') return act(`wait shay: T1 on SPEC.md — \`${wf} design ${s.branch}\``);
+		}
+		effects.push({ step: ['implement'] });
+		step = 'implement';
+	}
+
+	// implement → as-built (B/C) → validate → deliver, and the fixes T2 or a validation asked for
+	if (step === 'implement') {
+		const rows = planCommitRows(s.files.plan ?? '');
+		if (s.files.blocked) {
+			if (/^## Answer[ \t]*$/m.test(s.files.blocked.replace(/\r\n/g, '\n'))) return dispatch('implement', [s.commit], null);
+			const q = blockedQuestion(s.files.blocked);
+			if (!q) return act(`wait shay: BLOCKED.md at commit ${s.commit} has no Question: line — read it`);
+			effects.push({ ask: { to: 'shay', text: q, dflt: null, source: 'BLOCKED.md' } });
+			return act(`wait shay: blocked at commit ${s.commit} — ${q}`);
+		}
+		const pending = rows.find((r) => !rowDone(r, s));
+		if (pending) return dispatch('implement', [pending.n], brief('implement', pending.n) ? `commit ${pending.n} is not in git log with a green \`wf check\`` : null);
+		if (klass === 'B' || klass === 'C') {
+			const gap = handoffGap('as-built', s.files.asBuilt, brief('as-built'));
+			if (gap) return dispatch('as-built', [], gap);
+		}
+		// Every fix asked for (a T2 changes-requested, a validation ruled `fix`) is one fix(review) commit.
+		const rulings = (s.answered ?? []).filter((q) => q.source?.startsWith('VALIDATION.md#') && /^\s*fix\b/i.test(q.answer ?? ''));
+		const t2Fixes = [...(s.files.review ?? '').matchAll(/^verdict:\s*changes-requested\s*$/gm)].length;
+		const fixed = s.subjects.filter((x) => x.startsWith('fix(review):')).length;
+		if (fixed < t2Fixes + rulings.length) return dispatch('fix-review', fixed < t2Fixes ? [] : ['--from', 'VALIDATION.md'], null);
+		const vGap = handoffGap('validate', s.files.validation, brief('validate'));
+		const vToken = brief('validate')?.token ?? 'validate';
+		// A validation whose deviations were fixed is judged again.
+		if (vGap || rulings.some((q) => q.source === `VALIDATION.md#${vToken}`)) return dispatch('validate', [], vGap);
+		if (validationVerdict(s.files.validation) === 'deviates') {
+			const source = `VALIDATION.md#${vToken}`;
+			const ruling = (s.answered ?? []).find((q) => q.source === source);
+			if (!ruling) {
+				const lines = (s.files.validation ?? '').replace(/\r\n/g, '\n').split('\n').filter((l) => /\b(differs|missing|not met|extra|red):/.test(l)).map((l) => l.replace(/^[-*]\s*/, '').trim());
+				const text = `fix or accept: ${lines.join(' · ') || 'VALIDATION.md says deviates'}`;
+				effects.push({ ask: { to: 'shay', text, dflt: null, source } });
+				return act(`wait shay: ${text}`);
+			}
+			if (!/^\s*accept\b/i.test(ruling.answer ?? '')) return act(`wait shay: q${ruling.n}'s answer "${ruling.answer}" is neither fix nor accept — ask again with \`${wf} ask\``);
+		}
+		return act(`deliver: \`${wf} deliver\`, then the tracker note it wrote and the delivered status (ROUND.md)`);
+	}
+	return act(`wait shay: step "${step}" has no next action`);
+}
+
+// ── the shell ────────────────────────────────────────────────────────────────
+
+const read = (file) => (existsSync(file) ? readFileSync(file, 'utf8') : null);
+
+export function snapshotOf(toplevel) {
+	const state = readState(toplevel) ?? {};
+	const dir = join(toplevel, state.folder ?? '');
+	const git = (...args) => execFileSync('git', ['-C', toplevel, ...args], { encoding: 'utf8' }).trim();
+	const branch = git('rev-parse', '--abbrev-ref', 'HEAD');
+	const base = git('merge-base', state.base ?? `origin/${baseBranch}`, 'HEAD');
+	const specReview = read(join(dir, 'SPEC-REVIEW.md')) ?? '';
+	return {
+		branch,
+		entry: seams.entry.replace(/\\/g, '/'),
+		step: state.step ?? null,
+		klass: state.class ?? null,
+		questions: state.questions ?? [],
+		answered: state.answered ?? [],
+		briefs: state.briefs ?? {},
+		commit: state.commit ?? null,
+		files: Object.fromEntries([['research', 'RESEARCH.md'], ['plan', 'PLAN.md'], ['blocked', 'BLOCKED.md'], ['asBuilt', HANDOFF_FILES['as-built']], ['validation', 'VALIDATION.md'], ['review', 'REVIEW.md']].map(([k, f]) => [k, read(join(dir, f))])),
+		t1: { spec: specShaFor(toplevel), reviewed: lastField(specReview, 'spec-sha'), verdict: readVerdict(specReview) },
+		subjects: git('log', '--format=%s', `${base}..HEAD`).split('\n').filter(Boolean),
+		checks: (read(join(toplevel, '.wf', 'checks.log')) ?? '').split('\n').filter(Boolean).flatMap((l) => { try { return [JSON.parse(l)]; } catch { return []; } }).map((c) => ({ ...c, row: c.row == null ? null : Number(c.row) })),
+	};
+}
+
+export async function runNext() {
+	const toplevel = toplevelOf();
+	if (!readState(toplevel)?.folder) {
+		console.error('wf next: no round here — run it in the round\'s worktree (wf new <branch> --id <id> makes one)');
+		process.exit(2);
+	}
+	let { say, effects } = nextAction(snapshotOf(toplevel));
+	for (const e of effects) {
+		if (e.step) await runStep(e.step, { quiet: true });
+		else writeState(toplevel, addQuestion(readState(toplevel), e.ask));
+	}
+	// A question just recorded is printed as an open one, with the q<n> that `wf decide --q` takes.
+	if (effects.some((e) => e.ask)) {
+		await notifyAdapters(readState(toplevel));
+		({ say } = nextAction(snapshotOf(toplevel)));
+	}
+	console.log(say);
+}

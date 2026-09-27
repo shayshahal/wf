@@ -1,7 +1,8 @@
 # Fix review — {{round}}
 
-You are a fresh agent closing out a T2 review. Read `{{folder}}/REVIEW.md` fully: its
-annotations are the whole job.
+You are a fresh agent closing out a review. Read `{{folder}}/{{review}}` fully: its
+annotations are the whole job (in a VALIDATION.md, its `differs`, `missing`, `not met` and
+`extra` lines).
 
 **Budget: 15 tool calls. One commit.**
 

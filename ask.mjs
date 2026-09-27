@@ -24,13 +24,16 @@ export function addQuestion(state, { to, text, dflt = null, source = null }, now
 }
 
 // Pure: the state without question n, and the question. With one question open, n may be omitted.
-export function closeQuestion(state, n, now = new Date().toISOString()) {
+// The question moves to `answered` with its answer: `wf next` acts on a ruling (fix or accept) and
+// knows which Asks it has put already.
+export function closeQuestion(state, n, now = new Date().toISOString(), answer = null) {
 	const open = state.questions ?? [];
 	if (n == null && open.length > 1) throw new Error(`${open.length} questions are open — name one with --q: ${open.map((q) => `q${q.n}`).join(', ')}`);
 	const question = n == null ? open[0] : open.find((q) => q.n === n);
 	if (!question) throw new Error(`no open question q${n}${open.length ? ` (open: ${open.map((q) => `q${q.n}`).join(', ')})` : ''}`);
 	const questions = open.filter((q) => q !== question);
-	return { question, state: { ...state, questions, waiting_on: questions[0]?.to ?? null, since: now } };
+	const answered = [...(state.answered ?? []), { ...question, answer, answered: now }];
+	return { question, state: { ...state, questions, answered, waiting_on: questions[0]?.to ?? null, since: now } };
 }
 
 // Pure: null, or why the round cannot move on. An open question means someone owes an answer first.
@@ -144,13 +147,13 @@ export async function runDecide(argv) {
 	try {
 		const n = a.q == null ? null : Number(String(a.q).replace(/^q/, ''));
 		if (n !== null && !Number.isInteger(n)) throw new Error(`--q ${a.q} is not a question number`);
-		closed = closeQuestion(state, n);
+		closed = closeQuestion(state, n, undefined, answer);
 	} catch (e) {
 		console.error(`wf decide: ${e.message}`);
 		process.exit(2);
 	}
 	const { question } = closed;
-	if (question.source === 'BLOCKED.md') {
+	if (question.source?.startsWith('BLOCKED.md')) {
 		const file = roundFile(toplevel, 'BLOCKED.md');
 		writeFileSync(file, appendAnswer(readFileSync(file, 'utf8'), answer));
 		console.log(`q${question.n} closed · answer in ${file} § Answer`);

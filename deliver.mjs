@@ -13,6 +13,7 @@ import { runCheck } from './check.mjs';
 import { baseBranch, trackerNote } from './project.mjs';
 import { planCommitRows } from './prompt.mjs';
 import { openQuestionGate } from './ask.mjs';
+import { handoffGap } from './handoff.mjs';
 import { readState, roundOf, toplevelOf, writeState } from './state.mjs';
 import { runStep } from './step.mjs';
 
@@ -35,6 +36,13 @@ export async function runDeliver() {
 	const plan = join(toplevel, folder ?? '', 'PLAN.md');
 	if (!folder || !existsSync(plan)) {
 		console.error(`wf deliver: no ${folder ?? 'round folder'}/PLAN.md`);
+		process.exit(2);
+	}
+	// The PR carries VALIDATION.md: it must be the answer to the last validate brief, with a verdict.
+	const validationFile = join(toplevel, folder, 'VALIDATION.md');
+	const vGap = handoffGap('validate', existsSync(validationFile) ? readFileSync(validationFile, 'utf8') : null, state?.briefs?.validate);
+	if (vGap) {
+		console.error(`wf deliver: ${vGap}`);
 		process.exit(2);
 	}
 	const planText = readFileSync(plan, 'utf8');
