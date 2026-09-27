@@ -34,8 +34,8 @@ open: <the screen Shay opens first — its shape: *This project*>
 
 ## Asks
 <only decisions nobody has made — a value with no source, a behaviour the ticket does not
- name. Each: the question in one line, and the default you will build if unanswered.
- Empty is the normal case>
+ name. Each is one line, `- <the question> — default: <what you build if unanswered>`: wf
+ puts it to the person as it is. Empty is the normal case>
 ```
 
 ## Rules

@@ -21,6 +21,8 @@ check('two open and no --q → refused, naming both', threw.includes('q1') && th
 const after1 = closeQuestion(two, 1, t);
 check('closing q1 returns it and leaves q2', after1.question.text === 'soft-delete or hide?' && after1.state.questions.length === 1, JSON.stringify(after1));
 check('the round now waits on q2\'s person', after1.state.waiting_on === 'einat', after1.state.waiting_on);
+const ruled = closeQuestion(two, 1, t, 'soft-delete');
+check('a closed question keeps its answer, for wf next to act on', ruled.state.answered.at(-1).n === 1 && ruled.state.answered.at(-1).answer === 'soft-delete', JSON.stringify(ruled.state.answered));
 const after2 = closeQuestion(after1.state, null, t);
 check('the last question closes without --q; nobody is waited on', after2.state.questions.length === 0 && after2.state.waiting_on === null, JSON.stringify(after2.state));
 threw = '';

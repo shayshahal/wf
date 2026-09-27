@@ -18,7 +18,10 @@ round commits (for JewelryX, `bug-reports/<round>/`).
   per project a MongoDB container per worktree, portless and the permanent stacks (`env/projects/`).
   `boundary.selfcheck.mjs` fails if the kit reaches into it.
 - `skills/round/SKILL.md`: the orchestrator skill ("start 662", "resume 662"); `skills/design-session/` for T1
-- `prompts/`: one prompt per phase, printed by `wf prompt <phase>`
+- `next.mjs`: `wf next`, the round's next action from its state and files: the orchestrator's
+  whole loop. `brief.mjs` + `handoff.mjs`: `wf brief <phase>`, what a phase agent runs first (the
+  prompt, and a token its file ends with); what each phase hands the next and whether it is current
+- `prompts/`: one prompt per phase (`wf prompt <phase>` prints it without the handoff)
 - `agents/`: `round-worker` (every phase), `codebase-locator` and `codebase-analyzer` (research, pi only)
 - `process/`: lifecycle, classes, design session, review format, touchpoints
 - `worktree.mjs`: the one interface to worktrees: list, ports and slugs (`ports.mjs`), create, remove.

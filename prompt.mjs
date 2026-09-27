@@ -54,33 +54,29 @@ export function ticketIntent(text) {
 
 const INTENT_PHASES = ['research', 'plan', 'validate'];
 
-export function runPrompt(argv) {
+export const PHASES = ['research', 'plan', 'implement', 'as-built', 'validate', 'fix-review'];
+export const USAGE = 'research | plan [--revise] | implement N | as-built | validate | fix-review';
+
+// The composed prompt for `argv` (`<phase> [N] [--revise]`), with `{ toplevel, state, folder, phase, n }`.
+// Throws with the reason it cannot be composed; `wf prompt` and `wf brief` (brief.mjs) print it.
+// `implement N` records `commit: N` in state, which `wf check` fences on.
+export function composePrompt(argv) {
 	const phase = argv[0];
-	if (!['research', 'plan', 'implement', 'as-built', 'validate', 'fix-review'].includes(phase)) {
-		console.error('usage: wf prompt <research | plan [--revise] | implement N | as-built | validate | fix-review>');
-		process.exit(2);
-	}
+	if (!PHASES.includes(phase)) throw new Error(`usage: <${USAGE}>`);
 	const toplevel = toplevelOf();
 	const state = readState(toplevel);
 	const { id, folder } = roundOf(state, toplevel);
-	if (!id) {
-		console.error('wf prompt: no round in .wf/state.json — `wf new <branch> --id <id>` first');
-		process.exit(2);
-	}
+	if (!id) throw new Error('no round in .wf/state.json — `wf new <branch> --id <id>` first');
 	const gate = openQuestionGate(state);
-	if (gate) {
-		console.error(`wf prompt ${phase}: ${gate}`);
-		process.exit(2);
-	}
-	const vars = { round: id, folder, base: `origin/${baseBranch}` };
+	if (gate) throw new Error(`${phase}: ${gate}`);
+	// fix-review works from REVIEW.md (T2), or --from VALIDATION.md when a validation was ruled `fix`.
+	const from = argv.indexOf('--from');
+	const vars = { round: id, folder, base: `origin/${baseBranch}`, review: from === -1 ? 'REVIEW.md' : argv[from + 1] };
 	if (INTENT_PHASES.includes(phase)) {
 		let ticket = '';
 		try { ticket = readFileSync(join(toplevel, folder, 'TICKET.md'), 'utf8'); } catch { /* reported below */ }
 		vars.intent = ticketIntent(ticket);
-		if (!vars.intent) {
-			console.error(`wf prompt ${phase}: ${folder}/TICKET.md has no \`## Intent\` — the requester's words, verbatim and attributed (round skill, Start 1)`);
-			process.exit(2);
-		}
+		if (!vars.intent) throw new Error(`${phase}: ${folder}/TICKET.md has no \`## Intent\` — the requester's words, verbatim and attributed (round skill, Start 1)`);
 	}
 	// The project's direct URLs, {{<app>}}: Node on Windows cannot resolve *.localhost, so a spec's API calls need these
 	// (TJEW-663 verify, 2026-09-23: ENOTFOUND in auth.setup).
@@ -100,14 +96,10 @@ export function runPrompt(argv) {
 		try {
 			rows = planCommitRows(readFileSync(plan, 'utf8'));
 		} catch {
-			console.error(`wf prompt implement: no ${folder}/PLAN.md`);
-			process.exit(2);
+			throw new Error(`implement: no ${folder}/PLAN.md`);
 		}
 		const row = rows.find((r) => r.n === n);
-		if (!row) {
-			console.error(`wf prompt implement ${argv[1] ?? ''}: ${folder}/PLAN.md has no commit row ${argv[1] ?? ''} (rows: ${rows.map((r) => r.n).join(', ') || 'none'})`);
-			process.exit(2);
-		}
+		if (!row) throw new Error(`implement ${argv[1] ?? ''}: ${folder}/PLAN.md has no commit row ${argv[1] ?? ''} (rows: ${rows.map((r) => r.n).join(', ') || 'none'})`);
 		Object.assign(vars, { n, total: rows.length, row: row.line });
 		writeState(toplevel, { commit: n });
 	}
@@ -117,7 +109,18 @@ export function runPrompt(argv) {
 	const wf = `node ${seams.entry.replace(/\\/g, '/')}`;
 	// Same for the docs a prompt cites: a round's worktree does not hold wf.
 	const home = fileURLToPath(new URL('./', import.meta.url)).replace(/\\/g, '/').replace(/\/$/, '');
-	process.stdout.write(anchorToolPaths(renderPrompt(template, vars).replace(/`wf /g, `\`${wf} `), home, projectName));
+	const text = anchorToolPaths(renderPrompt(template, vars).replace(/`wf /g, `\`${wf} `), home, projectName);
+	return { text, toplevel, state, folder, phase, n: vars.n ?? null };
+}
+
+// wf prompt: the prompt as it is, for reading. A dispatch runs `wf brief`, which adds the handoff.
+export function runPrompt(argv) {
+	try {
+		process.stdout.write(composePrompt(argv).text);
+	} catch (e) {
+		console.error(`wf prompt ${e.message}`);
+		process.exit(2);
+	}
 }
 
 if (process.argv[1]?.endsWith('prompt.mjs')) runPrompt(process.argv.slice(2));

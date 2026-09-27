@@ -47,7 +47,8 @@ export function appendDecision(planText, text, date = new Date().toISOString().s
   return body.replace(/^## Decisions[ \t]*\n([\s\S]*?)(?=^## |(?![\s\S]))/m, (m, section) => `## Decisions\n${section.trimEnd() ? `${section.trimEnd()}\n` : ''}${line}\n\n`).trimEnd() + '\n';
 }
 
-export async function runStep(argv) {
+// `quiet`: wf next steps a round as bookkeeping and prints only its own line.
+export async function runStep(argv, { quiet = false } = {}) {
   const flag = (name) => {
     const i = argv.indexOf(`--${name}`);
     return i >= 0 ? argv[i + 1] : null;
@@ -111,7 +112,7 @@ export async function runStep(argv) {
   const state = { ...prev, round, class: klass, base, step, waiting_on: waitingOn ?? prev.questions?.[0]?.to ?? null, since: new Date().toISOString() };
   mkdirSync(join(toplevel, '.wf'), { recursive: true });
   writeFileSync(file, JSON.stringify(state, null, 2) + '\n');
-  console.log(JSON.stringify(state));
+  if (!quiet) console.log(JSON.stringify(state));
   await notifyAdapters(state);
 }
 
