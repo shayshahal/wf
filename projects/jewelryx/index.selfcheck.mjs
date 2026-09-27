@@ -1,12 +1,15 @@
 // index.selfcheck.mjs — node projects/jewelryx/index.selfcheck.mjs → exit 0 when green.
 // Pure arms: JewelryX's ports and addresses, pages and tracker note (index.mjs), the worktree's .env
 // (env.mjs), its database's name (db.mjs) and its dev-server commands (dev.mjs), with no machine
-// plugged in. Shay's machine's arms: env/projects/jewelryx/index.selfcheck.mjs. Nothing is run.
+// plugged in. Shay's machine's arms: env/projects/jewelryx/index.selfcheck.mjs. Nothing is run; the repro files are written into a temp folder.
 import { worktreeDatabase } from './db.mjs';
 import { devCommands } from './dev.mjs';
 import { includedFiles, sanitizeEnv } from './env.mjs';
 import { directUrls, pageOf, setup, stackUrls, teardown, trackerNote } from './index.mjs';
-import { REPRO_GLOBAL_SETUP, reproConfig, verifyStackEnv } from './round.mjs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { REPRO_CONFIG, REPRO_GLOBAL_SETUP, reproConfig, verifyStackEnv, VERIFY_SKILL, writeReproConfig } from './round.mjs';
 
 let failures = 0;
 const check = (name, cond, detail = '') =>
@@ -65,6 +68,16 @@ check('repro config without the skill: no global setup', !/globalSetup|VERIFY_AU
 check('repro config with the skill: global setup, and the saved logins under the gitignored .verify/auth', authed.includes("globalSetup: './global-setup.ts'") && authed.includes("resolve(__dirname, '../../../.verify/auth')"), authed);
 check('the repro files never use import.meta (they sit outside verification/)', ![bare, authed, REPRO_GLOBAL_SETUP].some((t) => t.replace(/^\/\/.*$/gm, '').includes('import.meta')));
 check('global setup logs all three roles in through control-jewelryx auth', REPRO_GLOBAL_SETUP.includes("['buyer', 'seller', 'admin'].map(auth)") && REPRO_GLOBAL_SETUP.includes('docs/agents/verify-jewelryx/control-jewelryx.mjs') && REPRO_GLOBAL_SETUP.includes("'auth', role"));
+
+// A base with the verification skill's own repro config gets no per-round files (JewelryX #242).
+const tree = mkdtempSync(join(tmpdir(), 'wf-repro-'));
+mkdirSync(join(tree, VERIFY_SKILL), { recursive: true });
+writeReproConfig({ worktree: tree, folder: 'bug-reports/old', direct });
+check('a base without the shared config: the round gets its own config and setup', existsSync(join(tree, 'bug-reports/old/repro/playwright.config.ts')) && existsSync(join(tree, 'bug-reports/old/repro/global-setup.ts')));
+writeFileSync(join(tree, REPRO_CONFIG), '');
+writeReproConfig({ worktree: tree, folder: 'bug-reports/new', direct });
+check('a base with it: an empty repro/ for the specs, no config', existsSync(join(tree, 'bug-reports/new/repro')) && !existsSync(join(tree, 'bug-reports/new/repro/playwright.config.ts')));
+rmSync(tree, { recursive: true, force: true });
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');
 process.exit(failures ? 1 : 0);
