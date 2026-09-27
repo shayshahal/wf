@@ -56,7 +56,7 @@ four replies in a row were the text before the last tool call, the files right e
 | `wf next` printed | do |
 |---|---|
 | `dispatch <phase>: <line>` | a fresh `round-worker` (*Dispatch in this harness*), named `<id> <phase>`, with `<line>` as its whole task: it runs `wf brief` itself, so its brief is wf's own text. `as-built` and `validate`: model `anthropic/claude-sonnet-5`, tools `read,bash,write`. When it returns, `wf next`. |
-| `wait <person>: q<n> …` | tell them each line verbatim (*Talking to Shay*), with the round id. Stop. Their answer → `wf decide --q <n> "<their words>"`, then `wf next`. A `fix or accept` question is answered with a line that starts `fix` or `accept`. |
+| `wait <person>: q<n> …` | Shay: ask with the question tool (*Dispatch in this harness*), all the round's `q<n>` lines in one call, each line verbatim as its question; its options: the line's `(default: …)` first, then the other answers the question names (`fix` / `accept` for a `fix or accept` one); a typed answer is always open. Someone else: tell them each line verbatim, with the round id. Stop. Ask once: a late agent report (*Dispatch in this harness*) is no reason to ask again. Their answer → `wf decide --q <n> "<their words>"`, then `wf next`. A `fix or accept` question is answered with a line that starts `fix` or `accept`. |
 | `wait shay: …` (no q) | tell Shay the line with the round id (T1 waiting, a round held, a phase that failed twice). Stop. When he says it is done, `wf next`. |
 | `design: …` | start the design session (*Dispatch in this harness*; it reads `${CLAUDE_PLUGIN_ROOT}/process/DESIGN-SESSION.md` and TICKET/RESEARCH/PLAN). It writes `SPEC.md` with Shay and, on "shared", runs `wf step design`. Then `wf next`. |
 | `deliver: …` | run it: it prints the PR url. Post the tracker note it wrote in the round folder and set the delivered status (ROUND.md). Tell Shay `<id>: PR #n — opening the fix and the review`. `wf next`. |
@@ -74,7 +74,9 @@ not a step you take around it.
 
 Only these, only when they happen:
 - a plan is waiting (class B/C): one line with the command
-- Asks or a BLOCKED question: verbatim, one line each, each first recorded with `wf ask`. A
+- Asks or a BLOCKED question: verbatim, each first recorded with `wf ask`, then asked with the
+  question tool, not written into the chat (BJEW-562, 2026-09-27: asked as text, then asked again
+  on each late agent report). A
   question that is only in this chat dies with the session; `wf brief` and `wf deliver` refuse
   while a recorded one is open, so an answer is never skipped. Someone else (ROUND.md, *People*): `--to <name>`.
 - a PR is waiting: one line with the command
@@ -127,6 +129,8 @@ You are in pi if you have the `subagent` tool, in Claude Code if you have the `A
 | dispatch | `subagent({ name: "<id> <phase>", agent: "round-worker", model: "anthropic/claude-opus-5-5:medium", tools: "read,bash,write,edit,subagent", cwd: <worktree>, task: <the line> })` — plan and later phases without `subagent` unless the prompt asks. End your turn; the harness wakes you with the result. | Agent tool: `subagent_type: "wf:round-worker"`, `model: "opus"` (`"sonnet"` for as-built and validate), `description: "<id> <phase>"`, `prompt: <the line>`. It runs in the background; its result arrives as a message, then `wf next`. Never a fork: it would carry this whole conversation, and the plugin refuses it in a round. |
 | the agent closes | `round-worker` has `auto-exit: true`: its pane closes when its turn ends. Without it the pane waits for `subagent_done` and stays open when the agent forgets. | when its turn ends. The plugin's `SubagentStop` hook sends it back once if its handoff is missing (`wf handoff check`). |
 | research's `codebase-locator` / `codebase-analyzer` | pi agents, installed by `wf update` | the plugin's `wf:codebase-locator` / `wf:codebase-analyzer` |
+| the question tool | `ask_user_question` | `AskUserQuestion` (a `header` of at most 12 characters: `q<n>`) |
+| agent reports | a dispatched agent's result wakes you | every agent runs in the background (fork mode is on in Desktop, and it cannot be asked for the foreground); its report arrives as a message. A report from an agent you did not dispatch, or from a phase that has ended, needs nothing: no step, no question asked again. |
 | design session (B/C) | `subagent` with `interactive: true`, cwd the worktree: its own pane, which Shay talks to. | this session runs it: read `DESIGN-SESSION.md` and hold the conversation with the person here. |
 | T2: see the fix | `wf show` (ROUND.md's *T2*): a headed browser, logged in, on the plan's page | the Browser pane: open the round's B2B or admin (the worktree's `.claude/launch.json` names them), log in there with the seed user the page needs (ROUND.md's *T2* says which) and open the plan's `open:` page. The person looks there. |
 | T2: the verdict | `wf review` opens plannotator on the diff and waits | `wf review` writes `REVIEW.md` and returns. Give the person its path (a click opens it in the file pane) and stop. They write `path:line — text` comments and the `verdict:` line there, or comment on lines in Desktop's diff view and tell you: then you write those comments and the verdict they say into `REVIEW.md`. Then `wf review --done`. |
