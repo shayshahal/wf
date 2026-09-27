@@ -66,20 +66,20 @@ check('BLOCKED: its Question recorded for Shay, the round waits', asks(impl({ fi
 check('BLOCKED answered → the same row again, fresh agent', say(impl({ files: { blocked: 'Question: which table?\n\n## Answer\n2026-09-27 orders' } })).startsWith('dispatch implement 1:'));
 check('last commit, class A → validate', say(impl({ ...done2, files: {} })).startsWith('dispatch validate:'));
 check('last commit, class B → as-built first', say(impl({ ...done2, klass: 'B', files: {} })).startsWith('dispatch as-built:'));
-check('validation matches plan → deliver', say(impl({ ...done2, files: { validation: VALID() } })).startsWith('deliver: `node C:/wf/wf.mjs deliver`'));
+check('validation matches plan → T2, local, before any PR', say(impl({ ...done2, files: { validation: VALID() } })).startsWith('review: T2'));
 const deviates = impl({ ...done2, files: { validation: VALID('deviates') } });
 check('validation deviates: fix or accept, recorded for Shay with the deviating lines', asks(deviates)[0]?.text === 'fix or accept: hop 1: differs: returns null' && say(deviates).startsWith('wait shay: fix or accept'), say(deviates));
 const ruled = (answer) => impl({ ...done2, files: { validation: VALID('deviates') }, answered: [{ n: 3, source: 'VALIDATION.md#ccc333', answer }] });
-check('ruled accept → deliver', say(ruled('accept, the label is fine')).startsWith('deliver:'));
+check('ruled accept → T2', say(ruled('accept, the label is fine')).startsWith('review: T2'));
 check('ruled fix → fix-review from VALIDATION.md', say(ruled('fix it')).startsWith('dispatch fix-review --from VALIDATION.md: run `node C:/wf/wf.mjs brief fix-review --from VALIDATION.md`'));
 check('the fix committed → validate again', say(impl({ ...done2, subjects: [...done2.subjects, 'fix(review): the label'], files: { validation: VALID('deviates') }, answered: [{ n: 3, source: 'VALIDATION.md#ccc333', answer: 'fix' }] })).startsWith('dispatch validate:'));
 
-// deliver → T2
+// T2 (local) → deliver: push, PR, merge → the tracker, last
 check('delivered: T2, then wf review and --done', say(base({ step: 'review' })) === 'review: T2 — see the fix first (ROUND.md\'s T2, as the round skill\'s *Dispatch in this harness* says), then `node C:/wf/wf.mjs review fix/r`; once it has a verdict, `node C:/wf/wf.mjs review fix/r --done`');
 check('T2 annotated (step back to implement) → fix-review', say(impl({ ...done2, files: { validation: VALID(), review: 'verdict: changes-requested\n' } })).startsWith('dispatch fix-review: run `node C:/wf/wf.mjs brief fix-review`'));
-check('the T2 fix committed → deliver again', say(impl({ ...done2, subjects: [...done2.subjects, 'fix(review): x'], files: { validation: VALID(), review: 'verdict: changes-requested\n' } })).startsWith('deliver:'));
+check('the T2 fix committed → T2 again', say(impl({ ...done2, subjects: [...done2.subjects, 'fix(review): x'], files: { validation: VALID(), review: 'verdict: changes-requested\n' } })).startsWith('review: T2'));
 check('T2 dismissed: nothing merges, wait on Shay', say(base({ step: 'review', files: { review: 'verdict: dismissed\n' } })).startsWith('wait shay: T2 was closed'));
-check('T2 approved → merge, delete the branch, step merged, reap', say(base({ step: 'pr' })) === 'merge: T2 approved — `gh pr merge --merge`, `git push origin --delete fix/r`, `node C:/wf/wf.mjs step merged`, `node C:/wf/wf.mjs reap fix/r`');
+check('T2 approved → deliver (push, PR, merge), then the tracker note, then reap', say(base({ step: 'pr' })) === 'deliver: T2 approved — `node C:/wf/wf.mjs deliver` (push, PR, merge), then post the tracker note it wrote and set the delivered status (ROUND.md), then `node C:/wf/wf.mjs reap fix/r`', say(base({ step: 'pr' })));
 check('merged → done', say(base({ step: 'merged' })) === 'done');
 check('held → wait on Shay', say(base({ step: 'held' })).startsWith('wait shay: the round is held'));
 

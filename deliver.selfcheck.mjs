@@ -1,6 +1,6 @@
 // deliver.selfcheck.mjs — node deliver.selfcheck.mjs → exit 0 when green.
 // Fixture PLAN.md → the PR body, MONDAY.md.
-import { prBody } from './deliver.mjs';
+import { prBody, t2Gap } from './deliver.mjs';
 
 let failures = 0;
 const check = (name, cond, detail = '') =>
@@ -29,6 +29,10 @@ check('PR body carries PLAN.md verbatim', body.includes('Cause: the send result 
 check('PR body carries the pushed commits and VALIDATION.md', body.includes('## Commits (as pushed)\n- abc123 fix(auth): x') && body.includes('## Validation\n+ send_otp_code: built'), body.slice(-160));
 check('PR body has no word-level as-built lines', !body.includes('## As built') && !/missing:|unplanned:/.test(body));
 
+
+// T2 is local and first: deliver merges, so it runs only after T2 approved (Shay, 2026-09-27).
+check('T2 approved: deliver may run', t2Gap({ step: 'pr' }, 'verdict: approved\n') === null);
+check('before T2, T2 pending or changes requested: refused', [[{ step: 'implement' }, null], [{ step: 'review' }, 'verdict: pending'], [{ step: 'pr' }, 'verdict: changes-requested'], [{ step: 'pr' }, null]].every(([s, r]) => t2Gap(s, r)?.startsWith('T2 has not approved')));
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');
 process.exit(failures ? 1 : 0);

@@ -48,10 +48,14 @@ export function nextAction(s) {
 	if (open.length) return act(open.map((q) => `wait ${q.to}: q${q.n} ${q.text}${q.default ? ` (default: ${q.default})` : ''}`).join('\n'));
 	if (s.step === 'held') return act('wait shay: the round is held (wf step <name> resumes it)');
 	if (s.step === 'merged') return act('done');
-	if (s.step === 'pr') return act(`merge: T2 approved — \`gh pr merge --merge\`, \`git push origin --delete ${s.branch}\`, \`${wf} step merged\`, \`${wf} reap ${s.branch}\``);
+	// T2 is local, before anything leaves the machine; the approval is the merge, and the tracker hears
+	// last (Shay, 2026-09-27: BJEW-562's PR was merged in GitHub before its T2, and Monday said
+	// Fixed in Local before anyone had looked).
+	if (s.step === 'pr') return act(`deliver: T2 approved — \`${wf} deliver\` (push, PR, merge), then post the tracker note it wrote and set the delivered status (ROUND.md), then \`${wf} reap ${s.branch}\``);
+	const t2 = `review: T2 — see the fix first (ROUND.md's T2, as the round skill's *Dispatch in this harness* says), then \`${wf} review ${s.branch}\`; once it has a verdict, \`${wf} review ${s.branch} --done\``;
 	if (s.step === 'review') {
 		if (readVerdict(s.files.review ?? '') === 'dismissed') return act(`wait shay: T2 was closed without a verdict — \`${wf} review ${s.branch}\` again when he is ready`);
-		return act(`review: T2 — see the fix first (ROUND.md's T2, as the round skill's *Dispatch in this harness* says), then \`${wf} review ${s.branch}\`; once it has a verdict, \`${wf} review ${s.branch} --done\``);
+		return act(t2);
 	}
 
 	// research → plan
@@ -126,7 +130,7 @@ export function nextAction(s) {
 			}
 			if (!/^\s*accept\b/i.test(ruling.answer ?? '')) return act(`wait shay: q${ruling.n}'s answer "${ruling.answer}" is neither fix nor accept — ask again with \`${wf} ask\``);
 		}
-		return act(`deliver: \`${wf} deliver\`, then the tracker note it wrote and the delivered status (ROUND.md)`);
+		return act(t2);
 	}
 	return act(`wait shay: step "${step}" has no next action`);
 }
