@@ -57,7 +57,10 @@ The kit alone, as a Claude Code plugin: this repo is its marketplace (`.claude-p
   Enable auto-update). It is off for every marketplace but Anthropic's, and the plugin then stays at
   the version first installed (BJEW-562, 2026-09-27: 0.1.0 ran the round after 0.1.2 merged). A
   push reaches the team only with a new `version` in `.claude-plugin/plugin.json`: that bump is the
-  release. A running session keeps its version; the next session loads the new one.
+  release. Auto-update runs inside a session, up to ten minutes after its first message, and the
+  session keeps the version it started with: a merge reaches the session after next (BJEW-602,
+  2026-09-27: started 15 minutes after 0.1.6 merged, it ran 0.1.4 and posted to Monday before T2).
+  To start a round on what was just merged: `claude plugin update wf@wf` in a shell first.
 - **A round's session:** open the clone as it is: its own branch in the branch picker, the
   *worktree* box off. `wf new` makes the round's branch and worktree, and the session moves into
   it; `resume <id>` does the same. Picking the round's branch fails (git: it is checked out in the
