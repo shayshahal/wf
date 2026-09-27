@@ -3,13 +3,47 @@
     "SubagentStop": [
       {
         "matcher": "^wf:round-worker$",
-        "hooks": [{ "type": "command", "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/wf.mjs", "handoff", "check"] }]
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/wf.mjs",
+              "handoff",
+              "check"
+            ]
+          }
+        ]
       }
     ],
     "PreToolUse": [
       {
         "matcher": "Agent",
-        "hooks": [{ "type": "command", "command": "node", "args": ["${CLAUDE_PLUGIN_ROOT}/wf.mjs", "handoff", "no-fork"] }]
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/wf.mjs",
+              "handoff",
+              "no-fork"
+            ]
+          }
+        ]
+      },
+      {
+        "matcher": "SubagentHandback",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/wf.mjs",
+              "handoff",
+              "check"
+            ]
+          }
+        ]
       }
     ]
   }

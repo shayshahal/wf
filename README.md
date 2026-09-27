@@ -53,6 +53,15 @@ The kit alone, as a Claude Code plugin: this repo is its marketplace (`.claude-p
   (`MONGO_URL`, default `mongodb://127.0.0.1:27017`). The project's `.env` files sit in the
   person's clone, where they keep them to run the app; every round's worktree copies them.
 - **Try a change without installing:** `claude --plugin-dir <this clone>`.
+- **Updates:** turn on auto-update for the `wf` marketplace (`/plugin` → Marketplaces → wf →
+  Enable auto-update). It is off for every marketplace but Anthropic's, and the plugin then stays at
+  the version first installed (BJEW-562, 2026-09-27: 0.1.0 ran the round after 0.1.2 merged). A
+  push reaches the team only with a new `version` in `.claude-plugin/plugin.json`: that bump is the
+  release. A running session keeps its version; the next session loads the new one.
+- **A round's session:** open the clone as it is: its own branch in the branch picker, the
+  *worktree* box off. `wf new` makes the round's branch and worktree, and the session moves into
+  it; `resume <id>` does the same. Picking the round's branch fails (git: it is checked out in the
+  round's worktree), and a Desktop worktree is one the round never uses.
 
 ## Projects
 
