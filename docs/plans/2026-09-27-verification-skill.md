@@ -298,6 +298,18 @@ Each step says what, why, and how it is checked. Steps 1–4 happen in JewelryX 
 
   Seed the content from `JewelryX-Tools/skills/verify-*/features/` and `verification/screen-facts/`.
   The README records `verified at <sha>`.
+- **Result (2026-09-27): written, JewelryX `tools/verify-jewelryx` `cc6c86580`, verified at
+  `713ac85c4`.**
+  - One agent (Opus) drove all four features live with `control-jewelryx` in 18 min. It wrote
+    40 to 46 lines per file, in the contract.
+  - **Two clicks create records with no confirmation:** approving an order, and step 2's «שלב הבא»
+    in the auction wizard, which publishes a draft auction. The agent hit both, and both are Gotchas.
+  - **`reseed` only rewrites seed ids.** The auction, notifications, wallet charges and audit
+    entries a run creates stay behind; the agent removed them from its worktree's own database by
+    hand. SKILL.md and the map now say so. A `reseed` that drops non-seed records is not in this
+    plan; add it only if a round trips on leftovers.
+  - I checked the cleanup through the API: ORD-0001 `pending`, 1 seller auction, no user with a
+    role, empty wishlist, seed counts after reseed.
 - **Why:**
   - The talk: vague reports are only usable when the agent knows the feature map [10:32–11:40].
   - pstack: start with the top 3–5.
@@ -382,6 +394,11 @@ Each step says what, why, and how it is checked. Steps 1–4 happen in JewelryX 
 
 - **What:**
   - Rerun step 0's task with the skill, 3 runs, measured the same way.
+    - **First, re-drive `marketplace-auction-upload.md` on `bench/replay682-base`** and give arm B
+      that version. The seeded file was driven on `dev`, where TJEW-682 is fixed, and it states the
+      fixed behaviour ("days before today are disabled" answers item 2). A maintained map describes
+      the code it was verified on, so on the replay base it must describe the bug as it is, or
+      arm B is handed the answer (found 2026-09-27, reviewing step 4).
   - Run the next 5 real rounds with it, and count:
     - repros that contain login or URL code;
     - BLOCKEDs, or research budget spent, on driving the app (login, URLs, repro config). These
