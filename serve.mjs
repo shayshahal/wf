@@ -35,6 +35,20 @@ export function stopServersStep(pid, platform = process.platform) {
 		: { label: 'stop servers', cmd: 'kill', args: ['-TERM', `-${pid}`] };
 }
 
+// Pure: the step that ends every node and python process still running from the worktree but this
+// one, so its folder can go: a live process holds it on Windows (EPERM), and the round's stack is not
+// the only one. Measured: 23 processes at an env reap (2026-09-24); BJEW-562's kit reap (2026-09-27)
+// left the folder to the playwright daemon of `wf show`'s headed window. git reports the path with
+// forward slashes, a command line carries backslashes: match either spelling. -EncodedCommand, not
+// -Command: reap runs steps through cmd.exe on Windows, which cut the script at its first `|`.
+export function stragglersStep(path, pid, platform = process.platform) {
+	if (platform !== 'win32') return { label: 'kill stragglers', cmd: 'pkill', args: ['-f', path] };
+	const fwd = path.replace(/\\/g, '/').replace(/'/g, "''");
+	const bck = fwd.replace(/\//g, '\\');
+	const ps = `$ProgressPreference = 'SilentlyContinue'; Get-CimInstance Win32_Process -Filter "Name='node.exe' or Name='python.exe'" | Where-Object { ($_.CommandLine -like '*${fwd}*' -or $_.CommandLine -like '*${bck}*') -and $_.ProcessId -ne ${pid} } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`;
+	return { label: 'kill stragglers', cmd: 'powershell', args: ['-NoProfile', '-EncodedCommand', Buffer.from(ps, 'utf16le').toString('base64')] };
+}
+
 // Starts the stack detached; returns its pid. stdio goes to a file, not this process: a server that
 // inherits a pipe keeps its reader waiting for EOF (40 min under an agent harness, 2026-09-20).
 export function startServers(worktree) {
