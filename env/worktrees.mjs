@@ -3,6 +3,7 @@
 import { closeSync, openSync, readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { teardown } from '../project.mjs';
+import { stragglersStep } from '../serve.mjs';
 import { excludeWfFolder, resolveWorktree } from '../worktree.mjs';
 
 // Created with no hooks, then only wf's (`wt hook <type> user:`) run inside it. worktrunk reads the
@@ -33,17 +34,11 @@ export function createWorktree({ branch, base, log }) {
 
 // Pure: the ordered steps. `rm` is done in-process (fs.rmSync), so it carries no cmd.
 export function removalPlan({ branch, path, slug, pid }) {
-	// git reports the path with forward slashes, a process command line carries backslashes:
-	// match either spelling or the sweep finds nothing.
-	const fwd = path.replace(/\\/g, '/').replace(/'/g, "''");
-	const bck = fwd.replace(/\//g, '\\');
-	const ps = `$ProgressPreference = 'SilentlyContinue'; Get-CimInstance Win32_Process -Filter "Name='node.exe' or Name='python.exe'" | Where-Object { ($_.CommandLine -like '*${fwd}*' -or $_.CommandLine -like '*${bck}*') -and $_.ProcessId -ne ${pid} } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`;
 	// Stragglers go first: a live dev server holds the tree, and `wt remove` fails on Windows while
 	// it runs, leaving git without the worktree but the folder, container, volume, network and
-	// routes in place (measured 2026-09-24: 23 processes). -EncodedCommand, not -Command: the steps
-	// run through cmd.exe on Windows, which cut the script at its first `|` (BJEW-454 reap).
+	// routes in place (measured 2026-09-24: 23 processes). The sweep is the kit's (serve.mjs).
 	return [
-		{ label: 'kill stragglers', cmd: 'powershell', args: ['-NoProfile', '-EncodedCommand', Buffer.from(ps, 'utf16le').toString('base64')] },
+		stragglersStep(path, pid),
 		{ label: 'wt remove', cmd: 'wt', args: ['remove', branch, '--no-delete-branch', '--force', '--foreground', '-y'] },
 		{ label: 'rm -rf worktree', rm: path },
 		{ label: 'git worktree prune', cmd: 'git', args: ['worktree', 'prune'] },

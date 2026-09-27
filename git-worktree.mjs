@@ -5,7 +5,7 @@
 import { closeSync, openSync, readFileSync } from 'node:fs';
 import { execFileSync, spawn } from 'node:child_process';
 import { setup, teardown } from './project.mjs';
-import { servePid, startServers, stopServersStep } from './serve.mjs';
+import { servePid, startServers, stopServersStep, stragglersStep } from './serve.mjs';
 import { basePortForBranch, excludeFromGit, excludeWfFolder, listWorktrees, slugForBranch, worktreesHome } from './worktree.mjs';
 
 // The project's setup steps all at once, as worktrunk runs them: a command runs in a shell, its
@@ -41,10 +41,13 @@ export async function createWorktree({ branch, base, log }) {
 // Pure but for the pid file: the ordered steps. The project's teardown runs before the folder goes:
 // dropping the database takes the worktree's own python. No `git worktree remove`: rm and prune do
 // the same without a path through the shell reap runs commands in.
-export function removalPlan({ path, slug }) {
+export function removalPlan({ path, slug, pid: self }) {
 	const pid = servePid(path);
 	return [
 		...(pid ? [stopServersStep(pid)] : []),
+		// Whatever else still runs from the tree (a `wf show` window's daemon, BJEW-562): its folder
+		// cannot go while it does. `self`: reap's own pid, spared.
+		stragglersStep(path, self),
 		...teardown({ slug, worktree: path }),
 		{ label: 'rm -rf worktree', rm: path },
 		{ label: 'git worktree prune', cmd: 'git', args: ['worktree', 'prune'] },

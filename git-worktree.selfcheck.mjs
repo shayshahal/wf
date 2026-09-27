@@ -5,6 +5,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { removalPlan } from './git-worktree.mjs';
+import { stragglersStep } from './serve.mjs';
 import { stopServersStep } from './serve.mjs';
 
 let failures = 0;
@@ -16,12 +17,15 @@ check('elsewhere: the detached process\'s group gets SIGTERM', stopServersStep(4
 
 const tree = mkdtempSync(join(tmpdir(), 'wf-gw-'));
 const labels = () => removalPlan({ path: tree, slug: 'fix-a' }).map((s) => s.label).join(' → ');
-check('no stack started: teardown before the folder goes, then prune', labels() === 'drop database → rm -rf worktree → git worktree prune', labels());
+check('no stack started: teardown before the folder goes, then prune', labels() === 'kill stragglers → drop database → rm -rf worktree → git worktree prune', labels());
 mkdirSync(join(tree, '.wf'));
 writeFileSync(join(tree, '.wf', 'serve.pid'), '31337\n');
-check('a stack started: it stops first', labels().startsWith('stop servers → drop database'), labels());
+check('a stack started: it stops first', labels().startsWith('stop servers → kill stragglers → drop database'), labels());
 check('the stop names the recorded pid', removalPlan({ path: tree, slug: 'fix-a' })[0].args.includes(process.platform === 'win32' ? '31337' : '-31337'));
-check('the folder goes in-process, no path through the shell', removalPlan({ path: tree, slug: 'fix-a' }).every((s) => !s.args?.includes(tree)));
+check('the folder goes in-process, no path through the shell', removalPlan({ path: tree, slug: 'fix-a' }).filter((s) => s.label !== 'kill stragglers').every((s) => !s.args?.includes(tree)));
+const sweep = Buffer.from(stragglersStep('C:/wt/fix-a', 4242, 'win32').args[2], 'base64').toString('utf16le');
+check('the sweep matches both path spellings and spares reap itself', sweep.includes('C:/wt/fix-a') && sweep.includes(String.raw`C:\wt\fix-a`) && sweep.includes('-ne 4242'), sweep);
+check('elsewhere: pkill on the path', stragglersStep('/wt/fix-a', 1, 'darwin').args.join(' ') === '-f /wt/fix-a');
 rmSync(tree, { recursive: true, force: true });
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');
