@@ -35,7 +35,7 @@ review, 2026-09-27).
 | Create and remove a worktree | `git worktree add -b <branch> <repo>/.claude/worktrees/<slug> origin/<base>`, and `git worktree remove` | `wt switch --create` into `~/.herdr/worktrees/…` from the bare repo; `wt remove` |
 | Ports | P from the branch, computed in plain JS; the same numbers as wt's `hash_port` | the same function |
 | The database | `jewelryx_<slug>` in the MongoDB at `MONGO_URL` (default `mongodb://127.0.0.1:27017`) | a container per worktree at 40000+(P−10000) |
-| The dev servers | started detached by `wf new` on P, P+10000, P+20000; logs and pids in `.wf/`; stopped by `wf reap` | `wt tether`, behind portless names |
+| The dev servers | started detached by `wf new` on P, P+10000, P+20000; logs and pids in `.wf/`; stopped by `wf reap`. `wf new` also writes the worktree's `.claude/launch.json` in attach mode, so Desktop's Browser pane shows them (step 3) | `wt tether`, behind portless names |
 | Secrets | copied from the person's main checkout (the files `.worktreeinclude` names) | `~/.config/wf/jewelryx` |
 | T1 and T2 UI | the verdict file opens in `$VISUAL`/`$EDITOR`/VS Code (exists today: `editor.mjs`) | plannotator (`adapters/plannotator.mjs`) |
 | Notifications | none | herdr pane metadata (`adapters/herdr.mjs`) |
@@ -51,21 +51,22 @@ in both. What differs is the machine and the harness.
 | **Install** | editing clone at `~/work/wf`, installed copy in `~/.local/share/wf`, `~/bin/wf` | install the wf plugin from its marketplace (the wf repo) inside Desktop |
 | **Update** | automatic on the next `wf` command after `main` moves | when they update the plugin; they get the version Shay released, not every push |
 | **Prerequisites** | wt, Docker, portless, plannotator, pi, herdr, gh, node, pnpm, uv | git, gh, node, pnpm, uv, one MongoDB, the Monday connector |
-| **Where the orchestrator runs** | a pi session anywhere in the repo | a Desktop session on their main checkout. After `wf new` it moves into the round's worktree, or they open a new session there (step 5 decides which) |
+| **Where the orchestrator runs** | a pi session anywhere in the repo | a Desktop session on their clone of JewelryX (whatever it has checked out; the round branches off `origin/dev` either way). After `wf new` it moves into the round's worktree, or they open a new session there (step 5 decides which) |
 | **Fetch the ticket** | Monday MCP tools in pi | the Monday connector in Desktop |
 | **Worktree** | `wt` in `~/.herdr/worktrees/jeweleryx/<slug>`, from the bare repo | `git worktree add` in `<repo>/.claude/worktrees/<slug>`, from their clone |
 | **Setup** | the same steps: secrets, `.env` with production credentials blanked, install and build, verification tools, seed | the same steps, secrets copied from their main checkout |
 | **Database** | a MongoDB container per worktree | a database per worktree in their one MongoDB |
 | **Dev servers** | `wt tether`, reached at `<slug>.b2b.jewelryx.localhost` and the like | started by `wf new`, reached at `localhost:P` and the like |
 | **Ports** | P from the branch | the same P |
+| **Moving to the next phase** | the orchestrator runs `wf next` after each phase and does what it prints (step 4) | the same |
 | **Dispatch a phase** | pi `subagent` with `round-worker`, in a herdr pane | the `Agent` tool with the plugin's `round-worker`, in Desktop's tasks pane |
 | **Fresh context and handoff** | `wf brief`, the token and the required handoff files | the same, plus forks denied and a `SubagentStop` hook that refuses to end without the handoff file |
 | **Driving the app** | `control-jewelryx` and playwright-cli, one browser per checkout | the same |
 | **T1 (class B/C)** | `wf design`: plannotator on SPEC.md's `## For T1` | `wf design`: the `## For T1` extract and `SPEC-REVIEW.md` open in their editor; they write the verdict line; `wf step implement` refuses until it approves the current SPEC.md (exists today: `t1Gap`) |
-| **T2: see the fix** | `wf show`: a headed browser, logged in, on the plan's page | the same `wf show` (it is `control-jewelryx open … --headed`) |
+| **T2: see the fix** | `wf show`: a headed browser, logged in, on the plan's page | Desktop's Browser pane on the round's B2B or admin (from the worktree's `launch.json`); the orchestrator logs in there with the seed user and opens the plan's `open:` page. `wf show` also works, in a separate window |
 | **T2: review the diff** | `wf review`: plannotator on the diff; the orchestrator's bash call waits up to an hour | `wf review` writes `REVIEW.md` and opens it in their editor, then returns; they read the diff in Desktop's diff view, write the verdict line, and say so; the orchestrator runs `wf review --done` |
 | **Deliver** | `wf deliver`: push, PR, tracker note | the same; Desktop's CI bar also watches the PR |
-| **Merge** | Shay | per `ROUND.md`: today Shay only, so a team round ends with a PR waiting on Shay (decision 1) |
+| **Merge** | Shay, after his T2 | the round's runner, after their T2 (decided 2026-09-27); `ROUND.md` changes from "Shay only" to "whoever ran the round, after T2 approved". Deploying stays Shay's |
 | **Status across rounds** | `wf status --all`, herdr panes | `wf status --all`, Desktop's sidebar |
 | **Cleanup** | `wf reap`: `wt remove`, the container, its volume and network, portless routes | `wf reap`: stop the servers, drop the round's database, `git worktree remove` |
 | **Dev and QA stacks** | `wf stacks` | none |
@@ -75,8 +76,8 @@ in both. What differs is the machine and the harness.
 
 - **Shay's workflow does not regress.** Every step ends with one real cycle with `WF_ENV=shay`
   (wf AGENTS.md), and it must behave as before.
-- **The team's v1 stays untouched** (the verification plan's *Constraint*). Until v1 is retired,
-  the kit's round skill answers a trigger v1 does not (decision 4).
+- **The team's v1 stays untouched until this ships.** The plugin's release retires v1's
+  orchestrators (step 7, decided 2026-09-27); until then the verification plan's *Constraint* holds.
 - **No round config in the project repo** (above).
 
 ## Steps
@@ -106,9 +107,19 @@ in both. What differs is the machine and the harness.
 
 ### 3. The kit's defaults run on their own
 
-- **What:** the kit column of *The seams*: `git worktree` create and remove, a database in the
-  MongoDB at `MONGO_URL`, detached servers with pids and logs in `.wf/`, secrets from the main
-  checkout.
+- **What:**
+  - The kit column of *The seams*: `git worktree` create and remove in `<repo>/.claude/worktrees/`
+    (Desktop's own place, decided 2026-09-27), a database in the MongoDB at `MONGO_URL`, detached
+    servers with pids and logs in `.wf/`, secrets from the person's clone.
+  - `wf new` writes the worktree's `.claude/launch.json` with three entries in attach mode: a
+    `url` per app on the worktree's ports and no command, so Desktop's Browser pane opens the
+    round's apps without running them (`.claude/` is gitignored in JewelryX, `.gitignore:161`).
+- **Why wf starts the servers, not Desktop:** Desktop can run all three from `launch.json`, with
+  fixed ports per worktree and each server's env naming the others. But the stack must be up
+  before research starts and stay up for the whole round, while Desktop starts a server when the
+  session asks for a preview. wf starting them keeps one way for every harness; Desktop only shows
+  them. If step 5 shows the session keeps its servers for the whole round, wf can write command
+  entries instead and stop starting them.
 - **Check:** on Shay's machine with `WF_ENV` unset, and `wt`, `portless` and plannotator off the
   PATH, against one MongoDB on 27017: `wf new bench/plain`, the stack answers, `doctor` green, a
   repro runs, `wf show`, `wf reap` leaves no server, database or worktree behind.
@@ -119,6 +130,14 @@ in both. What differs is the machine and the harness.
   - `wf brief <phase>`: the dispatch sends one line ("run `wf brief research` and do exactly what
     it prints"), so the brief is wf's own text, never the orchestrator's summary.
   - Each brief records a token; the phase's file carries it.
+  - `wf next`: reads the state and the round folder and prints the one thing to do now:
+    `dispatch <the one-line brief>`, `ask <person>: <question>`, `wait <person>`, `deliver` or
+    `done`. The round skill's *On each result* table becomes this command, with a selfcheck per
+    row. The orchestrator's whole job is a loop: run `wf next`, dispatch a fresh `round-worker`
+    with the line it printed, or tell the person; when the agent returns, run `wf next` again.
+    Phases follow each other automatically, each in a fresh context, and the loop stops only where
+    a person is needed (Asks, BLOCKED, T1, T2). The orchestrator holds only these lines and the
+    agents' short replies, so its own context stays small over a round.
   - The command that consumes a handoff refuses without the current file and its sections:
     RESEARCH.md with a repro command before `plan`; PLAN.md rows before `implement`; VALIDATION.md
     with a verdict before `deliver`.
@@ -141,32 +160,51 @@ in both. What differs is the machine and the harness.
   - whether the session can move into the round's worktree after `wf new` (`EnterWorktree`),
     or the person opens a new session there;
   - how long a Bash call may run (T2 must not depend on it);
+  - whether the orchestrator can drive the Browser pane (log in with the seed user, open the
+    plan's page) for T2;
+  - whether a session's servers live for the whole round (step 3's *Why*);
   - that the editor fallback does not block: `editor.mjs` waits for the editor it spawns, which
     is fine for VS Code's `code` (it returns at once) and hangs on a terminal editor with no
     terminal.
-- **Check:** one bench round (a replayed ticket) in Desktop, under a separate Windows user with
-  none of Shay's tools or files, start to PR.
+- **Check:** one bench round (a replayed ticket) in Desktop, start to PR, run by me in the fresh
+  setup of step 6.
 
-### 6. Pilot with Saar
+### 6. Shay runs a round the way the team will
 
-- **What:** Saar runs one real round in Desktop on his machine.
-- **Check:** it reaches a PR with no help from Shay beyond T2 and the merge. Every place he got
-  stuck becomes a fix at its owner (round skill, *When a round goes wrong*).
+- **What:** I set up a fresh JewelryX the way a team member has it, and Shay runs one round there
+  in Desktop:
+  - a plain clone (no bare repo, no herdr path), with `dev` checked out and its `.env` files;
+  - one MongoDB on 27017;
+  - the plugin installed from the wf marketplace, and `WF_ENV` unset;
+  - nothing of Shay's reachable from it: today the env installs wf's agents into
+    `~/.claude/agents`, and a user-level agent overrides a plugin's agent with the same name
+    (Claude Code: user scope ranks above plugins). The env stops installing Claude Code agents
+    (the plugin carries them), and the setup confirms none is left.
+- **Check:** the round reaches a merged PR with nothing from Shay's env. Every place it stalls
+  becomes a fix at its owner (round skill, *When a round goes wrong*).
 
-## Decisions for Shay
+### 7. Ship it to the team
 
-1. **Merging a team round.** `ROUND.md` says only Shay merges to `dev`. Keep it (a team round ends
-   at a PR waiting on Shay), or let the round's runner merge after T2.
-2. **Where the kit puts worktrees:** `<repo>/.claude/worktrees/<slug>` (Desktop's own place, which
-   it already knows how to clean up), or next to the repo.
-3. **Releasing the plugin:** when a version is cut (a tag on `main` after a round that went well,
-   or on demand).
-4. **The team's trigger** while v1's orchestrators still answer "start <id>".
+- **What:**
+  - Release the first plugin version (a tag on `main`).
+  - `ROUND.md`: the round's runner merges after T2 approved; deploying stays Shay's.
+  - Retire v1's orchestrators in JewelryX (`bug-fix-orchestrator`, `cr-implement-orchestrator`
+    and what only they use): v1 is deprecated when this ships (Shay, 2026-09-27), so "start <id>"
+    has one owner. This ends the verification plan's *Constraint*.
+  - Saar and Einat install the plugin; their first rounds are the adoption measure (the
+    verification plan's step 7 counts).
+
+## Decided (2026-09-27)
+
+1. **Merging a team round:** the round's runner merges after their T2. Deploying stays Shay's.
+2. **Worktrees:** Desktop's own place, `<repo>/.claude/worktrees/<slug>`.
+3. **Releasing the plugin:** a tag on `main`, after a round that went well or on demand.
+4. **The trigger:** none separate. Shipping this retires v1's orchestrators (step 7).
 
 ## Not in this plan
 
 - Moving the round config into the project repo: version drift between kit and project for no
   gain the team needs (the complexity review).
 - A second project: the kit stays portable as today; its second project decides what is shared.
-- Desktop's `.claude/launch.json` for the servers: JewelryX's three servers need each other's
-  ports, which `autoPort` hands out independently; the kit starts them itself.
+- Desktop running the servers from `launch.json` (step 3's *Why*): possible, not needed while wf
+  starts them.
