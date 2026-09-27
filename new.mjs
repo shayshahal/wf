@@ -9,7 +9,7 @@
 // three stacks); --force overrides. --id records id + folder in the new worktree's state
 // and creates <folder>, then the project adds what a round starts with (project.mjs newRound) —
 // that folder is what every `wf prompt` substitutes.
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -46,6 +46,13 @@ export function launchConfig(urls) {
 	return `${JSON.stringify({ version: '0.0.1', configurations: Object.entries(urls).map(([name, url]) => ({ name, url: new URL(url).origin })) }, null, 2)}\n`;
 }
 
+// Pure: the `git fetch` that brings `base` up to date first, or null when it is not a remote branch
+// (a local ref or a sha is what the person asked for).
+export function fetchFor(base) {
+	const m = /^origin\/(.+)$/.exec(base);
+	return m ? ['fetch', '--quiet', 'origin', m[1]] : null;
+}
+
 export async function runNew(argv) {
 	const branch = argv[0];
 	if (!branch) { console.error('usage: wf new <branch> [--base <ref>] [--class B|C] [--id <token>]...'); process.exit(2); }
@@ -68,6 +75,13 @@ export async function runNew(argv) {
 	if (dupes.length && !reopen) {
 		console.error(`wf new: work for ${ids.join(', ')} already exists — read it before cutting a round:\n  ${dupes.join('\n  ')}\n(--reopen if the ticket came back; rerun without --id to cut the worktree anyway)`);
 		process.exit(1);
+	}
+	// Neither wt nor git fetches: a clone days behind branched its round off a stale base (the kit
+	// plan's step 3 review, 2026-09-27). Offline, the round starts from the base this clone has.
+	const fetch = fetchFor(base);
+	if (fetch) {
+		const r = spawnSync('git', fetch, { encoding: 'utf8' });
+		if (r.status !== 0) console.error(`wf new: could not fetch ${base} (${(r.stderr ?? '').trim().split('\n').at(-1)}); branching off this clone's copy`);
 	}
 	const log = join(tmpdir(), `wf-new-${branch.replace(/[^A-Za-z0-9.-]/g, '-')}.log`);
 	let path;
