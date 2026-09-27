@@ -59,9 +59,8 @@ four replies in a row were the text before the last tool call, the files right e
 | `wait <person>: q<n> …` | Shay: ask with the question tool (*Dispatch in this harness*), all the round's `q<n>` lines in one call, each line verbatim as its question; its options: the line's `(default: …)` first, then the other answers the question names (`fix` / `accept` for a `fix or accept` one); a typed answer is always open. Someone else: tell them each line verbatim, with the round id. Stop. Ask once: a late agent report (*Dispatch in this harness*) is no reason to ask again. Their answer → `wf decide --q <n> "<their words>"` (the default option: `default`), then `wf next`: an answer against a plan Ask's default makes it dispatch `plan --revise`. A `fix or accept` question is answered with a line that starts `fix` or `accept`. |
 | `wait shay: …` (no q) | tell Shay the line with the round id (T1 waiting, a round held, a phase that failed twice). Stop. When he says it is done, `wf next`. |
 | `design: …` | start the design session (*Dispatch in this harness*; it reads `${CLAUDE_PLUGIN_ROOT}/process/DESIGN-SESSION.md` and TICKET/RESEARCH/PLAN). It writes `SPEC.md` with Shay and, on "shared", runs `wf step design`. Then `wf next`. |
-| `deliver: …` | run it: it prints the PR url. Post the tracker note it wrote in the round folder and set the delivered status (ROUND.md). Tell Shay `<id>: PR #n — opening the fix and the review`. `wf next`. |
-| `review: …` | See the fix first (ROUND.md's *T2*, done as *Dispatch in this harness* says), then `wf review <branch>` yourself from the worktree. With plannotator (Shay's machine) it blocks until he submits: bash timeout 3600 s. Without it, it returns: under Claude Code with `REVIEW.md`'s path (the person uses the diff view: *Dispatch in this harness*), elsewhere with `REVIEW.md` open in an editor. Tell Shay, stop, and go on when he says the verdict is in. Read the `verdict:` line it wrote to `REVIEW.md`, then `wf review <branch> --done` and `wf next`. |
-| `merge: …` | T2 approved: Shay's approval is the merge; never merge without it. Run the four commands in order. `git push origin --delete`, not `--delete-branch`: gh would try to check out the base branch in the round's worktree, and it is checked out in the root. The ticket's status after a merge: ROUND.md. Tell Shay `<id> merged, reaped`. |
+| `deliver: …` | T2 approved; the approval is the merge. Run `wf deliver`: it pushes, opens the PR, merges it and deletes the branch, then prints the PR url and the tracker note it wrote. Only then post the note and set the delivered status (ROUND.md): the tracker hears last. Run `wf reap <branch>`, and tell Shay `<id> merged, reaped`. |
+| `review: …` | See the fix first (ROUND.md's *T2*, done as *Dispatch in this harness* says), then `wf review <branch>` yourself from the worktree. With plannotator (Shay's machine) it blocks until he submits: bash timeout 3600 s. Without it, it returns: under Claude Code with `REVIEW.md`'s path (the person uses the diff view: *Dispatch in this harness*), elsewhere with `REVIEW.md` open in an editor. Tell Shay, stop, and go on when he says the verdict is in. Read the `verdict:` line it wrote to `REVIEW.md`, then `wf review <branch> --done` and `wf next`. T2 is local: no PR exists yet, and nothing is pushed until it approves. |
 | `done` | nothing is left. |
 
 A T2 that asks for a fix in a file no PLAN.md row lists first gets a new row (`fix(review): …`, its
@@ -82,7 +81,7 @@ Only these, only when they happen:
   on each late agent report). A
   question that is only in this chat dies with the session; `wf brief` and `wf deliver` refuse
   while a recorded one is open, so an answer is never skipped. Someone else (ROUND.md, *People*): `--to <name>`.
-- a PR is waiting: one line with the command
+- T2 is waiting: one line with where to look (*Dispatch in this harness*)
 - a round finished: `<id> merged, reaped`
 
 No progress narration. No summaries of what the agent did. "What's waiting?" → `wf status
@@ -98,7 +97,8 @@ word. In the round's worktree, *The loop*. Nothing lives in your context that th
 
 | mutation | who |
 |---|---|
-| merge to the base branch, deploy | Shay |
+| merge to the base branch | `wf deliver`, only after the person's T2 approved (it refuses otherwise) |
+| deploy | Shay |
 | tracker status and comments | you, from the tracker note; never an agent |
 | edit `repro/` or a test the row did not list | nobody inside a round — that is a plan change, through `plan --revise` |
 | touch the base branch's checkout, another round's worktree, `~/.pi` | never from a round |
@@ -136,5 +136,5 @@ You are in pi if you have the `subagent` tool, in Claude Code if you have the `A
 | agent reports | a dispatched agent's result wakes you | every agent runs in the background (fork mode is on in Desktop, and it cannot be asked for the foreground); its report arrives as a message. A report from an agent you did not dispatch, or from a phase that has ended, needs nothing: no step, no question asked again. |
 | design session (B/C) | `subagent` with `interactive: true`, cwd the worktree: its own pane, which Shay talks to. | this session runs it: read `DESIGN-SESSION.md` and hold the conversation with the person here. |
 | T2: see the fix | `wf show` (ROUND.md's *T2*): a headed browser, logged in, on the plan's page | `wf show` makes the page's data (the plan's `setup:` lines, once) and opens no window here: it prints what to open. Do that: `mcp__Claude_Browser__preview_start` with the app's `name` (the worktree's `launch.json` entry), `navigate` to the page, and log in only when it asks, with the pane's form tools (the one-time code is on the page's DEV banner). Tell the person it is in the Browser pane; after a login, once: the pane's server menu has *Persist sessions*, which keeps it. |
-| T2: the verdict | `wf review` opens plannotator on the diff and waits | `wf review` writes `REVIEW.md`, prints its path and returns; no editor opens. Tell the person: comment on lines in the diff view (the `+N −M` badge; Ctrl+Enter sends them to you), then say the verdict: approved or changes-requested. Write each comment into `REVIEW.md` as `path:line — text` and the `verdict:` line they said, then `wf review --done`. |
+| T2: the verdict | `wf review` opens plannotator on the diff and waits | `wf review` writes `REVIEW.md`, prints its path and returns; no editor opens. Tell the person: comment on lines in the diff view (the `+N −M` badge, *All changes* against the base branch: when it counts far more than the round's commits, its *Compare against* menu picks the base; Ctrl+Enter sends the comments to you), then say the verdict: approved or changes-requested. Write each comment into `REVIEW.md` as `path:line — text` and the `verdict:` line they said, then `wf review --done`. |
 
