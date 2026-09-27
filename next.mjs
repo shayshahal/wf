@@ -51,7 +51,7 @@ export function nextAction(s) {
 	if (s.step === 'pr') return act(`merge: T2 approved — \`gh pr merge --merge\`, \`git push origin --delete ${s.branch}\`, \`${wf} step merged\`, \`${wf} reap ${s.branch}\``);
 	if (s.step === 'review') {
 		if (readVerdict(s.files.review ?? '') === 'dismissed') return act(`wait shay: T2 was closed without a verdict — \`${wf} review ${s.branch}\` again when he is ready`);
-		return act(`review: T2 — the project's T2 first (ROUND.md), then \`${wf} review ${s.branch}\`; once it has a verdict, \`${wf} review ${s.branch} --done\``);
+		return act(`review: T2 — see the fix first (ROUND.md's T2, as the round skill's *Dispatch in this harness* says), then \`${wf} review ${s.branch}\`; once it has a verdict, \`${wf} review ${s.branch} --done\``);
 	}
 
 	// research → plan

@@ -5,7 +5,7 @@
 // BJEW-454 rev 1 (312 lines) came back «information overload, i cannot follow this».
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { openInEditor } from './editor.mjs';
+import { openInEditor, opensWindows } from './editor.mjs';
 import { resolveWorktree } from './worktree.mjs';
 import { appendDatedSection, devUrlsFor, foldFeedbackLine, renderHeader, renderSkeleton, specShaFor } from './review-format.mjs';
 import { seams } from './seams.mjs';
@@ -54,6 +54,12 @@ export async function runDesign(argv) {
     return;
   }
   if (!existsSync(file)) appendDatedSection(file, renderSkeleton({ round, specSha: specShaFor(worktree), urls: devUrlsFor(worktree) }));
+  if (!opensWindows()) {
+    console.log(`to annotate: ${toAnnotate}
+review file: ${file}
+  Claude Code: the person reads it in the file pane and says their comments and verdict; write both into the review file`);
+    return;
+  }
   if (!openInEditor([worktree, toAnnotate])) console.log(`fallback: no editor found — annotate by hand:\n  worktree: ${worktree}\n  spec: ${toAnnotate}\n  review file: ${file}`);
   else console.log(`skeleton at ${file} — fill the comments + verdict: line`);
 }

@@ -4,7 +4,7 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
-import { openInEditor } from './editor.mjs';
+import { openInEditor, opensWindows } from './editor.mjs';
 import { baseBranch } from './project.mjs';
 import { resolveWorktree } from './worktree.mjs';
 import { appendDatedSection, asBuiltFile, devUrlsFor, foldFeedbackLine, lastField, readVerdict, renderHeader, renderSkeleton, specShaFor, wfDir } from './review-format.mjs';
@@ -88,6 +88,11 @@ export async function runReview(argv) {
   if (!existsSync(file)) appendDatedSection(file, renderSkeleton({ round, klass, base, specSha: specShaFor(worktree), urls: devUrlsFor(worktree), files }));
   // The machine's review screen when it has one (seams.reviewUI: plannotator on Shay's), else an editor.
   if (!seams.reviewUI?.available()) {
+    if (!opensWindows()) {
+      console.log(`review file: ${file}
+  Claude Code: the person comments on lines in the diff view and says the verdict; write both into this file (round skill, T2)`);
+      return;
+    }
     if (!openInEditor([worktree, file])) console.log(`fallback: no editor found — review by hand:\n  worktree: ${worktree}\n  review file: ${file}`);
     else console.log(`skeleton at ${file} — fill the comments + verdict: line`);
     return;

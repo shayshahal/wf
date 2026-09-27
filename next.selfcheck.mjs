@@ -75,7 +75,7 @@ check('ruled fix → fix-review from VALIDATION.md', say(ruled('fix it')).starts
 check('the fix committed → validate again', say(impl({ ...done2, subjects: [...done2.subjects, 'fix(review): the label'], files: { validation: VALID('deviates') }, answered: [{ n: 3, source: 'VALIDATION.md#ccc333', answer: 'fix' }] })).startsWith('dispatch validate:'));
 
 // deliver → T2
-check('delivered: T2, then wf review and --done', say(base({ step: 'review' })) === 'review: T2 — the project\'s T2 first (ROUND.md), then `node C:/wf/wf.mjs review fix/r`; once it has a verdict, `node C:/wf/wf.mjs review fix/r --done`');
+check('delivered: T2, then wf review and --done', say(base({ step: 'review' })) === 'review: T2 — see the fix first (ROUND.md\'s T2, as the round skill\'s *Dispatch in this harness* says), then `node C:/wf/wf.mjs review fix/r`; once it has a verdict, `node C:/wf/wf.mjs review fix/r --done`');
 check('T2 annotated (step back to implement) → fix-review', say(impl({ ...done2, files: { validation: VALID(), review: 'verdict: changes-requested\n' } })).startsWith('dispatch fix-review: run `node C:/wf/wf.mjs brief fix-review`'));
 check('the T2 fix committed → deliver again', say(impl({ ...done2, subjects: [...done2.subjects, 'fix(review): x'], files: { validation: VALID(), review: 'verdict: changes-requested\n' } })).startsWith('deliver:'));
 check('T2 dismissed: nothing merges, wait on Shay', say(base({ step: 'review', files: { review: 'verdict: dismissed\n' } })).startsWith('wait shay: T2 was closed'));
