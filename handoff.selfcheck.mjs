@@ -1,7 +1,7 @@
 // handoff.selfcheck.mjs — node handoff.selfcheck.mjs → exit 0 when green.
 // Pure arms: what each phase hands off and whether it answers the last brief (handoff.mjs), and the
 // handoff a brief ends with (brief.mjs). Nothing is run.
-import { handoffText } from './brief.mjs';
+import { briefGap, handoffText } from './brief.mjs';
 import { briefKey, handoffGap, planAsks, planClass, rowDone, tokenOf, validationVerdict } from './handoff.mjs';
 
 let failures = 0;
@@ -38,6 +38,11 @@ check('brief keys: implement carries its row', briefKey('implement', 3) === 'imp
 
 check('a file phase is told the exact token line', handoffText({ phase: 'research', folder: 'bug-reports/r', token: 'abc123' }).includes('End `bug-reports/r/RESEARCH.md` with this line, exactly: `<!-- brief: abc123 -->`'));
 check('implement hands off its commit, no token', !handoffText({ phase: 'implement', folder: 'f', token: 'abc123' }).includes('abc123'));
+
+// ── a brief only for what wf next dispatches (brief.mjs briefGap)
+const nextSays = "dispatch implement 1: run `node C:/wf/wf.mjs brief implement 1` in this worktree and do exactly what it prints";
+check("the brief wf next dispatches is given", briefGap(["implement", "1"], nextSays) === null && briefGap(["plan", "--revise"], "dispatch plan --revise: run x") === null);
+check("any other is refused, naming wf prompt for a preview", briefGap(["plan", "--revise"], nextSays)?.includes("wf prompt plan --revise") && briefGap(["implement", "2"], nextSays) !== null && briefGap(["implement", "1"], "wait shay: q1 x")?.includes("it says: wait shay: q1 x"));
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');
 process.exit(failures ? 1 : 0);

@@ -168,3 +168,13 @@ export async function runDecide(argv) {
 	const next = writeState(toplevel, closed.state);
 	await notifyAdapters(next);
 }
+
+// Pure: the plan's Asks (sources PLAN.md#<token>:<i>, for the plan briefed with `token`) whose
+// answer is not their default. The plan was written for the default, so each one sends it back
+// to be revised before anything is built (BJEW-562, 2026-09-27: q1 "also drop the pink
+// background? default: no" answered yes, and wf next dispatched the build of the plan as written).
+// The default is `default` or the default's own words, as the question tool's option gives them.
+export function overruledAsks(answered = [], token) {
+	const same = (a, b) => a.trim().replace(/\.$/, '').toLowerCase() === b.trim().replace(/\.$/, '').toLowerCase();
+	return answered.filter((q) => q.source?.startsWith(`PLAN.md#${token}:`) && !same(q.answer ?? '', 'default') && !(q.default && same(q.answer ?? '', q.default)));
+}
