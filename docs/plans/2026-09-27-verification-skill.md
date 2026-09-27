@@ -110,7 +110,7 @@ Shay tests v2 (wf rounds plus this skill) while the team keeps running v1: the
 
 | Decision | Choice | Why |
 |---|---|---|
-| Where the skill lives | `docs/agents/verify-jewelryx/` in JewelryX, **committed**, linked into `.pi/skills`, `.claude/skills` and `.agents/skills` by `scripts/link-tools.mjs` | pstack's default (`.pi/skills/verify-<app>/`) is gitignored in JewelryX (`.gitignore:249-251`). `docs/agents/` is where wf already reads project facts (wf AGENTS.md). The CLI sits inside the skill folder, as in the talk. |
+| Where the skill lives | `docs/agents/verify-jewelryx/` in JewelryX, **committed**. It is linked into `.pi/skills`, `.claude/skills` and `.agents/skills` by wf's round setup, in Shay's worktrees only (step 5a), not by `scripts/link-tools.mjs`. | pstack's default (`.pi/skills/verify-<app>/`) is gitignored in JewelryX (`.gitignore:249-251`). `docs/agents/` is where wf already reads project facts (wf AGENTS.md). The CLI sits inside the skill folder, as in the talk. Linking through `link-tools` would show the team a second "verify B2B" skill next to v1's before step 7 (*Constraint*; decided 2026-09-27, while building step 3). |
 | Old verify skills | `JewelryX-Tools/skills/verify-{b2b,admin}` stay for v1. v2 stops using them: hidden in Shay's round worktrees and hub sessions only (step 5e). Deprecation for everyone happens only if Saar moves v1 onto the new skill (step 7). | Two skills that both answer "verify B2B" would make agents pick at random. v1's bug-fixer drives the app through them (`JewelryX-Tools/Bug-Fix/agents/bug-fixer.md:234`, `JewelryX-Tools/README.md:77`), and the team still runs v1. |
 | Driver | The persistent browser behind playwright-cli, or our own CDP browser (step 2 decides). Not a new automation library. | pstack and `control-ui`: "existing harnesses first". playwright-cli is already adopted, with a measured win. |
 | Backend channel | The generated hey-api SDK, called from the CLI | It already exists and validates responses. The Stainless-style code mode was checked and rejected (see *Not in this plan*). |
@@ -265,6 +265,18 @@ Each step says what, why, and how it is checked. Steps 1–4 happen in JewelryX 
 - **Check:** `create-verification-skill` step 4 runs end to end: launch, doctor, drive one feature,
   evidence, cleanup, and the evidence still exists after cleanup. In addition, `login` works for
   all three roles, and `api <the order-read operation> ORD-0003` returns the seeded order.
+- **Result (2026-09-27): built, JewelryX `tools/verify-jewelryx` `713ac85c4`.**
+  - Every command in the table works against a live stack, with 6 unit tests on the pure parts.
+    Timings: `doctor` 0 s warm; a role login about 7 s warm; `auth` 5 s. A spec that only loads the
+    saved login passes in 1 s. `api listOrders --as buyer` returns `ORD-0001`. `reseed` takes 0.8 s.
+  - **Three traps, each now handled by a command:**
+    - Git Bash rewrites `/products` into a Windows path, so paths are written without the slash and
+      a rewritten one is named.
+    - Switching roles in one browser raced the logged-in page's `cart_count` poll, which minted a
+      new access cookie from the refresh cookie. Login now clears cookies from `about:blank`.
+    - The SDK's `dist` is built for a bundler (no import extensions), so `api` resolves imports the
+      way a bundler would.
+  - Not linked into any tool folder yet: step 5a does it, in wf's round setup.
 
 ### 4. Seed the feature map: 4 features
 
@@ -299,8 +311,12 @@ Each step says what, why, and how it is checked. Steps 1–4 happen in JewelryX 
 ### 5. Wire it into wf (project folder first, core only where it must change)
 
 - **5a. Research uses it.**
-  - **What:** `projects/jewelryx/prompts/research.md` points to the skill: read `features/README.md`,
-    run `doctor`, drive with `control-jewelryx`, and explore with playwright-cli on the same browser.
+  - **What:**
+    - `projects/jewelryx/prompts/research.md` points to the skill: read `features/README.md`, run
+      `doctor`, drive with `control-jewelryx`, and explore with playwright-cli on the same browser.
+    - `newRound` (`projects/jewelryx/round.mjs`) links `docs/agents/verify-jewelryx` into the round
+      worktree's `.pi/skills`, `.claude/skills` and `.agents/skills`.
+    - The project's setup `env` step writes `.verify-stack.env` with the worktree's direct URLs.
   - **Why:** research spends most of its budget re-deriving setup (the BJEW-461 spike).
 - **5b. Repros stop logging in.**
   - **What:** `writeReproConfig` (`projects/jewelryx/round.mjs`) writes a `globalSetup` that runs
