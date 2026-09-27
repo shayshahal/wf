@@ -101,11 +101,16 @@ export default async function globalSetup() {
 }
 `;
 
-// 'wx' leaves a reopened round's own files alone.
+// The verification skill's own config, one for every round (JewelryX #242): a base that has it gets
+// no per-round files, and the repro runs with `-c ../<REPRO_CONFIG> ../<folder>/repro`.
+export const REPRO_CONFIG = `${VERIFY_SKILL}/repro.config.ts`;
+
+// 'wx' leaves a reopened round's own files alone. Only for a base older than REPRO_CONFIG.
 export function writeReproConfig({ worktree, folder, direct }) {
 	const withAuth = existsSync(join(worktree, VERIFY_SKILL));
 	const dir = join(worktree, folder, 'repro');
 	mkdirSync(dir, { recursive: true });
+	if (existsSync(join(worktree, REPRO_CONFIG))) return;
 	const files = { 'playwright.config.ts': reproConfig({ direct, withAuth }), ...(withAuth ? { 'global-setup.ts': REPRO_GLOBAL_SETUP } : {}) };
 	for (const [name, text] of Object.entries(files)) {
 		try { writeFileSync(join(dir, name), text, { flag: 'wx' }); } catch (e) { if (e.code !== 'EEXIST') throw e; }
