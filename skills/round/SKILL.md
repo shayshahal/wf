@@ -8,15 +8,19 @@ description: Run a round from a ticket to a merged PR — "start 662", "start BJ
 You dispatch; you do not build. Your context is the expensive one: read results, not
 transcripts; read `wf status`, not files, unless a gate needs your judgement.
 
-**Where `wf` runs.** `wf` is a command on Shay's PATH: `~/bin/wf` runs the installed copy in
-`~/.local/share/wf`, which is committed code only; the project's repo does not carry it. `C:/Users/Shay/work/wf`
-(github.com/shayshahal/wf, in no project's repo) is where wf is *edited*: a pushed change is live on the next `wf` run, which prints `wf: updated <old> → <new>`
-and the commits. When you see that line mid-round, tell Shay once, verbatim: the rules may have changed between phases. Every step *inside a round* runs with the round's
-worktree as cwd; `wf new` and `wf status` run from anywhere in the repo. One round per session:
-the files hold the state, so "resume <id>" in a new session picks up where this one stopped.
-The few things that differ between pi and Claude Code are in *Dispatch in this harness* at the end.
+**Where `wf` runs.** wf is not in the project's repo; the project is a worktree it works in.
+- In the Claude Code plugin, `wf` means `node "${CLAUDE_PLUGIN_ROOT}/wf.mjs"`: run every `wf` below that way.
+  The lines `wf next` prints already name it in full.
+- On Shay's machine `wf` is a command on his PATH: his env over the kit, the installed copy in
+  `~/.local/share/wf`. It follows `main` by itself: a run that prints `wf: updated <old> → <new>`
+  means the rules may have changed between phases; tell Shay once, verbatim.
 
-**The project's notes.** `{{project}}/ROUND.md` says where its tickets live and how to fetch one,
+Every step *inside a round* runs with the round's worktree as cwd; `wf new` and `wf status` run
+from anywhere in the repo. One round per session: the files hold the state, so "resume <id>" in a
+new session picks up where this one stopped. The few things that differ between pi and Claude Code
+are in *Dispatch in this harness* at the end.
+
+**The project's notes.** `wf notes` prints them (its ROUND.md): where its tickets live and how to fetch one,
 which tracker statuses to set when, who its people are, and its branches. Read it once per
 session, before *Start*: every *tracker*, *status* and *base branch* below means what it says there.
 
@@ -54,7 +58,7 @@ four replies in a row were the text before the last tool call, the files right e
 | `dispatch <phase>: <line>` | a fresh `round-worker` (*Dispatch in this harness*), named `<id> <phase>`, with `<line>` as its whole task: it runs `wf brief` itself, so its brief is wf's own text. `as-built` and `validate`: model `anthropic/claude-sonnet-5`, tools `read,bash,write`. When it returns, `wf next`. |
 | `wait <person>: q<n> …` | tell them each line verbatim (*Talking to Shay*), with the round id. Stop. Their answer → `wf decide --q <n> "<their words>"`, then `wf next`. A `fix or accept` question is answered with a line that starts `fix` or `accept`. |
 | `wait shay: …` (no q) | tell Shay the line with the round id (T1 waiting, a round held, a phase that failed twice). Stop. When he says it is done, `wf next`. |
-| `design: …` | start the design session (*Dispatch in this harness*; it reads `{{wf}}/process/DESIGN-SESSION.md` and TICKET/RESEARCH/PLAN). It writes `SPEC.md` with Shay and, on "shared", runs `wf step design`. Then `wf next`. |
+| `design: …` | start the design session (*Dispatch in this harness*; it reads `${CLAUDE_PLUGIN_ROOT}/process/DESIGN-SESSION.md` and TICKET/RESEARCH/PLAN). It writes `SPEC.md` with Shay and, on "shared", runs `wf step design`. Then `wf next`. |
 | `deliver: …` | run it: it prints the PR url. Post the tracker note it wrote in the round folder and set the delivered status (ROUND.md). Tell Shay `<id>: PR #n — opening the fix and the review`. `wf next`. |
 | `review: …` | ROUND.md's *T2* first, then `wf review <branch>` yourself from the worktree. With plannotator (Shay's machine) it blocks until he submits: bash timeout 3600 s. Without it, it opens `REVIEW.md` in an editor and returns: tell Shay, stop, and go on when he says the verdict is in. Read the `verdict:` line it wrote to `REVIEW.md`, then `wf review <branch> --done` and `wf next`. |
 | `merge: …` | T2 approved: Shay's approval is the merge; never merge without it. Run the four commands in order. `git push origin --delete`, not `--delete-branch`: gh would try to check out the base branch in the round's worktree, and it is checked out in the root. The ticket's status after a merge: ROUND.md. Tell Shay `<id> merged, reaped`. |
@@ -117,10 +121,13 @@ fresh; keep the fix only if the rerun is better. Tell Shay in one line what chan
 
 You are in pi if you have the `subagent` tool, in Claude Code if you have the `Agent` tool.
 
-| | pi | Claude Code |
+| | pi | Claude Code (Desktop, the wf plugin) |
 |---|---|---|
-| this session runs from | anywhere in the repo | the round's worktree: a Claude Code agent works in the session's folder. `start <id>` from elsewhere: run `wf new`, tell Shay `open Claude Code in <worktree> and say "resume <id>"`, stop. |
-| dispatch | `subagent({ name: "<id> <phase>", agent: "round-worker", model: "anthropic/claude-opus-5-5:medium", tools: "read,bash,write,edit,subagent", cwd: <worktree>, task: <the line> })` — plan and later phases without `subagent` unless the prompt asks. End your turn; the harness wakes you with the result. | Agent tool: `subagent_type: "round-worker"`, `model: "opus"`, `prompt: <the line>`. It returns when the agent is done. |
-| the agent closes | `round-worker` has `auto-exit: true`: its pane closes when its turn ends. Without it the pane waits for `subagent_done` and stays open when the agent forgets. | always: the Agent tool returns. |
-| research's `codebase-locator` / `codebase-analyzer` | pi agents, installed by `wf update` | not installed: the research agent uses `Explore` / `general-purpose` for them |
-| design session (B/C) | `subagent` with `interactive: true`, cwd the worktree: its own pane, which Shay talks to. | this session runs it: read `DESIGN-SESSION.md` and hold the conversation with Shay here. |
+| this session runs from | anywhere in the repo | the person's clone, until `wf new`; then `EnterWorktree` with `path:` its `Worktree:` line, and the rest of the round runs there. A worktree under `.claude/worktrees/` is entered without a prompt. "resume <id>" in a new session: `wf status --all` names its worktree; enter it the same way. |
+| dispatch | `subagent({ name: "<id> <phase>", agent: "round-worker", model: "anthropic/claude-opus-5-5:medium", tools: "read,bash,write,edit,subagent", cwd: <worktree>, task: <the line> })` — plan and later phases without `subagent` unless the prompt asks. End your turn; the harness wakes you with the result. | Agent tool: `subagent_type: "wf:round-worker"`, `model: "opus"` (`"sonnet"` for as-built and validate), `description: "<id> <phase>"`, `prompt: <the line>`. It runs in the background; its result arrives as a message, then `wf next`. Never a fork: it would carry this whole conversation, and the plugin refuses it in a round. |
+| the agent closes | `round-worker` has `auto-exit: true`: its pane closes when its turn ends. Without it the pane waits for `subagent_done` and stays open when the agent forgets. | when its turn ends. The plugin's `SubagentStop` hook sends it back once if its handoff is missing (`wf handoff check`). |
+| research's `codebase-locator` / `codebase-analyzer` | pi agents, installed by `wf update` | the plugin's `wf:codebase-locator` / `wf:codebase-analyzer` |
+| design session (B/C) | `subagent` with `interactive: true`, cwd the worktree: its own pane, which Shay talks to. | this session runs it: read `DESIGN-SESSION.md` and hold the conversation with the person here. |
+| T2: see the fix | `wf show` (ROUND.md's *T2*): a headed browser, logged in, on the plan's page | the Browser pane: open the round's B2B or admin (the worktree's `.claude/launch.json` names them), log in there with the seed user the page needs (ROUND.md's *T2* says which) and open the plan's `open:` page. The person looks there. |
+| T2: the verdict | `wf review` opens plannotator on the diff and waits | `wf review` writes `REVIEW.md` and returns. Give the person its path (a click opens it in the file pane) and stop. They write `path:line — text` comments and the `verdict:` line there, or comment on lines in Desktop's diff view and tell you: then you write those comments and the verdict they say into `REVIEW.md`. Then `wf review --done`. |
+

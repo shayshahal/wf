@@ -11,7 +11,7 @@ reply without a tool call: never announce a next step — take it, or write `RES
 ## Method
 
 1. Read `{{folder}}/TICKET.md` fully. Note every screen, action, message and value it names.
-2. Spawn **in parallel**, with the `subagent` tool, one prompt each — say exactly what you
+2. Spawn **in parallel**, with the `subagent` tool (Claude Code: the Agent tool, `wf:codebase-locator` and `wf:codebase-analyzer`), one prompt each — say exactly what you
    want back, not how to search:
    - `codebase-locator` — "where does <behaviour> live: implementation, tests, decisions"
    - `codebase-locator` — "was this seen before: search the earlier rounds and the decision

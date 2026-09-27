@@ -256,6 +256,49 @@ in both. What differs is the machine and the harness.
     terminal.
 - **Check:** one bench round (a replayed ticket) in Desktop, start to PR, run by me in the fresh
   setup of step 6.
+- **Result (2026-09-27): built; measured with Claude Code 2.1.280 (CLI) and its docs; the Desktop
+  round is next.**
+  - The answers:
+    - *The plugin's own folder:* skills and agents write `${CLAUDE_PLUGIN_ROOT}`, which Claude
+      Code fills when it loads them (measured: `node "C:/Users/Shay/work/wf/wf.mjs"`, forward
+      slashes). It is not in the Bash tool's environment, and a plugin cannot put a command on
+      the PATH, so the skill says what `wf` means there; the lines `wf next` prints already name
+      the entry in full. The skills now name wf's files as `${CLAUDE_PLUGIN_ROOT}` (Shay's
+      installer fills it too, `anchor.mjs`), and the project's notes come from `wf notes`, so the
+      skill names no project folder.
+    - *The fork rule:* a plugin's `settings` take only `agent` and `subagentStatusLine`, so it
+      cannot ship `Agent(fork)`. A fork is `subagent_type: "fork"` on the Agent tool, which a
+      shipped `PreToolUse` hook refuses in a round (`wf handoff no-fork`; measured: denied with
+      its message). Nobody edits their settings.
+    - *Moving into the round's worktree:* `EnterWorktree` with `path:` switches the session into an
+      existing worktree, with no prompt under `.claude/worktrees/`, where the kit makes them. No
+      second session.
+    - *Bash:* 2 min by default, at most 10; a longer command is moved to the background, not
+      killed. Nothing in a round blocks on a person through Bash: in the kit `wf review` opens
+      the file and returns.
+    - *The Browser pane:* Claude takes screenshots, inspects the DOM, clicks and fills forms
+      there, so the orchestrator can log in with the seed user and open the plan's page (docs;
+      the Desktop round measures it). Desktop's diff view takes line comments sent to Claude
+      together, which the orchestrator writes into `REVIEW.md`.
+    - *The servers:* wf starts them detached (step 3), so no session owns them; Claude's own
+      background commands end with the agent that started them, which is why wf does not use them.
+    - *The editor fallback:* it waited for the editor (`spawnSync`), and on Windows `code`
+      (`code.cmd`) never started without a shell: ENOENT, while `openInEditor` said it had
+      opened. It now starts detached (returns in 43 ms, path with spaces intact) through the shell
+      on Windows. In Desktop a path clicked in the chat opens in its file pane anyway.
+  - Built: `.claude-plugin/plugin.json` and `marketplace.json` (this repo is the marketplace,
+    `"source": "."`; both validate), agents generated for Claude Code by `plugin.mjs`
+    (`sonnet`, `Read, Bash, Grep, Glob`; `plugin.selfcheck.mjs` fails while a copy is stale),
+    `claude/hooks.json`, `wf handoff` (`handoff-hook.mjs`), `wf notes`, the skill's Claude Code
+    column rewritten for Desktop (EnterWorktree, `wf:round-worker`, the Browser pane, the
+    diff-view comments), and the research and plan prompts naming the Agent tool.
+  - Measured through `claude --plugin-dir`: the session has `wf:round`, `wf:design-session`,
+    `wf:round-worker`, `wf:codebase-locator`, `wf:codebase-analyzer`. In a fake round a
+    `wf:round-worker` told to end at once was sent back with "no RESEARCH.md…" and wrote it; a
+    fork was refused. The first try of the stop hook never fired: a matcher of letters and hyphens
+    is an exact match, and the agent type is `wf:round-worker` (now `^wf:round-worker$`, checked).
+  - Still to measure, in Desktop itself (the step's check): installing from the marketplace in its
+    UI, `EnterWorktree` there, the orchestrator driving the Browser pane for T2, and a whole round.
 
 ### 6. Shay runs a round the way the team will
 

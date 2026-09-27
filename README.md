@@ -22,6 +22,9 @@ round commits (for JewelryX, `bug-reports/<round>/`).
   whole loop. `brief.mjs` + `handoff.mjs`: `wf brief <phase>`, what a phase agent runs first (the
   prompt, and a token its file ends with); what each phase hands the next and whether it is current
 - `prompts/`: one prompt per phase (`wf prompt <phase>` prints it without the handoff)
+- `.claude-plugin/` + `claude/`: the Claude Code plugin (manifest, marketplace, agents, hooks).
+  `plugin.mjs` writes `claude/agents/` from `agents/`; `handoff-hook.mjs` is `wf handoff`, its hooks;
+  `wf notes` prints the project's ROUND.md for the round skill
 - `agents/`: `round-worker` (every phase), `codebase-locator` and `codebase-analyzer` (research, pi only)
 - `process/`: lifecycle, classes, design session, review format, touchpoints
 - `worktree.mjs`: the one interface to worktrees: list, ports and slugs (`ports.mjs`), create, remove.
@@ -30,8 +33,26 @@ round commits (for JewelryX, `bug-reports/<round>/`).
 - `project.mjs` → `projects/<name>/`: everything project-specific. See *Projects* below.
 - `docs/plans/2026-09-17-workflow-v2.md`: the plan wf was built from (history; done)
 
-Text names wf's own files as `{{wf}}/…` and the project's folder as `{{project}}/…`: `wf prompt`
-and the installed copy fill in the real paths.
+Text names wf's own files as `{{wf}}/…` (prompts, docs) or `${CLAUDE_PLUGIN_ROOT}/…` (the skills),
+and the project's folder as `{{project}}/…`: `wf prompt`, Claude Code (for the plugin) and the
+installed copy fill in the real paths (`anchor.mjs`).
+
+## Install (the team: the Claude Code plugin)
+
+The kit alone, as a Claude Code plugin: this repo is its marketplace (`.claude-plugin/`).
+
+- **Install:** in Claude Code Desktop, add the marketplace `shayshahal/wf` and install `wf`; or
+  `claude plugin marketplace add shayshahal/wf` then `claude plugin install wf@wf`.
+- **It carries:**
+  - the skills `wf:round` and `wf:design-session`;
+  - the agents `wf:round-worker`, `wf:codebase-locator` and `wf:codebase-analyzer` (generated
+    from `agents/` by `node plugin.mjs`);
+  - two hooks: a phase agent is sent back once while its handoff is missing (`wf handoff
+    check`), and no fork is started inside a round (`wf handoff no-fork`).
+- **Needs:** git, gh, node ≥ 22, the project's own tools (JewelryX: pnpm, uv), and one MongoDB
+  (`MONGO_URL`, default `mongodb://127.0.0.1:27017`). The project's `.env` files sit in the
+  person's clone, where they keep them to run the app; every round's worktree copies them.
+- **Try a change without installing:** `claude --plugin-dir <this clone>`.
 
 ## Projects
 

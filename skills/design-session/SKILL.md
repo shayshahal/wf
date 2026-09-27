@@ -5,6 +5,6 @@ description: Run T1, the design session that produces SPEC.md on a Class B or C 
 
 # Design session
 
-Read `{{wf}}/process/DESIGN-SESSION.md` — it is the whole process, and it wins over
+Read `${CLAUDE_PLUGIN_ROOT}/process/DESIGN-SESSION.md` — it is the whole process, and it wins over
 this file. Its two formats: `SPEC-TEMPLATE.md` (section order) and `CALL-STACK-FORMAT.md`
 (diff-syntax stacks); what comes back is `REVIEW-FORMAT.md`.

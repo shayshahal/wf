@@ -25,6 +25,12 @@ export async function run(argv, pieces = {}) {
 	} else if (cmd === 'next') {
 		const { runNext } = await import('./next.mjs');
 		await runNext();
+	} else if (cmd === 'notes') {
+		const { runNotes } = await import('./notes.mjs');
+		runNotes();
+	} else if (cmd === 'handoff') {
+		const { runHandoff } = await import('./handoff-hook.mjs');
+		await runHandoff(rest);
 	} else if (cmd === 'brief') {
 		const { runBrief } = await import('./brief.mjs');
 		runBrief(rest);
@@ -64,7 +70,7 @@ export async function run(argv, pieces = {}) {
 		const all = { ...commands, ...seams.commands };
 		if (Object.hasOwn(all, cmd)) await all[cmd](rest);
 		else {
-			console.log(`usage: wf <new|serve|next|brief|step|prompt|check|deliver|ask|decide|status|reap|classify|design|review|${Object.keys(all).join('|')}> [...]`);
+			console.log(`usage: wf <new|serve|next|brief|notes|handoff|step|prompt|check|deliver|ask|decide|status|reap|classify|design|review|${Object.keys(all).join('|')}> [...]`);
 			process.exit(2);
 		}
 	}
