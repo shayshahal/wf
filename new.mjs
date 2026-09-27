@@ -120,7 +120,7 @@ export async function runNew(argv) {
 	const folder = `${roundsDir}/${slugForBranch(branch)}`;
 	mkdirSync(join(path, folder), { recursive: true });
 	const notes = newRound({ worktree: path, folder, port: basePortForBranch(branch) });
-	writeState(path, { id: ids[0] ?? branch, folder });
+	writeState(path, { id: ids[0] ?? branch, folder, made_by: seams.madeBy, entry: seams.entry.replace(/\\/g, '/') });
 	if (reopen && dupes.length) {
 		const plan = (f) => { try { return execFileSync('git', ['show', `${base}:${f}/PLAN.md`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }); } catch { return null; } };
 		const rulings = dupes.filter((d) => d.startsWith(`${roundsDir}/`)).map((f) => ({ folder: f, lines: decisionsOf(plan(f)) }));

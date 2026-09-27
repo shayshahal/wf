@@ -79,12 +79,13 @@ Claude Code, plus what the project's `setup` runs (JewelryX: pnpm, uv, docker, p
 1. `git clone https://github.com/shayshahal/wf ~/work/wf`: the editing clone. Never run wf from it.
    Then `git -C ~/work/wf config core.hooksPath .githooks`: its pre-push hook runs every self-check.
 2. `node ~/work/wf/env/update.mjs`: installs the committed code into `~/.local/share/wf`, and wf's
-   agents into pi (`~/.pi/agent/agents`) and Claude Code (`~/.claude/agents`, `round-worker` only).
+   agents into pi (`~/.pi/agent/agents`). Claude Code gets wf from the plugin, as the team does:
+   nothing of wf goes into `~/.claude/`, where a user-level agent or skill would outrank the plugin's.
 3. Put `wf` on the PATH through Shay's entry: `~/bin/wf` is
    `exec node "$HOME/.local/share/wf/env/wf.mjs" "$@"`, and `~/bin/wf.cmd` is
    `@node "%USERPROFILE%\.local\share\wf\env\wf.mjs" %*`.
 4. Skills: add `~/.local/share/wf/skills/round` and `~/.local/share/wf/skills/design-session` to
-   pi's `settings.json` `skills`; for Claude Code, link them into `~/.claude/skills/`.
+   pi's `settings.json` `skills`.
 5. `wf hook install`: worktrunk's user config gets the project's hooks, calling the installed copy's
    `env/wf.mjs`.
 6. The project's clone: a bare repo, and a worktree for its base branch (JewelryX):

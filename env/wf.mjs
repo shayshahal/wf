@@ -22,6 +22,7 @@ if (argv[0] !== 'hook' || argv[1] === 'install') autoUpdate(entry, argv);
 
 await run(argv, {
 	entry,
+	madeBy: 'env',
 	createWorktree,
 	removalPlan,
 	reviewUI: { available: isPlannotatorPresent, annotate: annotateFile, reviewDiff },

@@ -2,6 +2,7 @@
 // Pure arms: the fetch before a round branches, and the worktree's .claude/launch.json for Claude
 // Code Desktop's Browser pane (new.mjs).
 import { decisionsOf, earlierText, fetchFor, launchConfig } from './new.mjs';
+import { entryGap } from './state.mjs';
 
 let failures = 0;
 const check = (name, cond, detail = '') =>
@@ -21,6 +22,12 @@ check('no Decisions, or no plan: none', decisionsOf('# p\n').length === 0 && dec
 const earlier = earlierText({ ids: ['TJEW-682'], dupes: ['bug-reports/fix-tjew682-a', 'commit 2228a7c Merge fix/tjew682-a'], rulings: [{ folder: 'bug-reports/fix-tjew682-a', lines: decisionsOf(plan) }, { folder: 'bug-reports/fix-tjew682-b', lines: [] }] });
 check('EARLIER.md: the earlier work, then each round\'s rulings under its folder', earlier.includes('- commit 2228a7c') && earlier.includes('## Earlier rulings') && earlier.includes('bug-reports/fix-tjew682-a:\n- 2026-09-23 Calendar') && !earlier.includes('fix-tjew682-b:'), earlier);
 check('no rulings: no section', !earlierText({ ids: ['X-1'], dupes: ['commit abc x-1'], rulings: [] }).includes('Earlier rulings'));
+
+// ── which wf may run in a round (state.mjs entryGap; new.mjs records made_by and entry)
+const kitRound = { made_by: 'kit', entry: 'C:/Users/x/.claude/plugins/cache/wf/wf/0.1.0/wf.mjs' };
+check("the env's wf is refused in a kit round, naming the kit's", entryGap(kitRound, 'env')?.includes('node "C:/Users/x/.claude/plugins/cache/wf/wf/0.1.0/wf.mjs"') && entryGap(kitRound, 'env').includes('CLAUDE_PLUGIN_ROOT'), entryGap(kitRound, 'env'));
+check("the kit's wf is refused in an env round", entryGap({ made_by: 'env', entry: 'C:/h/.local/share/wf/env/wf.mjs' }, 'kit')?.startsWith('this round was made by the env'));
+check('the same wf, a round from before the field, or no round: allowed', entryGap(kitRound, 'kit') === null && entryGap({ id: 'x' }, 'env') === null && entryGap(null, 'kit') === null);
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');
 process.exit(failures ? 1 : 0);
