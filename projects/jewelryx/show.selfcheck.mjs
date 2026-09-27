@@ -1,6 +1,7 @@
 // show.selfcheck.mjs — node show.selfcheck.mjs → exit 0 when green.
 import assert from 'node:assert/strict';
-import { openLineOf, parseOpen, showArgs, unMsys } from './show.mjs';
+import { opensWindows } from '../../editor.mjs';
+import { openLineOf, paneText, parseOpen, showArgs, unMsys } from './show.mjs';
 
 assert.deepEqual(parseOpen('b2b /catalog as buyer mobile'), { app: 'b2b', path: '/catalog', as: 'buyer', mobile: true });
 assert.deepEqual(parseOpen('admin /orders'), { app: 'admin', path: '/orders', as: 'admin', mobile: false });
@@ -19,4 +20,11 @@ const gitBash = { MSYSTEM: 'MINGW64', EXEPATH: 'C:\\Program Files\\Git\\bin' };
 assert.equal(unMsys('C:/Program Files/Git/products', gitBash), '/products');
 assert.equal(unMsys('C:/Program Files/Git/products', {}), 'C:/Program Files/Git/products');
 assert.equal(unMsys('/b2b/orders?order=1', gitBash), '/b2b/orders?order=1');
+
+// Under Claude Code: no window, the Browser pane's login and page (BJEW-562 T2, 2026-09-27).
+assert.equal(opensWindows({ CLAUDECODE: '1' }), false);
+assert.equal(opensWindows({}), true);
+const pane = paneText(parseOpen('b2b /inventory as seller'), { b2b: 'http://localhost:13111', admin: 'http://localhost:33111' });
+assert.match(pane, /log in: http:\/\/localhost:13111\/b2b\/login as seller@seed\.jewelryx \/ seed1234/);
+assert.match(pane, /then: {3}http:\/\/localhost:13111\/b2b\/inventory$/);
 console.log('all arms green');

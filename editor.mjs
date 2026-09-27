@@ -5,6 +5,14 @@
 // failed with ENOENT while this still said it had opened.
 import { execFileSync, spawn } from 'node:child_process';
 
+// Pure: whether wf may open a window of its own (an editor, a browser). Not under Claude Code, which
+// sets CLAUDECODE=1 in its Bash tool: Desktop has its own Browser pane, diff view and file pane, and
+// the person looks there. BJEW-562's T2 (2026-09-27): `wf show` opened a separate Chrome and
+// `wf review` VS Code, next to the app the person was working in.
+export function opensWindows(env = process.env) {
+	return !env.CLAUDECODE;
+}
+
 function resolvable(bin) {
 	try {
 		execFileSync(process.platform === 'win32' ? 'where' : 'which', [bin], { stdio: 'ignore' });
@@ -22,6 +30,7 @@ export function editorCommand(raw, paths, platform = process.platform) {
 }
 
 export function openInEditor(paths) {
+	if (!opensWindows()) return false;
 	for (const raw of [process.env.VISUAL, process.env.EDITOR, 'code']) {
 		if (!raw || !resolvable(raw.trim().split(/\s+/)[0])) continue;
 		const [command, args, shell] = editorCommand(raw, paths);

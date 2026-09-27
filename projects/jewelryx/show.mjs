@@ -9,7 +9,10 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { opensWindows } from '../../editor.mjs';
 import { readState, roundOf, toplevelOf } from '../../state.mjs';
+import { basePortForBranch, slugForBranch } from '../../worktree.mjs';
+import { logins, stackUrls } from './index.mjs';
 import { VERIFY_SKILL } from './round.mjs';
 
 // Pure: Git Bash rewrites an argument that starts with / into a Windows path under its own install
@@ -38,6 +41,19 @@ export function openLineOf(planText) {
 	return m ? m[1] : null;
 }
 
+// Pure: what Claude Code's Browser pane opens for a parsed `open:` line, where wf opens no window
+// (editor.mjs opensWindows): the login page, the seed user, then the page. Apps are served under
+// their own base path, as control-jewelryx's appUrl has it.
+export function paneText(open, urls, users = logins) {
+	const page = (path) => `${urls[open.app]}/${open.app}${path}`;
+	const [user, password] = users[open.as];
+	return [
+		'T2 in the Browser pane (mcp__Claude_Browser__preview_start with the url; wf opens no window under Claude Code):',
+		`  log in: ${page('/login')} as ${user} / ${password} (a one-time code follows: it is on the page's DEV banner)`,
+		`  then:   ${page(open.path)}${open.mobile ? ' (mobile: resize the pane to 390x844)' : ''}`,
+	].join('\n');
+}
+
 // Pure: the CLI's arguments for a parsed `open:` line, in its own headed window ("show" session),
 // apart from the browser the round's agents drive.
 export function showArgs(open) {
@@ -60,6 +76,11 @@ export function runShow(argv) {
 	if (!open) {
 		console.error(`wf show: cannot read "${line}" — want: <b2b|admin> <path> [as buyer|seller|admin] [mobile]`);
 		process.exit(2);
+	}
+	if (!opensWindows()) {
+		const branch = spawnSync('git', ['-C', toplevel, 'rev-parse', '--abbrev-ref', 'HEAD'], { encoding: 'utf8' }).stdout.trim();
+		console.log(paneText(open, stackUrls({ slug: slugForBranch(branch), port: basePortForBranch(branch) })));
+		return;
 	}
 	if (!existsSync(join(toplevel, VERIFY_SKILL))) {
 		console.error(`wf show: this worktree has no ${VERIFY_SKILL} — its base predates the verification skill`);
