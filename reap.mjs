@@ -33,7 +33,7 @@ function keepPaperwork(path, slug) {
 	console.log(`kept ${files.length} uncommitted paperwork file(s) in ${dest}: ${files.join(', ')}`);
 }
 
-export function runReap(argv) {
+export async function runReap(argv) {
 	const branch = argv.find((a) => !a.startsWith('-'));
 	if (!branch) {
 		console.error('usage: wf reap <branch>   (WF_FORCE_REAP=1 to actually run)');
@@ -49,8 +49,8 @@ export function runReap(argv) {
 	const slug = slugForBranch(branch);
 	const force = process.env.WF_FORCE_REAP === '1';
 	if (force) keepPaperwork(path, slug);
-	for (const step of removalPlan({ branch, path, slug, pid: process.pid })) {
-		const shown = step.rm ? `rm -rf ${step.rm}` : `${step.cmd} ${step.args.join(' ')}`;
+	for (const step of await removalPlan({ branch, path, slug, pid: process.pid })) {
+		const shown = step.rm ? `rm -rf ${step.rm}` : step.run ? step.label : `${step.cmd} ${step.args.join(' ')}`;
 		if (!force) {
 			console.log(`would: ${shown}`);
 			continue;
@@ -63,6 +63,17 @@ export function runReap(argv) {
 				console.log(`${step.label}: ok`);
 			} catch (e) {
 				console.log(`${step.label}: ${e.code ?? 'failed'} (already gone?)`);
+			}
+			continue;
+		}
+		// A step done in-process: its arguments never pass through the shell (the database drop's
+		// python source would not survive cmd.exe).
+		if (step.run) {
+			try {
+				step.run();
+				console.log(`${step.label}: ok`);
+			} catch (e) {
+				console.log(`${step.label}: already gone or failed (${e.message})`);
 			}
 			continue;
 		}

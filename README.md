@@ -21,7 +21,9 @@ round commits (for JewelryX, `bug-reports/<round>/`).
 - `prompts/`: one prompt per phase, printed by `wf prompt <phase>`
 - `agents/`: `round-worker` (every phase), `codebase-locator` and `codebase-analyzer` (research, pi only)
 - `process/`: lifecycle, classes, design session, review format, touchpoints
-- `worktree.mjs`: the one interface to worktrees: list, ports and slugs (`ports.mjs`), create, remove
+- `worktree.mjs`: the one interface to worktrees: list, ports and slugs (`ports.mjs`), create, remove.
+  Where no env plugs its own in, `git-worktree.mjs` makes them in `<repo>/.claude/worktrees/`, and
+  `wf serve` (`serve.mjs`) runs the stack in the background (pid and logs in the worktree's `.wf/`)
 - `project.mjs` → `projects/<name>/`: everything project-specific. See *Projects* below.
 - `docs/plans/2026-09-17-workflow-v2.md`: the plan wf was built from (history; done)
 

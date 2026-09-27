@@ -38,7 +38,7 @@ export const pieces = {
 		url: ({ port }) => worktreeMongoUrl(port),
 		up: ({ slug, port }) => mongoUp({ slug, base: port }),
 		seedUrl: ({ slug }) => containerUrl(slug),
-		teardown: mongoTeardown,
+		teardown: ({ slug }) => mongoTeardown(slug),
 	},
 	names: stackNames,
 	servers: portlessServers,

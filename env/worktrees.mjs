@@ -47,6 +47,6 @@ export function removalPlan({ branch, path, slug, pid }) {
 		{ label: 'wt remove', cmd: 'wt', args: ['remove', branch, '--no-delete-branch', '--force', '--foreground', '-y'] },
 		{ label: 'rm -rf worktree', rm: path },
 		{ label: 'git worktree prune', cmd: 'git', args: ['worktree', 'prune'] },
-		...teardown(slug),
+		...teardown({ slug }),
 	];
 }

@@ -39,7 +39,14 @@ export function findExistingRounds(ids) {
 	return hits;
 }
 
-export function runNew(argv) {
+// Pure: the worktree's .claude/launch.json for Claude Code Desktop's Browser pane: one entry per app
+// in attach mode (a url, no command), so the pane shows the stack wf started and never starts its own
+// (kit and env plan, step 3). Desktop takes a localhost url as a bare origin only.
+export function launchConfig(urls) {
+	return `${JSON.stringify({ version: '0.0.1', configurations: Object.entries(urls).map(([name, url]) => ({ name, url: new URL(url).origin })) }, null, 2)}\n`;
+}
+
+export async function runNew(argv) {
 	const branch = argv[0];
 	if (!branch) { console.error('usage: wf new <branch> [--base <ref>] [--class B|C] [--id <token>]...'); process.exit(2); }
 	// wt defaults --base to the repo's default branch; rounds branch off the project's base branch.
@@ -65,7 +72,7 @@ export function runNew(argv) {
 	const log = join(tmpdir(), `wf-new-${branch.replace(/[^A-Za-z0-9.-]/g, '-')}.log`);
 	let path;
 	try {
-		({ path } = createWorktree({ branch, base, log }));
+		({ path } = await createWorktree({ branch, base, log }));
 	} catch (e) {
 		console.error(`wf new: ${e.message}`);
 		process.exit(1);
@@ -80,8 +87,11 @@ export function runNew(argv) {
 	const notes = newRound({ worktree: path, folder, port: basePortForBranch(branch) });
 	writeState(path, { id: ids[0] ?? branch, folder });
 	if (reopen && dupes.length) writeFileSync(join(path, folder, 'EARLIER.md'), `# Earlier work on ${ids.join(', ')}\n\nThis ticket came back. Every earlier fix below shipped and did not hold.\n\n${dupes.map((d) => `- ${d.trim()}`).join('\n')}\n`);
+	const urls = stackUrls({ slug: slugForBranch(branch), port: basePortForBranch(branch) });
+	mkdirSync(join(path, '.claude'), { recursive: true });
+	writeFileSync(join(path, '.claude', 'launch.json'), launchConfig(urls));
 	console.log(`Round folder: ${folder}`);
-	console.log(urlLines(stackUrls({ slug: slugForBranch(branch), port: basePortForBranch(branch) })));
+	console.log(urlLines(urls));
 	for (const line of notes) console.log(line);
 	console.log(`Worktree: ${path}`);
 }

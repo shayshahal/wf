@@ -25,7 +25,8 @@ check('a params segment stays for the reviewer to fill', pageOf('packages/fronte
 check('a component is not a page', pageOf('packages/frontend/b2b/src/lib/x.svelte') === null);
 
 // ── teardown
-check('with no machine plugged in, a teardown has no steps of its own', teardown('fix-bjew-1').length === 0);
+const down = teardown({ slug: 'fix-bjew-1', worktree: 'C:/wt/fix-bjew-1' });
+check('with no machine plugged in, a teardown drops the worktree\'s database, in-process', down.map((s) => s.label).join() === 'drop database' && typeof down[0].run === 'function' && !down[0].cmd);
 
 // ── the tracker note
 const plan = ['# Plan', '', 'Cause: the send result is discarded at auth.py:599', 'Approach: capture it'].join('\r\n');

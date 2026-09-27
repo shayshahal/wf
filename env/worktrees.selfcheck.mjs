@@ -12,7 +12,7 @@ const check = (name, cond, detail = '') =>
 plug({ project: pieces });
 const plan = removalPlan({ branch: 'fix/bjew-1', path: 'C:\\wt\\fix-bjew-1', slug: 'fix-bjew-1', pid: 4242 });
 const sweep = Buffer.from(plan[0].args[2], 'base64').toString('utf16le');
-check('wf\'s four steps first, then the project\'s teardown', plan.slice(0, 4).map((s) => s.label).join(' → ') === 'kill stragglers → wt remove → rm -rf worktree → git worktree prune' && JSON.stringify(plan.slice(4)) === JSON.stringify(teardown('fix-bjew-1')), plan.map((s) => s.label).join(' → '));
+check('wf\'s four steps first, then the project\'s teardown', plan.slice(0, 4).map((s) => s.label).join(' → ') === 'kill stragglers → wt remove → rm -rf worktree → git worktree prune' && JSON.stringify(plan.slice(4)) === JSON.stringify(teardown({ slug: 'fix-bjew-1' })), plan.map((s) => s.label).join(' → '));
 check('wt remove keeps the branch and runs in the foreground', plan[1].args.join(' ') === 'remove fix/bjew-1 --no-delete-branch --force --foreground -y', plan[1].args.join(' '));
 check('the straggler sweep matches both path spellings and spares this process', sweep.includes('C:\\wt\\fix-bjew-1') && sweep.includes('-ne 4242'), sweep);
 check('the sweep only targets node and python', sweep.includes("Name='node.exe' or Name='python.exe'"));
