@@ -208,6 +208,30 @@ in both. What differs is the machine and the harness.
 - **Why:** today these are rules in the round skill; nothing checks them, and a brief once went out
   as the literal text `$(cat /tmp/r1.txt)` (2026-09-27).
 - **Check:** selfchecks for each refusal; one pi round with no change in outcome.
+- **Result (2026-09-27): done.**
+  - `wf next` (`next.mjs`, 31 selfcheck arms, one per row of the old table), `wf brief`
+    (`brief.mjs`), `handoff.mjs` (18 arms). Answered questions stay in state with their answer; the
+    plan's Asks have a fixed line shape; `fix-review --from VALIDATION.md` for a deviation ruled
+    `fix`. A phase briefed twice without a handoff goes to Shay.
+  - The round: TJEW-682 replayed on today's dev with #208 and #212 reverted (`bench/next682`),
+    dispatched only with the lines `wf next` printed, through Shay's env in pi. Research (6 min,
+    three of five items red), plan (class A, 4 rows, the same two Asks as 2026-09-23, both
+    defaults), four commits, validate `matches plan` with a live drive of all five Intent lines.
+    Nine agents, 32 min of agent time. Every handoff carried its token unprompted beyond the brief.
+  - Outcome against the original round: the same rulings, the same approach (both Asks and the
+    row-4 ruling matched 2026-09-23's `## Decisions` word for word in substance).
+  - Stops, all where a person was needed: the two Asks; row 4 blocked twice, once on the stack
+    (below) and once on the repro measuring the popover mid-animation, ruled as on 2026-09-23 (the
+    repro waits; row 4 lists the spec).
+  - Found by it, not fixed here:
+    - The b2b dev server's SSR broke mid-round (`resolve` from `$app/paths` "not a function",
+      after `.svelte-kit/generated` was regenerated under it) and stayed broken until a restart;
+      not reproducible on demand. `doctor` said green: it probes the login page, which rendered.
+    - Row 3's new test passes with or without the fix (jsdom lays nothing out); `wf check` counts
+      it as proof. Validate's live check of that item looked at the same thing (no scroll
+      buttons), not at hover.
+    - The plan agent could not see the rulings of the earlier round on the same ticket (its
+      folder was reverted away); in a real reopened round an earlier ruling could be the default.
 
 ### 5. The Claude Code plugin
 
