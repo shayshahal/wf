@@ -382,9 +382,10 @@ Each step says what, why, and how it is checked. Steps 1–4 happen in JewelryX 
     `test.use({ storageState: \`${process.env.VERIFY_AUTH}/seller.json\` })`. Measured: 70 s on a
     cold stack (first page compiles), 14 s warm, about 10 of it the logins. A base without the skill
     gets today's config.
-  - **5c:** `wf show` calls `control-jewelryx open \u2026 --headed`; its own spec and config are gone.
-    It opened `/b2b/catalog` as seller at 390 px in 6 s. It now also takes the path without its
-    slash, because Git Bash rewrote `wf show admin /products` (broken before this plan too).
+  - **5c:** `wf show` calls `control-jewelryx open … --headed`; its own spec and config are gone.
+    It opened `/b2b/catalog` as seller at 390 px in 6 s. Git Bash rewrote `wf show admin /products`
+    into `C:/Program Files/Git/products` (broken before this plan too); both `wf show` and the CLI
+    now undo that rewrite from `EXEPATH`, so paths are written as usual.
   - **5d, changed:** no `verifySkill` export. wf already appends `projects/<name>/prompts/<phase>.md`
     to every phase's prompt, so the `## Live` section is JewelryX's `prompts/validate.md`. Core's
     validate prompt only defers its budget and its "run nothing" rule to the project's notes, and
@@ -392,6 +393,13 @@ Each step says what, why, and how it is checked. Steps 1–4 happen in JewelryX 
   - **5e:** done. The cycle's `wf new` unlinked `verify-b2b` and `verify-admin` in all three
     folders and linked `verify-jewelryx`. The hub's `.pi/settings.json` excludes the two (backup
     `settings.json.bak-2026-09-27`).
+  - **`reseed` became `reset` (JewelryX `a8474831b`).** The CLI saves the whole database on its
+    first use in a checkout (`db_snapshot.py`, 49 collections, 435 documents, 1 s): after the
+    backend's boot wrote the admin and the roles, before any run changed anything. `reset` restores
+    it and logs the shared browser in again. Measured: approving ORD-0001 wrote 10 documents
+    (wallet charge, 3 notifications, audit entries, sessions), and 11 s of `reset` removed them all
+    and put ORD-0001 back to `pending`. It refuses a MongoDB that is not local, and a baseline of
+    another database.
   - **Reap** removed the worktree with the headed window and the agent browser still open; no
     browser process was left.
   - **Order to go live:** either order is safe. On a base without the skill, wf links nothing,

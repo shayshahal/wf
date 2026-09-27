@@ -8,13 +8,23 @@
 // holds how JewelryX logs in, which this file used to repeat in a spec of its own.
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { readState, roundOf, toplevelOf } from '../../state.mjs';
 import { VERIFY_SKILL } from './round.mjs';
 
-// Pure: `b2b /catalog as buyer mobile` → { app, path, as, mobile }, or null. On the command line the
-// path may drop its slash (`wf show admin products`): Git Bash rewrites `/products` into
-// `C:/Program Files/Git/products` before node sees it, and that is refused rather than opened.
+// Pure: Git Bash rewrites an argument that starts with / into a Windows path under its own install
+// before node sees it (`wf show admin /products` arrived as `C:/Program Files/Git/products`). It
+// names that install in EXEPATH (`<root>\bin`), so the rewrite is undone exactly; the same rule as
+// control-jewelryx's unMsys.
+export function unMsys(arg, env) {
+	if (!env.MSYSTEM || !env.EXEPATH || !/^[A-Za-z]:[\\/]/.test(arg)) return arg;
+	const root = `${dirname(env.EXEPATH.replace(/\\/g, '/'))}/`;
+	const a = arg.replace(/\\/g, '/');
+	return a.toLowerCase().startsWith(root.toLowerCase()) ? `/${a.slice(root.length)}` : arg;
+}
+
+// Pure: `b2b /catalog as buyer mobile` → { app, path, as, mobile }, or null. The path may drop its
+// slash (`wf show admin products`); a Windows path is refused rather than opened.
 export function parseOpen(line) {
 	const m = /^(b2b|admin)\s+(\S+)(?:\s+as\s+(buyer|seller|admin))?(\s+mobile)?\s*$/.exec((line ?? '').trim());
 	if (!m || /^[A-Za-z]:[\\/]/.test(m[2])) return null;
@@ -36,7 +46,7 @@ export function showArgs(open) {
 
 export function runShow(argv) {
 	const toplevel = toplevelOf();
-	let line = argv.join(' ').trim();
+	let line = argv.map((a) => unMsys(a, process.env)).join(' ').trim();
 	if (!line) {
 		const { folder } = roundOf(readState(toplevel), toplevel);
 		const plan = folder && join(toplevel, folder, 'PLAN.md');
@@ -48,7 +58,7 @@ export function runShow(argv) {
 	}
 	const open = parseOpen(line);
 	if (!open) {
-		console.error(`wf show: cannot read "${line}" — want: <b2b|admin> <path> [as buyer|seller|admin] [mobile], the path without its leading slash in Git Bash`);
+		console.error(`wf show: cannot read "${line}" — want: <b2b|admin> <path> [as buyer|seller|admin] [mobile]`);
 		process.exit(2);
 	}
 	if (!existsSync(join(toplevel, VERIFY_SKILL))) {
