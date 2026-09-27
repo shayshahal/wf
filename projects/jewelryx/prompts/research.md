@@ -15,8 +15,11 @@
 - What a JewelryX test needs to know (login and OTP, Hebrew, visual symptoms in pixels, specs outside
   `verification/`): `docs/agents/testing.md`. Seed users and fixed ids: `docs/agents/seed.md`. Specs
   to copy from: `verification/`. Pytest: `packages/backend/tests/`.
-- The repro starts from `{{folder}}/repro/playwright.config.ts`. It sits outside `verification/`, which
-  limits what it may import (`docs/agents/testing.md`). Its command:
+- The repro is spec files in `{{folder}}/repro/`, nothing else: its config is the verification skill's
+  (`docs/agents/verify-jewelryx/repro.config.ts`, it logs the roles in and knows the stack). It sits
+  outside `verification/`, which limits what a spec may import (`docs/agents/testing.md`). Its command:
+  `pnpm --dir verification exec playwright test -c ../docs/agents/verify-jewelryx/repro.config.ts ../{{folder}}/repro`.
+  A base without that config: `wf new` wrote `{{folder}}/repro/playwright.config.ts`; the command is then
   `pnpm --dir verification exec playwright test -c ../{{folder}}/repro/playwright.config.ts`.
 - Earlier rounds are in `bug-reports/<slug>/`; decision records in `verification/decisions/`. Tell
   `codebase-locator` to read `docs/agents/layout.md` first.
