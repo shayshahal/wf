@@ -6,8 +6,8 @@ moves, in order. `SPEC-TEMPLATE.md` is the skeleton, `CALL-STACK-FORMAT.md` the 
 `REVIEW-FORMAT.md` what comes back.
 
 **Where the files live.** `SPEC.md`, `SPEC-REVIEW.md` and `REVIEW.md` live in the **round folder**
-(the `folder` in `.wf/state.json`) with the rest of the round, and ship with
-the PR. Until 2026-09-23 they sat at the worktree root and were moved by hand (BJEW-586: PR #175).
+(the `folder` in `.wf/state.json`) with the rest of the round. SPEC.md and SPEC-REVIEW.md ship with
+the PR; REVIEW.md stays uncommitted, and reap keeps it (T2 is local, 2026-09-27). Until 2026-09-23 they sat at the worktree root and were moved by hand (BJEW-586: PR #175).
 
 ## 1 · prime
 
