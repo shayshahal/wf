@@ -12,7 +12,10 @@ reply without a tool call: never announce a next step — take it, or write `RES
 
 1. Read `{{folder}}/TICKET.md` fully. Note every screen, action, message and value it names.
 2. Spawn **in parallel**, with the `subagent` tool (Claude Code: the Agent tool, `wf:codebase-locator` and `wf:codebase-analyzer`), one prompt each — say exactly what you
-   want back, not how to search:
+   want back, not how to search. Their reports arrive as messages while you work: write RESEARCH.md only after every agent you
+   started has reported. A report that comes after you end reaches the orchestrator, not the research
+   (BJEW-562, 2026-09-27: the earlier-rounds search reported three minutes after RESEARCH.md).
+   The agents:
    - `codebase-locator` — "where does <behaviour> live: implementation, tests, decisions"
    - `codebase-locator` — "was this seen before: search the earlier rounds and the decision
      records for <ticket words and ids>" (where they are: *This project*, at the end)
