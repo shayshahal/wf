@@ -10,7 +10,7 @@
 // and creates <folder>, then the project adds what a round starts with (project.mjs newRound) —
 // that folder is what every `wf prompt` substitutes.
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdirSync, readdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { baseBranch, newRound, roundBranches, roundsDir, stackUrls } from './project.mjs';
@@ -23,20 +23,41 @@ import { liveRounds, realReadState, realWorktrees } from './status.mjs';
 // (tools/*, wf2/*) write *about* rounds in their subjects without being one (BJEW-603, 2026-09-23).
 const ROUND_REFS = [`origin/${baseBranch}`, ...roundBranches.flatMap((b) => [`--branches=${b}`, `--remotes=origin/${b}`])];
 
-export function findExistingRounds(ids) {
+// The round folders are read from `base` in git, not from the folder wf runs in: that is Shay's bare
+// repo's root (no rounds folder) or a teammate's clone on main, where no round is merged.
+export function findExistingRounds(ids, base) {
 	const hits = [];
 	let folders = [];
-	try { folders = readdirSync(roundsDir); } catch { /* no rounds folder here */ }
+	try { folders = execFileSync('git', ['ls-tree', '-d', '--name-only', `${base}:${roundsDir}`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).split('\n').filter(Boolean); } catch { /* no rounds folder on the base */ }
 	for (const id of ids) {
-		const needle = id.toLowerCase();
-		for (const f of folders) if (f.toLowerCase().includes(needle)) hits.push(`${roundsDir}/${f}`);
+		// Ids are compared without their punctuation: a round's folder is named from its branch,
+		// fix-tjew682-auction-pickers, and "tjew-682" never matched it (TJEW-682 reopen, 2026-09-27).
+		const flat = (s) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+		for (const f of folders) if (flat(f).includes(flat(id))) hits.push(`${roundsDir}/${f}`);
 		// Work on an id names it in the subject ("BJEW-461 - ...", "Merge ... fix/bjew461-..."). A body that
 		// only mentions it ("found in the BJEW-603 round") is not work on it (BJEW-603, 2026-09-23).
-		const flat = (s) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
 		const log = execFileSync('git', ['log', ...ROUND_REFS, '--format=%h %s', '-i', `--grep=${id}`, `--grep=${id.replace(/-/g, '')}`], { encoding: 'utf8' }).trim();
 		for (const line of log.split('\n').filter(Boolean)) if (flat(line.slice(line.indexOf(' ') + 1)).includes(flat(id))) hits.push(`commit ${line}`);
 	}
 	return hits;
+}
+
+// Pure: the lines of a PLAN.md's `## Decisions` (wf decide writes them), or none.
+export function decisionsOf(planText) {
+	const section = /^## Decisions[ \t]*\n([\s\S]*?)(?=^## |(?![\s\S]))/m.exec((planText ?? '').replace(/\r\n/g, '\n'))?.[1] ?? '';
+	return section.split('\n').map((l) => l.trim()).filter((l) => l.startsWith('- '));
+}
+
+// Pure: EARLIER.md for a reopened ticket: the earlier work, and the rulings its rounds recorded. The
+// plan's Asks take a ruling as their default: the 2026-09-27 replay of TJEW-682 re-asked both
+// questions Shay had ruled on four days before, whose round folder the plan agent never read.
+export function earlierText({ ids, dupes, rulings }) {
+	const ruled = rulings.filter((r) => r.lines.length);
+	return [
+		`# Earlier work on ${ids.join(', ')}`, '', 'This ticket came back. Every earlier fix below shipped and did not hold.', '',
+		...dupes.map((d) => `- ${d.trim()}`),
+		...(ruled.length ? ['', '## Earlier rulings', '', 'What the people asked decided in those rounds (their PLAN.md `## Decisions`), verbatim.', '', ...ruled.flatMap((r) => [`${r.folder}:`, ...r.lines, ''])] : ['']),
+	].join('\n').replace(/\n+$/, '\n');
 }
 
 // Pure: the worktree's .claude/launch.json for Claude Code Desktop's Browser pane: one entry per app
@@ -69,19 +90,19 @@ export async function runNew(argv) {
 		console.error(`wf new: two rounds are already live — finish or hold one first:\n  ${live.map((r) => `${r.state.id ?? r.state.round} · ${r.state.step} · ${r.path}`).join('\n  ')}\n(--force to cut a third anyway)`);
 		process.exit(1);
 	}
-	const dupes = findExistingRounds(ids);
-	// --reopen: the ticket came back (Failed QA). Earlier work is the research input, not a stop.
-	const reopen = argv.includes('--reopen');
-	if (dupes.length && !reopen) {
-		console.error(`wf new: work for ${ids.join(', ')} already exists — read it before cutting a round:\n  ${dupes.join('\n  ')}\n(--reopen if the ticket came back; rerun without --id to cut the worktree anyway)`);
-		process.exit(1);
-	}
 	// Neither wt nor git fetches: a clone days behind branched its round off a stale base (the kit
 	// plan's step 3 review, 2026-09-27). Offline, the round starts from the base this clone has.
 	const fetch = fetchFor(base);
 	if (fetch) {
 		const r = spawnSync('git', fetch, { encoding: 'utf8' });
 		if (r.status !== 0) console.error(`wf new: could not fetch ${base} (${(r.stderr ?? '').trim().split('\n').at(-1)}); branching off this clone's copy`);
+	}
+	const dupes = findExistingRounds(ids, base);
+	// --reopen: the ticket came back (Failed QA). Earlier work is the research input, not a stop.
+	const reopen = argv.includes('--reopen');
+	if (dupes.length && !reopen) {
+		console.error(`wf new: work for ${ids.join(', ')} already exists — read it before cutting a round:\n  ${dupes.join('\n  ')}\n(--reopen if the ticket came back; rerun without --id to cut the worktree anyway)`);
+		process.exit(1);
 	}
 	const log = join(tmpdir(), `wf-new-${branch.replace(/[^A-Za-z0-9.-]/g, '-')}.log`);
 	let path;
@@ -100,7 +121,11 @@ export async function runNew(argv) {
 	mkdirSync(join(path, folder), { recursive: true });
 	const notes = newRound({ worktree: path, folder, port: basePortForBranch(branch) });
 	writeState(path, { id: ids[0] ?? branch, folder });
-	if (reopen && dupes.length) writeFileSync(join(path, folder, 'EARLIER.md'), `# Earlier work on ${ids.join(', ')}\n\nThis ticket came back. Every earlier fix below shipped and did not hold.\n\n${dupes.map((d) => `- ${d.trim()}`).join('\n')}\n`);
+	if (reopen && dupes.length) {
+		const plan = (f) => { try { return execFileSync('git', ['show', `${base}:${f}/PLAN.md`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }); } catch { return null; } };
+		const rulings = dupes.filter((d) => d.startsWith(`${roundsDir}/`)).map((f) => ({ folder: f, lines: decisionsOf(plan(f)) }));
+		writeFileSync(join(path, folder, 'EARLIER.md'), earlierText({ ids, dupes, rulings }));
+	}
 	const urls = stackUrls({ slug: slugForBranch(branch), port: basePortForBranch(branch) });
 	mkdirSync(join(path, '.claude'), { recursive: true });
 	writeFileSync(join(path, '.claude', 'launch.json'), launchConfig(urls));

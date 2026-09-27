@@ -1,7 +1,7 @@
 // new.selfcheck.mjs — node new.selfcheck.mjs → exit 0 when green.
 // Pure arms: the fetch before a round branches, and the worktree's .claude/launch.json for Claude
 // Code Desktop's Browser pane (new.mjs).
-import { fetchFor, launchConfig } from './new.mjs';
+import { decisionsOf, earlierText, fetchFor, launchConfig } from './new.mjs';
 
 let failures = 0;
 const check = (name, cond, detail = '') =>
@@ -14,6 +14,13 @@ check('a bare origin: Desktop refuses a localhost url with a path', config.confi
 check('the version Desktop writes', config.version === '0.0.1');
 check('a remote base is fetched first, that branch only', fetchFor('origin/dev')?.join(' ') === 'fetch --quiet origin dev' && fetchFor('origin/release/2.1')?.at(-1) === 'release/2.1');
 check('a local ref or a sha is taken as it is', fetchFor('dev') === null && fetchFor('328e238fb') === null);
+
+const plan = '# p\r\n## Asks\r\n- x? \u2014 default: y\r\n\r\n## Decisions\r\n- 2026-09-23 Calendar popover width: at least the input\'s width \u2014 Shay 2026-09-23\r\n- 2026-09-23 A held time is raised, not cleared\r\n\r\n## Other\r\n- not a decision\r\n';
+check('an earlier plan\'s Decisions, verbatim, and nothing after them', decisionsOf(plan).length === 2 && decisionsOf(plan)[1] === '- 2026-09-23 A held time is raised, not cleared', JSON.stringify(decisionsOf(plan)));
+check('no Decisions, or no plan: none', decisionsOf('# p\n').length === 0 && decisionsOf(null).length === 0);
+const earlier = earlierText({ ids: ['TJEW-682'], dupes: ['bug-reports/fix-tjew682-a', 'commit 2228a7c Merge fix/tjew682-a'], rulings: [{ folder: 'bug-reports/fix-tjew682-a', lines: decisionsOf(plan) }, { folder: 'bug-reports/fix-tjew682-b', lines: [] }] });
+check('EARLIER.md: the earlier work, then each round\'s rulings under its folder', earlier.includes('- commit 2228a7c') && earlier.includes('## Earlier rulings') && earlier.includes('bug-reports/fix-tjew682-a:\n- 2026-09-23 Calendar') && !earlier.includes('fix-tjew682-b:'), earlier);
+check('no rulings: no section', !earlierText({ ids: ['X-1'], dupes: ['commit abc x-1'], rulings: [] }).includes('Earlier rulings'));
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');
 process.exit(failures ? 1 : 0);
