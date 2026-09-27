@@ -1,5 +1,6 @@
-// hook.mjs — what worktrunk runs around a project's worktree. The project does not use worktrunk; wf
-// does, so the hooks live here and reach wt through the user config, per project:
+// env/hook.mjs — what worktrunk runs around a project's worktree, on Shay's machine: worktrunk is
+// his, not the kit's or the project's, so the hooks live here and reach wt through the user config,
+// per project:
 //   wf hook install            write the block below into wt's user config (replaces an earlier one)
 //   wf hook <step> <slug> [P]  one step, called by wt with {{ branch | sanitize }} {{ branch | hash_port }}
 // Steps: pre-start = the project's setup steps (in parallel) · post-start serve · pre-remove gate ·
@@ -8,8 +9,9 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { repo, serve, setup, stackNames, teardown } from './project.mjs';
-import { urlLines } from './worktree.mjs';
+import { repo, serve, setup, teardown } from '../project.mjs';
+import { urlLines } from '../worktree.mjs';
+import { stackNames } from './projects/jewelryx/index.mjs';
 
 const BEGIN = '# >>> wf worktree hooks';
 const END = '# <<< wf worktree hooks';
@@ -19,7 +21,7 @@ export function hookBlock(wf) {
 	const call = (step, args = '{{ branch | sanitize }} {{ branch | hash_port }}') => `'node ${wf} hook ${step} ${args}'`;
 	const t = (name) => `[projects."${repo}".${name}]`;
 	return [
-		`${BEGIN} (written by \`wf hook install\`; change wf/hook.mjs, not this block)`,
+		`${BEGIN} (written by \`wf hook install\`; change wf/env/hook.mjs, not this block)`,
 		t('pre-start'),
 		...Object.keys(setup).map((s) => `${s} = ${call(s)}`),
 		'',

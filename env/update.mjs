@@ -1,13 +1,14 @@
-// update.mjs — the installed wf: every session runs a copy of shayshahal/wf's main in LIVE, never
+// env/update.mjs — the installed wf: every session runs a copy of shayshahal/wf's main in LIVE, never
 // the editing clone (SOURCE), where another session's uncommitted edit would go live at once
 // (2026-09-23: a reap change whose self-check crashed). `wf update` fetches and installs;
-// wf.mjs calls autoUpdate() first on every run, so a push from SOURCE is live on the next
+// env/wf.mjs calls autoUpdate() first on every run, so a push from SOURCE is live on the next
 // wf command, with one stderr line saying so. wf left the JewelryX repo the same day (Shay).
 import { execFileSync, spawnSync } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { anchorToolPaths } from '../anchor.mjs';
 
 export const LIVE = join(homedir(), '.local', 'share', 'wf');
 // The editing clone: a push from it moves origin/main here at once, so the check needs no network.
@@ -17,14 +18,6 @@ const REF = 'refs/remotes/origin/main';
 const git = (gitDir, args) => execFileSync('git', [`--git-dir=${gitDir}`, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 const installedRevision = () => { try { return readFileSync(join(LIVE, 'REVISION'), 'utf8').trim(); } catch { return null; } };
 
-// Pure: skills, agents and docs are read as they are, from whatever worktree the agent is in. A
-// round's worktree does not hold wf, so the text names wf's own files as {{wf}}/… and the project's
-// notes as {{project}}/…, and the installed copy fills in its own path. `wf prompt` fills the same
-// placeholders per prompt.
-export function anchorToolPaths(text, live, project) {
-	const home = live.replace(/\\/g, '/');
-	return text.split('{{project}}').join(`${home}/projects/${project}`).split('{{wf}}').join(home);
-}
 const markdownUnder = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
 	e.isDirectory() ? markdownUnder(join(dir, e.name)) : e.name.endsWith('.md') ? [join(dir, e.name)] : []);
 
@@ -73,9 +66,11 @@ export function install(gitDir, rev) {
 	});
 }
 
-// Called by wf.mjs before any command. Returns true when it re-ran the command from the new copy.
+// Called by env/wf.mjs before any command, with its own path: the entry sits in env/, one below the
+// copy's root. Returns true when it re-ran the command from the new copy, through the same entry.
 export function autoUpdate(wfPath, argv) {
-	const runningFromLive = dirname(wfPath) === LIVE;
+	const root = dirname(dirname(wfPath));
+	const runningFromLive = root === LIVE;
 	const gitDir = runningFromLive && existsSync(SOURCE) ? SOURCE : null;
 	if (!gitDir) return false;
 	let published = null;
@@ -96,7 +91,7 @@ export function autoUpdate(wfPath, argv) {
 	console.error(`wf: updated ${installed.slice(0, 9)} → ${published.slice(0, 9)} (${log.length} commit${log.length === 1 ? '' : 's'} on shayshahal/wf)`);
 	for (const line of log.slice(0, 5)) console.error(`  ${line.slice(0, 110)}`);
 	try {
-		execFileSync('node', [join(LIVE, 'wf.mjs'), ...argv], { stdio: 'inherit' });
+		execFileSync('node', [join(LIVE, relative(root, wfPath)), ...argv], { stdio: 'inherit' });
 		process.exit(0);
 	} catch (e) {
 		process.exit(e.status ?? 1);

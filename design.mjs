@@ -5,10 +5,10 @@
 // BJEW-454 rev 1 (312 lines) came back «information overload, i cannot follow this».
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { isPlannotatorPresent, annotateFile } from './adapters/plannotator.mjs';
 import { openInEditor } from './editor.mjs';
 import { resolveWorktree } from './worktree.mjs';
 import { appendDatedSection, devUrlsFor, foldFeedbackLine, renderHeader, renderSkeleton, specShaFor } from './review-format.mjs';
+import { seams } from './seams.mjs';
 import { roundFile } from './state.mjs';
 import { runStep } from './step.mjs';
 
@@ -46,8 +46,9 @@ export async function runDesign(argv) {
     toAnnotate = join(worktree, '.wf', 'SPEC-T1.md');
     writeFileSync(toAnnotate, `${t1}\n<!-- extracted from SPEC.md § For T1 — the full spec is the worker's; annotate here -->\n`);
   } else console.error('wf design: SPEC.md has no `## For T1` section — annotating the whole file (SPEC-TEMPLATE.md asks for one)');
-  if (isPlannotatorPresent()) {
-    const line = annotateFile({ worktree, file: toAnnotate, since: new Date().toISOString() });
+  // The machine's review screen when it has one (seams.reviewUI: plannotator on Shay's), else an editor.
+  if (seams.reviewUI?.available()) {
+    const line = seams.reviewUI.annotate({ worktree, file: toAnnotate, since: new Date().toISOString() });
     appendDatedSection(file, `${header()}${line ? foldFeedbackLine(line) : 'verdict: dismissed'}`);
     console.log(`wrote ${file}`);
     return;

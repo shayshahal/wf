@@ -5,8 +5,8 @@ import { createHash } from 'node:crypto';
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { pageOf, stackNames } from './project.mjs';
-import { listWorktrees, slugForBranch, urlLines } from './worktree.mjs';
+import { pageOf, stackUrls } from './project.mjs';
+import { basePortForBranch, listWorktrees, slugForBranch, urlLines } from './worktree.mjs';
 import { roundFile } from './state.mjs';
 
 export const VERDICTS = ['approved', 'changes-requested', 'dismissed'];
@@ -111,7 +111,7 @@ export function devUrlsFor(worktree) {
   try {
     const branch = listWorktrees(worktree).find((t) => t.path.replace(/\\/g, '/') === worktree.replace(/\\/g, '/'))?.branch;
     if (!branch) return null;
-    return urlLines(stackNames(slugForBranch(branch)));
+    return urlLines(stackUrls({ slug: slugForBranch(branch), port: basePortForBranch(branch) }));
   } catch {
     return null;
   }

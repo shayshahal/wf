@@ -10,11 +10,12 @@
 // Writes <git-toplevel>/.wf/state.json = { round, class, base, step, waiting_on, since }.
 // `base` is set once by `wf new --base` and reused by every later `step classify`.
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { lastField, readVerdict, specShaFor } from './review-format.mjs';
 import { people } from './project.mjs';
+import { seams } from './seams.mjs';
 import { roundFile } from './state.mjs';
 
 export const STEPS = ['classify', 'research', 'plan', 'design', 'implement', 'review', 'pr', 'merged', 'held'];
@@ -114,19 +115,12 @@ export async function runStep(argv) {
   await notifyAdapters(state);
 }
 
-// Notify every adapter whose is<Name>Present() is true — a failing adapter never fails the command.
+// Tell whatever the machine plugged in (seams.notify: herdr's pane on Shay's) — a failing one never
+// fails the command.
 export async function notifyAdapters(state) {
-  const dir = join(dirname(fileURLToPath(import.meta.url)), 'adapters');
-  let names = [];
-  try {
-    names = readdirSync(dir).filter((n) => n.endsWith('.mjs'));
-  } catch { /* no adapters yet */ }
-  for (const n of names) {
+  for (const notify of seams.notify) {
     try {
-      const adapter = await import(`./adapters/${n}`);
-      const present = Object.entries(adapter).find(([k]) => /^is\w+Present$/.test(k))?.[1];
-      const report = Object.entries(adapter).find(([k]) => /^reportStepTo\w+$/.test(k))?.[1];
-      if (present?.() === true) await report?.(state);
-    } catch { /* adapters are best-effort */ }
+      await notify(state);
+    } catch { /* best-effort */ }
   }
 }

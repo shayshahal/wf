@@ -13,9 +13,9 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { baseBranch, newRound, roundBranches, roundsDir, stackNames } from './project.mjs';
+import { baseBranch, newRound, roundBranches, roundsDir, stackUrls } from './project.mjs';
 import { basePortForBranch, createWorktree, slugForBranch, urlLines } from './worktree.mjs';
+import { seams } from './seams.mjs';
 import { writeState } from './state.mjs';
 import { liveRounds, realReadState, realWorktrees } from './status.mjs';
 
@@ -71,16 +71,17 @@ export function runNew(argv) {
 		process.exit(1);
 	}
 	console.log(`wf new: worktree ready (hook log: ${log})`);
-	// The wf that was invoked, not the round's copy: a round is cut from dev, which may not carry
-	// wf at all (BJEW-603, 2026-09-23: MODULE_NOT_FOUND after every hook had passed).
-	execFileSync('node', [fileURLToPath(new URL('./wf.mjs', import.meta.url)), 'step', 'classify', '--base', base, ...(klass ? ['--class', klass] : [])], { stdio: 'inherit', cwd: path });
+	// The wf that was invoked (seams.entry: the env's or the kit's), not the round's copy: a round is
+	// cut from dev, which may not carry wf at all (BJEW-603, 2026-09-23: MODULE_NOT_FOUND after every
+	// hook had passed).
+	execFileSync('node', [seams.entry, 'step', 'classify', '--base', base, ...(klass ? ['--class', klass] : [])], { stdio: 'inherit', cwd: path });
 	const folder = `${roundsDir}/${slugForBranch(branch)}`;
 	mkdirSync(join(path, folder), { recursive: true });
 	const notes = newRound({ worktree: path, folder, port: basePortForBranch(branch) });
 	writeState(path, { id: ids[0] ?? branch, folder });
 	if (reopen && dupes.length) writeFileSync(join(path, folder, 'EARLIER.md'), `# Earlier work on ${ids.join(', ')}\n\nThis ticket came back. Every earlier fix below shipped and did not hold.\n\n${dupes.map((d) => `- ${d.trim()}`).join('\n')}\n`);
 	console.log(`Round folder: ${folder}`);
-	console.log(urlLines(stackNames(slugForBranch(branch))));
+	console.log(urlLines(stackUrls({ slug: slugForBranch(branch), port: basePortForBranch(branch) })));
 	for (const line of notes) console.log(line);
 	console.log(`Worktree: ${path}`);
 }

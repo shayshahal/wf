@@ -10,7 +10,9 @@ import { fileURLToPath } from 'node:url';
 
 const root = dirname(fileURLToPath(import.meta.url));
 const inDir = (dir) => readdirSync(dir).filter((f) => f.endsWith('.selfcheck.mjs')).map((f) => join(dir, f));
-const files = [...inDir(root), ...readdirSync(join(root, 'projects')).flatMap((p) => inDir(join(root, 'projects', p)))];
+const projectsIn = (dir) => readdirSync(join(dir, 'projects')).flatMap((p) => inDir(join(dir, 'projects', p)));
+// The kit (root, projects/) and Shay's env (env/, env/projects/).
+const files = [...inDir(root), ...projectsIn(root), ...inDir(join(root, 'env')), ...projectsIn(join(root, 'env'))];
 
 const run = (file) => new Promise((resolve) => {
 	const child = spawn(process.execPath, [file], { cwd: root });

@@ -1,79 +1,31 @@
-// projects/jewelryx/db.mjs — one MongoDB per worktree: up and seed (index.mjs teardown removes it).
-//   up:   jewelryx-mongo-<slug> on 40000+(P-10000) (mongo.compose.yml), healthy before it returns
+// projects/jewelryx/db.mjs — a worktree's database: its name, and the seed.
+//   the database: jewelryx_<slug>, in whichever MongoDB the machine gives the worktree (index.mjs
+//                 `machine().database`; a container per worktree on Shay's, env/projects/jewelryx/mongo.mjs)
 //   seed: the project's fixture set (packages/backend/scripts/seed_fixtures.py, docs/agents/seed.md),
 //         run straight into the target database. No snapshot: seeding an empty database took
 //         6-8 s, restoring a cached mongodump ~11 s (measured 2026-09-24), and a snapshot needs a
 //         key that knows which project files decide the data.
 import { spawnSync } from 'node:child_process';
-import { createConnection } from 'node:net';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 
-// Pure: mongo host port for a base port P. Throws outside 10000-19999.
-export function mongoPortForBase(basePort) {
-	const p = Number(basePort);
-	if (!Number.isInteger(p) || p < 10000 || p > 19999) throw new Error(`base port out of range 10000-19999: ${basePort}`);
-	return 40000 + (p - 10000);
-}
-export const containerOf = (slug) => `jewelryx-mongo-${slug}`;
-export const volumeOf = (slug) => `jewelryx-wt-mongo-${slug}`;
-export const composeProjectOf = (slug) => `jewelryx-wt-${slug}`;
 export const worktreeDatabase = (slug) => `jewelryx_${slug}`;
-export const worktreeMongoUrl = (base) => `mongodb://localhost:${mongoPortForBase(base)}`;
-
-// Pure: `docker port <container> 27017` → the URL the seeder writes to. The seeder's own .env may
-// name another mongo (the permanent stacks seed from dev's checkout), so it is always pointed at
-// the target container.
-export function mongoUrlFromDockerPort(output) {
-	const port = /:(\d+)\s*$/m.exec(output)?.[1];
-	return port ? `mongodb://127.0.0.1:${port}` : undefined;
-}
-
-function waitForPort(port, timeoutMs = 90000) {
-	const t0 = Date.now();
-	return new Promise((resolve, reject) => {
-		const tick = () => {
-			const sock = createConnection(port, '127.0.0.1');
-			sock.once('connect', () => { sock.end(); resolve((Date.now() - t0) / 1000); });
-			sock.once('error', () => {
-				sock.destroy();
-				if (Date.now() - t0 > timeoutMs) reject(new Error(`port ${port} not open after ${timeoutMs / 1000}s`));
-				else setTimeout(tick, 500);
-			});
-		};
-		tick();
-	});
-}
 
 function run(label, cmd, args, opts = {}) {
 	const r = spawnSync(cmd, args, { stdio: 'inherit', ...opts });
 	if (r.status !== 0) throw new Error(`worktree db: ${label} failed (exit ${r.status})`);
 }
 
-export async function mongoUp({ slug, base }) {
-	const mongoPort = mongoPortForBase(base);
-	const composeFile = join(dirname(fileURLToPath(import.meta.url)), 'mongo.compose.yml');
-	// --wait: return only once the compose healthcheck passes. The host port accepts connections
-	// before mongod does (Docker's proxy), so waitForPort alone let the seed race it: ECONNREFUSED
-	// inside the container on a fresh create (BJEW-603 round, 2026-09-23).
-	run('docker compose up', 'docker', ['compose', '-f', composeFile, '-p', composeProjectOf(slug), 'up', '-d', '--wait'], {
-		env: { ...process.env, WT_SLUG: slug, WT_MONGO_PORT: String(mongoPort) },
-	});
-	const waited = await waitForPort(mongoPort);
-	console.log(`worktree db: ${containerOf(slug)} listening on ${mongoPort} (waited ${waited.toFixed(1)}s)`);
-}
-
-// `worktree` holds the seeder (a round's worktree, or dev for the permanent stacks); `slug` names
-// the container; `database` is the target. Seeding again puts every fixture back to its fixed
-// values (fixed ids, so counts never move); `reset` first drops everything else too.
-export function seedDatabase({ worktree, slug, database, reset = false }) {
-	const container = containerOf(slug);
+// `worktree` holds the seeder (a round's worktree, or dev for the permanent stacks); `mongoUrl` is
+// the MongoDB to write to, and `database` the target. Seeding again puts every fixture back to its
+// fixed values (fixed ids, so counts never move); `reset` first drops everything else too. Both
+// through the worktree's own python (pymongo is the backend's), so no mongo shell is needed.
+export function seedDatabase({ worktree, database, mongoUrl, reset = false }) {
 	const t0 = Date.now();
-	// `void` keeps dropDatabase()'s result document out of the hook log.
-	if (reset) run('mongosh', 'docker', ['exec', container, 'mongosh', '--quiet', '--eval', `void (db.getSiblingDB('${database}').dropDatabase())`]);
-	const mongoUrl = mongoUrlFromDockerPort(spawnSync('docker', ['port', container, '27017'], { encoding: 'utf8' }).stdout ?? '');
-	if (!mongoUrl) throw new Error(`worktree db: ${container} publishes no port; is it up?`);
-	run('seeder', 'uv', ['run', '--quiet', '--directory', join(worktree, 'packages', 'backend'), 'python', '-m', 'scripts.seed_fixtures'], {
+	const backend = join(worktree, 'packages', 'backend');
+	if (reset) {
+		run('drop', 'uv', ['run', '--quiet', '--directory', backend, 'python', '-c', 'import sys; from pymongo import MongoClient; MongoClient(sys.argv[1]).drop_database(sys.argv[2])', mongoUrl, database]);
+	}
+	run('seeder', 'uv', ['run', '--quiet', '--directory', backend, 'python', '-m', 'scripts.seed_fixtures'], {
 		env: { ...process.env, DATABASE_NAME: database, MONGODB_URL: mongoUrl },
 	});
 	console.log(`worktree db: seeded${reset ? ' (reset)' : ''} ${database} in ${((Date.now() - t0) / 1000).toFixed(1)}s`);

@@ -9,14 +9,19 @@ round commits (for JewelryX, `bug-reports/<round>/`).
 
 ## Where things are
 
-- `wf.mjs`: the CLI dispatcher; one module per command, each with a `*.selfcheck.mjs`
+- `wf.mjs`: the kit's entry. `run.mjs` is the dispatcher; one module per command, each with a
+  `*.selfcheck.mjs`
+- `seams.mjs`: what differs between machines (worktrees, the database, review screen, notifications)
+  and the kit's defaults for it. An env's own entry plugs its pieces in: `env/wf.mjs` is Shay's.
+- `env/`: Shay's machine, which the kit never imports: worktrunk and its hooks (`env/hook.mjs`,
+  `env/worktrees.mjs`), self-update (`env/update.mjs`), plannotator and herdr (`env/adapters/`), and
+  per project a MongoDB container per worktree, portless and the permanent stacks (`env/projects/`).
+  `boundary.selfcheck.mjs` fails if the kit reaches into it.
 - `skills/round/SKILL.md`: the orchestrator skill ("start 662", "resume 662"); `skills/design-session/` for T1
 - `prompts/`: one prompt per phase, printed by `wf prompt <phase>`
 - `agents/`: `round-worker` (every phase), `codebase-locator` and `codebase-analyzer` (research, pi only)
 - `process/`: lifecycle, classes, design session, review format, touchpoints
-- `worktree.mjs`: the one interface to worktrees: list, ports and slugs, create, remove
-- `hook.mjs`: what worktrunk runs around a worktree; `wf hook install` writes the hooks into
-  worktrunk's user config
+- `worktree.mjs`: the one interface to worktrees: list, ports and slugs (`ports.mjs`), create, remove
 - `project.mjs` → `projects/<name>/`: everything project-specific. See *Projects* below.
 - `docs/plans/2026-09-17-workflow-v2.md`: the plan wf was built from (history; done)
 
@@ -40,20 +45,22 @@ Next to it: `ROUND.md` (tracker, statuses, people, branches: read by the round s
 There is one project, JewelryX. When a second one arrives, it gets a folder like this one, and
 what the two share becomes the interface. Not before.
 
-## Install (a fresh machine)
+## Install (Shay's machine, the kit with `env/`)
 
-Needs: git, node ≥ 22, [worktrunk](https://github.com/max-sixty/worktrunk) (`wt`), `gh`, pi and/or
+The team installs the kit alone (docs/plans/2026-09-27-kit-and-env.md, step 5). Needs: git, node ≥ 22, [worktrunk](https://github.com/max-sixty/worktrunk) (`wt`), `gh`, pi and/or
 Claude Code, plus what the project's `setup` runs (JewelryX: pnpm, uv, docker, portless).
 
 1. `git clone https://github.com/shayshahal/wf ~/work/wf`: the editing clone. Never run wf from it.
    Then `git -C ~/work/wf config core.hooksPath .githooks`: its pre-push hook runs every self-check.
-2. `node ~/work/wf/update.mjs`: installs the committed code into `~/.local/share/wf`, and wf's
+2. `node ~/work/wf/env/update.mjs`: installs the committed code into `~/.local/share/wf`, and wf's
    agents into pi (`~/.pi/agent/agents`) and Claude Code (`~/.claude/agents`, `round-worker` only).
-3. Put `wf` on the PATH: `~/bin/wf` is `exec node "$HOME/.local/share/wf/wf.mjs" "$@"`, and
-   `~/bin/wf.cmd` is `@node "%USERPROFILE%\.local\share\wf\wf.mjs" %*`.
+3. Put `wf` on the PATH through Shay's entry: `~/bin/wf` is
+   `exec node "$HOME/.local/share/wf/env/wf.mjs" "$@"`, and `~/bin/wf.cmd` is
+   `@node "%USERPROFILE%\.local\share\wf\env\wf.mjs" %*`.
 4. Skills: add `~/.local/share/wf/skills/round` and `~/.local/share/wf/skills/design-session` to
    pi's `settings.json` `skills`; for Claude Code, link them into `~/.claude/skills/`.
-5. `wf hook install`: worktrunk's user config gets the project's hooks, calling the installed copy.
+5. `wf hook install`: worktrunk's user config gets the project's hooks, calling the installed copy's
+   `env/wf.mjs`.
 6. The project's clone: a bare repo, and a worktree for its base branch (JewelryX):
    ```
    git clone --bare https://github.com/Raynw-MediaTech/jeweleryx ~/work/jeweleryx/.bare
@@ -70,7 +77,7 @@ Claude Code, plus what the project's `setup` runs (JewelryX: pnpm, uv, docker, p
 ## Update
 
 After a push to `main`, the next `wf` command installs it by itself and prints
-`wf: updated <old> → <new>`. `wf update` fetches first. After changing `hook.mjs` or the project's
+`wf: updated <old> → <new>`. `wf update` fetches first. After changing `env/hook.mjs` or the project's
 `setup` steps: `wf hook install` again.
 
 ## Self-checks

@@ -9,16 +9,20 @@ moves. There is no staging and no CI. So, before every push:
 
 - `node selfcheck.mjs`, all green (the pre-push hook runs it too, once `core.hooksPath` is set)
 - for a change to worktree creation, the hooks or a project's `setup`/`serve`/`teardown`: one real
-  cycle from the editing clone: `node wf.mjs hook install` (points worktrunk at this clone),
-  `node wf.mjs new bench/<x>`, check the stack answers, `WF_FORCE_REAP=1 node wf.mjs reap bench/<x>`,
+  cycle from the editing clone, through Shay's entry: `node env/wf.mjs hook install` (points
+  worktrunk at this clone), `node env/wf.mjs new bench/<x>`, check the stack answers,
+  `WF_FORCE_REAP=1 node env/wf.mjs reap bench/<x>`,
   then `wf hook install` from the installed copy to point worktrunk back
 - never run wf from this clone for real rounds: `~/bin/wf` runs the installed copy
 
 ## Core and projects
 
-- Core (everything outside `projects/`) names no project and no project technology: no app, port
-  offset, database, language tool, tracker or person other than Shay. What a project differs in, it
-  gets from `project.mjs`.
+- Core (everything outside `projects/` and `env/`) names no project and no project technology: no
+  app, port offset, database, language tool, tracker or person other than Shay. What a project
+  differs in, it gets from `project.mjs`.
+- The kit (core and `projects/`) is what the team runs, alone. It never imports `env/` and never
+  names Shay's machine (`boundary.selfcheck.mjs`). What differs between machines goes through a
+  seam (`seams.mjs`), with Shay's piece in `env/` and plugged in by `env/wf.mjs`.
 - `projects/<name>/index.mjs` is the only file core imports from a project folder. Its exports are
   what the project needed, not a designed interface: add one when core needs something
   project-specific, and do not add fields "for later".

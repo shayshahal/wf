@@ -19,9 +19,15 @@ One repo, two layers, one rule between them.
   Code plugin. It runs with nothing but git, node, the project's own tools and one database.
 - **The env (`env/`):** everything about Shay's machine: worktrunk, the bare repo layout, herdr,
   Docker MongoDB per worktree, portless, `wt tether`, plannotator, the dev and QA stacks,
-  self-update, pi's agent install. It is active only when `WF_ENV=shay` (`~/bin/wf` sets it).
-- **The rule:** nothing in the kit imports from `env/` or names a machine path. A selfcheck fails
-  otherwise. The env plugs in through the seams below; with no env, the kit's defaults run.
+  self-update, pi's agent install.
+- **Which one runs is the entry file** (decided 2026-09-27, over an environment variable). The
+  kit's `wf.mjs` runs the kit with its defaults; `env/wf.mjs` runs the same kit with Shay's pieces
+  plugged into the seams. `~/bin/wf` and worktrunk's hooks call `env/wf.mjs`; the plugin calls the
+  kit's. Every command wf starts or prints for an agent names the entry that is running, so a
+  round started from one stays in it. An environment variable would have to reach every process
+  (hooks, agents, panes), and a missing one would silently run the team's setup on Shay's machine.
+- **The rule:** nothing in the kit imports from `env/` or names a machine path; the kit does not
+  know the env exists. A selfcheck fails otherwise.
 
 What the project owns does not change: JewelryX keeps its facts (`docs/agents/`) and its
 verification skill (`docs/agents/verify-jewelryx/`). No round config moves into the project repo:
@@ -74,7 +80,7 @@ in both. What differs is the machine and the harness.
 
 ## Constraints
 
-- **Shay's workflow does not regress.** Every step ends with one real cycle with `WF_ENV=shay`
+- **Shay's workflow does not regress.** Every step ends with one real cycle through `env/wf.mjs`
   (wf AGENTS.md), and it must behave as before.
 - **The team's v1 stays untouched until this ships.** The plugin's release retires v1's
   orchestrators (step 7, decided 2026-09-27); until then the verification plan's *Constraint* holds.
@@ -101,19 +107,47 @@ in both. What differs is the machine and the harness.
   - Cycle from the editing clone: `wf new bench/port-check`. The setup hook (port from wt), the repro
     config (port from `ports.mjs`) and the running servers all used 13490; `doctor` green; reaped.
 
-### 2. Draw the line: `env/` and `WF_ENV`
+### 2. Draw the line: `env/` and its entry
 
 - **What:**
+  - The dispatcher becomes `run(argv, seams)` in the kit. `wf.mjs` calls it with the kit's
+    defaults, `env/wf.mjs` with Shay's pieces.
   - Move behind the seams: worktrunk create/remove and hooks (`hook.mjs`), the bare layout,
     Docker MongoDB (`db.mjs`'s compose parts, `mongo.compose.yml`), portless (`dev.mjs`, and the
     portless names the review skeleton prints: `review-format.mjs` `devUrlsFor`),
     `stacks.mjs` and the QA compose file, self-update (`update.mjs`), the plannotator and herdr
     adapters, pi's agent install.
-  - The kit loads `env/index.mjs` only when `WF_ENV=shay`.
+  - The two places the kit names itself use the running entry: `wf new` starting
+    `wf step classify`, and the `node …/wf.mjs` that `wf prompt` writes into every prompt.
+  - A seam with no kit default yet (worktree creation, the database, secrets) stops with "step 3
+    of the kit plan" when run through the kit's entry.
   - A selfcheck: no kit file imports `env/`, and none names `~/.herdr`, `.bare`, `LOCALAPPDATA`,
     `~/.config/wf` or `~/work/wf`.
-- **Check:** `node selfcheck.mjs` green; one `WF_ENV=shay` cycle (`wf new bench/env`, the stack
-  answers, `doctor`, `wf show`, `wf reap`) behaves as today.
+  - The switch on Shay's machine: `~/bin/wf` runs `env/wf.mjs` when the installed copy has it and
+    `wf.mjs` otherwise (set before the merge, so it works on both sides of it), and `wf hook
+    install` re-points worktrunk's hooks after the merge.
+- **Check:** `node selfcheck.mjs` green; one cycle through `env/wf.mjs` (`wf new bench/env`, the
+  stack answers, `doctor`, `wf show`, `wf reap`) behaves as today; an agent's prompt from that
+  round names `env/wf.mjs`.
+- **Result (2026-09-27): done.**
+  - Kit: `seams.mjs` (entry, createWorktree, removalPlan, reviewUI, notify, commands, project),
+    `run.mjs` (the dispatcher), `wf.mjs` (the kit's entry), `anchor.mjs`. JewelryX's folder lists
+    what it reads from the machine (`machine()` in `projects/jewelryx/index.mjs`): the secrets
+    folder, the database (url, up, seedUrl, teardown), browser names, how servers are wrapped,
+    extra teardown. `wf seed --reset` drops through the worktree's python, not a mongo shell.
+  - Env: `env/wf.mjs`, and moved with their history: `hook.mjs`, `update.mjs`, the herdr and
+    plannotator adapters, `stacks.mjs`, the compose files, `STACK.md`; new: `worktrees.mjs` (wt
+    create/remove), `projects/jewelryx/{index,mongo,dev}.mjs`.
+  - `boundary.selfcheck.mjs`: 44 kit files, none imports `env/` or names the machine. 19
+    selfchecks green.
+  - Through the kit's entry: `wf status` works; `wf new` refuses with the step-3 message and
+    creates nothing; `stacks` and `hook` do not exist.
+  - Cycle through `env/wf.mjs` from the editing clone: `wf new bench/env` in 33 s, its own
+    container on 43472, the portless name answers, `doctor` 8/8, `wf seed --reset` 5.7 s,
+    `wf status`, `wf show`. The research prompt names `env/wf.mjs` three times (the kit's entry
+    names `wf.mjs`). `wf reap` left no worktree, container, volume or branch.
+  - `~/bin/wf` runs `env/wf.mjs` when the installed copy has it, else `wf.mjs` (backup
+    `~/bin/wf.bak-2026-09-27`).
 
 ### 3. The kit's defaults run on their own
 
@@ -130,8 +164,8 @@ in both. What differs is the machine and the harness.
   session asks for a preview. wf starting them keeps one way for every harness; Desktop only shows
   them. If step 5 shows the session keeps its servers for the whole round, wf can write command
   entries instead and stop starting them.
-- **Check:** on Shay's machine with `WF_ENV` unset, and `wt`, `portless` and plannotator off the
-  PATH, against one MongoDB on 27017: `wf new bench/plain`, the stack answers, `doctor` green, a
+- **Check:** on Shay's machine through the kit's `wf.mjs`, with `wt`, `portless` and plannotator
+  off the PATH, against one MongoDB on 27017: `wf new bench/plain`, the stack answers, `doctor` green, a
   repro runs, `wf show`, `wf reap` leaves no server, database or worktree behind.
 
 ### 4. Enforce fresh context and the handoff (kit)
@@ -187,7 +221,7 @@ in both. What differs is the machine and the harness.
     and its `.env` files. The round is a real ticket: its PR and merge go into the real `dev`
     (Shay, 2026-09-27);
   - one MongoDB on 27017;
-  - the plugin installed from the wf marketplace, and `WF_ENV` unset;
+  - the plugin installed from the wf marketplace (the kit's entry);
   - nothing of Shay's reachable from it: today the env installs wf's agents into
     `~/.claude/agents`, and a user-level agent overrides a plugin's agent with the same name
     (Claude Code: user scope ranks above plugins). The env stops installing Claude Code agents

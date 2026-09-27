@@ -3,6 +3,7 @@
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { plug } from './seams.mjs';
 import { allLines, collectRows, formatRow, liveRounds, prLabel, formatAgeSince, realDetailFor } from './status.mjs';
 
 let failures = 0;
@@ -50,7 +51,8 @@ const brows = await collectRows({
 check('stack column shows port + ✓ when the probe answers', formatRow(brows.find((r) => r.path === shay), now).includes('stack :15748 ✓'));
 check('stack column shows port + ✗ when the probe refuses', formatRow(brows.find((r) => r.path === old), now).includes('stack :15749 ✗'));
 
-// Portless arm: with a slug the column shows the .localhost name (probe unchanged).
+// Names arm: with a slug the column shows the project's first address for a person (probe unchanged):
+// the direct one with no machine plugged in, the machine's name for it when it has one (portless).
 const slugs = { 'feat/y': 'feat-y', 'feat/x': 'feat-x' };
 const nrows = await collectRows({
   paths: [old, shay],
@@ -61,7 +63,10 @@ const nrows = await collectRows({
   probeStack: async (port) => ups[port] ?? false,
   slugFor: async (branch) => slugs[branch],
 });
-check('stack column shows the first app name when a slug is known', formatRow(nrows.find((r) => r.path === shay), now).includes('stack http://feat-y.b2b.jewelryx.localhost ✓'), formatRow(nrows.find((r) => r.path === shay), now));
+check('stack column shows the first app\'s direct address with no machine names', formatRow(nrows.find((r) => r.path === shay), now).includes('stack http://localhost:15748 ✓'), formatRow(nrows.find((r) => r.path === shay), now));
+plug({ project: { names: (slug) => ({ b2b: `http://${slug}.b2b.example.localhost` }) } });
+const named = await collectRows({ paths: [shay], readState: (p) => states.get(p) ?? null, pullRequests: [], now, basePortFor: async (branch) => ports[branch], probeStack: async (port) => ups[port] ?? false, slugFor: async (branch) => slugs[branch] });
+check('stack column shows the machine\'s name for the first app when it has one', formatRow(named[0], now).includes('stack http://feat-y.b2b.example.localhost ✓'), formatRow(named[0], now));
 
 // --all arm: the grouped morning screen over the same fixture worktrees (offline, detail stubbed).
 const allStates = new Map([
