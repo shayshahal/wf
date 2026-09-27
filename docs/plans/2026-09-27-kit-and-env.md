@@ -315,6 +315,32 @@ in both. What differs is the machine and the harness.
     (the plugin carries them), and the setup confirms none is left.
 - **Check:** the round reaches a merged PR with nothing from Shay's env. Every place it stalls
   becomes a fix at its owner (round skill, *When a round goes wrong*).
+- **Setup (2026-09-27): done; the round is Shay's.**
+  - The clone: `~/work/jeweleryx-team`, a plain `git clone --branch dev`, with the four `.env`
+    files `.worktreeinclude` names. No `.claude/` in it: v1's orchestrators live under
+    `JewelryX-Tools/`, and a round's worktree unlinks them anyway.
+  - MongoDB: `jewelryx-mongodb` on 27017 (JewelryX's own compose, mongo:7). The kit's databases
+    are `jewelryx_<slug>`, so they share it with nothing.
+  - Nothing of wf in `~/.claude/`: `agents/round-worker.md` and the `skills/round` and
+    `skills/design-session` links (into the env's copy) removed; `env/update.mjs` no longer
+    installs Claude Code agents. Shay's own Claude Code hooks (herdr, orca) are not wf's and stay.
+  - Found by it: `~/bin/wf` (the env) is on a Desktop session's PATH too, so a bare `wf` in a team
+    round ran the env: `wf status` there showed the portless URL. A round now records which wf
+    made it (`made_by`, `entry`), and the other refuses with the command to run instead
+    (`state.mjs entryGap`). Both ways measured: the env refused in a kit round, the kit in an env
+    round.
+  - Kit cycle in the clone: `wf new bench/team-setup` in 36 s, `doctor` 9/9 on localhost ports,
+    reap left no server, database, worktree or branch. Env cycle: 35 s, `doctor` 9/9, reap clean.
+  - The marketplace from GitHub, in a throwaway `CLAUDE_CONFIG_DIR`: `claude plugin marketplace add
+    shayshahal/wf`, `claude plugin install wf@wf` → 0.1.0 enabled; the installed copy runs
+    `wf notes`.
+  - Shay's part, in Desktop:
+    1. Install the plugin: add the marketplace `shayshahal/wf` in the plugin UI, install `wf`.
+    2. Open `~/work/jeweleryx-team` in a new session, with the Monday connector on.
+    3. Say `/wf:round start <id>` (the slash form: until step 7, v1's orchestrator also answers
+       "start" wherever it is installed).
+    4. Note where it stalls. Four things only Desktop shows: the UI install, `EnterWorktree`,
+       the orchestrator driving the Browser pane at T2, and the round reaching a merged PR.
 
 ### 7. Ship it to the team
 

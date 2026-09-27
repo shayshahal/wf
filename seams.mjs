@@ -8,6 +8,8 @@ import { fileURLToPath } from 'node:url';
 export const seams = {
 	// The wf.mjs every child process and prompt runs: the entry that started this one.
 	entry: fileURLToPath(new URL('./wf.mjs', import.meta.url)),
+	// Whose wf this is, recorded in each round it makes (state.mjs entryGap): 'kit', or the env's name.
+	madeBy: 'kit',
 	// ({ branch, base, log }) → { path, branch }: makes the worktree, sets it up and starts its stack.
 	// null: the kit's plain git (git-worktree.mjs).
 	createWorktree: null,

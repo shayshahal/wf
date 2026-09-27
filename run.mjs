@@ -10,6 +10,16 @@ export async function run(argv, pieces = {}) {
 	// Windows .cmd shims (portless, pnpm) need shell: true, and Node then prints DEP0190 on every spawn
 	// that passes args (reap printed it on every run). Every argv wf spawns is one it built itself.
 	process.noDeprecation = true;
+	// The hooks run whichever wf the plugin carries; the env's own commands are not a round's.
+	if (!['handoff', 'hook', 'update'].includes(cmd)) {
+		const { entryGap, readState, toplevelOf } = await import('./state.mjs');
+		let gap = null;
+		try { gap = entryGap(readState(toplevelOf()), seams.madeBy); } catch {} // not in a git tree
+		if (gap) {
+			console.error(`wf: ${gap}`);
+			process.exit(1);
+		}
+	}
 	if (cmd === 'step') {
 		const { runStep } = await import('./step.mjs');
 		await runStep(rest);

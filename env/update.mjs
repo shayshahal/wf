@@ -55,13 +55,11 @@ export function install(gitDir, rev) {
 		if (existsSync(LIVE)) renameSync(LIVE, old);
 		renameSync(fresh, LIVE);
 		rmSync(old, { recursive: true, force: true });
-		// Every wf agent into pi. Claude Code gets round-worker only: the others are written in pi's
-		// frontmatter (model: anthropic/…, tools: read, bash), and Claude Code uses Explore there.
+		// Every wf agent into pi. Claude Code gets none: the plugin carries them, and a user-level
+		// agent outranks a plugin's of the same name (kit and env plan, step 6).
 		const agents = join(LIVE, 'agents');
 		const pi = join(homedir(), '.pi', 'agent', 'agents');
-		const claude = join(homedir(), '.claude', 'agents');
 		if (existsSync(pi)) for (const f of readdirSync(agents)) copyFileSync(join(agents, f), join(pi, f));
-		if (existsSync(claude)) copyFileSync(join(agents, 'round-worker.md'), join(claude, 'round-worker.md'));
 		return rev;
 	});
 }

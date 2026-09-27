@@ -44,3 +44,12 @@ export function roundOf(state, toplevel) {
 	const id = state?.id ?? state?.round ?? null;
 	return { id, folder: state?.folder ?? (id ? `${roundsDir}/${id}` : null), toplevel };
 }
+
+// Pure: why `entry` may not run in this round, or null. A round records which wf made it (`wf new`:
+// made_by, entry), and the other refuses: on Shay's machine ~/bin/wf (his env) is on the PATH of a
+// Desktop session too, and a bare `wf` there would carry a team round into his env's URLs and
+// review UI (kit and env plan, step 6). Rounds from before the field run anywhere.
+export function entryGap(state, madeBy) {
+	if (!state?.made_by || state.made_by === madeBy) return null;
+	return `this round was made by the ${state.made_by}'s wf, and this is the ${madeBy}'s: run it as node "${state.entry}"${state.made_by === 'kit' ? ' (in the Claude Code plugin: node "${CLAUDE_PLUGIN_ROOT}/wf.mjs")' : ''}`;
+}
