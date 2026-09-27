@@ -173,7 +173,7 @@ Each step says what, why, and how it is checked. Steps 1–4 happen in JewelryX 
     - Run 3 spent its whole budget on getting through wizard step 1 and measured nothing, which
       is the trigger's pain, reproduced.
     - Items 2 and 3 were measured in no run.
-  - **Login:** every repro wrote its own `login()` (11\u201312 lines).
+  - **Login:** every repro wrote its own `login()` (11–12 lines).
   - **Harness defects found, not fixed by this plan:**
     - `subagent_interrupt` did not stop an agent, so an interrupted dispatch ran a full phase.
     - A `codebase-locator` hung for 775 s.
