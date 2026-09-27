@@ -1,8 +1,12 @@
 // handoff-hook.mjs — wf handoff <check | no-fork>: the Claude Code plugin's hooks (claude/hooks.json),
 // fed the hook's JSON on stdin (kit and env plan, step 5).
-//   check    SubagentStop of a wf:round-worker: sends the agent back, once, while the handoff its
-//            last brief asked for is missing (handoff.mjs). pi has no such hook; wf next catches it
-//            there one step later.
+//   check    a wf:round-worker handing back (PreToolUse on SubagentHandback) or stopping
+//            (SubagentStop): sends it back, once per brief, while the handoff its last brief asked
+//            for is missing (handoff.mjs). In auto mode the report goes through SubagentHandback,
+//            which reaches the orchestrator before SubagentStop fires: BJEW-562 (2026-09-27), the
+//            stop hook sent validate back and it fixed VALIDATION.md, but the orchestrator had
+//            already run wf next on the report and asked Shay. pi has no such hook; wf next catches
+//            it there one step later.
 //   no-fork  PreToolUse on Agent: in a round, a fork is refused. A fork carries the orchestrator's
 //            whole conversation, which is what a fresh phase agent exists not to have; a plugin
 //            cannot ship the Agent(fork) permission rule (its settings take only agent and
@@ -14,7 +18,7 @@ import { join } from 'node:path';
 import { handoffGap, rowDone } from './handoff.mjs';
 import { snapshotOf } from './next.mjs';
 import { planCommitRows } from './prompt.mjs';
-import { readState } from './state.mjs';
+import { readState, writeState } from './state.mjs';
 
 // Pure: the most recent brief, as { key, phase, n }, or null.
 export function lastBrief(briefs = {}) {
@@ -64,10 +68,20 @@ export async function runHandoff(argv) {
 	const toplevel = roundAt(input.cwd ?? process.cwd());
 	if (!toplevel) return;
 	if (argv[0] === 'check') {
-		// Once: a second stop goes through, and wf next redispatches (a hook loop would burn the agent).
+		// Once per brief: a second hand-back or stop goes through, and wf next redispatches (a hook
+		// loop would burn the agent). The brief records it, so the two events share the one.
 		if (input.stop_hook_active || !/round-worker/.test(input.agent_type ?? '')) return;
-		const gap = stopGap(snapshotOf(toplevel));
-		if (gap) process.stdout.write(JSON.stringify({ decision: 'block', reason: gap }));
+		const s = snapshotOf(toplevel);
+		const last = lastBrief(s.briefs);
+		if (!last || s.briefs[last.key].sent_back) return;
+		const gap = stopGap(s);
+		if (!gap) return;
+		const state = readState(toplevel);
+		writeState(toplevel, { briefs: { ...state.briefs, [last.key]: { ...state.briefs[last.key], sent_back: true } } });
+		const out = input.hook_event_name === 'PreToolUse'
+			? { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: `not yet: ${gap}` } }
+			: { decision: 'block', reason: gap };
+		process.stdout.write(JSON.stringify(out));
 	} else if (argv[0] === 'no-fork') {
 		const gap = forkGap(input);
 		if (gap) process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: gap } }));

@@ -33,6 +33,9 @@ check('its hooks file exists and calls this repo\'s wf.mjs', readFileSync(join(r
 // <plugin>:<name>: `round-worker` never fired (measured 2026-09-27, Claude Code 2.1.280).
 const stop = JSON.parse(readFileSync(join(root, manifest.hooks), 'utf8')).hooks.SubagentStop[0];
 check('SubagentStop matches the plugin-scoped agent type, anchored', stop.matcher === `^${manifest.name}:round-worker$`, stop.matcher);
+// In auto mode the report goes through SubagentHandback, before SubagentStop (BJEW-562, 2026-09-27).
+const handback = JSON.parse(readFileSync(join(root, manifest.hooks), 'utf8')).hooks.PreToolUse.find((h) => h.matcher === 'SubagentHandback');
+check('a hand-back is checked too, before it reaches the orchestrator', handback?.hooks[0].args.slice(1).join(' ') === 'handoff check');
 const skills = ['round', 'design-session'].map((s) => readFileSync(join(root, 'skills', s, 'SKILL.md'), 'utf8'));
 check('the skills name wf\'s files as ${CLAUDE_PLUGIN_ROOT}, no {{wf}} or {{project}} left', skills.every((t) => !t.includes('{{wf}}') && !t.includes('{{project}}')));
 
