@@ -23,6 +23,11 @@ async function runSetup({ worktree, slug, port, fd }) {
 // the worktree for a look; `wf reap` removes it.
 export async function createWorktree({ branch, base, log }) {
 	const path = `${worktreesHome(listWorktrees())}/${slugForBranch(branch)}`;
+	// Windows: the clone's .claude/worktrees/<slug>/ is 89 characters before a tracked path starts, and
+	// a project's 185-character one put the checkout past 260: "Filename too long", exit 128, on
+	// BJEW-602 (2026-09-27). In the clone's config, not -c: `-c core.longpaths=false` did not reach
+	// the checkout, and every later git command in the worktree needs it too.
+	if (process.platform === 'win32') execFileSync('git', ['config', 'core.longpaths', 'true']);
 	// --quiet: git's checkout progress was ~100 lines of the agent's output (2026-09-27).
 	execFileSync('git', ['worktree', 'add', '--quiet', '-b', branch, path, base], { stdio: 'inherit' });
 	excludeWfFolder(path);
