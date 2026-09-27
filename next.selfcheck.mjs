@@ -10,7 +10,7 @@ const check = (name, cond, detail = '') =>
 const tok = (t) => `\n<!-- brief: ${t} -->\n`;
 const RESEARCH = `# r — research\n## Repro\ncommand: pnpm --dir verification exec playwright test -c ../bug-reports/r/repro/playwright.config.ts\n${tok('aaa111')}`;
 const plan = ({ klass = 'A', asks = 'none', token = 'bbb222' } = {}) => `# r — plan\nClass: ${klass}\nCause: x\n\n## Commits\n| # | message | files | check |\n|---|---|---|---|\n| 1 | fix(x): one | a.ts | repro |\n| 2 | fix(x): two | b.ts | repro |\n\n## Asks\n- ${asks}\n${tok(token)}`;
-const VALID = (v = 'matches plan', t = 'ccc333') => `# r — validation\nVerdict: ${v}\n## Build stack\n- hop 1: differs: returns null\n${tok(t)}`;
+const VALID = (v = 'matches plan', t = 'ccc333') => `# r — validation\nVerdict: ${v}\n## Build stack\n- hop 1: differs: returns null\n## Intent\n"one": met: a.ts:1 \u00b7 before: red \u00b7 after: green\n${tok(t)}`;
 const green = (n) => ({ row: n, result: 'green' });
 const base = (patch = {}) => ({
 	branch: 'fix/r', entry: 'C:/wf/wf.mjs', step: 'classify', klass: 'A', questions: [], answered: [], commit: null,

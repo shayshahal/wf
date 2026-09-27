@@ -35,9 +35,21 @@ Verdict: matches plan | deviates
 <functions, files, or behaviour in the diff that no PLAN.md line asked for — one line each>
 
 ## Intent
-<for each Intent line: `met: <file:line that does it>` | `not met: <what the diff lacks>` |
+<one line per Intent line: its words, then exactly one of
+ `met: <file:line that does it> · before: <the measurement on the unfixed code> · after: <the measurement on this tree>`
+ `NOT MEASURED — <file:line that should do it, if any> · <which side has no measurement, and why>`
+ `not met: <what the diff lacks>`
  `left out: <the PLAN.md ## Not doing line that says so>`>
 ```
+
+**`met` takes a measurement on both sides, not a reading of the code.** *before* is what research
+measured on the unfixed code: `RESEARCH.md`'s red output or its measured `Diverges at`. *after* is
+the repro assertion for it green in `.wf/checks.log`'s last run, or what you measured on this
+tree yourself (this project's notes may say how). An Intent line research never measured, or that
+you could not measure now, is `NOT MEASURED`: a legal answer, which the person reviewing reads
+as it is. A line left out is not legal. (TJEW-682 replay, 2026-09-27: the month dropdown's
+hover was called met from the code and a check that its scroll buttons were gone; nothing had
+measured hover, before or after.)
 
 `deviates` when any row, hop or Not-doing line fails, or any Intent line is `not met`.
 

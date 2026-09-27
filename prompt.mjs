@@ -71,7 +71,11 @@ export function composePrompt(argv) {
 	if (gate) throw new Error(`${phase}: ${gate}`);
 	// fix-review works from REVIEW.md (T2), or --from VALIDATION.md when a validation was ruled `fix`.
 	const from = argv.indexOf('--from');
-	const vars = { round: id, folder, base: `origin/${baseBranch}`, review: from === -1 ? 'REVIEW.md' : argv[from + 1] };
+	// {{base}}: what the round branched from (wf new --base, kept in state), which validate and
+	// as-built diff against. origin/<base branch> for a round cut from another ref put the commits
+	// between the two into the diff (the TJEW-682 replay's second validate, 2026-09-27: three
+	// "Unplanned" lines, all from the reverts its base was built with).
+	const vars = { round: id, folder, base: state?.base ?? `origin/${baseBranch}`, review: from === -1 ? 'REVIEW.md' : argv[from + 1] };
 	if (INTENT_PHASES.includes(phase)) {
 		let ticket = '';
 		try { ticket = readFileSync(join(toplevel, folder, 'TICKET.md'), 'utf8'); } catch { /* reported below */ }
