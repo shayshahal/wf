@@ -173,7 +173,9 @@ in both. What differs is the machine and the harness.
 
 - **What:** I set up a fresh JewelryX the way a team member has it, and Shay runs one round there
   in Desktop:
-  - a plain clone (no bare repo, no herdr path), with `dev` checked out and its `.env` files;
+  - a plain clone of the real JewelryX repo (no bare repo, no herdr path), with `dev` checked out
+    and its `.env` files. The round is a real ticket: its PR and merge go into the real `dev`
+    (Shay, 2026-09-27);
   - one MongoDB on 27017;
   - the plugin installed from the wf marketplace, and `WF_ENV` unset;
   - nothing of Shay's reachable from it: today the env installs wf's agents into
