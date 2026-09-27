@@ -1,7 +1,7 @@
 // worktree.selfcheck.mjs — node worktree.selfcheck.mjs → exit 0 when green.
 // Pure arms only: parsing the worktree list, resolving a name, the url lines. Nothing is run,
 // created or removed. Shay's removal plan: env/worktrees.selfcheck.mjs.
-import { parseWorktreeList, resolveWorktree, urlLines } from './worktree.mjs';
+import { mainCheckout, parseWorktreeList, resolveWorktree, urlLines, worktreesHome } from './worktree.mjs';
 
 let failures = 0;
 const check = (name, cond, detail = '') =>
@@ -22,6 +22,12 @@ let err = '';
 try { resolveWorktree('nope', trees); } catch (e) { err = e.message; }
 check('an unknown name throws with the candidates', err.startsWith('no worktree for "nope"') && err.includes('fix/bjew-1  C:/wt/fix-bjew-1'), err);
 
+const clone = [{ path: 'C:/work/jx', branch: 'dev', bare: false }, { path: 'C:/work/jx/.claude/worktrees/fix-a', branch: 'fix/a', bare: false }];
+const bareRepo = [{ path: 'C:/work/jx/.bare', branch: null, bare: true }, { path: 'C:/wt/dev', branch: 'dev', bare: false }];
+check('a clone: the main checkout is the first worktree, whatever it has checked out', mainCheckout(clone) === 'C:/work/jx');
+check('a bare repository has no main checkout', mainCheckout(bareRepo) === null);
+check('the kit\'s worktrees go in <repo>/.claude/worktrees', worktreesHome(clone) === 'C:/work/jx/.claude/worktrees' && worktreesHome([{ path: 'C:\\work\\jx\\', bare: false }]) === 'C:/work/jx/.claude/worktrees');
+check('beside a bare repository, in the folder holding it', worktreesHome(bareRepo) === 'C:/work/jx/.claude/worktrees');
 check('url lines: one `<app>: <url>` per app, aligned', urlLines({ b2b: 'http://a', admin: 'http://b' }) === 'b2b:   http://a\nadmin: http://b', urlLines({ b2b: 'http://a', admin: 'http://b' }));
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');

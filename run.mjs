@@ -1,6 +1,6 @@
 // run.mjs — the dispatcher: run(argv, pieces). wf.mjs calls it with the kit's defaults, an env's
 // entry with its own pieces plugged into the seams (seams.mjs).
-// Commands: step, status, new, classify (delegated to ./classify.mjs when installed), design + review
+// Commands: step, status, new, serve, classify (delegated to ./classify.mjs when installed), design + review
 // (human touchpoints), the project's own (project.mjs commands: JewelryX's seed, show) and the env's.
 import { plug, seams } from './seams.mjs';
 
@@ -15,7 +15,10 @@ export async function run(argv, pieces = {}) {
 		await runStep(rest);
 	} else if (cmd === 'new') {
 		const { runNew } = await import('./new.mjs');
-		runNew(rest);
+		await runNew(rest);
+	} else if (cmd === 'serve') {
+		const { runServe } = await import('./serve.mjs');
+		await runServe(rest);
 	} else if (cmd === 'status') {
 		const { runStatus } = await import('./status.mjs');
 		await runStatus(rest);
@@ -36,7 +39,7 @@ export async function run(argv, pieces = {}) {
 		await runDecide(rest);
 	} else if (cmd === 'reap') {
 		const { runReap } = await import('./reap.mjs');
-		runReap(rest);
+		await runReap(rest);
 	} else if (cmd === 'classify') {
 		try {
 			await import('./classify.mjs');
@@ -55,7 +58,7 @@ export async function run(argv, pieces = {}) {
 		const all = { ...commands, ...seams.commands };
 		if (Object.hasOwn(all, cmd)) await all[cmd](rest);
 		else {
-			console.log(`usage: wf <new|step|prompt|check|deliver|ask|decide|status|reap|classify|design|review|${Object.keys(all).join('|')}> [...]`);
+			console.log(`usage: wf <new|serve|step|prompt|check|deliver|ask|decide|status|reap|classify|design|review|${Object.keys(all).join('|')}> [...]`);
 			process.exit(2);
 		}
 	}

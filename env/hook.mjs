@@ -103,7 +103,7 @@ export async function runHook(argv) {
 		process.exit(1);
 	}
 	if (step === 'down') {
-		const failures = teardownFailures(teardown(slug).map((t) => ({ t, r: spawnSync(t.cmd, t.args, { encoding: 'utf8', shell: process.platform === 'win32', env: { ...process.env, ...t.env } }) })));
+		const failures = teardownFailures(teardown({ slug }).map((t) => ({ t, r: spawnSync(t.cmd, t.args, { encoding: 'utf8', shell: process.platform === 'win32', env: { ...process.env, ...t.env } }) })));
 		if (failures.length) { console.error(failures.join('\n')); process.exit(1); }
 		return console.log(`worktree down: ${slug}`);
 	}

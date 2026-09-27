@@ -167,6 +167,26 @@ in both. What differs is the machine and the harness.
 - **Check:** on Shay's machine through the kit's `wf.mjs`, with `wt`, `portless` and plannotator
   off the PATH, against one MongoDB on 27017: `wf new bench/plain`, the stack answers, `doctor` green, a
   repro runs, `wf show`, `wf reap` leaves no server, database or worktree behind.
+- **Result (2026-09-27): done.**
+  - Kit: `git-worktree.mjs` (create: `git worktree add`, the setup steps side by side, then the
+    stack; remove: stop it, the project's teardown while the worktree exists, rm, prune);
+    `wf serve` (`serve.mjs`: the stack detached, pid in `.wf/serve.pid`, refuses to start a second
+    while one is booting; also how a person restarts a stack that died); `wf new` writes
+    `.claude/launch.json`. JewelryX's kit machine: secrets from the main checkout, the database in
+    `MONGO_URL` (default 27017, checked before seeding), dropped on reap through the worktree's
+    python. The project's `teardown` takes `{ slug, worktree }`.
+  - Check, as the team has it: a plain `git clone` on `main` with the four `.env` files in it;
+    `wt` (in `~/bin` and WinGet's links), portless, plannotator and herdr off the PATH; the
+    project's MongoDB on 27017. `wf new bench/plain` in 29 s, the stack answered 5 s later,
+    `doctor` 8/8, a repro green in 39 s (logged in from saved state), `wf show` on the seller's
+    orders, `wf seed --reset` 8.2 s, `wf status`, prompts name the kit's `wf.mjs`. Killed stack:
+    `wf serve` had it back in ~9 s. A wrong `MONGO_URL` stops setup naming it. `wf reap` left no
+    process, port, database or worktree.
+  - Found by it: JewelryX's `main` has no `.claude/` in its `.gitignore` (dev has, line 161), so
+    a clone on `main` listed the rounds as untracked; the kit adds `/.claude/worktrees/` to the
+    repo's exclude file. `uv sync` and git's checkout progress flooded `wf new`'s output (now
+    `--quiet`).
+  - Shay's cycle through `env/wf.mjs` after it: 28 s, portless 200, `doctor` 8/8, reap clean.
 
 ### 4. Enforce fresh context and the handoff (kit)
 

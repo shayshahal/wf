@@ -21,12 +21,14 @@ function run(label, cmd, args, opts = {}) {
 // through the worktree's own python (pymongo is the backend's), so no mongo shell is needed.
 export function seedDatabase({ worktree, database, mongoUrl, reset = false }) {
 	const t0 = Date.now();
-	const backend = join(worktree, 'packages', 'backend');
-	if (reset) {
-		run('drop', 'uv', ['run', '--quiet', '--directory', backend, 'python', '-c', 'import sys; from pymongo import MongoClient; MongoClient(sys.argv[1]).drop_database(sys.argv[2])', mongoUrl, database]);
-	}
-	run('seeder', 'uv', ['run', '--quiet', '--directory', backend, 'python', '-m', 'scripts.seed_fixtures'], {
+	if (reset) dropDatabase({ worktree, database, mongoUrl });
+	run('seeder', 'uv', ['run', '--quiet', '--directory', join(worktree, 'packages', 'backend'), 'python', '-m', 'scripts.seed_fixtures'], {
 		env: { ...process.env, DATABASE_NAME: database, MONGODB_URL: mongoUrl },
 	});
 	console.log(`worktree db: seeded${reset ? ' (reset)' : ''} ${database} in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+}
+
+// Drops `database` through the worktree's python. A missing database is not an error (MongoDB).
+export function dropDatabase({ worktree, database, mongoUrl }) {
+	run('drop', 'uv', ['run', '--quiet', '--directory', join(worktree, 'packages', 'backend'), 'python', '-c', 'import sys; from pymongo import MongoClient; MongoClient(sys.argv[1]).drop_database(sys.argv[2])', mongoUrl, database]);
 }

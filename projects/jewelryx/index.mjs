@@ -4,9 +4,12 @@
 // then this file's exports are simply what JewelryX needed (Shay, 2026-09-24).
 import { spawnSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
+import { createConnection } from 'node:net';
 import { join } from 'node:path';
 import { checkTasks, realPkgFor } from './checks.mjs';
+import { dropDatabase, worktreeDatabase } from './db.mjs';
 import { seams } from '../../seams.mjs';
+import { listWorktrees, mainCheckout } from '../../worktree.mjs';
 import { linkVerifySkill, unlinkCompetingSkills, verifyStackEnv, writeReproConfig } from './round.mjs';
 
 // This folder's name: skills, agents and prompts reach its notes as {{project}} (ROUND.md, prompts/<phase>.md).
@@ -56,17 +59,38 @@ export function stackUrls({ slug, port }) {
 //   database.url({ slug, port })  the MongoDB URL the worktree's backend uses
 //   database.up({ slug, port })   start it (awaited before the seed)
 //   database.seedUrl({ slug, port }) where the seeder writes, when not database.url
-//   database.teardown(slug)       the steps that remove it
+//   database.teardown({ slug, worktree }) the steps that remove it, run while the worktree exists
 //   names(slug)                   the browser origins { b2b, admin, api }, when the machine names them
 //   servers(slug)                 { origins, wrap } for the dev servers (dev.mjs), when not direct
-//   teardown(slug)                steps after the database's
-// The kit's own defaults are step 3 of the kit plan (docs/plans/2026-09-27-kit-and-env.md).
-const notYet = (what) => () => { throw new Error(`${what}: the kit has no default for this yet (docs/plans/2026-09-27-kit-and-env.md, step 3)`); };
+//   teardown({ slug, worktree })  steps after the database's
+// The kit's own (KIT): a person's machine with one MongoDB and their clone of JewelryX (kit and env
+// plan, step 3).
 const KIT = {
-	secretsFrom: notYet('the secrets folder'),
-	database: { url: notYet('the database'), up: notYet('the database'), teardown: () => [] },
+	// The files .worktreeinclude names, from the person's clone, where they keep them to run the app.
+	secretsFrom(worktree) {
+		const main = mainCheckout(listWorktrees(worktree));
+		if (!main) throw new Error('the secrets: this repository has no main checkout to copy the .env files from (it is bare)');
+		return main;
+	},
+	// Every worktree's database, jewelryx_<slug>, in the one MongoDB at MONGO_URL.
+	database: {
+		url: () => process.env.MONGO_URL ?? 'mongodb://127.0.0.1:27017',
+		up: ({ slug, port }) => mongoAnswers(KIT.database.url({ slug, port })),
+		teardown: ({ slug, worktree }) => [{ label: 'drop database', run: () => dropDatabase({ worktree, database: worktreeDatabase(slug), mongoUrl: KIT.database.url({ slug }) }) }],
+	},
 	teardown: () => [],
 };
+
+// Resolves when the MongoDB at `url` takes a connection; else throws saying what to do, before the
+// seeder's own 30 s server-selection timeout.
+function mongoAnswers(url) {
+	const { hostname, port } = new URL(url);
+	return new Promise((resolve, reject) => {
+		const sock = createConnection({ host: hostname, port: Number(port) || 27017, timeout: 3000 });
+		const fail = () => { sock.destroy(); reject(new Error(`no MongoDB answers at ${url}: start one, or set MONGO_URL to yours`)); };
+		sock.once('connect', () => { sock.end(); resolve(); }).once('error', fail).once('timeout', fail);
+	});
+}
 function machine() {
 	return { ...KIT, ...seams.project };
 }
@@ -86,8 +110,8 @@ export function pageOf(file) {
 
 // ── a worktree's stack ───────────────────────────────────────────────────────
 
-function sh(command) {
-	const r = spawnSync(command, { stdio: 'inherit', shell: true });
+function sh(command, cwd) {
+	const r = spawnSync(command, { stdio: 'inherit', shell: true, cwd });
 	if (r.status !== 0) throw new Error(`${command} failed (exit ${r.status})`);
 }
 
@@ -101,7 +125,6 @@ export const setup = {
 		const { copySecrets, sanitizeWorktreeEnv } = await import('./env.mjs');
 		const m = machine();
 		copySecrets(worktree, m.secretsFrom(worktree));
-		const { worktreeDatabase } = await import('./db.mjs');
 		sanitizeWorktreeEnv(worktree, { url: m.database.url({ slug, port }), name: worktreeDatabase(slug) });
 		// The verification skill's CLI finds this checkout's stack here (round.mjs VERIFY_SKILL).
 		writeFileSync(join(worktree, '.verify-stack.env'), verifyStackEnv(directUrls(port)));
@@ -110,9 +133,11 @@ export const setup = {
 	verify: 'pnpm --dir verification install --ignore-workspace',
 	tools: 'node scripts/link-tools.mjs',
 	async db({ worktree, slug, port }) {
-		const { seedDatabase, worktreeDatabase } = await import('./db.mjs');
+		const { seedDatabase } = await import('./db.mjs');
 		const { database } = machine();
-		sh('uv sync --dev --directory packages/backend');
+		// cwd: the kit runs this step from `wf new`, not from inside the worktree as wt does. --quiet:
+		// there the output is the agent's, and a fresh sync listed ~60 packages into it (2026-09-27).
+		sh('uv sync --quiet --dev --directory packages/backend', worktree);
 		await database.up({ slug, port });
 		seedDatabase({ worktree, database: worktreeDatabase(slug), mongoUrl: seedUrl({ slug, port }) });
 	},
@@ -126,10 +151,11 @@ export async function serve({ worktree, slug, port }) {
 }
 
 // What removing a worktree leaves behind, in order: the database's steps, then the machine's own.
-// Each step tolerates "already gone".
-export function teardown(slug) {
+// Each step tolerates "already gone". `worktree` is there only when the steps run before the folder
+// goes (the kit's removal plan); Shay's run after it (wt's post-remove hook).
+export function teardown({ slug, worktree }) {
 	const m = machine();
-	return [...m.database.teardown(slug), ...m.teardown(slug)];
+	return [...m.database.teardown({ slug, worktree }), ...m.teardown({ slug, worktree })];
 }
 
 // After `wf new` made the worktree and its round folder: the repro scaffold, and the lines to print.

@@ -9,7 +9,7 @@
 // three stacks); --force overrides. --id records id + folder in the new worktree's state
 // and creates <folder>, then the project adds what a round starts with (project.mjs newRound) —
 // that folder is what every `wf prompt` substitutes.
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -39,7 +39,21 @@ export function findExistingRounds(ids) {
 	return hits;
 }
 
-export function runNew(argv) {
+// Pure: the worktree's .claude/launch.json for Claude Code Desktop's Browser pane: one entry per app
+// in attach mode (a url, no command), so the pane shows the stack wf started and never starts its own
+// (kit and env plan, step 3). Desktop takes a localhost url as a bare origin only.
+export function launchConfig(urls) {
+	return `${JSON.stringify({ version: '0.0.1', configurations: Object.entries(urls).map(([name, url]) => ({ name, url: new URL(url).origin })) }, null, 2)}\n`;
+}
+
+// Pure: the `git fetch` that brings `base` up to date first, or null when it is not a remote branch
+// (a local ref or a sha is what the person asked for).
+export function fetchFor(base) {
+	const m = /^origin\/(.+)$/.exec(base);
+	return m ? ['fetch', '--quiet', 'origin', m[1]] : null;
+}
+
+export async function runNew(argv) {
 	const branch = argv[0];
 	if (!branch) { console.error('usage: wf new <branch> [--base <ref>] [--class B|C] [--id <token>]...'); process.exit(2); }
 	// wt defaults --base to the repo's default branch; rounds branch off the project's base branch.
@@ -62,10 +76,17 @@ export function runNew(argv) {
 		console.error(`wf new: work for ${ids.join(', ')} already exists — read it before cutting a round:\n  ${dupes.join('\n  ')}\n(--reopen if the ticket came back; rerun without --id to cut the worktree anyway)`);
 		process.exit(1);
 	}
+	// Neither wt nor git fetches: a clone days behind branched its round off a stale base (the kit
+	// plan's step 3 review, 2026-09-27). Offline, the round starts from the base this clone has.
+	const fetch = fetchFor(base);
+	if (fetch) {
+		const r = spawnSync('git', fetch, { encoding: 'utf8' });
+		if (r.status !== 0) console.error(`wf new: could not fetch ${base} (${(r.stderr ?? '').trim().split('\n').at(-1)}); branching off this clone's copy`);
+	}
 	const log = join(tmpdir(), `wf-new-${branch.replace(/[^A-Za-z0-9.-]/g, '-')}.log`);
 	let path;
 	try {
-		({ path } = createWorktree({ branch, base, log }));
+		({ path } = await createWorktree({ branch, base, log }));
 	} catch (e) {
 		console.error(`wf new: ${e.message}`);
 		process.exit(1);
@@ -80,8 +101,11 @@ export function runNew(argv) {
 	const notes = newRound({ worktree: path, folder, port: basePortForBranch(branch) });
 	writeState(path, { id: ids[0] ?? branch, folder });
 	if (reopen && dupes.length) writeFileSync(join(path, folder, 'EARLIER.md'), `# Earlier work on ${ids.join(', ')}\n\nThis ticket came back. Every earlier fix below shipped and did not hold.\n\n${dupes.map((d) => `- ${d.trim()}`).join('\n')}\n`);
+	const urls = stackUrls({ slug: slugForBranch(branch), port: basePortForBranch(branch) });
+	mkdirSync(join(path, '.claude'), { recursive: true });
+	writeFileSync(join(path, '.claude', 'launch.json'), launchConfig(urls));
 	console.log(`Round folder: ${folder}`);
-	console.log(urlLines(stackUrls({ slug: slugForBranch(branch), port: basePortForBranch(branch) })));
+	console.log(urlLines(urls));
 	for (const line of notes) console.log(line);
 	console.log(`Worktree: ${path}`);
 }

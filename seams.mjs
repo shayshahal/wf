@@ -5,18 +5,15 @@
 // 2026-09-27). The kit never imports an env; it only reads what was plugged in here.
 import { fileURLToPath } from 'node:url';
 
-// A seam the kit has no default for yet: kit and env plan, step 3.
-const missing = (what) => () => {
-	throw new Error(`${what}: the kit has no default for this yet (docs/plans/2026-09-27-kit-and-env.md, step 3)`);
-};
-
 export const seams = {
 	// The wf.mjs every child process and prompt runs: the entry that started this one.
 	entry: fileURLToPath(new URL('./wf.mjs', import.meta.url)),
 	// ({ branch, base, log }) → { path, branch }: makes the worktree, sets it up and starts its stack.
-	createWorktree: missing('creating a worktree'),
+	// null: the kit's plain git (git-worktree.mjs).
+	createWorktree: null,
 	// ({ branch, path, slug, pid }) → the ordered steps `wf reap` runs (reap.mjs runs them).
-	removalPlan: missing('removing a worktree'),
+	// null: the kit's plain git (git-worktree.mjs).
+	removalPlan: null,
 	// { available(), annotate({ worktree, file, since }), reviewDiff({ worktree, base, diffType, since }) }
 	// → the one feedback line T1/T2 fold, or null. Without one, T1/T2 open the file in an editor.
 	reviewUI: null,
