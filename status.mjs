@@ -173,7 +173,7 @@ export async function runStatus(argv, inject = {}) {
     return;
   }
   const readState = inject.readState ?? realReadState;
-  // One wt spawn for every worktree's port and slug, not two per worktree (portsAndSlugsForBranches).
+  // Every worktree's port and slug in one pass (portsAndSlugsForBranches).
   const known = inject.basePortFor ? new Map() : portsAndSlugsForBranches([...new Set(paths.map((p) => readState(p)?.round ?? branchOf(p)).filter(Boolean))]);
   const rows = await collectRows({
     paths,

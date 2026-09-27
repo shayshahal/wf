@@ -90,6 +90,16 @@ in both. What differs is the machine and the harness.
   can compute them (audit, 2).
 - **Check:** equal to `wt step eval` for every live branch and 200 generated names, kept as a
   selfcheck table.
+- **Result (2026-09-27): done.**
+  - `ports.mjs` implements SipHash-1-3 with zero keys (Rust's `DefaultHasher`) over the branch's
+    UTF-8 bytes plus `0xFF`, and the `/`/`\` → `-` rule, from worktrunk 0.76.0's source
+    (`expansion.rs`, `string_to_port` and `sanitize_branch_name`).
+  - It matched `wt` on 307 names, 0 mismatches: the repo's 97 branches and 210 generated ones
+    (Hebrew, CJK, emoji, spaces, backslashes, lengths around the 8-byte blocks). The table is
+    `ports.selfcheck.json`.
+  - `worktree.mjs` keeps its exports; no wf command spawns `wt` for a port or name any more.
+  - Cycle from the editing clone: `wf new bench/port-check`. The setup hook (port from wt), the repro
+    config (port from `ports.mjs`) and the running servers all used 13490; `doctor` green; reaped.
 
 ### 2. Draw the line: `env/` and `WF_ENV`
 
