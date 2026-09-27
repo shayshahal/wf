@@ -19,12 +19,12 @@ import { request } from 'node:http';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { basePortForBranch } from '../../worktree.mjs';
-import { mongoPortForBase, mongoUp, seedDatabase } from './db.mjs';
-import { copySecrets } from './env.mjs';
-import { stackNames } from './index.mjs';
+import { copySecrets } from '../../../projects/jewelryx/env.mjs';
+import { basePortForBranch } from '../../../worktree.mjs';
+import { SECRETS, stackNames } from './index.mjs';
+import { mongoPortForBase, mongoUp, seedContainer } from './mongo.mjs';
 
-// TOOLS is this folder (dev.mjs, docker-compose.qa-local.yml). The stacks themselves run from the project's
+// TOOLS is this folder (env/projects/jewelryx: dev.mjs, docker-compose.qa-local.yml). The stacks themselves run from the project's
 // worktrees, where worktrunk puts them (worktree-path ~/.herdr/worktrees/{{ remote_repo }}/…): wf left
 // the JewelryX repo on 2026-09-23 and no longer sits next to them.
 const TOOLS = dirname(fileURLToPath(import.meta.url));
@@ -215,7 +215,7 @@ async function seedIfNeeded(container, database, slug) {
   if (n !== '0') return;
   log('stacks.log', `${database}: not seeded — seeding`);
   // The seeder is dev's: the qa checkout is a built image, not a python environment.
-  seedDatabase({ worktree: DEV_DIR, slug, database });
+  seedContainer({ worktree: DEV_DIR, slug, database });
 }
 
 // ── DEV ─────────────────────────────────────────────────────────────────────
@@ -229,7 +229,7 @@ async function devLoop() {
       await seedIfNeeded('jewelryx-mongo-dev', DEV_DB, 'dev');
       // One source for the secrets: dev's .env files are rewritten from ~/.config/wf/jewelryx on every
       // start, as a new worktree's are, so a changed key is changed in one place (2026-09-24).
-      copySecrets(DEV_DIR);
+      copySecrets(DEV_DIR, SECRETS);
       const child = spawn(process.execPath, [join(TOOLS, 'dev.mjs'), String(base), '--slug', 'dev'], {
         cwd: DEV_DIR, env, stdio: 'ignore', windowsHide: true,
       });

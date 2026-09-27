@@ -9,7 +9,8 @@ import { dirname, join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { baseBranch, directUrls, name as projectName } from './project.mjs';
-import { anchorToolPaths } from './update.mjs';
+import { anchorToolPaths } from './anchor.mjs';
+import { seams } from './seams.mjs';
 import { basePortForBranch } from './worktree.mjs';
 import { openQuestionGate } from './ask.mjs';
 import { readState, roundOf, toplevelOf, writeState } from './state.mjs';
@@ -111,8 +112,9 @@ export function runPrompt(argv) {
 		writeState(toplevel, { commit: n });
 	}
 	// A round's tree is cut from the base branch, whose own `wf` may predate these commands: point the
-	// agent at the wf that composed its prompt, not at whatever `wf` resolves to in its tree.
-	const wf = `node ${fileURLToPath(new URL('./wf.mjs', import.meta.url)).replace(/\\/g, '/')}`;
+	// agent at the wf that composed its prompt, not at whatever `wf` resolves to in its tree. The entry
+	// that is running (seams.entry), so an agent in Shay's round runs his env's wf, not the bare kit.
+	const wf = `node ${seams.entry.replace(/\\/g, '/')}`;
 	// Same for the docs a prompt cites: a round's worktree does not hold wf.
 	const home = fileURLToPath(new URL('./', import.meta.url)).replace(/\\/g, '/').replace(/\/$/, '');
 	process.stdout.write(anchorToolPaths(renderPrompt(template, vars).replace(/`wf /g, `\`${wf} `), home, projectName));

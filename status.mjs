@@ -7,7 +7,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { questionLines } from './ask.mjs';
-import { stackNames } from './project.mjs';
+import { stackUrls } from './project.mjs';
 import { basePortForBranch, listWorktrees, portsAndSlugsForBranches, slugForBranch } from './worktree.mjs';
 
 export const WF_YOU_MARKER = '← YOU';
@@ -47,7 +47,7 @@ export async function collectRows({ paths, readState, pullRequests = [], now = D
         const port = await basePortFor(branch);
         const up = await probeStack(port);
         // Display the first app's name (the one on the base port); the probe stays on the port.
-        const name = slugFor ? Object.values(stackNames(await slugFor(branch)))[0] : null;
+        const name = slugFor ? Object.values(stackUrls({ slug: await slugFor(branch), port }))[0] : null;
         stack = { port, up, name };
       } catch { stack = null; }
     }

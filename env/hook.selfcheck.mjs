@@ -2,7 +2,7 @@
 // Pure arms: the wt hook block and its install, the reap gate, what a teardown counts as failed.
 // Nothing is run. What the project's steps do: projects/<name>/index.selfcheck.mjs.
 import { gateVerdict, hookBlock, teardownFailures, withHookBlock } from './hook.mjs';
-import { repo, setup } from './project.mjs';
+import { repo, setup } from '../project.mjs';
 
 let failures = 0;
 const check = (name, cond, detail = '') =>

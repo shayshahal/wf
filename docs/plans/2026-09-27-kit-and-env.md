@@ -129,6 +129,25 @@ in both. What differs is the machine and the harness.
 - **Check:** `node selfcheck.mjs` green; one cycle through `env/wf.mjs` (`wf new bench/env`, the
   stack answers, `doctor`, `wf show`, `wf reap`) behaves as today; an agent's prompt from that
   round names `env/wf.mjs`.
+- **Result (2026-09-27): done.**
+  - Kit: `seams.mjs` (entry, createWorktree, removalPlan, reviewUI, notify, commands, project),
+    `run.mjs` (the dispatcher), `wf.mjs` (the kit's entry), `anchor.mjs`. JewelryX's folder lists
+    what it reads from the machine (`machine()` in `projects/jewelryx/index.mjs`): the secrets
+    folder, the database (url, up, seedUrl, teardown), browser names, how servers are wrapped,
+    extra teardown. `wf seed --reset` drops through the worktree's python, not a mongo shell.
+  - Env: `env/wf.mjs`, and moved with their history: `hook.mjs`, `update.mjs`, the herdr and
+    plannotator adapters, `stacks.mjs`, the compose files, `STACK.md`; new: `worktrees.mjs` (wt
+    create/remove), `projects/jewelryx/{index,mongo,dev}.mjs`.
+  - `boundary.selfcheck.mjs`: 44 kit files, none imports `env/` or names the machine. 19
+    selfchecks green.
+  - Through the kit's entry: `wf status` works; `wf new` refuses with the step-3 message and
+    creates nothing; `stacks` and `hook` do not exist.
+  - Cycle through `env/wf.mjs` from the editing clone: `wf new bench/env` in 33 s, its own
+    container on 43472, the portless name answers, `doctor` 8/8, `wf seed --reset` 5.7 s,
+    `wf status`, `wf show`. The research prompt names `env/wf.mjs` three times (the kit's entry
+    names `wf.mjs`). `wf reap` left no worktree, container, volume or branch.
+  - `~/bin/wf` runs `env/wf.mjs` when the installed copy has it, else `wf.mjs` (backup
+    `~/bin/wf.bak-2026-09-27`).
 
 ### 3. The kit's defaults run on their own
 
