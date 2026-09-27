@@ -2,14 +2,15 @@
 // removes a worktree through this file; nothing else runs `git worktree` or `wt switch/remove`.
 //   read:   `git worktree list --porcelain`: 54 ms, against 2.6 s for `wt list --format json`
 //           (measured 2026-09-24, 23 worktrees)
-//   names:  wt's own filters (hash_port, sanitize), so wf and the wt hooks agree on every port and name;
-//           the project turns them into its apps' URLs (project.mjs)
+//   names:  wt's own filters (hash_port, sanitize), computed in ports.mjs without wt, so wf and the
+//           wt hooks agree on every port and name; the project turns them into its apps' URLs
 //   create: `wt switch --create --no-hooks`, then wf's hooks (hook.mjs) install, build, seed and serve
 //   remove: removalPlan: stop the tree's processes, `wt remove`, then the project's teardown
 // Ports: P = hash_port(branch), 10000-19999; the project spreads its apps from there.
 import { execFileSync, spawnSync } from 'node:child_process';
 import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
+import { hashPort, sanitizeBranch } from './ports.mjs';
 import { teardown } from './project.mjs';
 
 const norm = (p) => p.replace(/\\/g, '/').replace(/\/+$/, '');
@@ -40,25 +41,13 @@ export function resolveWorktree(name, trees = listWorktrees()) {
 
 // ── names ────────────────────────────────────────────────────────────────────
 
-const wtEval = (expr) => execFileSync('wt', ['step', 'eval', expr], { encoding: 'utf8' }).trim();
+export const basePortForBranch = hashPort;
+export const slugForBranch = sanitizeBranch;
 
-export function basePortForBranch(branch) {
-	return Number(wtEval(`{{ "${branch}" | hash_port }}`));
-}
-
-export function slugForBranch(branch) {
-	return wtEval(`{{ "${branch}" | sanitize }}`);
-}
-
-// Both values for many branches in one wt spawn: each `wt step eval` costs ~0.5 s, and wf status
-// asked twice per worktree (23 worktrees, 2026-09-23: 28 s of a 15-30 s status).
+// Both values for many branches. It batched `wt step eval` calls when they cost ~0.5 s each (wf
+// status, 23 worktrees, 2026-09-23: 28 s); it is pure now and kept for status's single call site.
 export function portsAndSlugsForBranches(branches) {
-	if (!branches.length) return new Map();
-	const lines = wtEval(branches.map((b) => `{{ "${b}" | hash_port }} {{ "${b}" | sanitize }}`).join('\n')).split(/\r?\n/);
-	return new Map(branches.map((b, i) => {
-		const [port, slug] = lines[i].trim().split(' ');
-		return [b, { port: Number(port), slug }];
-	}));
+	return new Map(branches.map((b) => [b, { port: hashPort(b), slug: sanitizeBranch(b) }]));
 }
 
 // Pure: the lines wf prints under a round's header, one per app: `<app>: <url>`.
