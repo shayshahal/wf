@@ -40,6 +40,23 @@ export function handoffGap(phase, text, brief) {
 	if (phase === 'research' && !reproCommand(text)) return 'RESEARCH.md ## Repro has no `command:` line';
 	if (phase === 'plan' && !planCommitRows(text).length) return 'PLAN.md ## Commits has no rows';
 	if (phase === 'validate' && !validationVerdict(text)) return 'VALIDATION.md has no `Verdict: matches plan | deviates` line';
+	if (phase === 'validate') return intentGap(text);
+	return null;
+}
+
+// Pure: null when every line of VALIDATION.md's `## Intent` is one verdict, and every `met:` has a
+// measurement on each side (prompts/validate.md); else the first line that is not. v1's claim
+// table: a claim is measured before and after, or visibly NOT MEASURED, never met from the code.
+export function intentGap(text) {
+	const section = /^## Intent[ \t]*\n([\s\S]*?)(?=^## |(?![\s\S]))/m.exec(text.replace(/\r\n/g, '\n'))?.[1];
+	const lines = (section ?? '').split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('<!--'));
+	if (!lines.length) return 'VALIDATION.md has no `## Intent` lines';
+	for (const l of lines) {
+		const notMet = /\bnot met:/.test(l);
+		const met = !notMet && /\bmet:/.test(l);
+		if (!met && !notMet && !/\bNOT MEASURED\b/.test(l) && !/\bleft out:/.test(l)) return `VALIDATION.md ## Intent: "${l.slice(0, 80)}" has no verdict (met | NOT MEASURED | not met | left out)`;
+		if (met && !(/\bbefore:/.test(l) && /\bafter:/.test(l))) return `VALIDATION.md ## Intent: "${l.slice(0, 80)}" is met without a before: and an after: measurement — or it is NOT MEASURED`;
+	}
 	return null;
 }
 

@@ -24,5 +24,7 @@ Add this section to `VALIDATION.md` (it may go past 30 lines by this section's l
 <for each Intent line: `VERIFIED | NOT VERIFIED | INCONCLUSIVE — <what you did and saw> — proof/<file>`>
 ```
 
-A `NOT VERIFIED` makes the verdict `deviates`, like a `not met`. `INCONCLUSIVE` does not, but name
+A `VERIFIED` line is that Intent line's *after* when it names what you measured (the numbers, not
+only the word); a Live line that checks something next to the claim (a button gone, not the hover
+itself) is not. A `NOT VERIFIED` makes the verdict `deviates`, like a `not met`. `INCONCLUSIVE` does not, but name
 it in your reply.

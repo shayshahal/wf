@@ -17,7 +17,13 @@ check('before plan: a RESEARCH.md with no repro command is refused', handoffGap(
 check('no file at all', handoffGap('plan', null, { token: 'x' }) === 'no PLAN.md');
 check('before implement: a PLAN.md with no commit rows is refused', handoffGap('plan', '# p\n## Commits\n| # | message | files | check |\n', null) === 'PLAN.md ## Commits has no rows');
 check('before deliver: a VALIDATION.md with no verdict is refused', handoffGap('validate', '# v\nVerdict: pending\n', null)?.includes('no `Verdict:'));
-check('a round begun before briefs is judged on its sections alone', handoffGap('validate', 'Verdict: matches plan\n', undefined) === null);
+const intent = (lines) => `Verdict: matches plan\n\n## Intent\n${lines.join('\n')}\n`;
+const MET = '"time kept before the date": met: DateTimePicker.svelte:100 \u00b7 before: 12:00 AM (RESEARCH.md red output) \u00b7 after: 10:00 PM (repro green)';
+check('a round begun before briefs is judged on its sections alone', handoffGap('validate', intent([MET]), undefined) === null);
+check('Intent: met with a before and an after, NOT MEASURED, not met and left out are verdicts', handoffGap('validate', intent([MET, '"hover": NOT MEASURED \u2014 CalendarPanel.svelte:195 \u00b7 research did not measure hover', '"x": not met: no handler', '"y": left out: the admin picker']), null) === null);
+check('Intent: met from the code alone is refused (the TJEW-682 replay\'s month dropdown)', handoffGap('validate', intent(['"months scroll on wheel, not hover": met: CalendarPanel.svelte:195']), null)?.includes('without a before: and an after:'));
+check('Intent: a line with no verdict is refused', handoffGap('validate', intent(['"popover width": fine']), null)?.includes('has no verdict'));
+check('Intent: no section is refused', handoffGap('validate', 'Verdict: matches plan\n', null)?.includes('no `## Intent` lines'));
 check('verdicts', validationVerdict('Verdict: deviates\n') === 'deviates' && validationVerdict('Verdict: matches plan — all rows') === 'matches plan');
 check('class line', planClass('# p\nClass: B — a contract path\n') === 'B' && planClass('# p\n') === null);
 
