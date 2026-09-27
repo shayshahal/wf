@@ -9,6 +9,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { briefKey, handoffGap, HANDOFF_FILES, newToken, tokenLine } from './handoff.mjs';
+import { nextAction, snapshotOf } from './next.mjs';
 import { composePrompt } from './prompt.mjs';
 import { readState, toplevelOf, writeState } from './state.mjs';
 
@@ -31,12 +32,22 @@ export function startGap(phase, toplevel, state) {
 	return handoffGap(from, existsSync(file) ? readFileSync(file, 'utf8') : null, state?.briefs?.[from]);
 }
 
+// Pure: null when `wf next` (its printed `say`) dispatches exactly this brief, else why not. A
+// brief records a new token, and the last brief's handoff stops counting: BJEW-562 (2026-09-27),
+// the orchestrator ran `wf brief plan --revise` to preview it, and the build it then dispatched
+// refused, the plan no longer handed off.
+export function briefGap(argv, say) {
+	const label = argv.join(' ');
+	if (say.split('\n').some((l) => l.startsWith(`dispatch ${label}:`))) return null;
+	return `wf next is not dispatching \`${label}\` (it says: ${say.split('\n')[0]}). A brief records a new token and voids the last one's handoff; to read a phase's prompt, \`wf prompt ${label}\``;
+}
+
 export function runBrief(argv) {
 	const phase = argv[0];
 	let composed;
 	try {
 		const toplevel = toplevelOf();
-		const gap = startGap(phase, toplevel, readState(toplevel));
+		const gap = startGap(phase, toplevel, readState(toplevel)) ?? briefGap(argv, nextAction(snapshotOf(toplevel)).say);
 		if (gap) throw new Error(`${phase}: ${gap}`);
 		composed = composePrompt(argv);
 	} catch (e) {

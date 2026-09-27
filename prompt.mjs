@@ -12,10 +12,12 @@ import { baseBranch, directUrls, name as projectName } from './project.mjs';
 import { anchorToolPaths } from './anchor.mjs';
 import { seams } from './seams.mjs';
 import { basePortForBranch } from './worktree.mjs';
-import { openQuestionGate } from './ask.mjs';
+import { openQuestionGate, overruledAsks } from './ask.mjs';
 import { readState, roundOf, toplevelOf, writeState } from './state.mjs';
 
 const REVISE = '\nRead `{{folder}}/SPEC-REVIEW.md` (wf design writes it there); revise `{{folder}}/SPEC.md` and `{{folder}}/PLAN.md` to answer every annotation; change nothing it does not mention.\n';
+// `plan --revise` after an Ask was answered against its default (ask.mjs overruledAsks).
+const REVISE_ASKS = '\n## This is a revision\n\n`{{folder}}/PLAN.md` exists, and the person answered some of its Asks against the default it was written for. Their answers:\n\n{{overruled}}\n\nRevise `{{folder}}/PLAN.md` to build each answer: its Approach, Commits, *Not doing* and *T2 walk*. Delete the answered Asks, keep `## Decisions` as it is, and change nothing an answer does not touch.\n';
 
 // A `## Commits` row is a table line whose first cell is the commit number; header and
 // `|---|` separator rows are not. `line` is verbatim (that is what the prompt shows).
@@ -89,7 +91,11 @@ export function composePrompt(argv) {
 		Object.assign(vars, directUrls(base));
 	} catch { /* not in a round worktree */ }
 	let template = readFileSync(join(templatesDir, `${phase}.md`), 'utf8');
-	if (phase === 'plan' && argv.includes('--revise')) template += REVISE;
+	if (phase === 'plan' && argv.includes('--revise')) {
+		const overruled = overruledAsks(state?.answered, state?.briefs?.plan?.token);
+		vars.overruled = overruled.map((q) => `- q${q.n}: ${q.text} (default: ${q.default ?? 'none'}) \u2192 ${q.answer}`).join('\n');
+		template += overruled.length ? REVISE_ASKS : REVISE;
+	}
 	// The project's notes for this phase: what its repo, apps and tests look like (projects/<name>/prompts/).
 	const notes = join(templatesDir, '..', 'projects', projectName, 'prompts', `${phase}.md`);
 	if (existsSync(notes)) template += `\n${readFileSync(notes, 'utf8')}`;

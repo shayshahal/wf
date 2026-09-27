@@ -11,7 +11,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { addQuestion, blockedQuestion } from './ask.mjs';
+import { addQuestion, blockedQuestion, overruledAsks } from './ask.mjs';
 import { briefKey, handoffGap, HANDOFF_FILES, planAsks, planClass, rowDone, validationVerdict } from './handoff.mjs';
 import { baseBranch } from './project.mjs';
 import { planCommitRows } from './prompt.mjs';
@@ -74,6 +74,8 @@ export function nextAction(s) {
 			for (const a of asks) effects.push({ ask: { to: 'shay', text: a.text, dflt: a.dflt, source: a.source } });
 			return act(asks.map((a) => `wait shay: ${a.text}${a.dflt ? ` (default: ${a.dflt})` : ''}`).join('\n'));
 		}
+		// An Ask answered against its default: the plan is revised to the answer first (ask.mjs).
+		if (overruledAsks(s.answered, token).length) return dispatch('plan', ['--revise'], null);
 		const planned = planClass(s.files.plan);
 		if ((planned === 'B' || planned === 'C') && planned !== klass && klass !== 'C') {
 			effects.push({ step: ['plan', '--class', planned] });

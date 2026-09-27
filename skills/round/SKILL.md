@@ -56,7 +56,7 @@ four replies in a row were the text before the last tool call, the files right e
 | `wf next` printed | do |
 |---|---|
 | `dispatch <phase>: <line>` | a fresh `round-worker` (*Dispatch in this harness*), named `<id> <phase>`, with `<line>` as its whole task: it runs `wf brief` itself, so its brief is wf's own text. `as-built` and `validate`: model `anthropic/claude-sonnet-5`, tools `read,bash,write`. When it returns, `wf next`. |
-| `wait <person>: q<n> …` | Shay: ask with the question tool (*Dispatch in this harness*), all the round's `q<n>` lines in one call, each line verbatim as its question; its options: the line's `(default: …)` first, then the other answers the question names (`fix` / `accept` for a `fix or accept` one); a typed answer is always open. Someone else: tell them each line verbatim, with the round id. Stop. Ask once: a late agent report (*Dispatch in this harness*) is no reason to ask again. Their answer → `wf decide --q <n> "<their words>"`, then `wf next`. A `fix or accept` question is answered with a line that starts `fix` or `accept`. |
+| `wait <person>: q<n> …` | Shay: ask with the question tool (*Dispatch in this harness*), all the round's `q<n>` lines in one call, each line verbatim as its question; its options: the line's `(default: …)` first, then the other answers the question names (`fix` / `accept` for a `fix or accept` one); a typed answer is always open. Someone else: tell them each line verbatim, with the round id. Stop. Ask once: a late agent report (*Dispatch in this harness*) is no reason to ask again. Their answer → `wf decide --q <n> "<their words>"` (the default option: `default`), then `wf next`: an answer against a plan Ask's default makes it dispatch `plan --revise`. A `fix or accept` question is answered with a line that starts `fix` or `accept`. |
 | `wait shay: …` (no q) | tell Shay the line with the round id (T1 waiting, a round held, a phase that failed twice). Stop. When he says it is done, `wf next`. |
 | `design: …` | start the design session (*Dispatch in this harness*; it reads `${CLAUDE_PLUGIN_ROOT}/process/DESIGN-SESSION.md` and TICKET/RESEARCH/PLAN). It writes `SPEC.md` with Shay and, on "shared", runs `wf step design`. Then `wf next`. |
 | `deliver: …` | run it: it prints the PR url. Post the tracker note it wrote in the round folder and set the delivered status (ROUND.md). Tell Shay `<id>: PR #n — opening the fix and the review`. `wf next`. |
@@ -68,7 +68,10 @@ A T2 that asks for a fix in a file no PLAN.md row lists first gets a new row (`f
 files, `repro`): `wf check` fences against the rows (3187601171). Every dispatch is a **fresh**
 agent: never resume or message a finished round agent, and never read its session file to "see
 what happened". If a line `wf next` printed is wrong for the round, the fix is in wf (`next.mjs`),
-not a step you take around it.
+not a step you take around it: stop and tell Shay. `wf brief` is the dispatched agent's (it refuses
+a brief `wf next` is not dispatching); to read a phase's prompt, `wf prompt`. PLAN.md is the plan
+agent's and `.wf/state.json` is wf's: you edit neither (BJEW-562, 2026-09-27: a previewed brief
+voided the plan's handoff, then the plan and the state were edited by hand).
 
 ## Talking to Shay
 

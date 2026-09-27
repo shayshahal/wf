@@ -42,7 +42,11 @@ check('plan, class A → wf step implement, dispatch implement 1', steps(planned
 // plan, Asks non-empty
 const withAsk = base({ step: 'plan', files: { research: RESEARCH, plan: plan({ asks: 'round to 2 places? — default: 2' }) } });
 check('plan with an Ask: recorded as a question to Shay, the round waits', asks(withAsk).length === 1 && asks(withAsk)[0].text === 'round to 2 places?' && asks(withAsk)[0].dflt === '2' && say(withAsk) === 'wait shay: round to 2 places? (default: 2)', say(withAsk));
-check('an Ask answered already is not put again', steps(base({ ...withAsk, answered: [{ n: 1, source: asks(withAsk)[0].source, answer: '3' }] })).join() === 'implement');
+const answeredAsk = (answer, token = 'bbb222') => base({ ...withAsk, answered: [{ n: 1, source: asks(withAsk)[0].source.replace('bbb222', token), text: 'round to 2 places?', default: '2', answer }] });
+check('an Ask answered with its default is not put again: implement', steps(answeredAsk('2')).join() === 'implement' && steps(answeredAsk('default')).join() === 'implement', steps(answeredAsk('2')).join());
+check('an Ask answered against its default: the plan is revised first', say(answeredAsk('3')).startsWith('dispatch plan --revise: run `node C:/wf/wf.mjs brief plan --revise`') && !steps(answeredAsk('3')).includes('implement'), say(answeredAsk('3')));
+const revised = base({ ...answeredAsk('3', 'old000'), files: { research: RESEARCH, plan: plan() } });
+check('once revised (a new plan brief, the answered Asks gone), implement', steps(revised).join() === 'implement', say(revised));
 check('an open question: wait on its person, nothing else', say(base({ ...withAsk, questions: [{ n: 4, to: 'einat', text: 'which label?' }] })) === 'wait einat: q4 which label?');
 
 // plan, class B/C → T1
