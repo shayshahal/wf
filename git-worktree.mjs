@@ -3,7 +3,7 @@
 //   create: git worktree add, the project's setup steps side by side, then its stack (wf serve)
 //   remove: stop the stack, the project's teardown while the worktree is still there, then the folder
 import { closeSync, openSync, readFileSync } from 'node:fs';
-import { execFileSync, spawn } from 'node:child_process';
+import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { setup, teardown } from './project.mjs';
 import { servePid, startServers, stopServersStep, stragglersStep } from './serve.mjs';
 import { basePortForBranch, excludeFromGit, excludeWfFolder, listWorktrees, slugForBranch, worktreesHome } from './worktree.mjs';
@@ -19,6 +19,20 @@ async function runSetup({ worktree, slug, port, fd }) {
 	return (await Promise.all(runs)).filter(Boolean);
 }
 
+// A `git worktree add -b` whose checkout fails removes the worktree but leaves the branch: BJEW-602's
+// first try (2026-09-27), deleted by hand before the second. Only a branch this call made goes: -b
+// also fails when the branch already exists, and that one is someone's work.
+export function addWorktree({ branch, path, base, cwd }) {
+	const existed = spawnSync('git', ['show-ref', '--verify', '--quiet', `refs/heads/${branch}`], { cwd }).status === 0;
+	try {
+		// --quiet: git's checkout progress was ~100 lines of the agent's output (2026-09-27).
+		execFileSync('git', ['worktree', 'add', '--quiet', '-b', branch, path, base], { cwd, stdio: 'inherit' });
+	} catch (e) {
+		if (!existed) spawnSync('git', ['branch', '-D', branch], { cwd, stdio: 'ignore' });
+		throw e;
+	}
+}
+
 // Returns the worktree, or throws naming the failed steps and the log's end. A failed setup leaves
 // the worktree for a look; `wf reap` removes it.
 export async function createWorktree({ branch, base, log }) {
@@ -28,8 +42,7 @@ export async function createWorktree({ branch, base, log }) {
 	// BJEW-602 (2026-09-27). In the clone's config, not -c: `-c core.longpaths=false` did not reach
 	// the checkout, and every later git command in the worktree needs it too.
 	if (process.platform === 'win32') execFileSync('git', ['config', 'core.longpaths', 'true']);
-	// --quiet: git's checkout progress was ~100 lines of the agent's output (2026-09-27).
-	execFileSync('git', ['worktree', 'add', '--quiet', '-b', branch, path, base], { stdio: 'inherit' });
+	addWorktree({ branch, path, base });
 	excludeWfFolder(path);
 	// The person's clone must not show the rounds as untracked files: JewelryX's main branch ignores
 	// no .claude/ (its .gitignore was five weeks behind dev's, 2026-09-27), and a clone on main is
