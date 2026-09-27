@@ -1,6 +1,6 @@
 // show.selfcheck.mjs — node show.selfcheck.mjs → exit 0 when green.
 import assert from 'node:assert/strict';
-import { openLineOf, parseOpen, showArgs } from './show.mjs';
+import { openLineOf, parseOpen, showArgs, unMsys } from './show.mjs';
 
 assert.deepEqual(parseOpen('b2b /catalog as buyer mobile'), { app: 'b2b', path: '/catalog', as: 'buyer', mobile: true });
 assert.deepEqual(parseOpen('admin /orders'), { app: 'admin', path: '/orders', as: 'admin', mobile: false });
@@ -15,4 +15,8 @@ assert.equal(openLineOf('## T2 walk\nZoom.\n## Asks\nopen: b2b /x\n'), null);
 const cli = 'docs/agents/verify-jewelryx/control-jewelryx.mjs';
 assert.deepEqual(showArgs(parseOpen('b2b /catalog as seller mobile')), [cli, 'open', 'b2b', '/catalog', 'as', 'seller', 'mobile', '--headed']);
 assert.deepEqual(showArgs(parseOpen('admin /orders')), [cli, 'open', 'admin', '/orders', 'as', 'admin', '--headed']);
+const gitBash = { MSYSTEM: 'MINGW64', EXEPATH: 'C:\\Program Files\\Git\\bin' };
+assert.equal(unMsys('C:/Program Files/Git/products', gitBash), '/products');
+assert.equal(unMsys('C:/Program Files/Git/products', {}), 'C:/Program Files/Git/products');
+assert.equal(unMsys('/b2b/orders?order=1', gitBash), '/b2b/orders?order=1');
 console.log('all arms green');
