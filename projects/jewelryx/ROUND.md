@@ -35,7 +35,7 @@ before *Start*.
 
 ## T2
 
-- Before `wf review`, run `wf show` from the worktree. It returns at once, leaving a browser window
+- Before `wf review`, run `wf show` from the worktree. It returns in seconds, leaving a browser window
   on the round's stack, logged in, on the plan's `open:` page.
 
 ## This machine

@@ -1,14 +1,18 @@
 // projects/jewelryx/round.mjs — what a new JewelryX round gets besides its folder (index.mjs newRound).
-import { lstatSync, mkdirSync, rmdirSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, rmdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+const SKILL_DIRS = ['.pi/skills', '.claude/skills', '.agents/skills'];
+
 // Shay's rounds run one flow, the round skill. The tools step runs link-tools, which links dev's
-// v1 orchestrators into every worktree, and both answer "start <id>". The links are local and
-// gitignored: removing them here changes nobody else's machine.
-const COMPETING_SKILLS = ['bug-fix-orchestrator', 'cr-implement-orchestrator'];
+// v1 orchestrators into every worktree, and both answer "start <id>". Its verify-b2b and verify-admin
+// claim the job of the project's verify-jewelryx (VERIFY_SKILL), which v2 uses instead (wf
+// docs/plans/2026-09-27-verification-skill.md, step 5e). The links are local and gitignored:
+// removing them here changes nobody else's machine, and the team keeps v1.
+const COMPETING_SKILLS = ['bug-fix-orchestrator', 'cr-implement-orchestrator', 'verify-b2b', 'verify-admin'];
 export function unlinkCompetingSkills(worktree) {
 	const removed = [];
-	for (const dir of ['.pi/skills', '.claude/skills', '.agents/skills']) {
+	for (const dir of SKILL_DIRS) {
 		for (const name of COMPETING_SKILLS) {
 			const link = join(worktree, dir, name);
 			try { if (!lstatSync(link).isSymbolicLink()) continue; } catch { continue; }
@@ -19,23 +23,53 @@ export function unlinkCompetingSkills(worktree) {
 	return removed;
 }
 
-// A repro that uses import.meta — itself, or through a helper such as verification/tests/support/otp-lock.ts —
-// fails to load before any test runs: bug-reports/ sits outside verification/'s ES module package
-// (BJEW-461 Claude Code spike, 2026-09-23: the research budget went on the config, the defect was never
-// measured). Research starts from this file, which loads; 'wx' leaves a reopened round's own config alone.
-export function writeReproConfig({ worktree, folder, direct }) {
-	const config = `// Written by wf new. Keep the repro self-contained: import only @playwright/test and node:*,
-// never import.meta (use __dirname) — see wf/projects/jewelryx/round.mjs writeReproConfig.
-import { defineConfig, devices } from '@playwright/test';
+// The project's verification skill: one CLI (control-jewelryx) and a feature map, committed in the
+// project. Linked here, in Shay's worktrees only, not by link-tools: that would show the team a
+// second "verify B2B" skill next to v1's (the plan's Constraint). A base without it links nothing.
+export const VERIFY_SKILL = 'docs/agents/verify-jewelryx';
+export function linkVerifySkill(worktree) {
+	const target = join(worktree, VERIFY_SKILL);
+	if (!existsSync(target)) return [];
+	const linked = [];
+	for (const dir of SKILL_DIRS) {
+		const link = join(worktree, dir, 'verify-jewelryx');
+		if (existsSync(link)) continue;
+		mkdirSync(join(worktree, dir), { recursive: true });
+		symlinkSync(target, link, 'junction'); // as link-tools does: a junction needs no admin rights on Windows
+		linked.push(`${dir}/verify-jewelryx`);
+	}
+	return linked;
+}
+
+// Pure: the stack's direct URLs, for control-jewelryx (it reads .verify-stack.env at the repo root).
+export function verifyStackEnv(direct) {
+	return `B2B_URL=${direct.b2b}\nADMIN_URL=${direct.admin}\nAPI_URL=${direct.api}\n`;
+}
+
+// Pure: the repro's playwright config. A repro that uses import.meta — itself, or through a helper
+// such as verification/tests/support/otp-lock.ts — fails to load before any test runs: bug-reports/
+// sits outside verification/'s ES module package (BJEW-461 Claude Code spike, 2026-09-23: the research
+// budget went on the config, the defect was never measured). With the verification skill in the base,
+// the config also logs the three roles in first, so a spec holds only the defect's own steps (the five
+// repros of 2026-09-27 had four login implementations).
+export function reproConfig({ direct, withAuth }) {
+	return `// Written by wf new. Keep the repro self-contained: import only @playwright/test and node:*,
+// never import.meta (use __dirname) — see wf/projects/jewelryx/round.mjs reproConfig.
+import { defineConfig, devices } from '@playwright/test';${withAuth ? "\nimport { resolve } from 'node:path';" : ''}
 
 // This round's stack, direct ports: Node on Windows cannot resolve *.jewelryx.localhost.
 process.env.B2B_URL ??= '${direct.b2b}';
 process.env.ADMIN_URL ??= '${direct.admin}';
 process.env.API_URL ??= '${direct.api}';
-
+${withAuth ? `
+// global-setup.ts saves buyer.json, seller.json and admin.json here before the tests run. Start
+// logged in, with no login code in the spec:
+//   test.use({ storageState: \`\${process.env.VERIFY_AUTH}/seller.json\` });
+process.env.VERIFY_AUTH ??= resolve(__dirname, '../../../.verify/auth');
+` : ''}
 export default defineConfig({
 	testDir: '.',
-	testMatch: /\\.spec\\.ts$/,
+	testMatch: /\\.spec\\.ts$/,${withAuth ? "\n\tglobalSetup: './global-setup.ts'," : ''}
 	timeout: 120_000,
 	retries: 0,
 	reporter: [['list']],
@@ -43,6 +77,37 @@ export default defineConfig({
 	use: { ...devices['Desktop Chrome'], screenshot: 'off', trace: 'off' },
 });
 `;
-	mkdirSync(join(worktree, folder, 'repro'), { recursive: true });
-	try { writeFileSync(join(worktree, folder, 'repro', 'playwright.config.ts'), config, { flag: 'wx' }); } catch (e) { if (e.code !== 'EEXIST') throw e; }
+}
+
+// Pure: logs each role in through the skill's CLI (control-jewelryx auth <role>), all three at once:
+// 7 s together, measured 2026-09-27.
+export const REPRO_GLOBAL_SETUP = `// Written by wf new: the three seed roles' logins, saved by the verification skill's CLI
+// (${VERIFY_SKILL}/SKILL.md). A red line here is the stack, not the defect: run its doctor.
+import { execFile } from 'node:child_process';
+import { resolve } from 'node:path';
+
+const root = resolve(__dirname, '../../..');
+const cli = resolve(root, '${VERIFY_SKILL}/control-jewelryx.mjs');
+
+const auth = (role: string) =>
+	new Promise<void>((done, fail) =>
+		execFile(process.execPath, [cli, 'auth', role], { cwd: root }, (e, _out, err) =>
+			e ? fail(new Error(\`control-jewelryx auth \${role}: \${err || e.message}\`)) : done(),
+		),
+	);
+
+export default async function globalSetup() {
+	await Promise.all(['buyer', 'seller', 'admin'].map(auth));
+}
+`;
+
+// 'wx' leaves a reopened round's own files alone.
+export function writeReproConfig({ worktree, folder, direct }) {
+	const withAuth = existsSync(join(worktree, VERIFY_SKILL));
+	const dir = join(worktree, folder, 'repro');
+	mkdirSync(dir, { recursive: true });
+	const files = { 'playwright.config.ts': reproConfig({ direct, withAuth }), ...(withAuth ? { 'global-setup.ts': REPRO_GLOBAL_SETUP } : {}) };
+	for (const [name, text] of Object.entries(files)) {
+		try { writeFileSync(join(dir, name), text, { flag: 'wx' }); } catch (e) { if (e.code !== 'EEXIST') throw e; }
+	}
 }

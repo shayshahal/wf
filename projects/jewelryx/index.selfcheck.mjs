@@ -5,6 +5,7 @@ import { mongoPortForBase, mongoUrlFromDockerPort, worktreeDatabase, worktreeMon
 import { devCommands } from './dev.mjs';
 import { includedFiles, sanitizeEnv } from './env.mjs';
 import { directUrls, pageOf, setup, stackNames, teardown, trackerNote } from './index.mjs';
+import { REPRO_GLOBAL_SETUP, reproConfig, verifyStackEnv } from './round.mjs';
 
 let failures = 0;
 const check = (name, cond, detail = '') =>
@@ -67,6 +68,15 @@ check('no -- separator reaches vite', plain.every((c) => !/\s--\s/.test(c.comman
 const named = devCommands('18001', { slug: 'my-slug' });
 check('with a slug each server runs behind its portless name', named[1].command === 'portless --name my-slug.b2b.jewelryx --app-port 18001 -- pnpm dev:frontend --port 18001 --strictPort' && named[2].env.PUBLIC_API_URL === 'http://my-slug.api.jewelryx.localhost/api/v1');
 check('PORTLESS=0 serves the ports directly', devCommands('18001', { slug: 'my-slug', portless: false })[1].env.ORIGIN === 'http://localhost:18001');
+
+// ── a round's repro and the verification skill's stack file
+check('.verify-stack.env: the three direct URLs, the keys control-jewelryx reads', verifyStackEnv(direct) === 'B2B_URL=http://localhost:12345\nADMIN_URL=http://localhost:32345\nAPI_URL=http://127.0.0.1:22345/api/v1\n');
+const bare = reproConfig({ direct, withAuth: false });
+const authed = reproConfig({ direct, withAuth: true });
+check('repro config without the skill: no global setup', !/globalSetup|VERIFY_AUTH/.test(bare) && bare.includes("process.env.B2B_URL ??= 'http://localhost:12345'"), bare);
+check('repro config with the skill: global setup, and the saved logins under the gitignored .verify/auth', authed.includes("globalSetup: './global-setup.ts'") && authed.includes("resolve(__dirname, '../../../.verify/auth')"), authed);
+check('the repro files never use import.meta (they sit outside verification/)', ![bare, authed, REPRO_GLOBAL_SETUP].some((t) => t.replace(/^\/\/.*$/gm, '').includes('import.meta')));
+check('global setup logs all three roles in through control-jewelryx auth', REPRO_GLOBAL_SETUP.includes("['buyer', 'seller', 'admin'].map(auth)") && REPRO_GLOBAL_SETUP.includes('docs/agents/verify-jewelryx/control-jewelryx.mjs') && REPRO_GLOBAL_SETUP.includes("'auth', role"));
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');
 process.exit(failures ? 1 : 0);

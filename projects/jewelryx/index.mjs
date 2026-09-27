@@ -3,9 +3,11 @@
 // A second project gets a folder like this one. What the two then share is the interface; until
 // then this file's exports are simply what JewelryX needed (Shay, 2026-09-24).
 import { spawnSync } from 'node:child_process';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { checkTasks, realPkgFor } from './checks.mjs';
 import { composeProjectOf, containerOf, volumeOf } from './db.mjs';
-import { unlinkCompetingSkills, writeReproConfig } from './round.mjs';
+import { linkVerifySkill, unlinkCompetingSkills, verifyStackEnv, writeReproConfig } from './round.mjs';
 
 // This folder's name: skills, agents and prompts reach its notes as {{project}} (ROUND.md, prompts/<phase>.md).
 export const name = 'jewelryx';
@@ -77,6 +79,8 @@ export const setup = {
 		copySecrets(worktree);
 		const { worktreeDatabase, worktreeMongoUrl } = await import('./db.mjs');
 		sanitizeWorktreeEnv(worktree, { url: worktreeMongoUrl(port), name: worktreeDatabase(slug) });
+		// The verification skill's CLI finds this checkout's stack here (round.mjs VERIFY_SKILL).
+		writeFileSync(join(worktree, '.verify-stack.env'), verifyStackEnv(directUrls(port)));
 	},
 	node: 'pnpm install --frozen-lockfile && pnpm build:types && pnpm build:data && pnpm build:filters',
 	verify: 'pnpm --dir verification install --ignore-workspace',
@@ -112,8 +116,10 @@ export function teardown(slug) {
 export function newRound({ worktree, folder, port }) {
 	writeReproConfig({ worktree, folder, direct: directUrls(port) });
 	const unlinked = unlinkCompetingSkills(worktree);
+	const linked = linkVerifySkill(worktree);
 	return [
 		...(unlinked.length ? [`unlinked ${unlinked.join(', ')}: the round skill is this worktree's one flow`] : []),
+		...(linked.length ? [`linked ${linked.join(', ')}: the app is driven through it`] : []),
 		...seedLines,
 	];
 }

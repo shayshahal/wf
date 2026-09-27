@@ -372,6 +372,32 @@ Each step says what, why, and how it is checked. Steps 1–4 happen in JewelryX 
     confirm the stack answers, `control-jewelryx doctor`, `wf show`,
     `WF_FORCE_REAP=1 … reap bench/verify`, then `wf hook install` from the installed copy.
   - Then one real round.
+- **Result (2026-09-27): built and cycled from the editing clone, on wf `plans/verification-skill`,
+  not pushed.**
+  - **5a:** the setup `env` step writes `.verify-stack.env`, and `newRound` links the skill where
+    the base has it. The research notes point to the skill, and a map disagreement goes under
+    `## Could not find` as `map drift:` (RESEARCH.md keeps its sections; step 7 greps the prefix).
+  - **5b:** a base with the skill gets `repro/global-setup.ts`, which runs `control-jewelryx auth`
+    for all three roles at once into the gitignored `.verify/auth/`. A spec starts logged in with
+    `test.use({ storageState: \`${process.env.VERIFY_AUTH}/seller.json\` })`. Measured: 70 s on a
+    cold stack (first page compiles), 14 s warm, about 10 of it the logins. A base without the skill
+    gets today's config.
+  - **5c:** `wf show` calls `control-jewelryx open \u2026 --headed`; its own spec and config are gone.
+    It opened `/b2b/catalog` as seller at 390 px in 6 s. It now also takes the path without its
+    slash, because Git Bash rewrote `wf show admin /products` (broken before this plan too).
+  - **5d, changed:** no `verifySkill` export. wf already appends `projects/<name>/prompts/<phase>.md`
+    to every phase's prompt, so the `## Live` section is JewelryX's `prompts/validate.md`. Core's
+    validate prompt only defers its budget and its "run nothing" rule to the project's notes, and
+    names no project. Not yet run by an agent: the first real round is its test.
+  - **5e:** done. The cycle's `wf new` unlinked `verify-b2b` and `verify-admin` in all three
+    folders and linked `verify-jewelryx`. The hub's `.pi/settings.json` excludes the two (backup
+    `settings.json.bak-2026-09-27`).
+  - **Reap** removed the worktree with the headed window and the agent browser still open; no
+    browser process was left.
+  - **Order to go live:** either order is safe. On a base without the skill, wf links nothing,
+    writes today's repro config, and both prompts' skill parts say "when this worktree has it".
+    Rounds use the skill once both have landed: JewelryX `tools/verify-jewelryx` in `dev`, and wf
+    on `main`.
 
 ### 6. Upkeep: run maintain when drift shows, not on a calendar
 
