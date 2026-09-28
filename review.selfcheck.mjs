@@ -2,6 +2,7 @@
 // Fixture JSONL lines (one review with a range, one annotate with a blockId-only
 // comment) → folded lines + verdict mapping; resolveWorktree throws helpfully.
 import assert from 'node:assert/strict';
+import { reviewFiles } from './review.mjs';
 import { asBuiltFile, foldFeedbackLine, lastField, renderHeader, renderSkeleton, readVerdict, specShaFor } from './review-format.mjs';
 import { appendDecision, STEPS, t1Gap } from './step.mjs';
 import { forT1Section } from './design.mjs';
@@ -55,6 +56,7 @@ check('skeleton verdict is not a real verdict', readVerdict(skel) === null, skel
 const targetLine = { ...annotateLine, decision: "lgtm", target: { review: { base: "dev", changedFiles: 124 } } };
 check('fold records what plannotator actually reviewed', foldFeedbackLine(targetLine).includes("reviewed: dev (124 files)"));
 check('lastField takes the newest dated section', lastField('base: dev\nverdict: approved\n## 2\nbase: tools/wf-runtime\n', 'base') === 'tools/wf-runtime');
+check('the as-built file counts uncommitted: the as-built phase does not commit it (TJEW-670.11)', asBuiltFile(reviewFiles(['a.ts'], 'bug-reports/r/proof/CALL-STACK-AS-BUILT.md', true)) === 'bug-reports/r/proof/CALL-STACK-AS-BUILT.md' && asBuiltFile(reviewFiles(['a.ts'], 'bug-reports/r/proof/CALL-STACK-AS-BUILT.md', false)) === null && reviewFiles(['bug-reports/r/proof/CALL-STACK-AS-BUILT.md'], 'bug-reports/r/proof/CALL-STACK-AS-BUILT.md', true).length === 1);
 check('as-built file found anywhere in the diff', asBuiltFile(['x.ts', 'bug-reports/r/proof/CALL-STACK-AS-BUILT.md']) === 'bug-reports/r/proof/CALL-STACK-AS-BUILT.md');
 check('header lists the as-built file first under look at', renderHeader({ round: 'r', klass: 'B', base: 'dev', urls: 'b2b:   http://localhost:1\n', files: ['packages/frontend/b2b/src/routes/(auth)/login/+page.svelte', 'bug-reports/r/proof/CALL-STACK-AS-BUILT.md'] }).match(/^look at: .*$/m)[0].includes('CALL-STACK-AS-BUILT'));
 check('t1Gap null when SPEC-REVIEW approves the current sha', t1GapFor('spec-sha: <real>\nverdict: approved\n') === null);

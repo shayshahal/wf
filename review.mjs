@@ -48,6 +48,13 @@ const classify = (worktree, base) => {
   }
 };
 
+// Pure: the files T2 is shown, with the as-built call stack when it is in the worktree. The as-built
+// phase does not commit it (only wf deliver commits the round folder), so the diff alone never had
+// it, and the gate below refused every class B round (TJEW-670.11, 2026-09-28).
+export function reviewFiles(diff, asBuilt, onDisk) {
+  return onDisk && !diff.includes(asBuilt) ? [asBuilt, ...diff] : diff;
+}
+
 export async function runReview(argv) {
   const round = argv.find((a) => !a.startsWith('-'));
   if (!round) usage();
@@ -59,9 +66,10 @@ export async function runReview(argv) {
   const base = bi === -1 ? (persistedBase(worktree) ?? baseBranch) : (argv[bi + 1] ?? usage());
   // The stored class is the asserted one (B/C never downgrade); the measurement is only a fallback.
   const klass = readState(worktree).class ?? classify(worktree, base);
-  const files = changedFiles(worktree, base);
+  const asBuilt = [readState(worktree).folder, 'proof', 'CALL-STACK-AS-BUILT.md'].filter(Boolean).join('/');
+  const files = reviewFiles(changedFiles(worktree, base), asBuilt, existsSync(join(worktree, asBuilt)));
   if ((klass === 'B' || klass === 'C') && !asBuiltFile(files)) {
-    console.error(`wf review: class ${klass} round without proof/CALL-STACK-AS-BUILT.md in its diff — the worker delivers it before T2 (the contract change is what T2 reads first)`);
+    console.error(`wf review: class ${klass} round without ${asBuilt} — the as-built phase writes it before T2 (the contract change is what T2 reads first); wf next dispatches it`);
     process.exit(2);
   }
   await inWorktree(worktree, round, 'review');
