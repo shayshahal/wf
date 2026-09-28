@@ -65,6 +65,8 @@ The kit alone, as a Claude Code plugin: this repo is its marketplace (`.claude-p
   *worktree* box off. `wf new` makes the round's branch and worktree, and the session moves into
   it; `resume <id>` does the same. Picking the round's branch fails (git: it is checked out in the
   round's worktree), and a Desktop worktree is one the round never uses.
+- **Does it reproduce?** `/wf:round check <id>`: a round that stops after research, with the
+  tracker untouched. "go" turns it into the round; "stop" reaps it.
 
 ## Projects
 
