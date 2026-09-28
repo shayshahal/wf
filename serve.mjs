@@ -6,7 +6,7 @@
 // what happens before they start (a missing dependency) in .wf/logs/serve.log.
 //   wf serve               start it, detached
 //   wf serve --foreground  run it here until it dies (what the detached process runs)
-import { execFileSync, spawn, spawnSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { serve, stackUrls } from './project.mjs';
@@ -65,9 +65,12 @@ export function startServers(worktree) {
 // process has no console, and each console program it starts opens a window of its own:
 // concurrently's three cmd.exe opened three Windows Terminal windows at TJEW-670.11's wf new
 // (2026-09-28). The hop's console has no window, and the servers under it share it.
+// Pipes, not inherited stdio: libuv asks for CREATE_NO_WINDOW only when no stdio is inherited. With
+// 'inherit' the hop got a console with SW_HIDE, and Windows Terminal (the default terminal) still
+// flashed a window for it at every wf new and wf serve (the console watcher, 2026-09-28 17:34:20).
 export function hiddenHop(platform, env) {
 	if (platform !== 'win32' || env.WF_SERVE_HIDDEN) return null;
-	return { args: [seams.entry, 'serve', '--foreground'], options: { stdio: 'inherit', windowsHide: true, env: { ...env, WF_SERVE_HIDDEN: '1' } } };
+	return { args: [seams.entry, 'serve', '--foreground'], options: { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, env: { ...env, WF_SERVE_HIDDEN: '1' } } };
 }
 
 export async function runServe(argv) {
@@ -78,7 +81,13 @@ export async function runServe(argv) {
 	const port = basePortForBranch(branch);
 	if (argv.includes('--foreground')) {
 		const hop = hiddenHop(process.platform, process.env);
-		if (hop) process.exit(spawnSync(process.execPath, hop.args, hop.options).status ?? 1);
+		if (hop) {
+			const child = spawn(process.execPath, hop.args, hop.options);
+			child.stdout.pipe(process.stdout);
+			child.stderr.pipe(process.stderr);
+			child.on('exit', (code) => process.exit(code ?? 1));
+			return;
+		}
 		return serve({ worktree, slug, port });
 	}
 	const pid = servePid(worktree);
