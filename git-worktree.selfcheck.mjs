@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { addWorktree, removalPlan } from './git-worktree.mjs';
 import { stragglersStep } from './serve.mjs';
-import { stopServersStep } from './serve.mjs';
+import { hiddenHop, stopServersStep } from './serve.mjs';
 
 let failures = 0;
 const check = (name, cond, detail = '') =>
@@ -45,6 +45,10 @@ check('a failed checkout throws and takes the branch it made with it', add('roun
 git(['branch', 'round/mine']);
 check('a branch that was there before survives the failed add', add('round/mine') === 'threw' && branches() === 'round/mine', branches());
 rmSync(repo, { recursive: true, force: true });
+
+const hop = hiddenHop('win32', { PATH: 'x' });
+check('Windows: the detached serve re-runs itself hidden, once', hop.options.windowsHide === true && hop.options.env.WF_SERVE_HIDDEN === '1' && hop.options.env.PATH === 'x' && hop.args.slice(1).join(' ') === 'serve --foreground' && hiddenHop('win32', hop.options.env) === null);
+check('elsewhere: no hop', hiddenHop('linux', {}) === null);
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');
 process.exit(failures ? 1 : 0);

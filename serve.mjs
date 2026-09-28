@@ -6,7 +6,7 @@
 // what happens before they start (a missing dependency) in .wf/logs/serve.log.
 //   wf serve               start it, detached
 //   wf serve --foreground  run it here until it dies (what the detached process runs)
-import { execFileSync, spawn } from 'node:child_process';
+import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { serve, stackUrls } from './project.mjs';
@@ -61,13 +61,26 @@ export function startServers(worktree) {
 	return child.pid;
 }
 
+// Pure: on Windows, the detached process re-runs itself once with windowsHide, or null. A detached
+// process has no console, and each console program it starts opens a window of its own:
+// concurrently's three cmd.exe opened three Windows Terminal windows at TJEW-670.11's wf new
+// (2026-09-28). The hop's console has no window, and the servers under it share it.
+export function hiddenHop(platform, env) {
+	if (platform !== 'win32' || env.WF_SERVE_HIDDEN) return null;
+	return { args: [seams.entry, 'serve', '--foreground'], options: { stdio: 'inherit', windowsHide: true, env: { ...env, WF_SERVE_HIDDEN: '1' } } };
+}
+
 export async function runServe(argv) {
 	const git = (...args) => execFileSync('git', args, { encoding: 'utf8' }).trim();
 	const worktree = git('rev-parse', '--show-toplevel');
 	const branch = git('rev-parse', '--abbrev-ref', 'HEAD');
 	const slug = slugForBranch(branch);
 	const port = basePortForBranch(branch);
-	if (argv.includes('--foreground')) return serve({ worktree, slug, port });
+	if (argv.includes('--foreground')) {
+		const hop = hiddenHop(process.platform, process.env);
+		if (hop) process.exit(spawnSync(process.execPath, hop.args, hop.options).status ?? 1);
+		return serve({ worktree, slug, port });
+	}
 	const pid = servePid(worktree);
 	if (await realProbeStack(port)) return console.log(`wf serve: the stack answers already\n${urlLines(stackUrls({ slug, port }))}`);
 	// Still starting (a cold vite takes ~20 s): a second one would lose the port and the pid.
