@@ -41,9 +41,12 @@ export function linkVerifySkill(worktree) {
 	return linked;
 }
 
-// Pure: the stack's direct URLs, for control-jewelryx (it reads .verify-stack.env at the repo root).
-export function verifyStackEnv(direct) {
-	return `B2B_URL=${direct.b2b}\nADMIN_URL=${direct.admin}\nAPI_URL=${direct.api}\n`;
+// Pure: the stack's direct URLs, for control-jewelryx (it reads .verify-stack.env at the repo root),
+// and the file its three servers write to, whose errors control-jewelryx prints: of 568 agent
+// sessions (June to 2026-09-28), 33 met a real 500 and 3 read that output; 25 wrote their own
+// browser listeners instead.
+export function verifyStackEnv(direct, log) {
+	return `B2B_URL=${direct.b2b}\nADMIN_URL=${direct.admin}\nAPI_URL=${direct.api}\nSTACK_LOG=${log}\n`;
 }
 
 // Pure: the repro's playwright config. A repro that uses import.meta — itself, or through a helper
