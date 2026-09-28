@@ -60,7 +60,7 @@ export function lookAtLines(urls, files, pageFor = pageOf) {
   }
   return out;
 }
-export function renderHeader({ round, klass = '—', base = null, specSha = null, date = today(), urls = null, files = [] }) {
+export function renderHeader({ round, klass = '—', base = null, specSha = null, date = today(), urls = null, files = [], beforeAfter = null }) {
   return [
     `# Review — ${round}`,
     ``,
@@ -71,6 +71,7 @@ export function renderHeader({ round, klass = '—', base = null, specSha = null
     `date: ${date}`,
     urls ?? `urls: n/a — port not derivable without wt (see REVIEW-FORMAT.md)`,
     ...(asBuiltFile(files) ? [`look at: ${asBuiltFile(files)}  ← the call stack as built, diffed against SPEC — read first`] : []),
+    ...(beforeAfter ? [`look at: ${beforeAfter}  ← screenshots: before (the base) and after (this round)`] : []),
     ...lookAtLines(urls, files),
     ``,
     `files changed (${files.length}):`,
@@ -91,6 +92,46 @@ export const lastField = (text, key) => [...text.matchAll(new RegExp(`^${key}:[ 
 // contract change of BJEW-586 (a new error_code on a 400) was in this file and nowhere on
 // the reviewer's screen. It lives in the round's diff, wherever the bug folder is.
 export const asBuiltFile = (files) => files.find((f) => /(^|\/)proof\/CALL-STACK-AS-BUILT\.md$/.test(f)) ?? null;
+
+// Pure: the round's before/after screenshots, paired by number: research takes `proof/before-<n>.png` on
+// the base, validate `proof/after-<n>.png` of the same view on the fix. T2 sees the change, not only the
+// diff (Factory's /demo shoots both branches with the same steps; taken into wf 2026-09-28). A number
+// with one side only is still shown: a new screen has no before.
+export function proofPairs(names) {
+  const pairs = new Map();
+  for (const name of names) {
+    const m = /^(before|after)-(\d+)\.png$/.exec(name);
+    if (!m) continue;
+    const n = Number(m[2]);
+    pairs.set(n, { ...(pairs.get(n) ?? { n }), [m[1]]: name });
+  }
+  return [...pairs.values()].sort((a, b) => a.n - b.n);
+}
+
+// Pure: a picture's caption, from the first line of RESEARCH.md or VALIDATION.md that names it
+// (`proof/before-1.png — admin on /admin/listings: …`), without the name and its dashes.
+export function captionFor(name, texts) {
+  const line = texts.flatMap((t) => (t ?? '').split('\n')).find((l) => l.includes(`proof/${name}`));
+  return line ? line.replace(/`/g, '').replace(`proof/${name}`, '').replace(/^[\s\-—:|]+|[\s\-—:|]+$/g, '').trim() : '';
+}
+
+const escapeHtml = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+// Pure: the page `wf review` writes to .wf/before-after.html. `src` is the proof folder as seen from it.
+export function beforeAfterPage({ round, pairs, captions, src }) {
+  const cell = (name) => (name
+    ? `<figure><img src="${escapeHtml(`${src}/${name}`)}"><figcaption dir="auto">${escapeHtml(captions[name] ?? '')}</figcaption></figure>`
+    : '<figure class="none">none</figure>');
+  const rows = pairs.map((p) => `<tr><th>${p.n}</th><td>${cell(p.before)}</td><td>${cell(p.after)}</td></tr>`).join('\n');
+  return `<!doctype html>
+<meta charset="utf-8"><title>${escapeHtml(round)}: before / after</title>
+<style>body{font:14px system-ui;margin:16px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:8px;vertical-align:top}td{width:50%}img{max-width:100%;display:block}figure{margin:0}figcaption{color:#555;margin-top:6px}.none{color:#999}</style>
+<h1>${escapeHtml(round)}: before / after</h1>
+<table><tr><th></th><th>before (the base)</th><th>after (this round)</th></tr>
+${rows}
+</table>
+`;
+}
 
 // Last `verdict: <v>` line wins; anything but a real verdict (e.g. pending) → null.
 export function readVerdict(text) {

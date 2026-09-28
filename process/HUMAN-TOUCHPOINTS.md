@@ -16,6 +16,9 @@ merge carries it. It marks
 `step review --waiting-on user`, writes the skeleton first (server URLs, files changed
 vs base, class, spec sha), opens the branch-vs-base diff (Plannotator `review
 --diff-type branch`), then appends the folded comments and verdict.
+When the round folder's `proof/` has `before-<n>.png` (research, on the base) or `after-<n>.png`
+(validate, the same view on the fix), it writes `.wf/before-after.html` with each pair side by side,
+opens it (outside Claude Code) and lists it under `look at:`.
 `wf review <round> --done` reads the verdict line: approved → `step pr`,
 changes-requested → `step implement`; a missing or dismissed verdict exits 2.
 

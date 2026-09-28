@@ -29,6 +29,15 @@ export function editorCommand(raw, paths, platform = process.platform) {
 	return platform === 'win32' ? [[bin, ...rest, ...paths.map((p) => `"${p}"`)].join(' '), [], true] : [bin, [...rest, ...paths], false];
 }
 
+// A file in the machine's default app (the before/after page in a browser), under the same rule as the
+// editor. explorer.exe on Windows: `cmd /c start` would flash a console window (TJEW-670.11, 2026-09-28).
+export function openFile(file, platform = process.platform) {
+	if (!opensWindows()) return false;
+	const [command, args] = platform === 'win32' ? ['explorer.exe', [file.replace(/\//g, '\\')]] : [platform === 'darwin' ? 'open' : 'xdg-open', [file]];
+	spawn(command, args, { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+	return true;
+}
+
 export function openInEditor(paths) {
 	if (!opensWindows()) return false;
 	for (const raw of [process.env.VISUAL, process.env.EDITOR, 'code']) {
