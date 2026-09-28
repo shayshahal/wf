@@ -26,19 +26,25 @@ const ROUND_REFS = [`origin/${baseBranch}`, ...roundBranches.flatMap((b) => [`--
 
 // The round folders are read from `base` in git, not from the folder wf runs in: that is Shay's bare
 // repo's root (no rounds folder) or a teammate's clone on main, where no round is merged.
+// Pure: whether text (a folder, a commit subject) names the id. Punctuation between the id's letters
+// and numbers is optional: a round's folder is named from its branch, fix-tjew682-auction-pickers, and
+// "tjew-682" never matched it (TJEW-682 reopen, 2026-09-27). A number never continues into another
+// digit: TJEW-670.1 is not TJEW-670.10, BJEW-46 is not BJEW-461 (a subitem round's id, 2026-09-28).
+export function namesId(text, id) {
+	const parts = id.toLowerCase().match(/[a-z]+|[0-9]+/g) ?? [];
+	return parts.length > 0 && new RegExp(`(?<![0-9])${parts.join('[^a-z0-9]*')}(?![0-9])`).test(text.toLowerCase());
+}
+
 export function findExistingRounds(ids, base) {
 	const hits = [];
 	let folders = [];
 	try { folders = execFileSync('git', ['ls-tree', '-d', '--name-only', `${base}:${roundsDir}`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).split('\n').filter(Boolean); } catch { /* no rounds folder on the base */ }
 	for (const id of ids) {
-		// Ids are compared without their punctuation: a round's folder is named from its branch,
-		// fix-tjew682-auction-pickers, and "tjew-682" never matched it (TJEW-682 reopen, 2026-09-27).
-		const flat = (s) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
-		for (const f of folders) if (flat(f).includes(flat(id))) hits.push(`${roundsDir}/${f}`);
+		for (const f of folders) if (namesId(f, id)) hits.push(`${roundsDir}/${f}`);
 		// Work on an id names it in the subject ("BJEW-461 - ...", "Merge ... fix/bjew461-..."). A body that
 		// only mentions it ("found in the BJEW-603 round") is not work on it (BJEW-603, 2026-09-23).
 		const log = execFileSync('git', ['log', ...ROUND_REFS, '--format=%h %s', '-i', `--grep=${id}`, `--grep=${id.replace(/-/g, '')}`], { encoding: 'utf8' }).trim();
-		for (const line of log.split('\n').filter(Boolean)) if (flat(line.slice(line.indexOf(' ') + 1)).includes(flat(id))) hits.push(`commit ${line}`);
+		for (const line of log.split('\n').filter(Boolean)) if (namesId(line.slice(line.indexOf(' ') + 1), id)) hits.push(`commit ${line}`);
 	}
 	return hits;
 }

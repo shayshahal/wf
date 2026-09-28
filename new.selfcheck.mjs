@@ -1,7 +1,7 @@
 // new.selfcheck.mjs — node new.selfcheck.mjs → exit 0 when green.
 // Pure arms: the fetch before a round branches, and the worktree's .claude/launch.json for Claude
 // Code Desktop's Browser pane (new.mjs).
-import { decisionsOf, earlierText, fetchFor, launchConfig } from './new.mjs';
+import { decisionsOf, earlierText, fetchFor, launchConfig, namesId } from './new.mjs';
 import { entryGap } from './state.mjs';
 
 let failures = 0;
@@ -21,6 +21,9 @@ check('an earlier plan\'s Decisions, verbatim, and nothing after them', decision
 check('no Decisions, or no plan: none', decisionsOf('# p\n').length === 0 && decisionsOf(null).length === 0);
 const earlier = earlierText({ ids: ['TJEW-682'], dupes: ['bug-reports/fix-tjew682-a', 'commit 2228a7c Merge fix/tjew682-a'], rulings: [{ folder: 'bug-reports/fix-tjew682-a', lines: decisionsOf(plan) }, { folder: 'bug-reports/fix-tjew682-b', lines: [] }] });
 check('EARLIER.md: the earlier work, then each round\'s rulings under its folder', earlier.includes('- commit 2228a7c') && earlier.includes('## Earlier rulings') && earlier.includes('bug-reports/fix-tjew682-a:\n- 2026-09-23 Calendar') && !earlier.includes('fix-tjew682-b:'), earlier);
+check('an id matches its folder and subject however they punctuate it', namesId('fix-tjew682-auction-pickers', 'TJEW-682') && namesId('TJEW-661-remove-supplier-sort', 'TJEW661') && namesId('BJEW-461 - cancel', 'bjew-461') && namesId('Merge pull request #9 from x/fix/bjew461-cancel', 'BJEW-461'));
+check('a subitem id: its own round, not its siblings\'', namesId('feat-tjew670-1-back-button', 'TJEW-670.1') && !namesId('feat-tjew670-10-x', 'TJEW-670.1') && !namesId('feat-tjew670-11-x', 'TJEW-670.1') && !namesId('feat-tjew670-2-texts', 'TJEW-670.1'));
+check('a number never continues into another digit', !namesId('fix-bjew461-cancel', 'BJEW-46') && !namesId('fix-bjew1461', 'BJEW-461') && namesId('fix-bjew461-2fa', 'BJEW-461'));
 check('no rulings: no section', !earlierText({ ids: ['X-1'], dupes: ['commit abc x-1'], rulings: [] }).includes('Earlier rulings'));
 
 // ── which wf may run in a round (state.mjs entryGap; new.mjs records made_by and entry)
