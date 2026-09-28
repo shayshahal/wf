@@ -32,11 +32,10 @@ const down = teardown({ slug: 'fix-bjew-1', worktree: 'C:/wt/fix-bjew-1' });
 check('with no machine plugged in, a teardown drops the worktree\'s database, in-process', down.map((s) => s.label).join() === 'drop database' && typeof down[0].run === 'function' && !down[0].cmd);
 
 // ── the tracker note
-const plan = ['# Plan', '', 'Cause: the send result is discarded at auth.py:599', 'Approach: capture it'].join('\r\n');
-const note = trackerNote({ planText: plan, url: 'https://github.com/x/y/pull/7' });
+const note = trackerNote({ ids: ['TJEW-670.2', 'TJEW-670.3'], url: 'https://github.com/x/y/pull/7' });
 check('the note is MONDAY.md', note.file === 'MONDAY.md');
-check('MONDAY.md is ≤6 lines', note.text.trimEnd().split('\n').length <= 6, String(note.text.trimEnd().split('\n').length));
-check('MONDAY.md carries cause, approach and the PR url', note.text.includes('סיבה: the send result is discarded at auth.py:599') && note.text.includes('מה שונה: capture it') && note.text.includes('pull/7'), note.text);
+check('one section per id, each with the PR url', note.text.includes('## TJEW-670.2\nתוקן ✅') && note.text.includes('## TJEW-670.3\nתוקן ✅') && note.text.split('PR: https://github.com/x/y/pull/7').length === 3, note.text);
+check('the scaffold carries no code: it is filled for the reporter, in Hebrew', !/Cause|Approach|\.py|\.ts|:\d/.test(note.text.replace(/https:\/\/\S+/g, '')) && note.text.includes('מה היה:') && note.text.includes('לבדיקה:'), note.text);
 
 // ── the worktree's .env (cases from the project's sanitize-worktree-env test)
 const prod = '# Backend configuration\r\nMONGODB_URL=mongodb+srv://u:secret@cluster.mongodb.net\r\nDATABASE_NAME=jewelryx_dev\r\nMEDIA_STORAGE_BACKEND=s3\r\nAWS_S3_ACCESS_KEY_ID=AKIAPROD\r\nAWS_S3_SECRET_ACCESS_KEY=prodsecret\r\nAWS_S3_BUCKET_NAME=jewelryx-prod-static-content\r\nAWS_SES_ACCESS_KEY_ID=AKIASES\r\nAWS_SES_SECRET_ACCESS_KEY=sessecret\r\nAWS_S3_REGION=eu-central-1\r\nOTP_DEV_EXPOSE=true\r\n';

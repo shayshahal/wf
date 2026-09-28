@@ -1,7 +1,7 @@
 // new.selfcheck.mjs — node new.selfcheck.mjs → exit 0 when green.
 // Pure arms: the fetch before a round branches, and the worktree's .claude/launch.json for Claude
 // Code Desktop's Browser pane (new.mjs).
-import { decisionsOf, earlierText, fetchFor, launchConfig, namesId } from './new.mjs';
+import { cloneLaunch, decisionsOf, earlierText, fetchFor, launchConfig, namesId } from './new.mjs';
 import { entryGap } from './state.mjs';
 
 let failures = 0;
@@ -13,6 +13,18 @@ check('one entry per app, in the stack\'s order', config.configurations.map((c) 
 check('attach mode: a url and no command', config.configurations.every((c) => c.url && !c.runtimeExecutable && !c.program));
 check('a bare origin: Desktop refuses a localhost url with a path', config.configurations[2].url === 'http://127.0.0.1:22345', config.configurations[2].url);
 check('the version Desktop writes', config.version === '0.0.1');
+
+// The clone's launch.json: where Desktop reads it (TJEW-670's T2, 2026-09-28).
+const rounds = { b2b: 'http://localhost:12345', admin: 'http://localhost:32345', api: 'http://127.0.0.1:22345/api/v1' };
+const mine = JSON.stringify({ version: '0.0.1', configurations: [{ name: 'my dev server', runtimeExecutable: 'pnpm', runtimeArgs: ['dev'], port: 5173 }] });
+const added = JSON.parse(cloneLaunch(mine, 'fix-a', rounds));
+check('the clone gets the round\'s apps as "<slug> <app>", origins only, and keeps its own entries', added.configurations.map((c) => c.name).join() === 'my dev server,fix-a b2b,fix-a admin,fix-a api' && added.configurations[3].url === 'http://127.0.0.1:22345', JSON.stringify(added));
+const twice = JSON.parse(cloneLaunch(JSON.stringify(added), 'fix-a', rounds));
+check('writing it again does not duplicate', twice.configurations.length === 4);
+const other = JSON.parse(cloneLaunch(JSON.stringify(added), 'fix-b', rounds));
+const reaped = JSON.parse(cloneLaunch(JSON.stringify(other), 'fix-a', null));
+check('reap takes out only its own round\'s entries', reaped.configurations.map((c) => c.name).join() === 'my dev server,fix-b b2b,fix-b admin,fix-b api', JSON.stringify(reaped.configurations.map((c) => c.name)));
+check('no file yet: a new one; a file that is not JSON: left alone', JSON.parse(cloneLaunch('', 'fix-a', rounds)).configurations.length === 3 && cloneLaunch('{ nope', 'fix-a', rounds) === null);
 check('a remote base is fetched first, that branch only', fetchFor('origin/dev')?.join(' ') === 'fetch --quiet origin dev' && fetchFor('origin/release/2.1')?.at(-1) === 'release/2.1');
 check('a local ref or a sha is taken as it is', fetchFor('dev') === null && fetchFor('328e238fb') === null);
 

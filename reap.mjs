@@ -12,6 +12,7 @@ import { copyFileSync, mkdirSync, rmSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { roundsDir } from './project.mjs';
+import { writeCloneLaunch } from './new.mjs';
 import { readState } from './state.mjs';
 import { removalPlan, resolveWorktree, slugForBranch } from './worktree.mjs';
 
@@ -89,7 +90,13 @@ export async function runReap(argv) {
 		const run = spawnSync(step.cmd, step.args, { encoding: 'utf8', env: { ...process.env, WF_FORCE_REAP: '1', ...step.env }, shell: process.platform === 'win32' });
 		console.log(`${step.label}: ${run.status === 0 ? 'ok' : `already gone or failed (${(run.stderr ?? '').trim().split('\n').at(-1) || `exit ${run.status}`})`}`);
 	}
-	if (!force) console.log('(dry run: the round is not merged. WF_FORCE_REAP=1 wf reap does it anyway)');
+	if (!force) {
+		console.log(`would: take ${slug}'s entries out of the clone's .claude/launch.json`);
+		console.log('(dry run: the round is not merged. WF_FORCE_REAP=1 wf reap does it anyway)');
+		return;
+	}
+	writeCloneLaunch(slug, null);
+	console.log('launch.json entries: ok');
 }
 
 if (process.argv[1]?.endsWith('reap.mjs')) runReap(process.argv.slice(2));

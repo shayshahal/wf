@@ -3,7 +3,7 @@
 // A second project gets a folder like this one. What the two then share is the interface; until
 // then this file's exports are simply what JewelryX needed (Shay, 2026-09-24).
 import { spawnSync } from 'node:child_process';
-import { writeFileSync } from 'node:fs';
+import { existsSync, writeFileSync } from 'node:fs';
 import { createConnection } from 'node:net';
 import { join } from 'node:path';
 import { checkTasks, realPkgFor } from './checks.mjs';
@@ -175,19 +175,20 @@ export function newRound({ worktree, folder, port }) {
 // wf check's commands for the changed files, plus `test` (the plan row's test path, or null). Each is
 // { label, cmd, args, cwd } (cwd repo-relative), or { label, missing } when `test` is not runnable.
 export function checks({ toplevel, changed, test }) {
-	return checkTasks({ changed, test, pkgFor: realPkgFor(toplevel) });
+	return checkTasks({ changed, test, pkgFor: realPkgFor(toplevel), pushHook: existsSync(join(toplevel, 'lefthook.yml')) });
 }
 
 // ── delivery ─────────────────────────────────────────────────────────────────
 
-// The note wf deliver leaves in the round folder for the ticket; the round skill posts it (wf never
-// calls Monday). Hebrew scaffolding; Cause/Approach come across verbatim from PLAN.md (wf has no
-// translator: a plan written in English arrives in English, marked for the poster).
-export function trackerNote({ planText, url }) {
-	const body = planText.replace(/\r\n/g, '\n');
-	const field = (name) => new RegExp(`^${name}:[ \\t]*(.+)$`, 'm').exec(body)?.[1]?.trim() ?? '';
-	const text = ['<!-- translate: the two quoted lines are PLAN.md verbatim -->', 'תוקן ✅', `סיבה: ${field('Cause')}`, `מה שונה: ${field('Approach')}`, `PR: ${url}`].join('\n') + '\n';
-	return { file: 'MONDAY.md', text };
+// The note wf deliver leaves in the round folder, one section per ticket id (a round on subitems has
+// one per subitem); the round skill fills and posts each (wf never calls Monday). Only the scaffold:
+// the words are for Einat, in plain Hebrew with no file, code name or line number
+// (docs/agents/monday.md), and PLAN.md's Cause and Approach are written for the code. TJEW-670
+// (2026-09-28): the note carried PLAN.md's Cause, file:line and all, as one note for four subitems.
+export function trackerNote({ ids, url }) {
+	const section = (id) => [`## ${id}`, 'תוקן ✅', 'מה היה: <what the reporter saw, from TICKET.md ## Intent>', 'מה שונה: <what she sees now>', 'לבדיקה: <where to look, step by step>', `PR: ${url}`].join('\n');
+	const head = '<!-- One comment per ## section, posted on that item. Fill the <...> lines in plain Hebrew for the reporter: no file path, code name or line number (docs/agents/monday.md, Comments on an item). The ## line is not posted. -->';
+	return { file: 'MONDAY.md', text: `${[head, ...ids.map(section)].join('\n\n')}\n` };
 }
 
 // ── JewelryX's own wf commands ───────────────────────────────────────────────

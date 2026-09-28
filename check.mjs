@@ -5,7 +5,10 @@
 // PLAN.md row `wf prompt implement N` recorded in .wf/state.json:
 //   fence   — no file outside row N's `files` cell may have changed
 //   project — the project's commands for the changed files and the row's test path (project.mjs checks)
-//   repro   — the row's `check` cell `repro`: the command RESEARCH.md records
+//   repro   — the row's `check` cell `repro`: the command RESEARCH.md records. A row that only
+//             edits the repro runs it too, and it must be red: that run is the round's before-the-fix
+//             measurement, its output kept in checks.log (TJEW-670: the repro was fixed in a row
+//             checked `—`, and two of four subitems never had a red run)
 // Every run appends one JSON line to .wf/checks.log (row, the row's check, each task's exit,
 // green|red). The validate agent reads that, never the commit message: "the check was run"
 // is then observed, not claimed (llm-as-a-verifier: trust observed output, not narration).
@@ -55,7 +58,7 @@ export function tokenize(line) {
 
 // Pure: the commands to run, in order. `projectTasks(test)` is the project's commands for the diff
 // plus `test` (the row's test path, or null); `repro` is the RESEARCH.md command line (or null).
-export function buildTasks({ row, projectTasks, repro }) {
+export function buildTasks({ row, projectTasks, repro, reproOnly = false }) {
 	// The command is the first `code span` when there is one — a cell may add a note after it
 	// (TJEW-700 row 6: "`vitest run …ts` (fixture carries …)" took `number)` as the path).
 	const cell = row?.check ?? '';
@@ -65,11 +68,18 @@ export function buildTasks({ row, projectTasks, repro }) {
 	// The cell is a command (`pytest packages/backend/tests/x.py`, `vitest run …/x.test.ts`):
 	// the path is its last word (TJEW-700: the whole cell was sliced as a path → `ackend/tests/…`).
 	const checkPath = check.split(/\s+/).pop() ?? '';
-	const tasks = projectTasks(check && check !== 'repro' ? checkPath : null);
-	if (check !== 'repro') return tasks;
+	const tasks = projectTasks(check && check !== 'repro' && !reproOnly ? checkPath : null);
+	if (check !== 'repro' && !reproOnly) return tasks;
 	if (!repro) return [...tasks, { label: 'repro', missing: 'RESEARCH.md ## Repro has no `command:` line' }];
 	const [cmd, ...args] = tokenize(repro);
-	return [...tasks, { label: repro, cmd, args, cwd: '.' }];
+	return [...tasks, { label: repro, cmd, args, cwd: '.', ...(reproOnly ? { expectRed: true } : {}) }];
+}
+
+// Pure: whether every file of a plan row is in the round's repro folder (a row that fixes the repro
+// before the product fix).
+export function isReproOnly(files, folder) {
+	const dir = `${(folder ?? '').replace(/\\/g, '/').replace(/\/?$/, '/')}repro/`;
+	return Boolean(folder) && files.length > 0 && files.every((f) => f.startsWith(dir));
 }
 
 // Pure: the checks.log line for one run.
@@ -100,7 +110,8 @@ export function runCheck() {
 	}
 	const research = join(toplevel, folder ?? '', 'RESEARCH.md');
 	const repro = existsSync(research) ? reproCommand(readFileSync(research, 'utf8')) : null;
-	for (const task of buildTasks({ row, projectTasks: (test) => checks({ toplevel, changed, test }), repro })) {
+	const reproOnly = row ? isReproOnly(rowFiles(row), folder) : false;
+	for (const task of buildTasks({ row, projectTasks: (test) => checks({ toplevel, changed, test }), repro, reproOnly })) {
 		if (task.missing) {
 			console.error(`check: ${task.missing}`);
 			ran.push({ label: task.label, exit: null, missing: task.missing });
@@ -108,10 +119,18 @@ export function runCheck() {
 			process.exit(1);
 		}
 		const run = spawnSync(task.cmd, task.args, { cwd: join(toplevel, task.cwd), encoding: 'utf8', shell: process.platform === 'win32' });
+		const output = `${run.stdout ?? ''}${run.stderr ?? ''}`;
+		if (task.expectRed) {
+			ran.push({ label: task.label, exit: run.status, expect: 'red', output: output.split('\n').slice(-15).join('\n').trimEnd() });
+			if (run.status !== 0) continue;
+			console.error(`FAILED: the repro passes before the fix. A row that only edits the repro must leave it red on the defect: ${task.label}`);
+			logRun('red');
+			process.exit(1);
+		}
 		ran.push({ label: task.label, exit: run.status });
 		if (run.status === 0) continue;
 		console.error(`FAILED: ${task.cmd} ${task.args.join(' ')}`);
-		console.error(`${run.stdout ?? ''}${run.stderr ?? ''}`.split('\n').slice(-TAIL).join('\n').trimEnd());
+		console.error(output.split('\n').slice(-TAIL).join('\n').trimEnd());
 		logRun('red');
 		process.exit(1);
 	}

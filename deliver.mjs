@@ -8,7 +8,7 @@
 //   4. the project's tracker note in the round folder (the round skill posts it last; wf never calls the tracker)
 //   5. `wf step merged`
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runCheck } from './check.mjs';
@@ -30,6 +30,21 @@ export function prBody({ planText, commitLines, validation }) {
 export function t2Gap(state, reviewText) {
 	if (state?.step === 'pr' && readVerdict(reviewText ?? '') === 'approved') return null;
 	return 'T2 has not approved this round. deliver merges, so it comes after `wf review <branch> --done` with verdict: approved';
+}
+
+// Pure: whether a failed push was the project's pre-push hook refusing it (not the network or auth).
+export const hookRefused = (output) => /pre-push/i.test(output ?? '');
+
+// Pure: the REVIEW.md section a push the hook refused becomes. Its changes-requested verdict is a T2
+// fix like any other (wf next dispatches fix-review, then T2 again): TJEW-670's orchestrator built
+// this by hand, 2026-09-28, after fallow-audit refused a push T2 had approved.
+export function refusedPushSection(output, date) {
+	// The lines that name a failure, not the tail: the hook's last 30 lines were svelte-kit and node
+	// warnings, and the file fallow flagged was above them (bench, 2026-09-28).
+	const all = output.replace(/\r\n/g, '\n').split('\n').filter((l) => l.trim());
+	const named = all.filter((l) => /[\u2717\u2718]|\u{1F94A}|\berror\b|CRITICAL|^\s*(packages|verification|scripts|docs)\/|^\s+:\d+\s/u.test(l) && !/lefthook v\d/.test(l));
+	const lines = (named.length ? named : all).slice(-30);
+	return `\n## ${date} \u2014 the push was refused by the project's pre-push hook\n\ncomments:\n(the push) \u2014 fix what the hook reports; \`wf check\` runs the same hook on the files you change:\n${lines.map((l) => `    ${l}`).join('\n')}\n\nverdict: changes-requested\n`;
 }
 
 const git = (toplevel, args) => execFileSync('git', ['-C', toplevel, ...args], { encoding: 'utf8' }).trimEnd();
@@ -81,8 +96,13 @@ export async function runDeliver() {
 	// gh pr create cannot push without a terminal; push first (BJEW-603, the first real deliver).
 	const pushed = spawnSync('git', ['-C', toplevel, 'push', '-q', '-u', 'origin', 'HEAD'], { encoding: 'utf8' });
 	if (pushed.status !== 0) {
-		console.error(`FAILED: git push
-${(pushed.stdout ?? '') + (pushed.stderr ?? '')}`.trimEnd());
+		const output = (pushed.stdout ?? '') + (pushed.stderr ?? '');
+		console.error(`FAILED: git push\n${output}`.trimEnd());
+		if (hookRefused(output)) {
+			appendFileSync(reviewFile, refusedPushSection(output, new Date().toISOString().slice(0, 10)));
+			await runStep(['implement']);
+			console.error(`wf deliver: the pre-push hook refused the push. ${folder}/REVIEW.md now asks for the fix (verdict: changes-requested); the round is back at implement. \`wf next\` dispatches it, then T2 again.`);
+		}
 		process.exit(1);
 	}
 
@@ -116,7 +136,8 @@ ${(pushed.stdout ?? '') + (pushed.stderr ?? '')}`.trimEnd());
 		process.exit(1);
 	}
 	spawnSync('git', ['-C', toplevel, 'push', '-q', 'origin', '--delete', git(toplevel, ['rev-parse', '--abbrev-ref', 'HEAD'])], { encoding: 'utf8' });
-	const note = trackerNote({ planText, url: prUrl });
+	// Every --id the round was made with: a round on subitems has one note per subitem (TJEW-670).
+	const note = trackerNote({ ids: state?.ids ?? [id], url: prUrl });
 	writeFileSync(join(toplevel, folder, note.file), note.text);
 	console.log(`${prUrl} merged; tracker note: ${folder}/${note.file}`);
 	await runStep(['merged']);

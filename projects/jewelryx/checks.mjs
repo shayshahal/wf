@@ -2,6 +2,8 @@
 //   backend  — ruff check + ruff format --check, pytest for the changed tests
 //   frontend — svelte-check for the touched packages, vitest for the changed tests
 //   test     — the plan row's test path: pytest, vitest in its package, or playwright under verification/
+//   pre-push — the repo's own lefthook pre-push hook on the changed files, when it has one (it runs
+//              the stricter svelte-check, so the --tsgo one above is dropped then)
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 
@@ -9,8 +11,17 @@ const isPyTest = (f) => /(^|\/)tests?\//.test(f) || /(^|\/)test_[^/]+\.py$/.test
 const isJsTest = (f) => /\.(test|spec)\.[cm]?[jt]s$/.test(f);
 
 // Pure: the commands to run, in order. `pkgFor(file)` returns { name, dir, svelte } for a frontend
-// file or null; `test` is the plan row's test path or null.
-export function checkTasks({ changed, test, pkgFor }) {
+// file or null; `test` is the plan row's test path or null; `pushHook`: the repo has a lefthook.yml.
+export function checkTasks({ changed, test, pkgFor, pushHook = false }) {
+	const tasks = rowTasks({ changed, test, pkgFor, pushHook });
+	if (!pushHook || !changed.length || tasks.some((t) => t.missing)) return tasks;
+	// What the push will run, run before the commit: TJEW-670 (2026-09-28) was approved at T2, then
+	// its push was refused by fallow-audit, and the fix commit after the approval needed a second T2.
+	// fallow audit sees uncommitted and untracked files (measured on a bench round, the same day).
+	return [...tasks, { label: 'lefthook pre-push', cmd: 'pnpm', args: ['exec', 'lefthook', 'run', 'pre-push', ...changed.flatMap((f) => ['--file', f])], cwd: '.' }];
+}
+
+function rowTasks({ changed, test, pkgFor, pushHook }) {
 	const tasks = [];
 	const add = (t) => { if (!tasks.some((x) => x.label === t.label)) tasks.push(t); };
 	const backend = changed.filter((f) => f.startsWith('packages/backend/') && f.endsWith('.py'));
@@ -31,7 +42,7 @@ export function checkTasks({ changed, test, pkgFor }) {
 		if (isJsTest(f)) pkgs.get(pkg.name).tests.push(relative(pkg.dir, f).replace(/\\/g, '/'));
 	}
 	for (const pkg of pkgs.values()) {
-		if (pkg.svelte) add({ label: `svelte-check ${pkg.name}`, cmd: 'pnpm', args: ['--filter', pkg.name, 'exec', 'svelte-check', '--threshold', 'error', '--incremental', '--tsgo'], cwd: '.' });
+		if (pkg.svelte && !pushHook) add({ label: `svelte-check ${pkg.name}`, cmd: 'pnpm', args: ['--filter', pkg.name, 'exec', 'svelte-check', '--threshold', 'error', '--incremental', '--tsgo'], cwd: '.' });
 		if (pkg.tests.length) add({ label: `vitest ${pkg.name} ${pkg.tests.join(' ')}`, cmd: 'pnpm', args: ['--filter', pkg.name, 'exec', 'vitest', 'run', ...pkg.tests], cwd: '.' });
 	}
 
