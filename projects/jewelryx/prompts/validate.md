@@ -12,7 +12,10 @@ words. You still fix nothing.
    `INCONCLUSIVE`, with the doctor's line as the reason.
 2. For each Intent line, drive the user path in the feature file on this round's stack (B2B `{{b2b}}`,
    Admin `{{admin}}`) and give it one verdict, as `docs/agents/verify-jewelryx/references/verify-this.md`
-   defines them: `VERIFIED`, `NOT VERIFIED` or `INCONCLUSIVE`.
+   defines them: `VERIFIED`, `NOT VERIFIED` or `INCONCLUSIVE`. `open`, `login` and `api` end with
+   the stack's errors since the last command; after a click, `control-jewelryx errors` prints them.
+   A screen that looks right over a failed request or a console error is not `VERIFIED`: name the
+   error in the line.
 3. Evidence goes to `{{folder}}/proof/`: `control-jewelryx screenshot --name <n>`, then move the file
    there. For each line under `RESEARCH.md`'s `## Before`, take the same view on this stack (the same
    role, page and clicks) as `after-<n>`, the same `n`, and name `proof/after-<n>.png` in the Live line

@@ -58,9 +58,10 @@ const plain = devCommands('18001');
 check('ports: API P+10000 on 127.0.0.1 for the servers, admin P+20000', plain[0].env.DEV_BACKEND_PORT === '28001' && plain[1].env.INTERNAL_API_URL === 'http://127.0.0.1:28001' && plain[2].command === 'pnpm dev:admin --port 38001 --strictPort');
 check('no -- separator reaches vite', plain.every((c) => !/\s--\s/.test(c.command)));
 check('with no machine names, the servers use the direct origins', plain[1].env.ORIGIN === 'http://localhost:18001' && plain[2].env.PUBLIC_API_URL === 'http://localhost:28001/api/v1');
+check('the two vites run as under an agent, so they forward the browser console to dev.log', plain[1].env.AI_AGENT && plain[2].env.AI_AGENT && !plain[0].env.AI_AGENT);
 
 // ── a round's repro and the verification skill's stack file
-check('.verify-stack.env: the three direct URLs, the keys control-jewelryx reads', verifyStackEnv(direct) === 'B2B_URL=http://localhost:12345\nADMIN_URL=http://localhost:32345\nAPI_URL=http://127.0.0.1:22345/api/v1\n');
+check('.verify-stack.env: the three direct URLs and the servers\' log, the keys control-jewelryx reads', verifyStackEnv(direct, 'C:/w/.wf/logs/dev.log') === 'B2B_URL=http://localhost:12345\nADMIN_URL=http://localhost:32345\nAPI_URL=http://127.0.0.1:22345/api/v1\nSTACK_LOG=C:/w/.wf/logs/dev.log\n');
 const bare = reproConfig({ direct, withAuth: false });
 const authed = reproConfig({ direct, withAuth: true });
 check('repro config without the skill: no global setup', !/globalSetup|VERIFY_AUTH/.test(bare) && bare.includes("process.env.B2B_URL ??= 'http://localhost:12345'"), bare);

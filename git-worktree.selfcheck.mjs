@@ -47,7 +47,7 @@ check('a branch that was there before survives the failed add', add('round/mine'
 rmSync(repo, { recursive: true, force: true });
 
 const hop = hiddenHop('win32', { PATH: 'x' });
-check('Windows: the detached serve re-runs itself hidden, once', hop.options.windowsHide === true && hop.options.env.WF_SERVE_HIDDEN === '1' && hop.options.env.PATH === 'x' && hop.args.slice(1).join(' ') === 'serve --foreground' && hiddenHop('win32', hop.options.env) === null);
+check('Windows: the detached serve re-runs itself hidden, once, with piped stdio (no console window)', hop.options.windowsHide === true && hop.options.stdio.join() === 'ignore,pipe,pipe' && hop.options.env.WF_SERVE_HIDDEN === '1' && hop.options.env.PATH === 'x' && hop.args.slice(1).join(' ') === 'serve --foreground' && hiddenHop('win32', hop.options.env) === null);
 check('elsewhere: no hop', hiddenHop('linux', {}) === null);
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');

@@ -16,6 +16,10 @@
   once the fix is in, and T2 shows them side by side. Add to `RESEARCH.md`, after `## Repro`:
   `## Before`, one line per picture: `` `proof/before-<n>.png` — <role> on <page path>: <the clicks
   from there, and what the picture shows> ``. Validate follows that line, so name what it needs.
+- A blank screen, a 500, a repro red for a reason you cannot see: run `control-jewelryx errors`
+  before guessing. It prints what the stack logged since it last looked: failed requests, a 500's
+  traceback, SvelteKit server errors, the browser's console errors (`open`, `login` and `api` print
+  them by themselves). On a base without it, the same lines are in `.wf/logs/dev.log`.
 - Without that skill, the browser is `playwright-cli`: commands and why in `docs/agents/testing.md`,
   *Exploring a page before writing a spec*.
 - What a JewelryX test needs to know (login and OTP, Hebrew, visual symptoms in pixels, specs outside

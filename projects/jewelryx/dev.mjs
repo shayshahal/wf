@@ -24,6 +24,10 @@ export function devCommands(basePort, { origins = null, wrap = asIs } = {}) {
 	const internalBackendUrl = `http://127.0.0.1:${backendPort}`;
 	const b2bOrigin = origins?.b2b ?? `http://localhost:${b2bPort}`;
 	const adminOrigin = origins?.admin ?? `http://localhost:${adminPort}`;
+	// Vite 8 forwards the browser's console errors and uncaught errors into its own output (so into
+	// dev.log, where control-jewelryx reads them) only when it sees a coding agent's variable. The
+	// agent that started the stack may set none: say so for it. AI_AGENT is the generic one.
+	const vite = { AI_AGENT: 'wf' };
 	const server = (name, role, port, command, env) => {
 		const w = wrap({ role, port, command });
 		return { name, command: w.command, env: { ...env, ...w.env } };
@@ -32,8 +36,8 @@ export function devCommands(basePort, { origins = null, wrap = asIs } = {}) {
 		server('backend', 'api', backendPort, 'pnpm dev:backend', { DEV_BACKEND_PORT: String(backendPort), CORS_ORIGINS: `${b2bOrigin},${adminOrigin}`, B2B_PUBLIC_URL: `${b2bOrigin}/b2b` }),
 		// No `--` before the flags: pnpm forwards it verbatim to vite, which treats it as
 		// end-of-options and ignores --port, silently falling back to 5173/3002.
-		server('b2b', 'b2b', b2bPort, `pnpm dev:frontend --port ${b2bPort} --strictPort`, { INTERNAL_API_URL: internalBackendUrl, PUBLIC_API_URL: '/api', ORIGIN: b2bOrigin }),
-		server('admin', 'admin', adminPort, `pnpm dev:admin --port ${adminPort} --strictPort`, { INTERNAL_API_URL: internalBackendUrl, PUBLIC_API_URL: `${origins?.api ?? backendUrl}/api/v1`, PUBLIC_B2B_ORIGIN: b2bOrigin, ORIGIN: adminOrigin }),
+		server('b2b', 'b2b', b2bPort, `pnpm dev:frontend --port ${b2bPort} --strictPort`, { ...vite, INTERNAL_API_URL: internalBackendUrl, PUBLIC_API_URL: '/api', ORIGIN: b2bOrigin }),
+		server('admin', 'admin', adminPort, `pnpm dev:admin --port ${adminPort} --strictPort`, { ...vite, INTERNAL_API_URL: internalBackendUrl, PUBLIC_API_URL: `${origins?.api ?? backendUrl}/api/v1`, PUBLIC_B2B_ORIGIN: b2bOrigin, ORIGIN: adminOrigin }),
 	];
 }
 

@@ -127,7 +127,7 @@ export const setup = {
 		copySecrets(worktree, m.secretsFrom(worktree));
 		sanitizeWorktreeEnv(worktree, { url: m.database.url({ slug, port }), name: worktreeDatabase(slug) });
 		// The verification skill's CLI finds this checkout's stack here (round.mjs VERIFY_SKILL).
-		writeFileSync(join(worktree, '.verify-stack.env'), verifyStackEnv(directUrls(port)));
+		writeFileSync(join(worktree, '.verify-stack.env'), verifyStackEnv(directUrls(port), join(worktree, '.wf', 'logs', 'dev.log') /* dev.mjs writes it */.replace(/\\/g, '/')));
 	},
 	node: 'pnpm install --frozen-lockfile && pnpm build:types && pnpm build:data && pnpm build:filters',
 	verify: 'pnpm --dir verification install --ignore-workspace',
