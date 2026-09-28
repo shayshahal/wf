@@ -39,14 +39,14 @@ export function nextAction(s) {
 	const dispatch = (phase, args = [], gap = null) => {
 		const b = brief(phase, args[0]);
 		const label = [phase, ...args].join(' ');
-		if (b && gap && (b.count ?? 1) >= MAX_BRIEFS) return act(`wait shay: ${label} was briefed ${b.count} times and ${gap} — a harness gap (round skill, When a round goes wrong)`);
+		if (b && gap && (b.count ?? 1) >= MAX_BRIEFS) return act(`wait user: ${label} was briefed ${b.count} times and ${gap} — a harness gap (round skill, When a round goes wrong)`);
 		return act(`dispatch ${label}: run \`${wf} brief ${label}\` in this worktree and do exactly what it prints${b && gap ? ` (again: ${gap})` : ''}`);
 	};
 	const asked = (source) => [...(s.questions ?? []), ...(s.answered ?? [])].some((q) => q.source === source);
 	const open = s.questions ?? [];
 
 	if (open.length) return act(open.map((q) => `wait ${q.to}: q${q.n} ${q.text}${q.default ? ` (default: ${q.default})` : ''}`).join('\n'));
-	if (s.step === 'held') return act('wait shay: the round is held (wf step <name> resumes it)');
+	if (s.step === 'held') return act('wait user: the round is held (wf step <name> resumes it)');
 	if (s.step === 'merged') return act('done');
 	// T2 is local, before anything leaves the machine; the approval is the merge, and the tracker hears
 	// last (Shay, 2026-09-27: BJEW-562's PR was merged in GitHub before its T2, and Monday said
@@ -54,7 +54,7 @@ export function nextAction(s) {
 	if (s.step === 'pr') return act(`deliver: T2 approved — \`${wf} deliver\` (push, PR, merge), then post the tracker note it wrote and set the delivered status (ROUND.md), then \`${wf} reap ${s.branch}\``);
 	const t2 = `review: T2 — see the fix first (ROUND.md's T2, as the round skill's *Dispatch in this harness* says), then \`${wf} review ${s.branch}\`; once it has a verdict, \`${wf} review ${s.branch} --done\``;
 	if (s.step === 'review') {
-		if (readVerdict(s.files.review ?? '') === 'dismissed') return act(`wait shay: T2 was closed without a verdict — \`${wf} review ${s.branch}\` again when he is ready`);
+		if (readVerdict(s.files.review ?? '') === 'dismissed') return act(`wait user: T2 was closed without a verdict — \`${wf} review ${s.branch}\` again when they are ready`);
 		return act(t2);
 	}
 
@@ -67,8 +67,8 @@ export function nextAction(s) {
 		// and the tracker hears nothing until Shay says go (BJEW-461, 2026-09-28: it did not reproduce,
 		// and a round would have said In Progress for a ticket that went back to its reporter).
 		if (s.check) {
-			if (step !== 'research') effects.push({ step: ['research', '--waiting-on', 'shay'] });
-			return act(`wait shay: check — RESEARCH.md says whether it reproduces. Go on: \`${wf} step plan\`, then set the started status; stop: \`WF_FORCE_REAP=1 ${wf} reap ${s.branch}\``);
+			if (step !== 'research') effects.push({ step: ['research', '--waiting-on', 'user'] });
+			return act(`wait user: check — RESEARCH.md says whether it reproduces. Go on: \`${wf} step plan\`, then set the started status; stop: \`WF_FORCE_REAP=1 ${wf} reap ${s.branch}\``);
 		}
 		effects.push({ step: ['plan'] });
 		step = 'plan';
@@ -82,8 +82,8 @@ export function nextAction(s) {
 		const token = brief('plan')?.token ?? 'plan';
 		const asks = planAsks(s.files.plan).map((a, i) => ({ ...a, source: `PLAN.md#${token}:${i + 1}` })).filter((a) => !asked(a.source));
 		if (asks.length) {
-			for (const a of asks) effects.push({ ask: { to: 'shay', text: a.text, dflt: a.dflt, source: a.source } });
-			return act(asks.map((a) => `wait shay: ${a.text}${a.dflt ? ` (default: ${a.dflt})` : ''}`).join('\n'));
+			for (const a of asks) effects.push({ ask: { to: 'user', text: a.text, dflt: a.dflt, source: a.source } });
+			return act(asks.map((a) => `wait user: ${a.text}${a.dflt ? ` (default: ${a.dflt})` : ''}`).join('\n'));
 		}
 		// An Ask answered against its default: the plan is revised to the answer first (ask.mjs).
 		if (overruledAsks(s.answered, token).length) return dispatch('plan', ['--revise'], null);
@@ -93,9 +93,9 @@ export function nextAction(s) {
 			klass = planned;
 		}
 		if (klass === 'B' || klass === 'C') {
-			if (!s.t1.spec || step !== 'design') return act('design: start the design session (round skill, Dispatch in this harness); it writes SPEC.md with Shay and runs `wf step design`');
+			if (!s.t1.spec || step !== 'design') return act('design: start the design session (round skill, Dispatch in this harness); it writes SPEC.md with the user and runs `wf step design`');
 			if (s.t1.reviewed === s.t1.spec && s.t1.verdict === 'changes-requested') return dispatch('plan', ['--revise'], null);
-			if (s.t1.reviewed !== s.t1.spec || s.t1.verdict !== 'approved') return act(`wait shay: T1 on SPEC.md — \`${wf} design ${s.branch}\``);
+			if (s.t1.reviewed !== s.t1.spec || s.t1.verdict !== 'approved') return act(`wait user: T1 on SPEC.md — \`${wf} design ${s.branch}\``);
 		}
 		effects.push({ step: ['implement'] });
 		step = 'implement';
@@ -107,9 +107,9 @@ export function nextAction(s) {
 		if (s.files.blocked) {
 			if (/^## Answer[ \t]*$/m.test(s.files.blocked.replace(/\r\n/g, '\n'))) return dispatch('implement', [s.commit], null);
 			const q = blockedQuestion(s.files.blocked);
-			if (!q) return act(`wait shay: BLOCKED.md at commit ${s.commit} has no Question: line — read it`);
-			effects.push({ ask: { to: 'shay', text: q, dflt: null, source: 'BLOCKED.md' } });
-			return act(`wait shay: blocked at commit ${s.commit} — ${q}`);
+			if (!q) return act(`wait user: BLOCKED.md at commit ${s.commit} has no Question: line — read it`);
+			effects.push({ ask: { to: 'user', text: q, dflt: null, source: 'BLOCKED.md' } });
+			return act(`wait user: blocked at commit ${s.commit} — ${q}`);
 		}
 		const pending = rows.find((r) => !rowDone(r, s));
 		if (pending) return dispatch('implement', [pending.n], brief('implement', pending.n) ? `commit ${pending.n} is not in git log with a green \`wf check\`` : null);
@@ -132,14 +132,14 @@ export function nextAction(s) {
 			if (!ruling) {
 				const lines = (s.files.validation ?? '').replace(/\r\n/g, '\n').split('\n').filter((l) => /\b(differs|missing|not met|extra|red):/.test(l)).map((l) => l.replace(/^[-*]\s*/, '').trim());
 				const text = `fix or accept: ${lines.join(' · ') || 'VALIDATION.md says deviates'}`;
-				effects.push({ ask: { to: 'shay', text, dflt: null, source } });
-				return act(`wait shay: ${text}`);
+				effects.push({ ask: { to: 'user', text, dflt: null, source } });
+				return act(`wait user: ${text}`);
 			}
-			if (!/^\s*accept\b/i.test(ruling.answer ?? '')) return act(`wait shay: q${ruling.n}'s answer "${ruling.answer}" is neither fix nor accept — ask again with \`${wf} ask\``);
+			if (!/^\s*accept\b/i.test(ruling.answer ?? '')) return act(`wait user: q${ruling.n}'s answer "${ruling.answer}" is neither fix nor accept — ask again with \`${wf} ask\``);
 		}
 		return act(t2);
 	}
-	return act(`wait shay: step "${step}" has no next action`);
+	return act(`wait user: step "${step}" has no next action`);
 }
 
 // ── the shell ────────────────────────────────────────────────────────────────

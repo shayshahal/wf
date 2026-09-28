@@ -56,8 +56,8 @@ export async function collectRows({ paths, readState, pullRequests = [], now = D
   // waiting_on=shay first; within a group the longest-waiting first; stateless worktrees last.
   const ageMs = (r) => (r.state?.since ? now - Date.parse(r.state.since) : -Infinity);
   return rows.sort((a, b) => {
-    const ay = a.state?.waiting_on === 'shay' ? 0 : 1;
-    const by = b.state?.waiting_on === 'shay' ? 0 : 1;
+    const ay = a.state?.waiting_on === 'user' ? 0 : 1;
+    const by = b.state?.waiting_on === 'user' ? 0 : 1;
     return ay - by || ageMs(b) - ageMs(a);
   });
 }
@@ -109,7 +109,7 @@ export function formatRow(r, now = Date.now()) {
   const s = r.state;
   const stack = r.stack ? ` · stack ${r.stack.name ?? `:${r.stack.port}`} ${r.stack.up ? '✓' : '✗'}` : '';
   if (!s) return `${r.path}  —${stack}`;
-  const you = s.waiting_on === 'shay' ? ` ${WF_YOU_MARKER}` : '';
+  const you = s.waiting_on === 'user' ? ` ${WF_YOU_MARKER}` : '';
   return `${s.round} · ${s.class ?? '—'} · ${s.step} · ${s.waiting_on ?? '—'} · ${formatAgeSince(s.since, now)} · ${r.pr}${stack}${you}`;
 }
 
@@ -130,7 +130,7 @@ export function allLines({ paths, readState, detailFor, now = Date.now() }) {
   const groups = { 'waiting on you': [], running: [], held: [] };
   const rounds = paths.map((p) => ({ path: p, state: readState(p) })).filter((r) => r.state);
   for (const { path, state } of rounds) {
-    const group = state.step === 'held' ? 'held' : state.waiting_on === 'shay' ? 'waiting on you' : 'running';
+    const group = state.step === 'held' ? 'held' : state.waiting_on === 'user' ? 'waiting on you' : 'running';
     const cells = [state.id ?? state.round, state.step, state.waiting_on ?? 'running', formatAgeSince(state.since, now), detailFor(path, state) ?? ''];
     // Open questions (wf ask) under their round: what the round waits for, not only on whom.
     groups[group].push({ line: cells.join('  ').trimEnd(), questions: questionLines(state) });

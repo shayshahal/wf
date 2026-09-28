@@ -1,25 +1,25 @@
 # Human touchpoints
 
-Two commands need Shay, and both run from the hub session — they resolve the round's
+Two commands need the user, and both run from the hub session — they resolve the round's
 worktree themselves, so there is no folder switch. The Plannotator adapter is optional:
 with it the browser opens and the result folds itself into the file; without it the
-command writes the skeleton and opens `$VISUAL` / `$EDITOR` / `code`, and Shay writes
+command writes the skeleton and opens `$VISUAL` / `$EDITOR` / `code`, and the user writes
 the `path:line — text` lines by hand. Either way the same files land.
 
 **T1 — `wf design <round>`** writes `<round folder>/SPEC-REVIEW.md`. It requires SPEC.md,
-marks `step design --waiting-on shay`, opens the spec for annotation (Plannotator
+marks `step design --waiting-on user`, opens the spec for annotation (Plannotator
 `annotate --gate`), and folds the result into the REVIEW-FORMAT.md shape: one comment
 line each plus a final `verdict:` line.
 
 **T2 — `wf review <round> [--base <ref>]`** writes `<round folder>/REVIEW.md`, then commits and pushes it to the PR branch so the
 merge carries it. It marks
-`step review --waiting-on shay`, writes the skeleton first (server URLs, files changed
+`step review --waiting-on user`, writes the skeleton first (server URLs, files changed
 vs base, class, spec sha), opens the branch-vs-base diff (Plannotator `review
 --diff-type branch`), then appends the folded comments and verdict.
 `wf review <round> --done` reads the verdict line: approved → `step pr`,
 changes-requested → `step implement`; a missing or dismissed verdict exits 2.
 
-**Each checkpoint file is checked by the next step, so nobody can route around Shay**
+**Each checkpoint file is checked by the next step, so nobody can route around the user**
 (measured on BJEW-586, 2026-09-22 — all three happened in one round):
 
 - `wf step implement` on a B/C round refuses unless `SPEC-REVIEW.md` approves the
@@ -38,11 +38,11 @@ penalised for a lazy cast or a try/catch around everything. (HumanLayer, *Why
 Software Factories Fail*.)
 
 **Slices, opt-in.** A SPEC may carry a `## Slices` section — vertical cuts in the
-order Shay wants to touch them (contract with mock data → screen in the browser →
+order the user wants to touch them (contract with mock data → screen in the browser →
 wire → store), never stack order. When present, the worker runs `wf step review`
-after each slice and Shay reviews 100–200 lines at a time. Absent, one T2 at the end.
+after each slice and the user reviews 100–200 lines at a time. Absent, one T2 at the end.
 
-**Asking.** Every question an agent might put to Shay or the product owner is sorted first:
+**Asking.** Every question an agent might put to the user or the product owner is sorted first:
 INFER what the code or the ticket already reveals — never ask it; ASK only what
 the human alone knows (a requirement, a business rule); RECOMMEND what expertise
 settles — state the pick, one line why, and the runner-up. Never a neutral menu,

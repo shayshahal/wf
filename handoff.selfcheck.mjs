@@ -42,7 +42,7 @@ check('implement hands off its commit, no token', !handoffText({ phase: 'impleme
 // ── a brief only for what wf next dispatches (brief.mjs briefGap)
 const nextSays = "dispatch implement 1: run `node C:/wf/wf.mjs brief implement 1` in this worktree and do exactly what it prints";
 check("the brief wf next dispatches is given", briefGap(["implement", "1"], nextSays) === null && briefGap(["plan", "--revise"], "dispatch plan --revise: run x") === null);
-check("any other is refused, naming wf prompt for a preview", briefGap(["plan", "--revise"], nextSays)?.includes("wf prompt plan --revise") && briefGap(["implement", "2"], nextSays) !== null && briefGap(["implement", "1"], "wait shay: q1 x")?.includes("it says: wait shay: q1 x"));
+check("any other is refused, naming wf prompt for a preview", briefGap(["plan", "--revise"], nextSays)?.includes("wf prompt plan --revise") && briefGap(["implement", "2"], nextSays) !== null && briefGap(["implement", "1"], "wait user: q1 x")?.includes("it says: wait user: q1 x"));
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');
 process.exit(failures ? 1 : 0);

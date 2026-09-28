@@ -33,7 +33,7 @@ export async function runDesign(argv) {
   const prev = process.cwd();
   process.chdir(worktree);
   try {
-    await runStep(['design', '--waiting-on', 'shay', '--round', round]);
+    await runStep(['design', '--waiting-on', 'user', '--round', round]);
   } finally {
     process.chdir(prev);
   }

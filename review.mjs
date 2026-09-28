@@ -20,7 +20,7 @@ const inWorktree = async (worktree, round, step) => {
   const prev = process.cwd();
   process.chdir(worktree);
   try {
-    await runStep([step, '--waiting-on', 'shay', '--round', round]);
+    await runStep([step, '--waiting-on', 'user', '--round', round]);
   } finally {
     process.chdir(prev);
   }

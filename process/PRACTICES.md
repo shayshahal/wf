@@ -27,7 +27,7 @@ wait for the return, then verify its artifacts exist on disk before
 calling anything done. Parallel rounds run in parallel worktrees, never
 in one.
 
-**Second-model review.** Before a batch reaches Shay, a reviewer that did
+**Second-model review.** Before a batch reaches the user, a reviewer that did
 not write the code reads it — a different model where possible — along two
 axes kept apart: standards (does it follow this repo's rules?) and spec
 (does it do what was asked, no more?). The two reports are presented side by
