@@ -30,6 +30,16 @@ before *Start*.
   per item. Fill each section's lines in plain Hebrew from `TICKET.md` and what the round changed, with
   no file path, code name or line number, show the user the exact text, and post each section on its
   own item without its `##` line.
+- The round's pictures go with the note: `proof/before-<n>.png` and `proof/after-<n>.png` in the round
+  folder (research took the befores, validate the afters; they are gitignored, and gone after reap).
+  The connector cannot attach a file to an update, only to a file column (BJEW-532). Read the item's
+  board's file columns (`columns(types: [file])`): Bugs and its subitems have `Files`, Tasks and its
+  subitems none (2026-09-28). With one: upload each picture to that column of each item the note went
+  on (`monday_get_asset_upload_url`, `curl -i -X PUT` the file, `monday_finalize_asset_upload` with the
+  ETag), read the column back to see the reporter's own files are still there (not yet seen in a round: if
+  they are gone, stop and tell the user), and add a line to the
+  note before posting: `תמונות לפני/אחרי מצורפות לפריט, בעמודת הקבצים.` Without one: after posting,
+  tell the user which files to drag onto the update, with their full paths.
 
 ## People
 

@@ -2,12 +2,12 @@
 // wf review <round> [--base dev] — T2: skeleton REVIEW.md, browser diff review, fold → REVIEW.md.
 // wf review <round> --done — verdict → step implement (changes-requested) | pr (approved).
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { openInEditor, opensWindows } from './editor.mjs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { openFile, openInEditor, opensWindows } from './editor.mjs';
 import { baseBranch } from './project.mjs';
 import { resolveWorktree } from './worktree.mjs';
-import { appendDatedSection, asBuiltFile, devUrlsFor, foldFeedbackLine, lastField, readVerdict, renderHeader, renderSkeleton, specShaFor, wfDir } from './review-format.mjs';
+import { appendDatedSection, asBuiltFile, beforeAfterPage, captionFor, devUrlsFor, foldFeedbackLine, lastField, proofPairs, readVerdict, renderHeader, renderSkeleton, specShaFor, wfDir } from './review-format.mjs';
 import { seams } from './seams.mjs';
 import { roundFile } from './state.mjs';
 import { runStep } from './step.mjs';
@@ -55,6 +55,21 @@ export function reviewFiles(diff, asBuilt, onDisk) {
   return onDisk && !diff.includes(asBuilt) ? [asBuilt, ...diff] : diff;
 }
 
+// The round's before/after page (.wf/before-after.html, outside the round folder: deliver commits that
+// folder, and the PNGs it shows are gitignored), or null when neither research nor validate took one.
+function writeBeforeAfter(worktree, round) {
+  const folder = readState(worktree).folder;
+  const proof = folder ? join(worktree, folder, 'proof') : null;
+  const pairs = proof && existsSync(proof) ? proofPairs(readdirSync(proof)) : [];
+  if (!pairs.length) return null;
+  const texts = ['RESEARCH.md', 'VALIDATION.md'].map((f) => (existsSync(join(worktree, folder, f)) ? readFileSync(join(worktree, folder, f), 'utf8') : ''));
+  const captions = Object.fromEntries(pairs.flatMap((p) => [p.before, p.after]).filter(Boolean).map((n) => [n, captionFor(n, texts)]));
+  const file = join(worktree, '.wf', 'before-after.html');
+  mkdirSync(dirname(file), { recursive: true });
+  writeFileSync(file, beforeAfterPage({ round, pairs, captions, src: `../${folder}/proof` }));
+  return file;
+}
+
 export async function runReview(argv) {
   const round = argv.find((a) => !a.startsWith('-'));
   if (!round) usage();
@@ -73,9 +88,14 @@ export async function runReview(argv) {
     process.exit(2);
   }
   await inWorktree(worktree, round, 'review');
-  const header = () => renderHeader({ round, klass, base, specSha: specShaFor(worktree), urls: devUrlsFor(worktree), files });
+  const beforeAfter = writeBeforeAfter(worktree, round);
+  if (beforeAfter) {
+    console.log(`before/after: ${beforeAfter}`);
+    openFile(beforeAfter);
+  }
+  const header = () => renderHeader({ round, klass, base, specSha: specShaFor(worktree), urls: devUrlsFor(worktree), files, beforeAfter });
   const file = roundFile(worktree, 'REVIEW.md');
-  if (!existsSync(file)) appendDatedSection(file, renderSkeleton({ round, klass, base, specSha: specShaFor(worktree), urls: devUrlsFor(worktree), files }));
+  if (!existsSync(file)) appendDatedSection(file, renderSkeleton({ round, klass, base, specSha: specShaFor(worktree), urls: devUrlsFor(worktree), files, beforeAfter }));
   // The machine's review screen when it has one (seams.reviewUI: plannotator on Shay's), else an editor.
   if (!seams.reviewUI?.available()) {
     if (!opensWindows()) {

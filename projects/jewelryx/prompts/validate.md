@@ -14,7 +14,9 @@ words. You still fix nothing.
    Admin `{{admin}}`) and give it one verdict, as `docs/agents/verify-jewelryx/references/verify-this.md`
    defines them: `VERIFIED`, `NOT VERIFIED` or `INCONCLUSIVE`.
 3. Evidence goes to `{{folder}}/proof/`: `control-jewelryx screenshot --name <n>`, then move the file
-   there. Undo anything you changed in the app (the feature file's *Gotchas* name the clicks that
+   there. For each line under `RESEARCH.md`'s `## Before`, take the same view on this stack (the same
+   role, page and clicks) as `after-<n>`, the same `n`, and name `proof/after-<n>.png` in the Live line
+   it shows. T2 puts the two side by side, so match the view, not only the page. Undo anything you changed in the app (the feature file's *Gotchas* name the clicks that
    create records), then run `control-jewelryx cleanup`.
 
 Add this section to `VALIDATION.md` (it may go past 30 lines by this section's length):

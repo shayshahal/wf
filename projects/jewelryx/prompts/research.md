@@ -10,6 +10,12 @@
   before the tests run; a spec starts logged in with `test.use({ storageState: ... })` (the comment in
   the config) and holds no login code. A feature file that disagrees with the screen: one line under
   `## Could not find`, starting `map drift:`, naming the file and what the screen showed instead.
+- A screenshot of each screen the ticket is about, as it is on this checkout (the base: nothing is
+  fixed yet): `control-jewelryx screenshot --name before-<n>` on the view that shows it, `n` from 1,
+  then move the file to `{{folder}}/proof/before-<n>.png`. Validate takes `after-<n>` of the same view
+  once the fix is in, and T2 shows them side by side. Add to `RESEARCH.md`, after `## Repro`:
+  `## Before`, one line per picture: `` `proof/before-<n>.png` — <role> on <page path>: <the clicks
+  from there, and what the picture shows> ``. Validate follows that line, so name what it needs.
 - Without that skill, the browser is `playwright-cli`: commands and why in `docs/agents/testing.md`,
   *Exploring a page before writing a spec*.
 - What a JewelryX test needs to know (login and OTP, Hebrew, visual symptoms in pixels, specs outside

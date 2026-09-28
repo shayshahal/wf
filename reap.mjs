@@ -8,11 +8,12 @@
 // `wf reap <branch>`, it only printed its plan, and Claude Code's auto mode refused the flag.
 // Every step tolerates "already gone": a reap that is re-run is a no-op, not an error.
 import { execFileSync, spawnSync } from 'node:child_process';
-import { copyFileSync, mkdirSync, rmSync } from 'node:fs';
+import { appendFileSync, copyFileSync, existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { roundsDir } from './project.mjs';
 import { writeCloneLaunch } from './new.mjs';
+import { frictionLine } from './friction.mjs';
 import { readState } from './state.mjs';
 import { removalPlan, resolveWorktree, slugForBranch } from './worktree.mjs';
 
@@ -36,6 +37,24 @@ function keepPaperwork(path, slug) {
 		copyFileSync(join(path, f), join(dest, f));
 	}
 	console.log(`kept ${files.length} uncommitted paperwork file(s) in ${dest}: ${files.join(', ')}`);
+}
+
+// The round's friction line (friction.mjs), printed and added to ~/.cache/wf-reaped/ROUNDS.md, one
+// line per round, before the worktree and its .wf/ go.
+function recordFriction(path, state) {
+	const read = (f) => (existsSync(f) ? readFileSync(f, 'utf8') : '');
+	const line = frictionLine({
+		state,
+		checksLog: read(join(path, '.wf', 'checks.log')),
+		eventsLog: read(join(path, '.wf', 'events.log')),
+		reviewText: read(join(path, state?.folder ?? '', 'REVIEW.md')),
+		end: new Date().toISOString(),
+	});
+	const ledger = join(homedir(), '.cache', 'wf-reaped', 'ROUNDS.md');
+	mkdirSync(dirname(ledger), { recursive: true });
+	if (!existsSync(ledger)) appendFileSync(ledger, '# Rounds, one line each: time per step, agents per phase, checks, refusals, questions, T2s\n\n');
+	appendFileSync(ledger, `${line}\n`);
+	console.log(`round ${line.slice(2)}\n(added to ${ledger})`);
 }
 
 // Pure: whether reap runs its steps, or only prints them.
@@ -66,6 +85,7 @@ export async function runReap(argv) {
 	const slug = slugForBranch(branch);
 	const state = readState(path);
 	const force = reapRuns(process.env, state);
+	if (force && state) recordFriction(path, state);
 	if (force) keepPaperwork(path, slug);
 	// Read before the worktree goes: the repository the branch lives in.
 	const gitDir = execFileSync('git', ['-C', path, 'rev-parse', '--path-format=absolute', '--git-common-dir'], { encoding: 'utf8' }).trim();
