@@ -12,6 +12,13 @@ from it; it was not written from the plan):
 `PLAN.md ## Decisions` holds later answers from the people asked; where one changes an Intent line,
 judge against the answer.
 
+`{{folder}}/REVIEW.md`, when there is one, holds the person's T2 comments, and the `fix(review):`
+commits built them: they rank like a Decision. A hop, file or behaviour that differs from PLAN.md
+because a T2 comment asked for it is `changed at T2: <the comment, short>`, not `differs` or
+Unplanned, and does not make the verdict `deviates`; a `fix(review):` commit is a row of its own
+under ## Commits, its files matched against the comments. (TJEW-670.11, 2026-09-28: the column the
+person asked for at T2 came back as a deviation, and they had to accept it.)
+
 **Budget: 15 tool calls**, plus what this project's notes (at the end) add. Read `PLAN.md` fully, then `git diff <base>...HEAD` where
 `<base>` = `git merge-base {{base}} HEAD`. Read a touched file fully only when the diff
 alone cannot answer a row below.
@@ -23,7 +30,7 @@ alone cannot answer a row below.
 Verdict: matches plan | deviates
 
 ## Build stack
-<for each + or ~ hop in PLAN.md ## Build: `built` | `missing` | `differs: <one line how>`>
+<for each + or ~ hop in PLAN.md ## Build: `built` | `missing` | `differs: <one line how>` | `changed at T2: <the REVIEW.md comment>`>
 
 ## Commits
 <for each row: sha · files match row (yes | extra: <file> | missing: <file>) · check named in row was run — ONLY from `.wf/checks.log`: a `"result":"green"` line for that row whose `tasks` include its check (yes | no | red: <task>). A commit message saying it ran does not count >
@@ -53,6 +60,12 @@ you could not measure now, is `NOT MEASURED`: a legal answer, which the person r
 as it is. A line left out is not legal. (TJEW-682 replay, 2026-09-27: the month dropdown's
 hover was called met from the code and a check that its scroll buttons were gone; nothing had
 measured hover, before or after.)
+
+`wf check` runs on the uncommitted tree, so a commit's green line comes just before it: the last
+`.wf/checks.log` line before a commit is the one that covers it, and a `fix(review):` commit's run is
+logged under the round's last row. checks.log times are UTC (`Z`); `git log` prints local time with
+its offset: compare in UTC. (TJEW-670.11: a green run at 12:28:37Z was read as older than a
+commit at 15:28:42+03:00, five seconds after it, and the tree was called unchecked.)
 
 `deviates` when any row, hop or Not-doing line fails, or any Intent line is `not met`.
 
