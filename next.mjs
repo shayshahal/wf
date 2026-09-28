@@ -27,7 +27,8 @@ const MAX_BRIEFS = 2;
 //   { branch, entry, step, klass, check, questions, answered, briefs, commit,
 //     files: { research, plan, blocked, asBuilt, validation, review } (text or null),
 //     t1: { spec, reviewed, verdict } (SPEC.md's sha, SPEC-REVIEW.md's last spec-sha and verdict),
-//     subjects (commit subjects since the base), checks (.wf/checks.log lines) }
+//     subjects (commit subjects since the base), checks (.wf/checks.log lines),
+//     fixesAfterValidate (fix(review) commits since the validate brief's head) }
 // → { say, effects }, effects being { step: [args] } | { ask: { to, text, dflt, source } }.
 export function nextAction(s) {
 	const effects = [];
@@ -124,8 +125,11 @@ export function nextAction(s) {
 		if (fixed < t2Fixes + rulings.length) return dispatch('fix-review', fixed < t2Fixes ? [] : ['--from', 'VALIDATION.md'], null);
 		const vGap = handoffGap('validate', s.files.validation, brief('validate'));
 		const vToken = brief('validate')?.token ?? 'validate';
-		// A validation whose deviations were fixed is judged again.
+		// A validation whose deviations were fixed is judged again, and so is one a T2 fix came after: it
+		// is what the PR carries (TJEW-670, 2026-09-28: its review fix merged under the older validation).
 		if (vGap || rulings.some((q) => q.source === `VALIDATION.md#${vToken}`)) return dispatch('validate', [], vGap);
+		// No gap passed: the last validation did hand off, and a gap would count toward MAX_BRIEFS.
+		if (s.fixesAfterValidate > 0) return dispatch('validate', [], null);
 		if (validationVerdict(s.files.validation) === 'deviates') {
 			const source = `VALIDATION.md#${vToken}`;
 			const ruling = (s.answered ?? []).find((q) => q.source === source);
@@ -145,6 +149,12 @@ export function nextAction(s) {
 // ── the shell ────────────────────────────────────────────────────────────────
 
 const read = (file) => (existsSync(file) ? readFileSync(file, 'utf8') : null);
+
+// fix(review) commits after `head` (a validate brief from before this field: none counted).
+function fixesSince(git, head) {
+	if (!head) return 0;
+	try { return git('log', '--format=%s', `${head}..HEAD`).split('\n').filter((x) => x.startsWith('fix(review):')).length; } catch { return 0; }
+}
 
 export function snapshotOf(toplevel) {
 	const state = readState(toplevel) ?? {};
@@ -166,6 +176,7 @@ export function snapshotOf(toplevel) {
 		files: Object.fromEntries([['research', 'RESEARCH.md'], ['plan', 'PLAN.md'], ['blocked', 'BLOCKED.md'], ['asBuilt', HANDOFF_FILES['as-built']], ['validation', 'VALIDATION.md'], ['review', 'REVIEW.md']].map(([k, f]) => [k, read(join(dir, f))])),
 		t1: { spec: specShaFor(toplevel), reviewed: lastField(specReview, 'spec-sha'), verdict: readVerdict(specReview) },
 		subjects: git('log', '--format=%s', `${base}..HEAD`).split('\n').filter(Boolean),
+		fixesAfterValidate: fixesSince(git, state.briefs?.validate?.head),
 		checks: (read(join(toplevel, '.wf', 'checks.log')) ?? '').split('\n').filter(Boolean).flatMap((l) => { try { return [JSON.parse(l)]; } catch { return []; } }).map((c) => ({ ...c, row: c.row == null ? null : Number(c.row) })),
 	};
 }
