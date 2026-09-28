@@ -6,7 +6,7 @@ project's: `wf hook install` writes them into worktrunk's user config for this p
 need no approval. What the hooks do is the project's: its `setup`, `serve` and `teardown` in
 `projects/<name>/index.mjs` (JewelryX's: `{{project}}/STACK.md`).
 
-Create worktrees only via `wf new <branch> [--base <ref>] [--class B|C] [--id <token>]...`
+Create worktrees only via `wf new <branch> [--base <ref>] [--class B|C] [--check] [--id <token>]...`
 (default base `origin/<the project's base branch>`) — it runs `wt switch --create --base --no-hooks`,
 then wf's own pre/post-start hooks (`wt hook <type> user:`), whichever folder it runs from; raw
 `git worktree add` skips the server) then `wf step classify`. `--id <ticket id>`

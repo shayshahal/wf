@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// new.mjs — wf new <branch> [--base <ref>] [--class B|C] [--id <token>]...
+// new.mjs — wf new <branch> [--base <ref>] [--class B|C] [--check] [--id <token>]...
 // Create the worktree (worktree.mjs createWorktree), then classify it. --class asserts the class at creation (sticky,
 // see step.mjs). --id <ticket id> refuses to cut the worktree when a
 // round for that id already exists (a round folder or a commit naming it) —
@@ -8,7 +8,8 @@
 // It also refuses a third live round (SKILL.md: two at once, max — the box cannot run
 // three stacks); --force overrides. --id records id + folder in the new worktree's state
 // and creates <folder>, then the project adds what a round starts with (project.mjs newRound) —
-// that folder is what every `wf prompt` substitutes.
+// that folder is what every `wf prompt` substitutes. --check makes the round a check: wf next stops
+// after research, waiting on Shay (next.mjs).
 import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -76,7 +77,7 @@ export function fetchFor(base) {
 
 export async function runNew(argv) {
 	const branch = argv[0];
-	if (!branch) { console.error('usage: wf new <branch> [--base <ref>] [--class B|C] [--id <token>]...'); process.exit(2); }
+	if (!branch) { console.error('usage: wf new <branch> [--base <ref>] [--class B|C] [--check] [--id <token>]...'); process.exit(2); }
 	// wt defaults --base to the repo's default branch; rounds branch off the project's base branch.
 	const bi = argv.indexOf('--base');
 	const base = bi === -1 ? `origin/${baseBranch}` : argv[bi + 1];
@@ -120,7 +121,7 @@ export async function runNew(argv) {
 	const folder = `${roundsDir}/${slugForBranch(branch)}`;
 	mkdirSync(join(path, folder), { recursive: true });
 	const notes = newRound({ worktree: path, folder, port: basePortForBranch(branch) });
-	writeState(path, { id: ids[0] ?? branch, folder, made_by: seams.madeBy, entry: seams.entry.replace(/\\/g, '/') });
+	writeState(path, { id: ids[0] ?? branch, folder, made_by: seams.madeBy, entry: seams.entry.replace(/\\/g, '/'), ...(argv.includes('--check') ? { check: true } : {}) });
 	if (reopen && dupes.length) {
 		const plan = (f) => { try { return execFileSync('git', ['show', `${base}:${f}/PLAN.md`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }); } catch { return null; } };
 		const rulings = dupes.filter((d) => d.startsWith(`${roundsDir}/`)).map((f) => ({ folder: f, lines: decisionsOf(plan(f)) }));

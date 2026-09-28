@@ -35,6 +35,13 @@ check('a phase briefed twice without a handoff goes to Shay, not a third agent',
 const researched = base({ files: { research: RESEARCH } });
 check('research → wf step plan, dispatch plan', steps(researched).join() === 'plan' && say(researched).startsWith('dispatch plan: run `node C:/wf/wf.mjs brief plan`'), say(researched));
 
+// a check (wf new --check): research first, then Shay; his go is `wf step plan`
+check('a check with no RESEARCH.md yet: research, as a round', say(base({ check: true, briefs: {} })).startsWith('dispatch research:'));
+const checked = base({ check: true, files: { research: RESEARCH } });
+check('a check, research in: it waits on Shay, no plan', steps(checked).join() === 'research --waiting-on shay' && say(checked).startsWith('wait shay: check') && say(checked).includes('`node C:/wf/wf.mjs step plan`') && say(checked).includes('WF_FORCE_REAP=1 node C:/wf/wf.mjs reap fix/r'), say(checked));
+check('a check already waiting: the same line, no step again', !steps({ ...checked, step: 'research' }).length && say({ ...checked, step: 'research' }) === say(checked));
+check('a check Shay said go to: the plan, as a round', say({ ...checked, step: 'plan' }).startsWith('dispatch plan:'));
+
 // plan finished, class A
 const planned = base({ step: 'plan', files: { research: RESEARCH, plan: plan() } });
 check('plan, class A → wf step implement, dispatch implement 1', steps(planned).join() === 'implement' && say(planned).startsWith('dispatch implement 1:'), say(planned));

@@ -1,6 +1,6 @@
 ---
 name: round
-description: Run a round from a ticket to a merged PR — "start 662", "start BJEW-586", "resume", "what's waiting". One fresh agent per phase (research → plan → one per commit), deterministic checks between, Shay at two gates. Use for any bug or feature ticket on the project's tracker. Replaces bug-fix-orchestrator and cr-implement-orchestrator.
+description: Run a round from a ticket to a merged PR — "start 662", "start BJEW-586", "check BJEW-461", "does it reproduce", "resume", "what's waiting". One fresh agent per phase (research → plan → one per commit), deterministic checks between, Shay at two gates. Use for any bug or feature ticket on the project's tracker. Replaces bug-fix-orchestrator and cr-implement-orchestrator.
 ---
 
 # Round
@@ -44,6 +44,20 @@ session, before *Start*: every *tracker*, *status* and *base branch* below means
 2. `wf new <branch> --id <id>` → worktree, stack, seed, `{{folder}}`. It refuses a third
    live round; if it does, say which two are running and stop. Set the ticket's started status.
 3. The loop below, from the round's worktree.
+
+## Check: "check <id>", "does <id> reproduce"
+
+Whether the ticket reproduces, before anyone commits to fixing it: a round that stops after research.
+1. As *Start* 1: the ticket, the whole thread, `TICKET.md` with its `## Intent`.
+2. `wf new <branch> --id <id> --check`. No tracker status: the tracker hears nothing from a check.
+3. The loop. After research, `wf next` prints `wait shay: check — …`: tell Shay whether it
+   reproduced, from `RESEARCH.md`: its `## Diverges at` and `## Repro` sections, verbatim, and the
+   `## Could not find` lines. Stop.
+   - "go": `wf step plan`, set the ticket's started status, and the loop goes on as a round's.
+   - "stop": what the tracker hears is Shay's call (a question to the reporter goes as he
+     words it). Then the `reap` line `wf next` printed, and tell Shay `<id> checked, reaped`.
+   - A ticket about a deployed environment (QA, production) that the round's stack cannot show:
+     say so, and do that part with Shay in this session. Never change data there without his yes.
 
 ## The loop
 
@@ -137,4 +151,5 @@ You are in pi if you have the `subagent` tool, in Claude Code if you have the `A
 | design session (B/C) | `subagent` with `interactive: true`, cwd the worktree: its own pane, which Shay talks to. | this session runs it: read `DESIGN-SESSION.md` and hold the conversation with the person here. |
 | T2: see the fix | `wf show` (ROUND.md's *T2*): a headed browser, logged in, on the plan's page | `wf show` makes the page's data (the plan's `setup:` lines, once) and opens no window here: it prints what to open. Do that: `mcp__Claude_Browser__preview_start` with the app's `name` (the worktree's `launch.json` entry), `navigate` to the page, and log in only when it asks, with the pane's form tools (the one-time code is on the page's DEV banner). Tell the person it is in the Browser pane; after a login, once: the pane's server menu has *Persist sessions*, which keeps it. |
 | T2: the verdict | `wf review` opens plannotator on the diff and waits | `wf review` writes `REVIEW.md`, prints its path and returns; no editor opens. Tell the person: comment on lines in the diff view (the `+N −M` badge, *All changes* against the base branch: when it counts far more than the round's commits, its *Compare against* menu picks the base; Ctrl+Enter sends the comments to you), then say the verdict: approved or changes-requested. Write each comment into `REVIEW.md` as `path:line — text` and the `verdict:` line they said, then `wf review --done`. |
+| reap | the line as printed | `ExitWorktree` with `action: "keep"` first: the session inside the worktree holds its folder, and the reap fails to remove it (EPERM, bench, 2026-09-28). Then the reap line, from the clone. |
 

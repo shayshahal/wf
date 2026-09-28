@@ -24,7 +24,7 @@ import { notifyAdapters, runStep } from './step.mjs';
 const MAX_BRIEFS = 2;
 
 // Pure: the action for a snapshot of the round:
-//   { branch, entry, step, klass, questions, answered, briefs, commit,
+//   { branch, entry, step, klass, check, questions, answered, briefs, commit,
 //     files: { research, plan, blocked, asBuilt, validation, review } (text or null),
 //     t1: { spec, reviewed, verdict } (SPEC.md's sha, SPEC-REVIEW.md's last spec-sha and verdict),
 //     subjects (commit subjects since the base), checks (.wf/checks.log lines) }
@@ -63,6 +63,13 @@ export function nextAction(s) {
 	if (!step || step === 'classify' || step === 'research') {
 		const gap = handoffGap('research', s.files.research, brief('research'));
 		if (gap) return dispatch('research', [], gap);
+		// A check (wf new --check) stops here: whether the ticket reproduces is the answer asked for,
+		// and the tracker hears nothing until Shay says go (BJEW-461, 2026-09-28: it did not reproduce,
+		// and a round would have said In Progress for a ticket that went back to its reporter).
+		if (s.check) {
+			if (step !== 'research') effects.push({ step: ['research', '--waiting-on', 'shay'] });
+			return act(`wait shay: check — RESEARCH.md says whether it reproduces. Go on: \`${wf} step plan\`, then set the started status; stop: \`WF_FORCE_REAP=1 ${wf} reap ${s.branch}\``);
+		}
 		effects.push({ step: ['plan'] });
 		step = 'plan';
 	}
@@ -151,6 +158,7 @@ export function snapshotOf(toplevel) {
 		entry: seams.entry.replace(/\\/g, '/'),
 		step: state.step ?? null,
 		klass: state.class ?? null,
+		check: state.check ?? false,
 		questions: state.questions ?? [],
 		answered: state.answered ?? [],
 		briefs: state.briefs ?? {},
