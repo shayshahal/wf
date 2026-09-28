@@ -1,6 +1,6 @@
 # SPEC template
 
-The skeleton of `<round folder>/SPEC.md`. The section order is fixed — Shay reads top-down and
+The skeleton of `<round folder>/SPEC.md`. The section order is fixed — the user reads top-down and
 stops when a line is wrong. Why each section exists: `DESIGN-SESSION.md`. The notation in
 `## Candidates`: `CALL-STACK-FORMAT.md`.
 
@@ -15,7 +15,7 @@ Bug/CR folder: `<path>`.
 
 ## For T1
 
-<≤ 30 lines. This is the only section Shay annotates — `wf design` shows him this and nothing
+<≤ 30 lines. This is the only section the user annotates — `wf design` shows them this and nothing
 else. Everything below is the evidence the worker builds from; it stays, it is hashed, it is not
 read at T1.>
 
@@ -62,7 +62,7 @@ one line that says why not the runner-up.
 ### INFER — decided here, from a named source
 <n. the decision — then the source that decided it, measured where possible>
 
-### ASK — <Shay (engineering) | the product owner (⇒ Class C)>
+### ASK — <the user (engineering) | the product owner (⇒ Class C)>
 > **ASK-n (<who>) — <the question, verbatim, in the addressee's language>**
 > <what is already measured, and what each answer costs>
 
@@ -75,7 +75,7 @@ one line that says why not the runner-up.
 
 ## Slices   ← optional
 
-<Vertical cuts in the order Shay wants to look at them (contract + mock → screen → wire →
+<Vertical cuts in the order the user wants to look at them (contract + mock → screen → wire →
 store), never stack order. Each slice ends in `wf step review`.>
 ```
 

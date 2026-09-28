@@ -1,6 +1,6 @@
 # The design session — T1
 
-Shay and one agent, one pane, ~15 minutes, before any code on a Class B or C round
+The user and one agent, one pane, ~15 minutes, before any code on a Class B or C round
 (`CLASSES.md`). It produces one file, `SPEC.md`, and the round freezes on its sha256. Five
 moves, in order. `SPEC-TEMPLATE.md` is the skeleton, `CALL-STACK-FORMAT.md` the notation,
 `REVIEW-FORMAT.md` what comes back.
@@ -47,7 +47,7 @@ One row per **value the change produces, computes, decides or puts on a screen**
 source: a ticket line, a document §, a decision record, a model field, a measurement you ran. A
 value with no source is an **owed decision** — and that, not the pathspec, classifies the round:
 
-- the source is an engineering choice ⇒ **B**, and it is an ASK for Shay;
+- the source is an engineering choice ⇒ **B**, and it is an ASK for the user;
 - only the product owner can name it (a sentence a user reads, a flow) ⇒ **C**. Post the question, ship the
   decided remainder, and record what you built anyway as `status: assumed`
   (the project's decision records);
@@ -82,7 +82,7 @@ Every question is sorted, with an addressee, and it is never a menu and never si
 | | |
 |---|---|
 | **INFER** | you decided — state the named source you decided from. Never ask what the code already answers |
-| **ASK** | only the human knows it. Say which human: Shay (engineering) · the product owner (⇒ Class C; who: the project's ROUND.md) |
+| **ASK** | only the human knows it. Say which human: the user (engineering) · the product owner (⇒ Class C; who: the project's ROUND.md) |
 | **RECOMMEND** | expertise settles it: your pick, one line why, and the runner-up |
 
 An ASK for the product owner is written **verbatim in their language**, and it reaches the tracker that way.
@@ -95,7 +95,7 @@ weren't told to build?». Name it as a twin, one line, under `## Recommendation`
 `## Recommendation` is one candidate and one paragraph, naming what it costs and what still
 gates the merge.
 
-**T1 may send you back.** `wf design` folds Shay's annotations into `SPEC-REVIEW.md`; read it
+**T1 may send you back.** `wf design` folds the user's annotations into `SPEC-REVIEW.md`; read it
 before revising, and say what changed. BJEW-586 rev 2 came from one six-word question —
 *«are we sure this needs to be an effect?»* — which removed a defect class, deleted a previous
 round's workaround and rewrote the recommendation. **A revised SPEC has a new sha, and a new sha
@@ -106,15 +106,15 @@ sha or carries no `approved` verdict (`step.mjs` `t1Gap`). A chat question is no
 
 Before the freeze, write `## For T1` at the top (`SPEC-TEMPLATE.md`): ≤ 30 lines — the as-is
 stacks, the chosen candidate's diff-syntax stack, the ASKs. That section is all `wf design`
-puts in front of Shay; the rest of the file is the worker's evidence. Two rounds (BJEW-586,
-591 lines; BJEW-454, 312) proved he reads the ASKs and the pick and skips the rest — so
-hand him exactly those.
+puts in front of the user; the rest of the file is the worker's evidence. Two rounds (BJEW-586,
+591 lines; BJEW-454, 312) proved they read the ASKs and the pick and skip the rest — so
+hand them exactly those.
 
-When Shay says **"shared"**: write `SPEC.md` in the round folder (the `folder` in `.wf/state.json`), take its sha256, `wf step design` (it parks the
-round on shay), and **stop**. The worker implements exactly the frozen SPEC; a needed signature
+When the user says **"shared"**: write `SPEC.md` in the round folder (the `folder` in `.wf/state.json`), take its sha256, `wf step design` (it parks the
+round on the user), and **stop**. The worker implements exactly the frozen SPEC; a needed signature
 change is stop-and-report, not a decision.
 
-Optional `## Slices` — vertical cuts in the order Shay wants to look at them (contract with mock
+Optional `## Slices` — vertical cuts in the order the user wants to look at them (contract with mock
 data → screen → wire → store), never stack order; the worker runs `wf step review` after each.
 
 The worker's side is `proof/CALL-STACK-AS-BUILT.md`: the as-built stack diffed row by row against

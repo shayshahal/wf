@@ -12,7 +12,7 @@ import { appendDecision, notifyAdapters, planPath } from './step.mjs';
 import { people } from './project.mjs';
 import { readState, roundFile, toplevelOf, writeState } from './state.mjs';
 
-const PEOPLE = ['shay', ...people];
+const PEOPLE = ['user', ...people];
 
 // Pure: the state with one more open question. The round now waits on the oldest open question's person.
 // Numbers only go up (last_question): "q1" in chat names one question for the whole round.
@@ -97,7 +97,7 @@ function roundState(cmd) {
 
 export async function runAsk(argv) {
 	const a = parse('ask', argv, ['to', 'default'], ['blocked']);
-	const to = a.to ?? 'shay';
+	const to = a.to ?? 'user';
 	if (!PEOPLE.includes(to)) {
 		console.error(`wf ask: --to ${to} — one of: ${PEOPLE.join(' ')}`);
 		process.exit(2);

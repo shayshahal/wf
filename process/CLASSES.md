@@ -10,7 +10,7 @@ data migrations, `core/config.py`, CI (`.github/**`), compose files and `infrast
 Requires a design session and SPEC.md before implementing; T1 + T2.
 
 **C — product-undecided.** The requirement itself is open. Set only by the
-orchestrator when a question is waiting on Shay or the product owner — never by paths.
+orchestrator when a question is waiting on the user or the product owner — never by paths.
 Post the question and continue on the decided remainder.
 
 **Upgrading a class — the input-coverage test.** Paths are a proxy. Before

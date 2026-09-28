@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// step.mjs — wf step <name> [--waiting-on shay|<the project's people>|ci] [--round TJEW-xxx] [--base <ref>] [--class A|B|C]
+// step.mjs — wf step <name> [--waiting-on user|<the project's people>|ci] [--round TJEW-xxx] [--base <ref>] [--class A|B|C]
 // `step classify` runs classify.mjs; the measured class can only UPGRADE the stored one
 // (A→B→C). A class asserted by --class (wf new --class B, or the orchestrator setting C)
 // is sticky: a design-first round has no committed code to measure, so the path
@@ -19,7 +19,7 @@ import { seams } from './seams.mjs';
 import { roundFile } from './state.mjs';
 
 export const STEPS = ['classify', 'research', 'plan', 'design', 'implement', 'review', 'pr', 'merged', 'held'];
-const WAITING = ['shay', ...people, 'ci'];
+const WAITING = ['user', ...people, 'ci'];
 const CLASSES = ['A', 'B', 'C'];
 // null = T1 approved the current SPEC.md; otherwise the one-line reason it did not.
 export function t1Gap(toplevel) {
@@ -63,7 +63,7 @@ export async function runStep(argv, { quiet = false } = {}) {
     console.error(`invalid step "${step ?? ''}" — one of: ${STEPS.join(' ')}`);
     process.exit(2);
   }
-  const waitingOn = flag('waiting-on') ?? (step === 'design' ? 'shay' : null);
+  const waitingOn = flag('waiting-on') ?? (step === 'design' ? 'user' : null);
   if (waitingOn && !WAITING.includes(waitingOn)) {
     console.error(`invalid --waiting-on "${waitingOn}" — one of: ${WAITING.join(' ')}`);
     process.exit(2);

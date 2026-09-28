@@ -15,7 +15,7 @@ before *Start*.
 
 | when | status |
 |---|---|
-| `wf new` made the worktree; a check's, when Shay says go | *In Progress* |
+| `wf new` made the worktree; a check's, when the user says go | *In Progress* |
 | `wf deliver` merged the PR (after T2) | *Fixed in Local*, with the tracker note: the last thing a round does before reap. Shay sets the QA statuses himself when he moves `dev` to QA |
 
 - The tracker note is `MONDAY.md` in the round folder (`wf deliver` writes it). Post it as a comment,
