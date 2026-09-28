@@ -1,6 +1,6 @@
 // reap.selfcheck.mjs — node reap.selfcheck.mjs → exit 0 when green.
 // Pure arm: which uncommitted paperwork reap keeps. The teardown plan is worktree.selfcheck.mjs.
-import { paperworkToKeep, reapRuns } from './reap.mjs';
+import { branchStep, paperworkToKeep, reapRuns } from './reap.mjs';
 
 let failures = 0;
 const check = (name, cond, detail = '') =>
@@ -12,6 +12,10 @@ check('reap keeps uncommitted paperwork: root review files and the round folder,
 // A merged round is reaped for real; anything else only with the flag (BJEW-562, 2026-09-27).
 check('merged: reap runs without the flag', reapRuns({}, { step: 'merged' }));
 check('not merged: dry unless WF_FORCE_REAP=1', !reapRuns({}, { step: 'review' }) && !reapRuns({}, null) && reapRuns({ WF_FORCE_REAP: '1' }, { step: 'review' }));
+
+const del = branchStep({ step: 'merged' }, 'cr/x', 'C:/repo/.git');
+check('merged: the local branch goes too, in its own repository', del?.args.join(' ') === '--git-dir=C:/repo/.git branch -D cr/x');
+check('force-reaped but never merged: the branch stays', branchStep({ step: 'review' }, 'cr/x', 'C:/repo/.git') === null && branchStep(null, 'cr/x', 'C:/repo/.git') === null);
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');
 process.exit(failures ? 1 : 0);

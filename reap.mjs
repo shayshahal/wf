@@ -43,6 +43,13 @@ export function reapRuns(env, state) {
 	return env.WF_FORCE_REAP === '1' || state?.step === 'merged';
 }
 
+// Pure: the step that deletes the round's local branch, or null. Only a merged round's (wf deliver
+// merged it and deleted the remote one): a force-reaped round that never merged keeps its work. The
+// team's clone collected them, cr/TJEW-670-texts-buttons and -back-button (2026-09-28).
+export function branchStep(state, branch, gitDir) {
+	return state?.step === 'merged' ? { label: `delete local branch ${branch}`, cmd: 'git', args: [`--git-dir=${gitDir}`, 'branch', '-D', branch] } : null;
+}
+
 export async function runReap(argv) {
 	const branch = argv.find((a) => !a.startsWith('-'));
 	if (!branch) {
@@ -57,9 +64,13 @@ export async function runReap(argv) {
 		process.exit(1);
 	}
 	const slug = slugForBranch(branch);
-	const force = reapRuns(process.env, readState(path));
+	const state = readState(path);
+	const force = reapRuns(process.env, state);
 	if (force) keepPaperwork(path, slug);
-	for (const step of await removalPlan({ branch, path, slug, pid: process.pid })) {
+	// Read before the worktree goes: the repository the branch lives in.
+	const gitDir = execFileSync('git', ['-C', path, 'rev-parse', '--path-format=absolute', '--git-common-dir'], { encoding: 'utf8' }).trim();
+	const deleteBranch = branchStep(state, branch, gitDir);
+	for (const step of [...(await removalPlan({ branch, path, slug, pid: process.pid })), ...(deleteBranch ? [deleteBranch] : [])]) {
 		const shown = step.rm ? `rm -rf ${step.rm}` : step.run ? step.label : `${step.cmd} ${step.args.join(' ')}`;
 		if (!force) {
 			console.log(`would: ${shown}`);
