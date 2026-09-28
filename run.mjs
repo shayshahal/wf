@@ -4,12 +4,38 @@
 // (human touchpoints), the project's own (project.mjs commands: JewelryX's seed, show) and the env's.
 import { plug, seams } from './seams.mjs';
 
+// A wf command that exits non-zero inside a round goes to .wf/events.log, for the line reap prints
+// (friction.mjs): a refusal was only in the session's scrollback until 2026-09-28. Its message is the
+// last console.error line; the exit handler has to write synchronously.
+async function logRefusals(argv) {
+	if (['handoff', 'hook', 'update'].includes(argv[0])) return;
+	const { refusalLine } = await import('./friction.mjs');
+	const { appendFileSync, existsSync } = await import('node:fs');
+	const { join } = await import('node:path');
+	const { toplevelOf } = await import('./state.mjs');
+	let message = '';
+	const error = console.error;
+	console.error = (...args) => {
+		message = args.join(' ');
+		error(...args);
+	};
+	process.on('exit', (code) => {
+		const line = refusalLine({ ts: new Date().toISOString(), argv, code, message });
+		if (!line) return;
+		try {
+			const dir = join(toplevelOf(), '.wf');
+			if (existsSync(join(dir, 'state.json'))) appendFileSync(join(dir, 'events.log'), `${line}\n`);
+		} catch {} // not in a git tree
+	});
+}
+
 export async function run(argv, pieces = {}) {
 	plug(pieces);
 	const [cmd, ...rest] = argv;
 	// Windows .cmd shims (portless, pnpm) need shell: true, and Node then prints DEP0190 on every spawn
 	// that passes args (reap printed it on every run). Every argv wf spawns is one it built itself.
 	process.noDeprecation = true;
+	await logRefusals(argv);
 	// The hooks run whichever wf the plugin carries; the env's own commands are not a round's.
 	if (!['handoff', 'hook', 'update'].includes(cmd)) {
 		const { entryGap, readState, toplevelOf } = await import('./state.mjs');

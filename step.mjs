@@ -17,6 +17,7 @@ import { lastField, readVerdict, specShaFor } from './review-format.mjs';
 import { people } from './project.mjs';
 import { seams } from './seams.mjs';
 import { roundFile } from './state.mjs';
+import { stepHistory } from './friction.mjs';
 
 export const STEPS = ['classify', 'research', 'plan', 'design', 'implement', 'review', 'pr', 'merged', 'held'];
 const WAITING = ['user', ...people, 'ci'];
@@ -109,7 +110,9 @@ export async function runStep(argv, { quiet = false } = {}) {
   }
   // Spread prev: id/folder (wf new) and commit (wf prompt implement) are not this step's to drop.
   // An open question (wf ask) keeps the round waiting on its person until `wf decide` closes it.
-  const state = { ...prev, round, class: klass, base, step, waiting_on: waitingOn ?? prev.questions?.[0]?.to ?? null, since: new Date().toISOString() };
+  // history: when each step began, for the line reap prints (friction.mjs).
+  const since = new Date().toISOString();
+  const state = { ...prev, round, class: klass, base, step, waiting_on: waitingOn ?? prev.questions?.[0]?.to ?? null, since, history: stepHistory(prev.history, step, since) };
   mkdirSync(join(toplevel, '.wf'), { recursive: true });
   writeFileSync(file, JSON.stringify(state, null, 2) + '\n');
   if (!quiet) console.log(JSON.stringify(state));

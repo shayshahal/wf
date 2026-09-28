@@ -73,7 +73,7 @@ four replies in a row were the text before the last tool call, the files right e
 | `wait <person>: q<n> …` | The user: ask with the question tool (*Dispatch in this harness*), all the round's `q<n>` lines in one call, each line verbatim as its question; its options: the line's `(default: …)` first, then the other answers the question names (`fix` / `accept` for a `fix or accept` one); a typed answer is always open. Someone else: tell them each line verbatim, with the round id. Stop. Ask once: a late agent report (*Dispatch in this harness*) is no reason to ask again. Their answer → `wf decide --q <n> "<their words>"` (the default option: `default`), then `wf next`: an answer against a plan Ask's default makes it dispatch `plan --revise`. A `fix or accept` question is answered with a line that starts `fix` or `accept`. |
 | `wait user: …` (no q) | tell the user the line with the round id (T1 waiting, a round held, a phase that failed twice). Stop. When they say it is done, `wf next`. |
 | `design: …` | start the design session (*Dispatch in this harness*; it reads `${CLAUDE_PLUGIN_ROOT}/process/DESIGN-SESSION.md` and TICKET/RESEARCH/PLAN). It writes `SPEC.md` with the user and, on "shared", runs `wf step design`. Then `wf next`. |
-| `deliver: …` | T2 approved; the approval is the merge. Run `wf deliver`: it pushes, opens the PR, merges it and deletes the branch, then prints the PR url and the tracker note it wrote. A push the project's pre-push hook refused becomes a T2 fix (`wf deliver` says so): `wf next`. Only then post the note and set the delivered status (ROUND.md): the tracker hears last. Run `wf reap <branch>`, and tell the user `<id> merged, reaped`. |
+| `deliver: …` | T2 approved; the approval is the merge. Run `wf deliver`: it pushes, opens the PR, merges it and deletes the branch, then prints the PR url and the tracker note it wrote. A push the project's pre-push hook refused becomes a T2 fix (`wf deliver` says so): `wf next`. Only then post the note and set the delivered status (ROUND.md): the tracker hears last. Run `wf reap <branch>`, and tell the user `<id> merged, reaped` with the `round …` line it printed (where the round spent its time and where it was stopped; every round adds it to `~/.cache/wf-reaped/ROUNDS.md`). |
 | `review: …` | See the fix first (ROUND.md's *T2*, done as *Dispatch in this harness* says), then `wf review <branch>` yourself from the worktree. With plannotator (pi) it blocks until they submit: bash timeout 3600 s. Without it, it returns: under Claude Code with `REVIEW.md`'s path (the person uses the diff view: *Dispatch in this harness*), elsewhere with `REVIEW.md` open in an editor. Tell the user, stop, and go on when they say the verdict is in. Read the `verdict:` line it wrote to `REVIEW.md`, then `wf review <branch> --done` and `wf next`. T2 is local: no PR exists yet, and nothing is pushed until it approves. |
 | `done` | nothing is left. |
 
@@ -96,7 +96,7 @@ Only these, only when they happen:
   question that is only in this chat dies with the session; `wf brief` and `wf deliver` refuse
   while a recorded one is open, so an answer is never skipped. Someone else (ROUND.md, *People*): `--to <name>`.
 - T2 is waiting: one line with where to look (*Dispatch in this harness*)
-- a round finished: `<id> merged, reaped`
+- a round finished: `<id> merged, reaped`, and reap's `round …` line
 
 No progress narration. No summaries of what the agent did. "What's waiting?" → `wf status
 --all` and paste it. Anything else the user asks about a round: answer from `RESEARCH.md` /
