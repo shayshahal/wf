@@ -84,7 +84,10 @@ check('the fix committed → validate again', say(impl({ ...done2, subjects: [..
 // T2 (local) → deliver: push, PR, merge → the tracker, last
 check('delivered: T2, then wf review and --done', say(base({ step: 'review' })) === 'review: T2 — see the fix first (ROUND.md\'s T2, as the round skill\'s *Dispatch in this harness* says), then `node C:/wf/wf.mjs review fix/r`; once it has a verdict, `node C:/wf/wf.mjs review fix/r --done`');
 check('T2 annotated (step back to implement) → fix-review', say(impl({ ...done2, files: { validation: VALID(), review: 'verdict: changes-requested\n' } })).startsWith('dispatch fix-review: run `node C:/wf/wf.mjs brief fix-review`'));
-check('the T2 fix committed → T2 again', say(impl({ ...done2, subjects: [...done2.subjects, 'fix(review): x'], files: { validation: VALID(), review: 'verdict: changes-requested\n' } })).startsWith('review: T2'));
+const t2Fixed = { ...done2, subjects: [...done2.subjects, 'fix(review): x'], files: { validation: VALID(), review: 'verdict: changes-requested\n' } };
+check('the T2 fix committed → validate again: the PR carries VALIDATION.md (TJEW-670)', say(impl({ ...t2Fixed, fixesAfterValidate: 1 })) === 'dispatch validate: run `node C:/wf/wf.mjs brief validate` in this worktree and do exactly what it prints', say(impl({ ...t2Fixed, fixesAfterValidate: 1 })));
+check('a second T2 fix re-validates too, never escalating as a missing handoff', say(impl({ ...t2Fixed, fixesAfterValidate: 1, briefs: { ...base().briefs, validate: { token: 'ccc333', count: 3 } } })).startsWith('dispatch validate:'));
+check('validated after the fix → T2 again', say(impl({ ...t2Fixed, fixesAfterValidate: 0 })).startsWith('review: T2'));
 check('T2 dismissed: nothing merges, wait on the user', say(base({ step: 'review', files: { review: 'verdict: dismissed\n' } })).startsWith('wait user: T2 was closed'));
 check('T2 approved → deliver (push, PR, merge), then the tracker note, then reap', say(base({ step: 'pr' })) === 'deliver: T2 approved — `node C:/wf/wf.mjs deliver` (push, PR, merge), then post the tracker note it wrote and set the delivered status (ROUND.md), then `node C:/wf/wf.mjs reap fix/r`', say(base({ step: 'pr' })));
 check('merged → done', say(base({ step: 'merged' })) === 'done');

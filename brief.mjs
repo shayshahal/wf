@@ -6,6 +6,7 @@
 // a token recorded in .wf/state.json `briefs` (handoff.mjs). It refuses while the handoff it
 // starts from is missing or stale: RESEARCH.md for plan, PLAN.md's rows for implement.
 // Implement and fix-review hand off a commit, so their brief carries no token line.
+import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { briefKey, handoffGap, HANDOFF_FILES, newToken, tokenLine } from './handoff.mjs';
@@ -60,7 +61,10 @@ export function runBrief(argv) {
 	const key = briefKey(phase, n);
 	// count: how many agents this phase has had; wf next stops at two without a handoff.
 	const count = (state?.briefs?.[key]?.count ?? 0) + 1;
-	writeState(toplevel, { briefs: { ...(state?.briefs ?? {}), [key]: { token, at: new Date().toISOString(), count } } });
+	// head: the commit a phase was briefed on. wf next re-runs validate once a fix(review) commit lands
+	// after it (TJEW-670: the PR shipped a validation of the tree before its review fix).
+	const head = execFileSync('git', ['-C', toplevel, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+	writeState(toplevel, { briefs: { ...(state?.briefs ?? {}), [key]: { token, at: new Date().toISOString(), count, head } } });
 	process.stdout.write(`${composed.text.trimEnd()}\n${handoffText({ phase, folder, token })}`);
 }
 
