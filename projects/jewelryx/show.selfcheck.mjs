@@ -24,8 +24,8 @@ assert.equal(unMsys('/b2b/orders?order=1', gitBash), '/b2b/orders?order=1');
 // Under Claude Code: no window, the Browser pane's login and page (BJEW-562 T2, 2026-09-27).
 assert.equal(opensWindows({ CLAUDECODE: '1' }), false);
 assert.equal(opensWindows({}), true);
-const pane = paneText(parseOpen('b2b /inventory as seller'), { b2b: 'http://localhost:13111', admin: 'http://localhost:33111' });
-assert.match(pane, /preview_start with name "b2b"/);
+const pane = paneText(parseOpen('b2b /inventory as seller'), { b2b: 'http://localhost:13111', admin: 'http://localhost:33111' }, 'fix-a');
+assert.match(pane, /preview_start with name "fix-a b2b"/);
 assert.match(pane, /the page: http:\/\/localhost:13111\/b2b\/inventory\n/);
 assert.match(pane, /login: http:\/\/localhost:13111\/b2b\/login as seller@seed\.jewelryx \/ seed1234/);
 

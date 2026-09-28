@@ -26,8 +26,10 @@ before *Start*.
 | `wf new` made the worktree; a check's, when the user says go | *In Progress* | *Working on it* |
 | `wf deliver` merged the PR (after T2) | *Fixed in Local*, with the tracker note: the last thing a round does before reap. Shay sets the QA statuses himself when he moves `dev` to QA | *Waiting for review*, with the note |
 
-- The tracker note is `MONDAY.md` in the round folder (`wf deliver` writes it). Post it as a comment,
-  its English lines in plain Hebrew.
+- The tracker note is `MONDAY.md` in the round folder (`wf deliver` writes it): one `## <id>` section
+  per item. Fill each section's lines in plain Hebrew from `TICKET.md` and what the round changed, with
+  no file path, code name or line number, show the user the exact text, and post each section on its
+  own item without its `##` line.
 
 ## People
 

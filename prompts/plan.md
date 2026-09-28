@@ -55,6 +55,9 @@ setup: <only when that screen needs data the seed lacks: one call that makes it,
 - Tests only for files in the rows. New test files are listed like any other file.
 - Each commit leaves the tree working and its check passes on its own.
 - If RESEARCH.md could not measure "Diverges at", commit 1 is the one that measures it.
+- A repro research could not make red (a failed login, selector or missing data is not red) is fixed
+  in commit 1, with only repro files in its row: `wf check` runs the repro on that row and requires
+  it red, whatever its check cell says.
 - `wf check` reads a check cell as exactly `repro` or one repo-rooted test path (never `--dir` +
   a package path): `repro --grep …` runs nothing, and a check expected red fails the commit. A measuring commit's check is `—`
   (fence only).

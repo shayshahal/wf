@@ -1,7 +1,7 @@
 // check.selfcheck.mjs — node check.selfcheck.mjs → exit 0 when green.
 // Pure arms only (no git, no runners): the fence, the repro line, and what buildTasks makes of a
 // plan row's check cell. The project's own commands: projects/<name>/checks.selfcheck.mjs.
-import { checkRunLine, buildTasks, fenceViolations, isRoundPaperwork, reproCommand, resolvedBlockedName, tokenize } from './check.mjs';
+import { checkRunLine, buildTasks, fenceViolations, isReproOnly, isRoundPaperwork, reproCommand, resolvedBlockedName, tokenize } from './check.mjs';
 
 let failures = 0;
 const check = (name, cond, detail = '') =>
@@ -44,6 +44,12 @@ check('a `repro --grep …` cell is a path for the project, which refuses it', a
 
 const logLine = JSON.parse(checkRunLine({ ts: 't', row: '2', rowCheck: '`repro`', tasks: [{ label: 'ruff check x.py', exit: 0 }, { label: 'npx playwright test r.spec.ts', exit: 1 }], result: 'red' }));
 check('checks.log line carries row, the row check, each task exit and the result', logLine.row === '2' && logLine.rowCheck === '`repro`' && logLine.tasks[1].exit === 1 && logLine.result === 'red', JSON.stringify(logLine));
+
+// A row that only edits the repro runs it, expecting red: the round's before-the-fix run (TJEW-670).
+check('a row of repro files only is repro-only', isReproOnly(['bug-reports/r/repro/a.spec.ts'], 'bug-reports/r') && !isReproOnly(['bug-reports/r/repro/a.spec.ts', 'packages/x.ts'], 'bug-reports/r') && !isReproOnly([], 'bug-reports/r') && !isReproOnly(['bug-reports/r2/repro/a.spec.ts'], 'bug-reports/r'));
+const fixRepro = buildTasks({ row: { check: '\u2014' }, projectTasks, repro: 'node scripts/repro.mjs', reproOnly: true });
+check('a repro-only row runs the repro even when its cell says fence only, and expects red', fixRepro.at(-1).label === 'node scripts/repro.mjs' && fixRepro.at(-1).expectRed === true);
+check('any other row with check repro expects green', !buildTasks({ row: { check: 'repro' }, projectTasks, repro: 'node scripts/repro.mjs' }).at(-1).expectRed);
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');
 process.exit(failures ? 1 : 0);

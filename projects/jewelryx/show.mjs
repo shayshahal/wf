@@ -10,6 +10,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { opensWindows } from '../../editor.mjs';
+import { writeCloneLaunch } from '../../new.mjs';
 import { readState, roundOf, toplevelOf, writeState } from '../../state.mjs';
 import { basePortForBranch, slugForBranch } from '../../worktree.mjs';
 import { logins, stackUrls } from './index.mjs';
@@ -44,11 +45,11 @@ export function openLineOf(planText) {
 // Pure: what Claude Code's Browser pane opens for a parsed `open:` line, where wf opens no window
 // (editor.mjs opensWindows): the login page, the seed user, then the page. Apps are served under
 // their own base path, as control-jewelryx's appUrl has it.
-export function paneText(open, urls, users = logins) {
+export function paneText(open, urls, slug, users = logins) {
 	const page = (path) => `${urls[open.app]}/${open.app}${path}`;
 	const [user, password] = users[open.as];
 	return [
-		`T2 in the Browser pane (wf opens no window under Claude Code): mcp__Claude_Browser__preview_start with name "${open.app}" (the worktree's launch.json entry, so the pane can persist its login), then navigate:`,
+		`T2 in the Browser pane (wf opens no window under Claude Code): mcp__Claude_Browser__preview_start with name "${slug} ${open.app}" (wf new wrote it into the clone's .claude/launch.json, where Desktop reads it; by name the pane can persist its login), then navigate:`,
 		`  the page: ${page(open.path)}${open.mobile ? ' (mobile: resize the pane to 390x844)' : ''}`,
 		`  if it asks for a login: ${page('/login')} as ${user} / ${password} (a one-time code follows: it is on the page's DEV banner), then the page again`,
 	].join('\n');
@@ -110,7 +111,11 @@ export function runShow(argv) {
 	if (setups.length) writeState(toplevel, { t2_setup: setups[0].token });
 	if (!opensWindows()) {
 		const branch = spawnSync('git', ['-C', toplevel, 'rev-parse', '--abbrev-ref', 'HEAD'], { encoding: 'utf8' }).stdout.trim();
-		console.log(paneText(open, stackUrls({ slug: slugForBranch(branch), port: basePortForBranch(branch) })));
+		const slug = slugForBranch(branch);
+		const urls = stackUrls({ slug, port: basePortForBranch(branch) });
+		// Again here: a round wf new made before the clone had its entries gets them now.
+		writeCloneLaunch(slug, urls);
+		console.log(paneText(open, urls, slug));
 		return;
 	}
 	if (!existsSync(join(toplevel, VERIFY_SKILL))) {

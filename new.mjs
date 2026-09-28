@@ -11,11 +11,11 @@
 // that folder is what every `wf prompt` substitutes. --check makes the round a check: wf next stops
 // after research, waiting on Shay (next.mjs).
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { baseBranch, newRound, roundBranches, roundsDir, stackUrls } from './project.mjs';
-import { basePortForBranch, createWorktree, slugForBranch, urlLines } from './worktree.mjs';
+import { basePortForBranch, createWorktree, excludeFromGit, listWorktrees, mainCheckout, slugForBranch, urlLines } from './worktree.mjs';
 import { seams } from './seams.mjs';
 import { writeState } from './state.mjs';
 import { liveRounds, realReadState, realWorktrees } from './status.mjs';
@@ -74,6 +74,34 @@ export function launchConfig(urls) {
 	return `${JSON.stringify({ version: '0.0.1', configurations: Object.entries(urls).map(([name, url]) => ({ name, url: new URL(url).origin })) }, null, 2)}\n`;
 }
 
+// Pure: the person's clone's .claude/launch.json with this round's apps in it, as "<slug> <app>" (urls
+// null: the round's entries taken out, for reap), or null when the file is not JSON wf can edit.
+// Claude Code Desktop reads launch.json from the folder the session opened, the clone, never from the
+// worktree EnterWorktree moved it to: TJEW-670's T2 (2026-09-28) could not start the pane by name,
+// and by URL it keeps no login.
+export function cloneLaunch(text, slug, urls) {
+	let json = { version: '0.0.1', configurations: [] };
+	if (text?.trim()) {
+		try { json = JSON.parse(text); } catch { return null; }
+	}
+	const others = (json.configurations ?? []).filter((c) => !String(c.name ?? '').startsWith(`${slug} `));
+	const ours = urls ? Object.entries(urls).map(([app, url]) => ({ name: `${slug} ${app}`, url: new URL(url).origin })) : [];
+	return `${JSON.stringify({ ...json, configurations: [...others, ...ours] }, null, 2)}\n`;
+}
+
+// Writes cloneLaunch's result into the main checkout, when there is one (not a bare layout).
+export function writeCloneLaunch(slug, urls) {
+	const main = mainCheckout(listWorktrees());
+	if (!main) return;
+	const file = join(main, '.claude', 'launch.json');
+	if (!urls && !existsSync(file)) return;
+	const next = cloneLaunch(existsSync(file) ? readFileSync(file, 'utf8') : '', slug, urls);
+	if (!next) return console.error(`wf: ${file} is not JSON, left as it is`);
+	mkdirSync(join(main, '.claude'), { recursive: true });
+	writeFileSync(file, next);
+	excludeFromGit(main, '/.claude/launch.json');
+}
+
 // Pure: the `git fetch` that brings `base` up to date first, or null when it is not a remote branch
 // (a local ref or a sha is what the person asked for).
 export function fetchFor(base) {
@@ -83,7 +111,8 @@ export function fetchFor(base) {
 
 export async function runNew(argv) {
 	const branch = argv[0];
-	if (!branch) { console.error('usage: wf new <branch> [--base <ref>] [--class B|C] [--check] [--id <token>]...'); process.exit(2); }
+	// A flag first is not a branch: `wf new --help` went to git as one and printed git branch's usage (TJEW-670).
+	if (!branch || branch.startsWith('-')) { console.error('usage: wf new <branch> [--base <ref>] [--class B|C] [--check] [--id <token>]...'); process.exit(2); }
 	// wt defaults --base to the repo's default branch; rounds branch off the project's base branch.
 	const bi = argv.indexOf('--base');
 	const base = bi === -1 ? `origin/${baseBranch}` : argv[bi + 1];
@@ -127,7 +156,7 @@ export async function runNew(argv) {
 	const folder = `${roundsDir}/${slugForBranch(branch)}`;
 	mkdirSync(join(path, folder), { recursive: true });
 	const notes = newRound({ worktree: path, folder, port: basePortForBranch(branch) });
-	writeState(path, { id: ids[0] ?? branch, folder, made_by: seams.madeBy, entry: seams.entry.replace(/\\/g, '/'), ...(argv.includes('--check') ? { check: true } : {}) });
+	writeState(path, { id: ids[0] ?? branch, ...(ids.length > 1 ? { ids } : {}), folder, made_by: seams.madeBy, entry: seams.entry.replace(/\\/g, '/'), ...(argv.includes('--check') ? { check: true } : {}) });
 	if (reopen && dupes.length) {
 		const plan = (f) => { try { return execFileSync('git', ['show', `${base}:${f}/PLAN.md`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }); } catch { return null; } };
 		const rulings = dupes.filter((d) => d.startsWith(`${roundsDir}/`)).map((f) => ({ folder: f, lines: decisionsOf(plan(f)) }));
@@ -136,6 +165,7 @@ export async function runNew(argv) {
 	const urls = stackUrls({ slug: slugForBranch(branch), port: basePortForBranch(branch) });
 	mkdirSync(join(path, '.claude'), { recursive: true });
 	writeFileSync(join(path, '.claude', 'launch.json'), launchConfig(urls));
+	writeCloneLaunch(slugForBranch(branch), urls);
 	console.log(`Round folder: ${folder}`);
 	console.log(urlLines(urls));
 	for (const line of notes) console.log(line);

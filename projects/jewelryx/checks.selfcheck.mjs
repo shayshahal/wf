@@ -54,5 +54,13 @@ check('leading spaces before — are still fence only', leadingSpace.length === 
 const sWord = buildTasks({ changed: [], row: { check: 'ssss— x' }, pkgFor, repro: null });
 check('a cell starting with s is not fence only', sWord.length > 0, JSON.stringify(sWord));
 
+// With the repo's lefthook.yml: its pre-push hook runs on the changed files, and replaces the --tsgo
+// svelte-check (the hook's own is stricter). TJEW-670: fallow-audit first ran at the push, after T2.
+const svelteDiff = ['packages/frontend/b2b/src/routes/x/+page.svelte'];
+const hooked = checkTasks({ changed: svelteDiff, test: null, pkgFor, pushHook: true });
+check('with a push hook: the hook on the changed files, and no --tsgo svelte-check', JSON.stringify(labels(hooked)) === '["lefthook pre-push"]' && hooked[0].args.join(' ') === 'exec lefthook run pre-push --file packages/frontend/b2b/src/routes/x/+page.svelte', JSON.stringify(hooked));
+check('without one: svelte-check as before', labels(checkTasks({ changed: svelteDiff, test: null, pkgFor })).join() === 'svelte-check jewelryx-frontend');
+check('nothing changed: no hook run', checkTasks({ changed: [], test: null, pkgFor, pushHook: true }).length === 0);
+
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');
 process.exit(failures ? 1 : 0);

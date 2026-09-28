@@ -43,7 +43,10 @@ Verdict: matches plan | deviates
 ```
 
 **`met` takes a measurement on both sides, not a reading of the code.** *before* is what research
-measured on the unfixed code: `RESEARCH.md`'s red output or its measured `Diverges at`. *after* is
+measured on the unfixed code: `RESEARCH.md`'s red output or its measured `Diverges at`, or a
+`.wf/checks.log` task with `"expect":"red"` (a row that fixed the repro ran it before the fix; its
+`output` is the failure, and a failure that is a login, selector or missing data is not a
+measurement). *after* is
 the repro assertion for it green in `.wf/checks.log`'s last run, or what you measured on this
 tree yourself (this project's notes may say how). An Intent line research never measured, or that
 you could not measure now, is `NOT MEASURED`: a legal answer, which the person reviewing reads
