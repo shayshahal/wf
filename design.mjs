@@ -12,7 +12,7 @@ import { seams } from './seams.mjs';
 import { roundFile } from './state.mjs';
 import { runStep } from './step.mjs';
 
-// The `## For T1` section of a SPEC, or null when the SPEC has none (older shape: annotate it whole).
+// The `## For T1` section of a SPEC, or null when it has none (`wf step design` refuses that SPEC).
 export function forT1Section(text) {
   const m = /^## For T1[ \t]*\r?\n([\s\S]*?)(?=^## |(?![\s\S]))/m.exec(text.replace(/\r\n/g, '\n'));
   return m ? m[0].trimEnd() + '\n' : null;
@@ -39,13 +39,9 @@ export async function runDesign(argv) {
   }
   const header = () => renderHeader({ round, specSha: specShaFor(worktree), urls: devUrlsFor(worktree) });
   const file = roundFile(worktree, 'SPEC-REVIEW.md');
-  const t1 = forT1Section(readFileSync(spec, 'utf8'));
-  let toAnnotate = spec;
-  if (t1) {
-    mkdirSync(join(worktree, '.wf'), { recursive: true });
-    toAnnotate = join(worktree, '.wf', 'SPEC-T1.md');
-    writeFileSync(toAnnotate, `${t1}\n<!-- extracted from SPEC.md § For T1 — the full spec is the worker's; annotate here -->\n`);
-  } else console.error('wf design: SPEC.md has no `## For T1` section — annotating the whole file (SPEC-TEMPLATE.md asks for one)');
+  mkdirSync(join(worktree, '.wf'), { recursive: true });
+  const toAnnotate = join(worktree, '.wf', 'SPEC-T1.md');
+  writeFileSync(toAnnotate, `${forT1Section(readFileSync(spec, 'utf8'))}\n<!-- extracted from SPEC.md § For T1: the design this round is built against; the rest of SPEC.md is working notes. Annotate here -->\n`);
   // The machine's review screen when it has one (seams.reviewUI: plannotator on Shay's), else an editor.
   if (seams.reviewUI?.available()) {
     const line = seams.reviewUI.annotate({ worktree, file: toAnnotate, since: new Date().toISOString() });
@@ -57,7 +53,7 @@ export async function runDesign(argv) {
   if (!opensWindows()) {
     console.log(`to annotate: ${toAnnotate}
 review file: ${file}
-  Claude Code: the person reads it in the file pane and says their comments and verdict; write both into the review file`);
+  Claude Code: show the person this section (in plain words if they ask, adding nothing it does not say); write into the review file a \`note —\` line with what you showed them, verbatim, then their comments and the verdict they said`);
     return;
   }
   if (!openInEditor([worktree, toAnnotate])) console.log(`fallback: no editor found — annotate by hand:\n  worktree: ${worktree}\n  spec: ${toAnnotate}\n  review file: ${file}`);

@@ -1,8 +1,9 @@
 # The design session — T1
 
 The user and one agent, one pane, ~15 minutes, before any code on a Class B or C round
-(`CLASSES.md`). It produces one file, `SPEC.md`, and the round freezes on its sha256. Five
-moves, in order. `SPEC-TEMPLATE.md` is the skeleton, `CALL-STACK-FORMAT.md` the notation,
+(`CLASSES.md`). It produces one file, `SPEC.md`, and the round freezes on its sha256. **Its
+`## For T1` section is the design**: what T1 approves, and what the round is built and checked
+against. The sections below it are the working notes that reach it (move 5). Five moves, in order. `SPEC-TEMPLATE.md` is the skeleton, `CALL-STACK-FORMAT.md` the notation,
 `REVIEW-FORMAT.md` what comes back.
 
 **Where the files live.** `SPEC.md`, `SPEC-REVIEW.md` and `REVIEW.md` live in the **round folder**
@@ -35,6 +36,10 @@ Ground means measured, not read:
 - **Birth check.** `git log -S<symbol> --follow` on that line: was it ever right? A defect
   that was never built is not a regression, and saying so stops the next round hunting a
   commit that does not exist.
+- **Quote the code, never paraphrase it.** Where the truth dies, paste the lines themselves with
+  their `:line`, and a `⚠` on the wrong one. The one T1 comment that changed a design (BJEW-586:
+  "are we sure this needs to be an effect?") was on such an excerpt; in five T1s (2026-09-20 to
+  09-28), none commented on a prose account of the code.
 - **Constraints that decide the design** belong here, not in each candidate. BJEW-586 found the
   naive fix breaks every dev stack and the verification suite; stated once, up front, every
   candidate then carried the same carve-out.
@@ -100,25 +105,39 @@ before revising, and say what changed. BJEW-586 rev 2 came from one six-word que
 *«are we sure this needs to be an effect?»* — which removed a defect class, deleted a previous
 round's workaround and rewrote the recommendation. **A revised SPEC has a new sha, and a new sha
 is a new T1**: `wf step implement` refuses a B/C round whose `SPEC-REVIEW.md` approves an older
-sha or carries no `approved` verdict (`step.mjs` `t1Gap`). A chat question is not a T1.
+sha or carries no `approved` verdict (`step.mjs` `t1Gap`). A chat question is not a T1; a verdict
+given in chat is, once `SPEC-REVIEW.md` records it (move 5).
 
 ## 5 · freeze
 
 Before the freeze, write `## For T1` at the top (`SPEC-TEMPLATE.md`): ≤ 30 lines — the as-is
-stacks, the chosen candidate's diff-syntax stack, the ASKs. That section is all `wf design`
-puts in front of the user; the rest of the file is the worker's evidence. Two rounds (BJEW-586,
-591 lines; BJEW-454, 312) proved they read the ASKs and the pick and skip the rest — so
-hand them exactly those.
+stacks and the quoted lines where the truth dies, the chosen candidate's diff-syntax stack, the
+ASKs. `wf step design` refuses a SPEC without it.
+
+**`## For T1` is what binds.** It is all `wf design` shows the user, so it is all T1 approves, and
+the round is built and checked against it: PLAN.md's Build agrees with its Build, and as-built
+diffs against it. The sections below are the working notes that reached it; nothing in them
+binds unless `## For T1` says it. Measured over five T1s (2026-09-20 to 09-28): every comment was
+on an as-is excerpt, an ASK or the pick; none on `## Input coverage` or a candidate's detail; the
+last two were approved in chat within two minutes of a short summary. A long document approved
+unread is not a spec anyone agreed to (Gonzalez, "A sufficiently detailed spec is code", 2026).
+
+**T1 in chat** (Claude Code, or the user on a phone): show `## For T1`, or say it in plain words
+written from it alone, adding nothing it does not say. Then `wf design <round>` and write into
+`SPEC-REVIEW.md` a `note —` line with what you showed, verbatim, then their comments as
+`SPEC.md:<ASK-n or line> — text` and their verdict. TJEW-670.11's and BJEW-548's T1s (2026-09-28)
+were given in chat; their review files kept the words ("B, revise plan", "approved, go on") and
+not the summary they answered.
 
 When the user says **"shared"**: write `SPEC.md` in the round folder (the `folder` in `.wf/state.json`), take its sha256, `wf step design` (it parks the
-round on the user), and **stop**. The worker implements exactly the frozen SPEC; a needed signature
-change is stop-and-report, not a decision.
+round on the user), and **stop**. The worker implements exactly the frozen `## For T1`; a needed
+signature change is stop-and-report, not a decision.
 
 Optional `## Slices` — vertical cuts in the order the user wants to look at them (contract with mock
 data → screen → wire → store), never stack order; the worker runs `wf step review` after each.
 
 The worker's side is `proof/CALL-STACK-AS-BUILT.md`: the as-built stack diffed row by row against
-the chosen candidate, every addition and deviation named with its reason (BJEW-586's is the model
+`## For T1`'s Build, every addition and deviation named with its reason (BJEW-586's is the model
 — three additions, no deviations). `wf review` refuses a B/C round without it.
 
 ## Frontend rounds

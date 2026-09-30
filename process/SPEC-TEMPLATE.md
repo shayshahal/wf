@@ -16,11 +16,12 @@ Bug/CR folder: `<path>`.
 ## For T1
 
 <≤ 30 lines. This is the only section the user annotates — `wf design` shows them this and nothing
-else. Everything below is the evidence the worker builds from; it stays, it is hashed, it is not
-read at T1.>
+else — so it is the design: the round is built and checked against it. Everything below is the
+working notes that reached it; it stays and is hashed, but nothing in it binds unless this
+section says it.>
 
-**As-is** — one diff-free call stack per touched path, `file:line`, ≤ 6 lines each, and the one
-line where the truth dies. The one or two measured facts that change what a reader expects.
+**As-is** — one diff-free call stack per touched path, `file:line`, ≤ 6 lines each, and the lines
+where the truth dies, quoted from the code with `:line` and a `⚠`, not described. The one or two measured facts that change what a reader expects.
 **Build** — the chosen candidate's call stack in diff syntax (`CALL-STACK-FORMAT.md`), and the
 one line that says why not the runner-up.
 **Asks** — every ASK, verbatim, with addressee. Nothing else: no INFER, no RECOMMEND here.
@@ -28,6 +29,8 @@ one line that says why not the runner-up.
 ## As-is
 
 <The current call stack per touched path: file:line, real function names, one hop per line.>
+<The code where the truth dies, quoted: its lines with `:line`, a `⚠` on the wrong one. Never a
+prose account of what the code does.>
 <A table of the types on each hop, and the row where the truth dies.>
 <What a live stack does today — the script, when it ran, against which stack, and its output.>
 <Every other path that reaches the same code, and the grep that proves the list is complete.>
@@ -82,7 +85,8 @@ store), never stack order. Each slice ends in `wf step review`.>
 Rules the skeleton does not show:
 
 - `## For T1` is written **last** and read **first**: it is a rendering of the sections below it,
-  not a place for anything new. Over 30 lines, cut — BJEW-454's rev 1 was 312 lines and its T1
+  not a place for anything new. It is also the only part that binds: whatever the build needs from
+  the sections below (a test, a constraint, a landing) is in it, or it is not built. Over 30 lines, cut — BJEW-454's rev 1 was 312 lines and its T1
   came back «information overload, i cannot follow this».
 - An ASK offers a choice the ticket, the docx or the code already forces. A feature the round was
   not asked to build is not a question — it is a twin ticket, one line under `## Recommendation`

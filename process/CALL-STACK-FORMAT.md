@@ -104,7 +104,7 @@ it was built, and the `·` line marks an unmeasured claim instead of asserting i
 
 ## As-built
 
-`proof/CALL-STACK-AS-BUILT.md` is this format again, one table per candidate arm: the SPEC
-line, what was built, and `✓` or the deviation. It names the SPEC sha it was built against,
-lists every **addition** with the line in the SPEC that did not model it, and lists what was
-deliberately **not** built. `wf review` refuses a B/C round without it.
+`proof/CALL-STACK-AS-BUILT.md` is this format again, one table per arm of `## For T1`'s Build: the
+SPEC line, what was built, and `✓` or the deviation. It names the SPEC sha it was built against,
+lists every **addition** with the line in `## For T1` that did not model it, and lists what was
+deliberately **not** built. The rest of SPEC.md is working notes, not a reference (DESIGN-SESSION.md § 5). `wf review` refuses a B/C round without it.

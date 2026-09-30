@@ -80,6 +80,12 @@ export async function runStep(argv, { quiet = false } = {}) {
     console.error('wf step design: no SPEC.md in the round folder — the design phase writes it before exiting');
     process.exit(2);
   }
+  // `## For T1` is the design T1 approves and the round is built against; the rest is working notes
+  // (DESIGN-SESSION.md § 5). A SPEC without it has nothing to bind.
+  if (step === 'design' && !/^## For T1[ \t]*\r?$/m.test(readFileSync(roundFile(toplevel, 'SPEC.md'), 'utf8'))) {
+    console.error('wf step design: SPEC.md has no `## For T1` section — write it last, at the top (SPEC-TEMPLATE.md)');
+    process.exit(2);
+  }
   const round = flag('round') ?? sh(['rev-parse', '--abbrev-ref', 'HEAD']);
   const file = join(toplevel, '.wf', 'state.json');
   let prev = {};

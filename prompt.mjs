@@ -15,7 +15,7 @@ import { basePortForBranch } from './worktree.mjs';
 import { openQuestionGate, overruledAsks } from './ask.mjs';
 import { readState, roundOf, toplevelOf, writeState } from './state.mjs';
 
-const REVISE = '\nRead `{{folder}}/SPEC-REVIEW.md` (wf design writes it there); revise `{{folder}}/SPEC.md` and `{{folder}}/PLAN.md` to answer every annotation; change nothing it does not mention.\n';
+const REVISE = '\nRead `{{folder}}/SPEC-REVIEW.md` (wf design writes it there); revise `{{folder}}/SPEC.md` and `{{folder}}/PLAN.md` to answer every annotation; change nothing it does not mention. `## For T1` is what binds (DESIGN-SESSION.md § 5): an answer that changes the design changes it there, and the Build in PLAN.md agrees with its Build.\n';
 // `plan --revise` after an Ask was answered against its default (ask.mjs overruledAsks).
 const REVISE_ASKS = '\n## This is a revision\n\n`{{folder}}/PLAN.md` exists, and the person answered some of its Asks against the default it was written for. Their answers:\n\n{{overruled}}\n\nRevise `{{folder}}/PLAN.md` to build each answer: its Approach, Commits, *Not doing* and *T2 walk*. Delete the answered Asks, keep `## Decisions` as it is, and change nothing an answer does not touch.\n';
 
