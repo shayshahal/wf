@@ -78,11 +78,11 @@ export type Machine = {
 		url: (o: { slug: string; port?: Port }) => string;
 		up: (o: Stack) => Promise<void>;
 		seedUrl?: (o: Stack) => string;
-		teardown: (o: { slug: string; worktree?: string }) => RemovalStep[];
+		teardown: (o: { slug: string; worktree: string }) => RemovalStep[];
 	};
 	names?: (slug: string) => Origins;
 	servers?: (slug: string) => { origins: Origins; wrap: Wrap } | null;
-	teardown: (o: { slug: string; worktree?: string }) => RemovalStep[];
+	teardown: (o: { slug: string; worktree: string }) => RemovalStep[];
 };
 // The kit's own (KIT): a person's machine with one MongoDB and their clone of JewelryX (kit and env
 // plan, step 3).
@@ -97,7 +97,7 @@ const KIT: Machine = {
 	database: {
 		url: () => process.env.MONGO_URL ?? 'mongodb://127.0.0.1:27017',
 		up: ({ slug, port }) => mongoAnswers(KIT.database.url({ slug, port })),
-		teardown: ({ slug, worktree }) => [{ label: 'drop database', run: () => dropDatabase({ worktree: worktree!, database: worktreeDatabase(slug), mongoUrl: KIT.database.url({ slug }) }) }],
+		teardown: ({ slug, worktree }) => [{ label: 'drop database', run: () => dropDatabase({ worktree, database: worktreeDatabase(slug), mongoUrl: KIT.database.url({ slug }) }) }],
 	},
 	teardown: () => [],
 };
@@ -175,7 +175,7 @@ export async function serve({ worktree, slug, port }: { worktree: string } & Sta
 // What removing a worktree leaves behind, in order: the database's steps, then the machine's own.
 // Each step tolerates "already gone". `worktree` is there only when the steps run before the folder
 // goes (the kit's removal plan); Shay's run after it (wt's post-remove hook).
-export function teardown({ slug, worktree }: { slug: string; worktree?: string }): RemovalStep[] {
+export function teardown({ slug, worktree }: { slug: string; worktree: string }): RemovalStep[] {
 	const m = machine();
 	return [...m.database.teardown({ slug, worktree }), ...m.teardown({ slug, worktree })];
 }

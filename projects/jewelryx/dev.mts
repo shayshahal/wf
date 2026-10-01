@@ -2,8 +2,9 @@
 // Ports: B2B on P, API on P+10000, admin on P+20000 (index.mts). Every line also lands in
 // .wf/logs/dev.log, prefixed by server name, so an agent can read why a server died;
 // WF_DEV_LOG moves it (the permanent dev stack must not leave .wf/ in the dev checkout).
-// The machine may put each server behind a name (index.mts `machine()`: `names` gives the browser
-// origins, `wrapServer` the command that serves one; portless on Shay's, env/projects/jewelryx).
+// The machine may put each server behind a name (index.mts `machine()`: `servers(slug)` gives
+// { origins, wrap }, the browser origins and the command that serves one; portless on Shay's,
+// env/projects/jewelryx).
 import { createWriteStream, mkdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';

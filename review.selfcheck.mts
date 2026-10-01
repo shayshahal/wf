@@ -40,21 +40,27 @@ check('single line folds without range', folded.includes('c.ts:3 — nit'), fold
 check('feedback becomes a note line', folded.includes('note — overall good'), folded);
 check('annotated maps to changes-requested', folded.endsWith('verdict: changes-requested'), folded);
 
-const annotateLine = JSON.stringify({
+const annotate = {
   v: 1, ts: '2026-09-17T20:01:00.000Z', client: 'test', project: 'x', surface: 'annotate',
   decision: 'approved', target: 'SPEC.md', feedback: '',
   annotations: [{ blockId: 'usage-table', text: 'add a row' }],
-});
+};
+// The adapter hands the parsed line, fold also takes its JSON text. Until 2026-10-01 the variants
+// below spread the text, which copies its characters, not its fields: none carried the annotation.
+const annotateLine = JSON.stringify(annotate);
 const folded2 = foldFeedbackLine(annotateLine);
 check('blockId-only comment targets SPEC.md', folded2.includes('SPEC.md:usage-table — add a row'), folded2);
 check('approved maps to approved', folded2.endsWith('verdict: approved'), folded2);
-check('review-surface lgtm maps to approved (plannotator 0.27.16)', foldFeedbackLine({ ...(annotateLine as {}), decision: 'lgtm' }).endsWith('verdict: approved'));
-check('an approval with a comment (approved-with-notes) maps to approved', foldFeedbackLine({ ...(annotateLine as {}), decision: 'approved-with-notes' }).endsWith('verdict: approved'));
-check('unknown decision maps to changes-requested', foldFeedbackLine({ ...(annotateLine as {}), decision: 'meh' }).endsWith('verdict: changes-requested'));
+const lgtm = foldFeedbackLine({ ...annotate, decision: 'lgtm' });
+check('review-surface lgtm maps to approved (plannotator 0.27.16)', lgtm.endsWith('verdict: approved') && lgtm.includes('SPEC.md:usage-table — add a row'), lgtm);
+const withNotes = foldFeedbackLine({ ...annotate, decision: 'approved-with-notes' });
+check('an approval with a comment (approved-with-notes) maps to approved, keeping the comment', withNotes.endsWith('verdict: approved') && withNotes.includes('SPEC.md:usage-table — add a row'), withNotes);
+const meh = foldFeedbackLine({ ...annotate, decision: 'meh' });
+check('unknown decision maps to changes-requested, keeping the comment', meh.endsWith('verdict: changes-requested') && meh.includes('SPEC.md:usage-table — add a row'), meh);
 
 const skel = renderSkeleton({ round: 'feat/x', klass: 'A', base: 'dev', date: '2026-09-17', files: ['a.ts'] });
 check('skeleton verdict is not a real verdict', readVerdict(skel) === null, skel);
-const targetLine = { ...(annotateLine as {}), decision: "lgtm", target: { review: { base: "dev", changedFiles: 124 } } };
+const targetLine = { ...annotate, decision: "lgtm", target: { review: { base: "dev", changedFiles: 124 } } };
 check('fold records what plannotator actually reviewed', foldFeedbackLine(targetLine).includes("reviewed: dev (124 files)"));
 check('lastField takes the newest dated section', lastField('base: dev\nverdict: approved\n## 2\nbase: tools/wf-runtime\n', 'base') === 'tools/wf-runtime');
 check('the as-built file counts uncommitted: the as-built phase does not commit it (TJEW-670.11)', asBuiltFile(reviewFiles(['a.ts'], 'bug-reports/r/proof/CALL-STACK-AS-BUILT.md', true)) === 'bug-reports/r/proof/CALL-STACK-AS-BUILT.md' && asBuiltFile(reviewFiles(['a.ts'], 'bug-reports/r/proof/CALL-STACK-AS-BUILT.md', false)) === null && reviewFiles(['bug-reports/r/proof/CALL-STACK-AS-BUILT.md'], 'bug-reports/r/proof/CALL-STACK-AS-BUILT.md', true).length === 1);

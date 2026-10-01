@@ -43,6 +43,9 @@ export function removalPlan({ branch, path, slug, pid }: Parameters<NonNullable<
 		{ label: 'wt remove', cmd: 'wt', args: ['remove', branch, '--no-delete-branch', '--force', '--foreground', '-y'] },
 		{ label: 'rm -rf worktree', rm: path },
 		{ label: 'git worktree prune', cmd: 'git', args: ['worktree', 'prune'] },
-		...teardown({ slug }),
+		// After the folder: right for Shay's database pieces (a container, portless routes), which need
+		// no worktree. The kit's database drop runs the worktree's python and could not run here; it
+		// never does, since env/projects/jewelryx replaces the whole database piece.
+		...teardown({ slug, worktree: path }),
 	];
 }

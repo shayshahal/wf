@@ -64,6 +64,11 @@ export async function runDeliver() {
 		console.error(`wf deliver: no ${folder ?? 'round folder'}/PLAN.md`);
 		process.exit(2);
 	}
+	// The id names the commit and the tracker note: without it they said docs(null) and `## null`.
+	if (!id) {
+		console.error('wf deliver: .wf/state.json has no id or round — run `wf step <step>` in this worktree first, or recreate the round with `wf new --id`');
+		process.exit(2);
+	}
 	const reviewFile = join(toplevel, folder, 'REVIEW.md');
 	const t2 = t2Gap(state, existsSync(reviewFile) ? readFileSync(reviewFile, 'utf8') : null);
 	if (t2) {
@@ -138,7 +143,7 @@ export async function runDeliver() {
 	}
 	spawnSync('git', ['-C', toplevel, 'push', '-q', 'origin', '--delete', git(toplevel, ['rev-parse', '--abbrev-ref', 'HEAD'])], { encoding: 'utf8' });
 	// Every --id the round was made with: a round on subitems has one note per subitem (TJEW-670).
-	const note = trackerNote({ ids: state?.ids ?? [id!], url: prUrl });
+	const note = trackerNote({ ids: state?.ids ?? [id], url: prUrl });
 	writeFileSync(join(toplevel, folder, note.file), note.text);
 	console.log(`${prUrl} merged; tracker note: ${folder}/${note.file}`);
 	await runStep(['merged']);

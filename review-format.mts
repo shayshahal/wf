@@ -18,8 +18,9 @@ export const verdictOf = (d: string | undefined) => (d === 'approved' || d === '
 
 // One annotation, as Plannotator logs it on submit.
 export type Annotation = { text?: string; file?: string; lineStart?: number; lineEnd?: number; blockId?: string };
-// The line a review UI returns (seams.reviewUI), or the JSON text of one.
-export type ReviewFeedback = { decision?: string; feedback?: string; message?: string; annotations?: Annotation[]; target?: { review?: { base?: string; changedFiles?: number } } };
+// The line a review UI returns (seams.reviewUI), or the JSON text of one. `target` is the file on
+// Plannotator's annotate surface, and what was diffed on its review surface.
+export type ReviewFeedback = { decision?: string; feedback?: string; message?: string; annotations?: Annotation[]; target?: string | { review?: { base?: string; changedFiles?: number } } };
 
 export function commentLine(a: Annotation = {}) {
   const text = (a.text ?? '').trim();
@@ -39,7 +40,7 @@ export function foldFeedbackLine(input: ReviewFeedback | string) {
   for (const a of line.annotations ?? []) out.push(commentLine(a));
   // What the adapter actually showed: --done compares it with the round's base (BJEW-586 T2
   // approved 124 files against dev when the round's 8 were against tools/wf-runtime).
-  const target = line.target?.review;
+  const target = typeof line.target === 'object' ? line.target.review : undefined;
   if (target?.base) out.push(`reviewed: ${target.base} (${target.changedFiles ?? '?'} files)`);
   out.push(`verdict: ${verdictOf(line.decision)}`);
   return out.join('\n');
