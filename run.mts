@@ -3,11 +3,12 @@
 // Commands: next, brief, step, status, new, serve, classify (delegated to ./classify.mts when installed), design + review
 // (human touchpoints), the project's own (project.mts commands: JewelryX's seed, show) and the env's.
 import { plug, seams } from './seams.mts';
+import type { Command, Seams } from './seams.mts';
 
 // A wf command that exits non-zero inside a round goes to .wf/events.log, for the line reap prints
 // (friction.mts): a refusal was only in the session's scrollback until 2026-09-28. Its message is the
 // last console.error line; the exit handler has to write synchronously.
-async function logRefusals(argv) {
+async function logRefusals(argv: string[]) {
 	if (['handoff', 'hook', 'update'].includes(argv[0])) return;
 	const { refusalLine } = await import('./friction.mts');
 	const { appendFileSync, existsSync } = await import('node:fs');
@@ -15,7 +16,7 @@ async function logRefusals(argv) {
 	const { toplevelOf } = await import('./state.mts');
 	let message = '';
 	const error = console.error;
-	console.error = (...args) => {
+	console.error = (...args: unknown[]) => {
 		message = args.join(' ');
 		error(...args);
 	};
@@ -29,7 +30,7 @@ async function logRefusals(argv) {
 	});
 }
 
-export async function run(argv, pieces = {}) {
+export async function run(argv: string[], pieces: Partial<Seams> = {}) {
 	plug(pieces);
 	const [cmd, ...rest] = argv;
 	// Windows .cmd shims (portless, pnpm) need shell: true, and Node then prints DEP0190 on every spawn
@@ -92,7 +93,7 @@ export async function run(argv, pieces = {}) {
 		try {
 			await import('./classify.mts');
 		} catch (e) {
-			if (e.code !== 'ERR_MODULE_NOT_FOUND') throw e;
+			if ((e as NodeJS.ErrnoException).code !== 'ERR_MODULE_NOT_FOUND') throw e;
 			console.log('classify: not installed');
 		}
 	} else if (cmd === 'design') {
@@ -103,7 +104,7 @@ export async function run(argv, pieces = {}) {
 		await runReview(rest);
 	} else {
 		const { commands } = await import('./project.mts');
-		const all = { ...commands, ...seams.commands };
+		const all: Record<string, Command> = { ...commands, ...seams.commands };
 		if (Object.hasOwn(all, cmd)) await all[cmd](rest);
 		else {
 			console.log(`usage: wf <new|serve|next|brief|notes|handoff|step|prompt|check|deliver|ask|decide|status|reap|classify|design|review|${Object.keys(all).join('|')}> [...]`);

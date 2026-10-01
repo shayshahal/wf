@@ -17,13 +17,14 @@ import { lastField, readVerdict, specShaFor } from './review-format.mts';
 import { people } from './project.mts';
 import { seams } from './seams.mts';
 import { roundFile } from './state.mts';
+import type { RoundClass, State } from './state.mts';
 import { stepHistory } from './friction.mts';
 
 export const STEPS = ['classify', 'research', 'plan', 'design', 'implement', 'review', 'pr', 'merged', 'held'];
 const WAITING = ['user', ...people, 'ci'];
 const CLASSES = ['A', 'B', 'C'];
 // null = T1 approved the current SPEC.md; otherwise the one-line reason it did not.
-export function t1Gap(toplevel) {
+export function t1Gap(toplevel: string): string | null {
   const current = specShaFor(toplevel);
   if (!current) return 'no SPEC.md';
   let text;
@@ -34,27 +35,27 @@ export function t1Gap(toplevel) {
   if (verdict !== 'approved') return `SPEC-REVIEW.md verdict is ${verdict ?? 'pending'}`;
   return null;
 }
-export const higherClass = (a, b) => (CLASSES.indexOf(a ?? 'A') >= CLASSES.indexOf(b ?? 'A') ? a ?? 'A' : b);
+export const higherClass = (a: RoundClass | null, b: RoundClass): RoundClass => (CLASSES.indexOf(a ?? 'A') >= CLASSES.indexOf(b ?? 'A') ? a ?? 'A' : b);
 
-const sh = (args) => execFileSync('git', args, { encoding: 'utf8' }).trim();
+const sh = (args: string[]) => execFileSync('git', args, { encoding: 'utf8' }).trim();
 
-export const planPath = (toplevel, state) => join(toplevel, state?.folder ?? '', 'PLAN.md');
+export const planPath = (toplevel: string, state: State | null) => join(toplevel, state?.folder ?? '', 'PLAN.md');
 
 // `wf decide` (ask.mts) writes an answer Shay gave where the implementer will read it.
-export function appendDecision(planText, text, date = new Date().toISOString().slice(0, 10)) {
+export function appendDecision(planText: string, text: string, date = new Date().toISOString().slice(0, 10)) {
   const line = `- ${date} ${text.trim()}`;
   const body = planText.replace(/\r\n/g, '\n');
   if (!/^## Decisions[ \t]*$/m.test(body)) return `${body.trimEnd()}\n\n## Decisions\n${line}\n`;
-  return body.replace(/^## Decisions[ \t]*\n([\s\S]*?)(?=^## |(?![\s\S]))/m, (m, section) => `## Decisions\n${section.trimEnd() ? `${section.trimEnd()}\n` : ''}${line}\n\n`).trimEnd() + '\n';
+  return body.replace(/^## Decisions[ \t]*\n([\s\S]*?)(?=^## |(?![\s\S]))/m, (m, section: string) => `## Decisions\n${section.trimEnd() ? `${section.trimEnd()}\n` : ''}${line}\n\n`).trimEnd() + '\n';
 }
 
 // `quiet`: wf next steps a round as bookkeeping and prints only its own line.
-export async function runStep(argv, { quiet = false } = {}) {
-  const flag = (name) => {
+export async function runStep(argv: string[], { quiet = false } = {}) {
+  const flag = (name: string) => {
     const i = argv.indexOf(`--${name}`);
     return i >= 0 ? argv[i + 1] : null;
   };
-  const positionals = [];
+  const positionals: string[] = [];
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === '--waiting-on' || argv[i] === '--round' || argv[i] === '--base' || argv[i] === '--class') i++;
     else if (!argv[i].startsWith('-')) positionals.push(argv[i]);
@@ -88,12 +89,12 @@ export async function runStep(argv, { quiet = false } = {}) {
   }
   const round = flag('round') ?? sh(['rev-parse', '--abbrev-ref', 'HEAD']);
   const file = join(toplevel, '.wf', 'state.json');
-  let prev = {};
+  let prev: State = {};
   try {
     prev = JSON.parse(readFileSync(file, 'utf8'));
   } catch { /* first step in this worktree */ }
   // --class is an assertion and wins outright; a measurement can only upgrade what is stored.
-  let klass = asserted ?? prev.class ?? null;
+  let klass = (asserted ?? prev.class ?? null) as RoundClass | null;
   if (step === 'implement' && (klass === 'B' || klass === 'C')) {
     const reason = t1Gap(toplevel);
     if (reason) {
@@ -118,7 +119,7 @@ export async function runStep(argv, { quiet = false } = {}) {
   // An open question (wf ask) keeps the round waiting on its person until `wf decide` closes it.
   // history: when each step began, for the line reap prints (friction.mts).
   const since = new Date().toISOString();
-  const state = { ...prev, round, class: klass, base, step, waiting_on: waitingOn ?? prev.questions?.[0]?.to ?? null, since, history: stepHistory(prev.history, step, since) };
+  const state: State = { ...prev, round, class: klass, base, step, waiting_on: waitingOn ?? prev.questions?.[0]?.to ?? null, since, history: stepHistory(prev.history, step, since) };
   mkdirSync(join(toplevel, '.wf'), { recursive: true });
   writeFileSync(file, JSON.stringify(state, null, 2) + '\n');
   if (!quiet) console.log(JSON.stringify(state));
@@ -127,7 +128,7 @@ export async function runStep(argv, { quiet = false } = {}) {
 
 // Tell whatever the machine plugged in (seams.notify: herdr's pane on Shay's) — a failing one never
 // fails the command.
-export async function notifyAdapters(state) {
+export async function notifyAdapters(state: State) {
   for (const notify of seams.notify) {
     try {
       await notify(state);

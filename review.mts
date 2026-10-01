@@ -10,13 +10,14 @@ import { resolveWorktree } from './worktree.mts';
 import { appendDatedSection, asBuiltFile, beforeAfterPage, captionFor, devUrlsFor, foldFeedbackLine, lastField, proofPairs, readVerdict, renderHeader, renderSkeleton, specShaFor, wfDir } from './review-format.mts';
 import { seams } from './seams.mts';
 import { roundFile } from './state.mts';
+import type { State } from './state.mts';
 import { runStep } from './step.mts';
 
-const usage = () => {
+const usage: () => never = () => {
   console.error('usage: wf review <round> [--base dev] | wf review <round> --done');
   process.exit(2);
 };
-const inWorktree = async (worktree, round, step) => {
+const inWorktree = async (worktree: string, round: string, step: string) => {
   const prev = process.cwd();
   process.chdir(worktree);
   try {
@@ -25,22 +26,22 @@ const inWorktree = async (worktree, round, step) => {
     process.chdir(prev);
   }
 };
-const readState = (worktree) => {
+const readState = (worktree: string): State => {
   try {
     return JSON.parse(readFileSync(join(worktree, '.wf', 'state.json'), 'utf8'));
   } catch {
     return {};
   }
 };
-const persistedBase = (worktree) => readState(worktree).base ?? null;
-const changedFiles = (worktree, base) => {
+const persistedBase = (worktree: string) => readState(worktree).base ?? null;
+const changedFiles = (worktree: string, base: string): string[] => {
   try {
     return execFileSync('git', ['-C', worktree, 'diff', '--name-only', `${base}...HEAD`], { encoding: 'utf8' }).split('\n').map((s) => s.trim()).filter(Boolean);
   } catch {
     return [];
   }
 };
-const classify = (worktree, base) => {
+const classify = (worktree: string, base: string): string => {
   try {
     return JSON.parse(execFileSync('node', [join(wfDir, 'classify.mts'), '--base', base, '--json'], { cwd: worktree, encoding: 'utf8' })).class;
   } catch {
@@ -51,26 +52,26 @@ const classify = (worktree, base) => {
 // Pure: the files T2 is shown, with the as-built call stack when it is in the worktree. The as-built
 // phase does not commit it (only wf deliver commits the round folder), so the diff alone never had
 // it, and the gate below refused every class B round (TJEW-670.11, 2026-09-28).
-export function reviewFiles(diff, asBuilt, onDisk) {
+export function reviewFiles(diff: string[], asBuilt: string, onDisk: boolean) {
   return onDisk && !diff.includes(asBuilt) ? [asBuilt, ...diff] : diff;
 }
 
 // The round's before/after page (.wf/before-after.html, outside the round folder: deliver commits that
 // folder, and the PNGs it shows are gitignored), or null when neither research nor validate took one.
-function writeBeforeAfter(worktree, round) {
+function writeBeforeAfter(worktree: string, round: string) {
   const folder = readState(worktree).folder;
   const proof = folder ? join(worktree, folder, 'proof') : null;
   const pairs = proof && existsSync(proof) ? proofPairs(readdirSync(proof)) : [];
   if (!pairs.length) return null;
-  const texts = ['RESEARCH.md', 'VALIDATION.md'].map((f) => (existsSync(join(worktree, folder, f)) ? readFileSync(join(worktree, folder, f), 'utf8') : ''));
-  const captions = Object.fromEntries(pairs.flatMap((p) => [p.before, p.after]).filter(Boolean).map((n) => [n, captionFor(n, texts)]));
+  const texts = ['RESEARCH.md', 'VALIDATION.md'].map((f) => (existsSync(join(worktree, folder!, f)) ? readFileSync(join(worktree, folder!, f), 'utf8') : ''));
+  const captions = Object.fromEntries((pairs.flatMap((p) => [p.before, p.after]).filter(Boolean) as string[]).map((n) => [n, captionFor(n, texts)]));
   const file = join(worktree, '.wf', 'before-after.html');
   mkdirSync(dirname(file), { recursive: true });
   writeFileSync(file, beforeAfterPage({ round, pairs, captions, src: `../${folder}/proof` }));
   return file;
 }
 
-export async function runReview(argv) {
+export async function runReview(argv: string[]) {
   const round = argv.find((a) => !a.startsWith('-'));
   if (!round) usage();
   const { path: worktree } = resolveWorktree(round);
@@ -114,7 +115,7 @@ export async function runReview(argv) {
   console.log(`wrote ${file}`);
 }
 
-async function runReviewDone(worktree, round) {
+async function runReviewDone(worktree: string, round: string) {
   const file = roundFile(worktree, 'REVIEW.md');
   if (!existsSync(file)) {
     console.error(`no ${file} — run wf review ${round} first`);

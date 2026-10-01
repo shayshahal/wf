@@ -36,4 +36,10 @@ moves. There is no staging and no CI. So, before every push:
 - One module per command, each with a `*.selfcheck.mts`: pure functions checked there, the
   side-effecting shell around them kept thin.
 - Comments say why, with the incident or measurement that decided it (date, round, number).
-- No dependencies.
+- TypeScript that Node runs as is: erasable syntax only (no `enum`, `namespace`, parameter
+  properties), and imports name their `.mts` file. Node never reads the types, so only `tsc` in
+  `selfcheck.mts` catches a wrong one. The two entries, `wf.mjs` and `env/wf.mjs`, stay JavaScript:
+  the plugin, `~/bin/wf` and the hooks call them by name, and `wf.mjs` must still load on an old Node
+  to say it is too old.
+- No runtime dependencies: wf runs on Node alone. `typescript` and `@types/node` (package.json) are
+  for the `tsc` check only.

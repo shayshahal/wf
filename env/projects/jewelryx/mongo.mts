@@ -7,35 +7,37 @@ import { createConnection } from 'node:net';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { seedDatabase } from '../../../projects/jewelryx/db.mts';
+import type { Port } from '../../../projects/jewelryx/index.mts';
+import type { RemovalStep } from '../../../seams.mts';
 
 // Pure: mongo host port for a base port P. Throws outside 10000-19999.
-export function mongoPortForBase(basePort) {
+export function mongoPortForBase(basePort: Port): number {
 	const p = Number(basePort);
 	if (!Number.isInteger(p) || p < 10000 || p > 19999) throw new Error(`base port out of range 10000-19999: ${basePort}`);
 	return 40000 + (p - 10000);
 }
-export const containerOf = (slug) => `jewelryx-mongo-${slug}`;
-export const volumeOf = (slug) => `jewelryx-wt-mongo-${slug}`;
-export const composeProjectOf = (slug) => `jewelryx-wt-${slug}`;
-export const worktreeMongoUrl = (base) => `mongodb://localhost:${mongoPortForBase(base)}`;
+export const containerOf = (slug: string): string => `jewelryx-mongo-${slug}`;
+export const volumeOf = (slug: string): string => `jewelryx-wt-mongo-${slug}`;
+export const composeProjectOf = (slug: string): string => `jewelryx-wt-${slug}`;
+export const worktreeMongoUrl = (base: Port): string => `mongodb://localhost:${mongoPortForBase(base)}`;
 
 // Pure: `docker port <container> 27017` → the URL the seeder writes to. The seeder's own .env may
 // name another mongo (the permanent stacks seed from dev's checkout), so it is always pointed at
 // the target container.
-export function mongoUrlFromDockerPort(output) {
+export function mongoUrlFromDockerPort(output: string): string | undefined {
 	const port = /:(\d+)\s*$/m.exec(output)?.[1];
 	return port ? `mongodb://127.0.0.1:${port}` : undefined;
 }
 
-export function containerUrl(slug) {
+export function containerUrl(slug: string): string {
 	const url = mongoUrlFromDockerPort(spawnSync('docker', ['port', containerOf(slug), '27017'], { encoding: 'utf8' }).stdout ?? '');
 	if (!url) throw new Error(`worktree db: ${containerOf(slug)} publishes no port; is it up?`);
 	return url;
 }
 
-function waitForPort(port, timeoutMs = 90000) {
+function waitForPort(port: number, timeoutMs = 90000) {
 	const t0 = Date.now();
-	return new Promise((resolve, reject) => {
+	return new Promise<number>((resolve, reject) => {
 		const tick = () => {
 			const sock = createConnection(port, '127.0.0.1');
 			sock.once('connect', () => { sock.end(); resolve((Date.now() - t0) / 1000); });
@@ -49,7 +51,7 @@ function waitForPort(port, timeoutMs = 90000) {
 	});
 }
 
-export async function mongoUp({ slug, base }) {
+export async function mongoUp({ slug, base }: { slug: string; base: Port }): Promise<void> {
 	const mongoPort = mongoPortForBase(base);
 	const composeFile = join(dirname(fileURLToPath(import.meta.url)), 'mongo.compose.yml');
 	// --wait: return only once the compose healthcheck passes. The host port accepts connections
@@ -65,14 +67,14 @@ export async function mongoUp({ slug, base }) {
 }
 
 // Seed the container of `slug` (the permanent stacks: dev's seeder, the container's own port).
-export function seedContainer({ worktree, slug, database, reset = false }) {
+export function seedContainer({ worktree, slug, database, reset = false }: { worktree: string; slug: string; database: string; reset?: boolean }): void {
 	seedDatabase({ worktree, database, mongoUrl: containerUrl(slug), reset });
 }
 
 // Pure: what removing a worktree leaves behind, in order. Each step tolerates "already gone". The
 // compose network outlives its container; 23 of them exhausted docker's address pools and the next
 // `wf new` failed: "all predefined address pools have been fully subnetted" (3187601171).
-export function mongoTeardown(slug) {
+export function mongoTeardown(slug: string): RemovalStep[] {
 	return [
 		{ label: 'docker rm mongo', cmd: 'docker', args: ['rm', '-f', containerOf(slug)] },
 		{ label: 'docker volume rm', cmd: 'docker', args: ['volume', 'rm', volumeOf(slug)] },

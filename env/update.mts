@@ -15,26 +15,26 @@ export const LIVE = join(homedir(), '.local', 'share', 'wf');
 const SOURCE = join(homedir(), 'work', 'wf', '.git');
 const REF = 'refs/remotes/origin/main';
 
-const git = (gitDir, args) => execFileSync('git', [`--git-dir=${gitDir}`, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+const git = (gitDir: string, args: string[]) => execFileSync('git', [`--git-dir=${gitDir}`, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 const installedRevision = () => { try { return readFileSync(join(LIVE, 'REVISION'), 'utf8').trim(); } catch { return null; } };
 
-const markdownUnder = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
+const markdownUnder = (dir: string): string[] => readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
 	e.isDirectory() ? markdownUnder(join(dir, e.name)) : e.name.endsWith('.md') ? [join(dir, e.name)] : []);
 
 // Pure: update only a running installed copy, only when the pushed branch moved.
-export function shouldUpdate({ runningFromLive, installed, published }) {
+export function shouldUpdate({ runningFromLive, installed, published }: { runningFromLive: boolean; installed: string | null; published: string | null }) {
 	return Boolean(runningFromLive && installed && published && installed !== published);
 }
 
 // One installer at a time: a second wf run while one installs keeps the current copy.
-function withLock(fn) {
+function withLock<T>(fn: () => T): T | null {
 	const lock = `${LIVE}.lock`;
 	try { if (Date.now() - statSync(lock).mtimeMs > 120_000) rmSync(lock, { recursive: true, force: true }); } catch { /* no lock */ }
 	try { mkdirSync(lock); } catch { return null; }
 	try { return fn(); } finally { rmSync(lock, { recursive: true, force: true }); }
 }
 
-export function install(gitDir, rev) {
+export function install(gitDir: string, rev: string) {
 	return withLock(() => {
 		const fresh = `${LIVE}.new`;
 		rmSync(fresh, { recursive: true, force: true });
@@ -46,7 +46,7 @@ export function install(gitDir, rev) {
 		// The project's folder name, from the copy being installed. Read, not imported: the updater never
 		// loads project code, so a broken project cannot stop the update that fixes it.
 		// .mts or .mjs: this updater installs the TypeScript wf too, whose file is project.mts (2026-09-30).
-		const projectFile = ['project.mts', 'project.mts'].map((f) => join(fresh, f)).find((f) => existsSync(f));
+		const projectFile = ['project.mts', 'project.mjs'].map((f) => join(fresh, f)).find((f) => existsSync(f));
 		const project = projectFile && /projects\/([\w-]+)\/index\.m[jt]s/.exec(readFileSync(projectFile, 'utf8'))?.[1];
 		if (!project) throw new Error('project.mts names no projects/<name>/index.mts');
 		for (const f of markdownUnder(fresh)) writeFileSync(f, anchorToolPaths(readFileSync(f, 'utf8'), LIVE, project));
@@ -68,33 +68,33 @@ export function install(gitDir, rev) {
 
 // Called by env/wf.mjs before any command, with its own path: the entry sits in env/, one below the
 // copy's root. Returns true when it re-ran the command from the new copy, through the same entry.
-export function autoUpdate(wfPath, argv) {
+export function autoUpdate(wfPath: string, argv: string[]) {
 	const root = dirname(dirname(wfPath));
 	const runningFromLive = root === LIVE;
 	const gitDir = runningFromLive && existsSync(SOURCE) ? SOURCE : null;
 	if (!gitDir) return false;
-	let published = null;
+	let published: string | null = null;
 	try { published = git(gitDir, ['rev-parse', '--verify', '-q', REF]); } catch { return false; }
 	const installed = installedRevision();
 	if (!shouldUpdate({ runningFromLive, installed, published })) return false;
 	// Forward only: a copy installed from a commit not yet pushed is newer than origin/main, and
 	// "different" installed origin/main over it (2026-09-23, the flatten: back to the old layout).
 	// Exit 1 = installed is not an ancestor; an unknown installed commit (128) still updates.
-	if (spawnSync('git', [`--git-dir=${gitDir}`, 'merge-base', '--is-ancestor', installed, published]).status === 1) return false;
+	if (spawnSync('git', [`--git-dir=${gitDir}`, 'merge-base', '--is-ancestor', installed!, published]).status === 1) return false;
 	try {
 		if (!install(gitDir, published)) return false;
 	} catch (e) {
-		console.error(`wf: update to ${published.slice(0, 9)} failed, running ${installed.slice(0, 9)}: ${e.message.split('\n')[0]}`);
+		console.error(`wf: update to ${published.slice(0, 9)} failed, running ${installed!.slice(0, 9)}: ${(e as Error).message.split('\n')[0]}`);
 		return false;
 	}
 	const log = git(gitDir, ['log', '--format=%h %s', `${installed}..${published}`]).split('\n').filter(Boolean);
-	console.error(`wf: updated ${installed.slice(0, 9)} → ${published.slice(0, 9)} (${log.length} commit${log.length === 1 ? '' : 's'} on shayshahal/wf)`);
+	console.error(`wf: updated ${installed!.slice(0, 9)} → ${published.slice(0, 9)} (${log.length} commit${log.length === 1 ? '' : 's'} on shayshahal/wf)`);
 	for (const line of log.slice(0, 5)) console.error(`  ${line.slice(0, 110)}`);
 	try {
 		execFileSync('node', [join(LIVE, relative(root, wfPath)), ...argv], { stdio: 'inherit' });
 		process.exit(0);
 	} catch (e) {
-		process.exit(e.status ?? 1);
+		process.exit((e as { status?: number | null }).status ?? 1);
 	}
 }
 

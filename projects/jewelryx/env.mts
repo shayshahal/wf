@@ -7,7 +7,7 @@ import { dirname, join } from 'node:path';
 
 // Pure: the repo-relative paths in a .worktreeinclude. Plain paths only: a glob would need a walk
 // of the secrets folder, and the project lists four files.
-export function includedFiles(text) {
+export function includedFiles(text: string): string[] {
 	return text.split(/\r?\n/).map((l) => l.trim()).filter((l) => l && !l.startsWith('#')).map((l) => {
 		if (/[*?[\]!]/.test(l)) throw new Error(`.worktreeinclude: "${l}" is a pattern; list plain paths`);
 		return l.replace(/^\//, '');
@@ -17,7 +17,7 @@ export function includedFiles(text) {
 // Copies every listed file from `from` (the machine's secrets folder, index.mts secretsFrom) into
 // the worktree. Throws naming the missing ones before copying any, so a worktree never starts
 // half-configured.
-export function copySecrets(worktree, from) {
+export function copySecrets(worktree: string, from: string): void {
 	const files = includedFiles(readFileSync(join(worktree, '.worktreeinclude'), 'utf8'));
 	const missing = files.filter((f) => !existsSync(join(from, f)));
 	if (missing.length) throw new Error(`missing in ${from}: ${missing.join(', ')} — put this machine's copies there`);
@@ -30,15 +30,16 @@ export function copySecrets(worktree, from) {
 
 // MEDIA_STORAGE_BACKEND defaults to "s3" in app/core/config.py, so a missing key is as unsafe as a
 // wrong one: it must be present and set to "local".
-const FORCED = { MEDIA_STORAGE_BACKEND: 'local' };
+const FORCED: Record<string, string> = { MEDIA_STORAGE_BACKEND: 'local' };
 const BLANKED = ['AWS_S3_ACCESS_KEY_ID', 'AWS_S3_SECRET_ACCESS_KEY', 'AWS_S3_BUCKET_NAME', 'AWS_SES_ACCESS_KEY_ID', 'AWS_SES_SECRET_ACCESS_KEY'];
 
 // Pure. `db` ({ url, name }) points the backend at the worktree's own mongo; without it the
 // database keys are left alone.
-export function sanitizeEnv(contents, db) {
-	const rewritten = db ? { MONGODB_URL: db.url, DATABASE_NAME: db.name } : {};
+export type WorktreeDb = { url: string; name: string };
+export function sanitizeEnv(contents: string, db?: WorktreeDb | null): string {
+	const rewritten: Record<string, string> = db ? { MONGODB_URL: db.url, DATABASE_NAME: db.name } : {};
 	const eol = contents.includes('\r\n') ? '\r\n' : '\n';
-	const seen = new Set();
+	const seen = new Set<string>();
 	const lines = contents.split(/\r?\n/).map((line) => {
 		const key = /^([A-Z_][A-Z0-9_]*)=/.exec(line)?.[1];
 		if (key === undefined) return line;
@@ -56,7 +57,7 @@ export function sanitizeEnv(contents, db) {
 	return lines.join(eol);
 }
 
-export function sanitizeWorktreeEnv(worktree, db) {
+export function sanitizeWorktreeEnv(worktree: string, db: WorktreeDb): void {
 	const envPath = join(worktree, 'packages', 'backend', '.env');
 	if (!existsSync(envPath)) return console.log('No packages/backend/.env to sanitize');
 	writeFileSync(envPath, sanitizeEnv(readFileSync(envPath, 'utf8'), db));

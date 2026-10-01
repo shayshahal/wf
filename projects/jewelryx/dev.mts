@@ -8,12 +8,14 @@ import { createWriteStream, mkdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { PassThrough } from 'node:stream';
+import type { Origins, Port, Wrap } from './index.mts';
 
-const asIs = ({ command }) => ({ command, env: {} });
+const asIs: Wrap = ({ command }) => ({ command, env: {} });
+export type DevCommand = { name: string; command: string; env: Record<string, string> };
 
 // Pure: the three commands and their environments. `origins` ({ b2b, admin, api }) are the browser
 // origins when the machine names them; `wrap({ role, port, command })` → { command, env }.
-export function devCommands(basePort, { origins = null, wrap = asIs } = {}) {
+export function devCommands(basePort: Port, { origins = null, wrap = asIs }: { origins?: Origins | null; wrap?: Wrap } = {}): DevCommand[] {
 	if (!/^1\d{4}$/.test(String(basePort))) throw new Error('Worktree base port must be from 10000 to 19999');
 	const b2bPort = Number(basePort);
 	const backendPort = b2bPort + 10_000;
@@ -28,7 +30,7 @@ export function devCommands(basePort, { origins = null, wrap = asIs } = {}) {
 	// dev.log, where control-jewelryx reads them) only when it sees a coding agent's variable. The
 	// agent that started the stack may set none: say so for it. AI_AGENT is the generic one.
 	const vite = { AI_AGENT: 'wf' };
-	const server = (name, role, port, command, env) => {
+	const server = (name: string, role: keyof Origins, port: number, command: string, env: Record<string, string>): DevCommand => {
 		const w = wrap({ role, port, command });
 		return { name, command: w.command, env: { ...env, ...w.env } };
 	};
@@ -42,8 +44,8 @@ export function devCommands(basePort, { origins = null, wrap = asIs } = {}) {
 }
 
 // concurrently comes from the worktree's own node_modules (the project's devDependency): wf has none.
-export async function runDev({ worktree, basePort, origins, wrap }) {
-	const concurrently = createRequire(join(worktree, 'package.json'))('concurrently');
+export async function runDev({ worktree, basePort, origins, wrap }: { worktree: string; basePort: Port; origins?: Origins; wrap?: Wrap }): Promise<void> {
+	const concurrently = createRequire(join(worktree, 'package.json'))('concurrently') as (commands: DevCommand[], options: object) => { result: Promise<unknown> };
 	const logPath = process.env.WF_DEV_LOG ?? join(worktree, '.wf', 'logs', 'dev.log');
 	mkdirSync(dirname(logPath), { recursive: true });
 	const outputStream = new PassThrough();

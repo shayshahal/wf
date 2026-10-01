@@ -1,9 +1,10 @@
 // friction.selfcheck.mts — node friction.selfcheck.mts → exit 0 when green.
 import { agentsPerPhase, duration, frictionLine, refusalLine, stepHistory, timeInSteps } from './friction.mts';
+import type { State } from './state.mts';
 
 let failures = 0;
-const check = (name, cond, detail = '') =>
-  console.log(cond ? `  ok   ${name}` : `  FAIL ${name}${detail ? ` — ${detail}` : ''}`) || (cond || failures++);
+const check = (name: string, cond: boolean, detail = '') =>
+  (console.log(cond ? `  ok   ${name}` : `  FAIL ${name}${detail ? ` — ${detail}` : ''}`) as unknown) || (cond || failures++);
 
 const h1 = stepHistory(undefined, 'research', '2026-09-28T08:00:00.000Z');
 const h2 = stepHistory(h1, 'research', '2026-09-28T08:05:00.000Z');
@@ -27,7 +28,7 @@ const agents = agentsPerPhase({ research: { count: 1 }, 'implement 1': { count: 
 check('agents per phase: the implement rows add up', agents.join() === 'research 1,implement 3,validate 2', agents.join());
 
 // A TJEW-670.11-shaped round: two T2s, a push the hook refused, one red check, two wf refusals.
-const state = { id: 'TJEW-670.11', class: 'B', step: 'merged', history, briefs: { research: { count: 1, at: '2026-09-28T08:01:00.000Z' } }, answered: [{ n: 1 }, { n: 2 }], questions: [] };
+const state = { id: 'TJEW-670.11', class: 'B', step: 'merged', history, briefs: { research: { count: 1, at: '2026-09-28T08:01:00.000Z' } }, answered: [{ n: 1 }, { n: 2 }], questions: [] } as unknown as State;
 const checksLog = [{ result: 'green' }, { result: 'red' }, { result: 'green' }].map((c) => JSON.stringify(c)).join('\n');
 const eventsLog = [
 	refusalLine({ ts: 't', argv: ['review', 'cr/x'], code: 2, message: "wf review: class B round without proof/CALL-STACK-AS-BUILT.md — …\nmore" }),
@@ -42,7 +43,7 @@ check('a round from before history was recorded still gets a line', old.includes
 
 check('wf check is not a refusal: checks.log has its runs', refusalLine({ ts: 't', argv: ['check'], code: 1, message: 'x' }) === null);
 check('exit 0 is not a refusal', refusalLine({ ts: 't', argv: ['next'], code: 0, message: '' }) === null);
-const r = JSON.parse(refusalLine({ ts: 't', argv: ['brief', 'plan', '--revise'], code: 2, message: 'wf brief plan: no RESEARCH.md\nsecond line' }));
+const r = JSON.parse(refusalLine({ ts: 't', argv: ['brief', 'plan', '--revise'], code: 2, message: 'wf brief plan: no RESEARCH.md\nsecond line' })!);
 check('a refusal keeps the command and the first line of its message', r.cmd === 'brief plan' && r.exit === 2 && r.msg === 'wf brief plan: no RESEARCH.md', JSON.stringify(r));
 
 process.exit(failures ? 1 : 0);

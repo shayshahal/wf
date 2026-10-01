@@ -14,13 +14,14 @@ import { writeCloneLaunch } from '../../new.mts';
 import { readState, roundOf, toplevelOf, writeState } from '../../state.mts';
 import { basePortForBranch, slugForBranch } from '../../worktree.mts';
 import { logins, stackUrls } from './index.mts';
+import type { Origins, SeedRole } from './index.mts';
 import { VERIFY_SKILL } from './round.mts';
 
 // Pure: Git Bash rewrites an argument that starts with / into a Windows path under its own install
 // before node sees it (`wf show admin /products` arrived as `C:/Program Files/Git/products`). It
 // names that install in EXEPATH (`<root>\bin`), so the rewrite is undone exactly; the same rule as
 // control-jewelryx's unMsys.
-export function unMsys(arg, env) {
+export function unMsys(arg: string, env: NodeJS.ProcessEnv): string {
 	if (!env.MSYSTEM || !env.EXEPATH || !/^[A-Za-z]:[\\/]/.test(arg)) return arg;
 	const root = `${dirname(env.EXEPATH.replace(/\\/g, '/'))}/`;
 	const a = arg.replace(/\\/g, '/');
@@ -29,14 +30,15 @@ export function unMsys(arg, env) {
 
 // Pure: `b2b /catalog as buyer mobile` → { app, path, as, mobile }, or null. The path may drop its
 // slash (`wf show admin products`); a Windows path is refused rather than opened.
-export function parseOpen(line) {
+export type Open = { app: 'b2b' | 'admin'; path: string; as: SeedRole; mobile: boolean };
+export function parseOpen(line: string | null | undefined): Open | null {
 	const m = /^(b2b|admin)\s+(\S+)(?:\s+as\s+(buyer|seller|admin))?(\s+mobile)?\s*$/.exec((line ?? '').trim());
 	if (!m || /^[A-Za-z]:[\\/]/.test(m[2])) return null;
-	return { app: m[1], path: m[2].startsWith('/') ? m[2] : `/${m[2]}`, as: m[3] ?? (m[1] === 'admin' ? 'admin' : 'buyer'), mobile: Boolean(m[4]) };
+	return { app: m[1] as Open['app'], path: m[2].startsWith('/') ? m[2] : `/${m[2]}`, as: (m[3] as SeedRole | undefined) ?? (m[1] === 'admin' ? 'admin' : 'buyer'), mobile: Boolean(m[4]) };
 }
 
 // Pure: the `open:` line under `## T2 walk`, or null.
-export function openLineOf(planText) {
+export function openLineOf(planText: string | null): string | null {
 	const walk = /^## T2 walk[ \t]*\n([\s\S]*?)(?=^## |(?![\s\S]))/m.exec((planText ?? '').replace(/\r\n/g, '\n'));
 	const m = walk && /^open:[ \t]*`?([^`\n]+?)`?[ \t]*$/m.exec(walk[1]);
 	return m ? m[1] : null;
@@ -45,8 +47,8 @@ export function openLineOf(planText) {
 // Pure: what Claude Code's Browser pane opens for a parsed `open:` line, where wf opens no window
 // (editor.mts opensWindows): the login page, the seed user, then the page. Apps are served under
 // their own base path, as control-jewelryx's appUrl has it.
-export function paneText(open, urls, slug, users = logins) {
-	const page = (path) => `${urls[open.app]}/${open.app}${path}`;
+export function paneText(open: Open, urls: Origins, slug: string, users: Record<SeedRole, [user: string, password: string]> = logins): string {
+	const page = (path: string) => `${urls[open.app]}/${open.app}${path}`;
 	const [user, password] = users[open.as];
 	return [
 		`T2 in the Browser pane (wf opens no window under Claude Code): mcp__Claude_Browser__preview_start with name "${slug} ${open.app}" (wf new wrote it into the clone's .claude/launch.json, where Desktop reads it; by name the pane can persist its login), then navigate:`,
@@ -58,28 +60,28 @@ export function paneText(open, urls, slug, users = logins) {
 // Pure: the `setup:` lines under `## T2 walk`: commands, run from the worktree, that make the data the
 // `open:` page needs when the seed lacks it (prompts/plan.md). BJEW-562's T2 (2026-09-27) opened the
 // inventory list: the variants page and the shared variants it needs were a line for Shay to do by hand.
-export function setupLinesOf(planText) {
+export function setupLinesOf(planText: string | null): string[] {
 	const walk = /^## T2 walk[ \t]*\n([\s\S]*?)(?=^## |(?![\s\S]))/m.exec((planText ?? '').replace(/\r\n/g, '\n'));
 	return walk ? [...walk[1].matchAll(/^setup:[ \t]*`?([^`\n]+?)`?[ \t]*$/gm)].map((m) => m[1]) : [];
 }
 
 // Pure: `api createVariant {"path":…} as seller` → the CLI's arguments, or null. One call of the
 // verification CLI's `api`, its JSON passed as one argument: no shell, whose quoting differs by OS.
-export function setupArgs(line) {
+export function setupArgs(line: string): string[] | null {
 	const m = /^api\s+(\w+)\s+(\{.*\})\s+as\s+(buyer|seller|admin)$/.exec(line.trim());
 	return m ? [`${VERIFY_SKILL}/control-jewelryx.mjs`, 'api', m[1], m[2], '--as', m[3]] : null;
 }
 
 // Pure: the CLI's arguments for a parsed `open:` line, in its own headed window ("show" session),
 // apart from the browser the round's agents drive.
-export function showArgs(open) {
+export function showArgs(open: Open): string[] {
 	return [`${VERIFY_SKILL}/control-jewelryx.mjs`, 'open', open.app, open.path, 'as', open.as, ...(open.mobile ? ['mobile'] : []), '--headed'];
 }
 
-export function runShow(argv) {
+export function runShow(argv: string[]): void {
 	const toplevel = toplevelOf();
-	let line = argv.map((a) => unMsys(a, process.env)).join(' ').trim();
-	let setups = [];
+	let line: string | null = argv.map((a) => unMsys(a, process.env)).join(' ').trim();
+	let setups: { cmd: string; token: string }[] = [];
 	if (!line) {
 		const state = readState(toplevel);
 		const { folder } = roundOf(state, toplevel);

@@ -11,10 +11,10 @@ import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join as pjoin } from 'node:path';
 // A temp worktree with SPEC.md = 'x'; `review` is the SPEC-REVIEW.md text, with `<real>` replaced by the true sha.
-function t1GapFor(review) {
+function t1GapFor(review: string | null) {
   const d = mkdtempSync(pjoin(tmpdir(), 'wf-t1-'));
   writeFileSync(pjoin(d, 'SPEC.md'), 'x');
-  if (review !== null) writeFileSync(pjoin(d, 'SPEC-REVIEW.md'), review.replace('<real>', specShaFor(d)));
+  if (review !== null) writeFileSync(pjoin(d, 'SPEC-REVIEW.md'), review.replace('<real>', specShaFor(d)!));
   const out = t1Gap(d);
   rmSync(d, { recursive: true });
   return out;
@@ -23,8 +23,8 @@ function t1GapFor(review) {
 import { resolveWorktree } from './worktree.mts';
 
 let failures = 0;
-const check = (name, cond, detail = '') =>
-  console.log(cond ? `  ok   ${name}` : `  FAIL ${name}${detail ? ` — ${detail}` : ''}`) || (cond || failures++);
+const check = (name: string, cond: boolean, detail = '') =>
+  (console.log(cond ? `  ok   ${name}` : `  FAIL ${name}${detail ? ` — ${detail}` : ''}`) as unknown) || (cond || failures++);
 
 const reviewLine = JSON.stringify({
   v: 1, ts: '2026-09-17T20:00:00.000Z', client: 'test', project: 'x', surface: 'review',
@@ -48,21 +48,21 @@ const annotateLine = JSON.stringify({
 const folded2 = foldFeedbackLine(annotateLine);
 check('blockId-only comment targets SPEC.md', folded2.includes('SPEC.md:usage-table — add a row'), folded2);
 check('approved maps to approved', folded2.endsWith('verdict: approved'), folded2);
-check('review-surface lgtm maps to approved (plannotator 0.27.16)', foldFeedbackLine({ ...annotateLine, decision: 'lgtm' }).endsWith('verdict: approved'));
-check('an approval with a comment (approved-with-notes) maps to approved', foldFeedbackLine({ ...annotateLine, decision: 'approved-with-notes' }).endsWith('verdict: approved'));
-check('unknown decision maps to changes-requested', foldFeedbackLine({ ...annotateLine, decision: 'meh' }).endsWith('verdict: changes-requested'));
+check('review-surface lgtm maps to approved (plannotator 0.27.16)', foldFeedbackLine({ ...(annotateLine as {}), decision: 'lgtm' }).endsWith('verdict: approved'));
+check('an approval with a comment (approved-with-notes) maps to approved', foldFeedbackLine({ ...(annotateLine as {}), decision: 'approved-with-notes' }).endsWith('verdict: approved'));
+check('unknown decision maps to changes-requested', foldFeedbackLine({ ...(annotateLine as {}), decision: 'meh' }).endsWith('verdict: changes-requested'));
 
 const skel = renderSkeleton({ round: 'feat/x', klass: 'A', base: 'dev', date: '2026-09-17', files: ['a.ts'] });
 check('skeleton verdict is not a real verdict', readVerdict(skel) === null, skel);
-const targetLine = { ...annotateLine, decision: "lgtm", target: { review: { base: "dev", changedFiles: 124 } } };
+const targetLine = { ...(annotateLine as {}), decision: "lgtm", target: { review: { base: "dev", changedFiles: 124 } } };
 check('fold records what plannotator actually reviewed', foldFeedbackLine(targetLine).includes("reviewed: dev (124 files)"));
 check('lastField takes the newest dated section', lastField('base: dev\nverdict: approved\n## 2\nbase: tools/wf-runtime\n', 'base') === 'tools/wf-runtime');
 check('the as-built file counts uncommitted: the as-built phase does not commit it (TJEW-670.11)', asBuiltFile(reviewFiles(['a.ts'], 'bug-reports/r/proof/CALL-STACK-AS-BUILT.md', true)) === 'bug-reports/r/proof/CALL-STACK-AS-BUILT.md' && asBuiltFile(reviewFiles(['a.ts'], 'bug-reports/r/proof/CALL-STACK-AS-BUILT.md', false)) === null && reviewFiles(['bug-reports/r/proof/CALL-STACK-AS-BUILT.md'], 'bug-reports/r/proof/CALL-STACK-AS-BUILT.md', true).length === 1);
 check('as-built file found anywhere in the diff', asBuiltFile(['x.ts', 'bug-reports/r/proof/CALL-STACK-AS-BUILT.md']) === 'bug-reports/r/proof/CALL-STACK-AS-BUILT.md');
-check('header lists the as-built file first under look at', renderHeader({ round: 'r', klass: 'B', base: 'dev', urls: 'b2b:   http://localhost:1\n', files: ['packages/frontend/b2b/src/routes/(auth)/login/+page.svelte', 'bug-reports/r/proof/CALL-STACK-AS-BUILT.md'] }).match(/^look at: .*$/m)[0].includes('CALL-STACK-AS-BUILT'));
+check('header lists the as-built file first under look at', renderHeader({ round: 'r', klass: 'B', base: 'dev', urls: 'b2b:   http://localhost:1\n', files: ['packages/frontend/b2b/src/routes/(auth)/login/+page.svelte', 'bug-reports/r/proof/CALL-STACK-AS-BUILT.md'] }).match(/^look at: .*$/m)![0].includes('CALL-STACK-AS-BUILT'));
 check('t1Gap null when SPEC-REVIEW approves the current sha', t1GapFor('spec-sha: <real>\nverdict: approved\n') === null);
-check('t1Gap names a re-spec', /is of sha256:0ld, SPEC.md is now sha256:/.test(t1GapFor('spec-sha: sha256:0ld\nverdict: approved\n')));
-check('t1Gap names a changes-requested verdict', /verdict is changes-requested/.test(t1GapFor('spec-sha: <real>\nverdict: changes-requested\n')));
+check('t1Gap names a re-spec', /is of sha256:0ld, SPEC.md is now sha256:/.test(t1GapFor('spec-sha: sha256:0ld\nverdict: approved\n')!));
+check('t1Gap names a changes-requested verdict', /verdict is changes-requested/.test(t1GapFor('spec-sha: <real>\nverdict: changes-requested\n')!));
 check('forT1Section extracts only the T1 section', forT1Section('# S\n## For T1\na\nb\n\n## As-is\nx\n') === '## For T1\na\nb\n');
 check('forT1Section null on the older shape', forT1Section('# S\n## As-is\nx\n') === null);
 check('t1Gap names a missing review', t1GapFor(null) === 'no SPEC-REVIEW.md');
@@ -76,7 +76,7 @@ check('STEPS carry research and plan before design', STEPS.join(' ') === 'classi
 const planNoSection = '# p\n\n## Asks\nnone\n';
 check('decide creates ## Decisions when there is none', appendDecision(planNoSection, 'use 30 days', '2026-09-22') === '# p\n\n## Asks\nnone\n\n## Decisions\n- 2026-09-22 use 30 days\n', JSON.stringify(appendDecision(planNoSection, 'use 30 days', '2026-09-22')));
 const twice = appendDecision(appendDecision(planNoSection, 'a', '2026-09-22'), 'b', '2026-09-23');
-check('a second decision appends under the same heading', twice.endsWith('## Decisions\n- 2026-09-22 a\n- 2026-09-23 b\n') && twice.match(/## Decisions/g).length === 1, JSON.stringify(twice));
+check('a second decision appends under the same heading', twice.endsWith('## Decisions\n- 2026-09-22 a\n- 2026-09-23 b\n') && twice.match(/## Decisions/g)!.length === 1, JSON.stringify(twice));
 const mid = appendDecision('# p\n\n## Decisions\n- 2026-09-01 old\n\n## T2 walk\nopen /x\n', 'new one', '2026-09-22');
 check('a decision lands inside the section, not at the end of the file', mid.includes('- 2026-09-01 old\n- 2026-09-22 new one\n\n## T2 walk'), JSON.stringify(mid));
 

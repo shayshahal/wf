@@ -17,6 +17,7 @@ import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renam
 import { basename, join } from 'node:path';
 import { checks } from './project.mts';
 import { planCommitRows, rowFiles } from './prompt.mts';
+import type { PlanRow } from './prompt.mts';
 import { readState, roundOf, toplevelOf } from './state.mts';
 
 const TAIL = 40;
@@ -25,9 +26,17 @@ const TAIL = 40;
 // derived from PLAN.md, never a user string.
 process.noDeprecation = true;
 
+// One `wf check` command, or `missing`: the check the plan row names cannot run. The project's
+// commands are these too (project.mts checks); `expectRed` only on the repro of a repro-only row.
+export type CheckTask =
+	| { label: string; cmd: string; args: string[]; cwd: string; expectRed?: boolean; missing?: never }
+	| { label: string; missing: string; cmd?: never; args?: never; cwd?: never; expectRed?: never };
+// One task's run, as checks.log records it.
+export type CheckRun = { label: string; exit: number | null; missing?: string; expect?: 'red'; output?: string };
+
 // Everything the working tree has moved: unstaged, staged and untracked, repo-relative.
-export function changedFiles(toplevel) {
-	const git = (args) => execFileSync('git', ['-C', toplevel, ...args], { encoding: 'utf8' }).split('\n').map((l) => l.trim()).filter(Boolean);
+export function changedFiles(toplevel: string) {
+	const git = (args: string[]) => execFileSync('git', ['-C', toplevel, ...args], { encoding: 'utf8' }).split('\n').map((l) => l.trim()).filter(Boolean);
 	return [...new Set([...git(['diff', '--name-only', 'HEAD']), ...git(['diff', '--name-only', '--cached']), ...git(['ls-files', '--others', '--exclude-standard'])])].sort();
 }
 
@@ -35,15 +44,15 @@ export function changedFiles(toplevel) {
 // `wf prompt` rewrites state while the commit is open. SPEC, SPEC-REVIEW and REVIEW are in the round
 // folder too (until 2026-09-23 they sat at the worktree root, and TJEW-700's class B commits were
 // fenced on them there).
-export const isRoundPaperwork = (file, folder) => file.startsWith('.wf/') || (folder && file.startsWith(folder.replace(/\\/g, '/').replace(/\/?$/, '/')));
+export const isRoundPaperwork = (file: string, folder: string | null) => file.startsWith('.wf/') || (folder && file.startsWith(folder.replace(/\\/g, '/').replace(/\/?$/, '/')));
 
-export function fenceViolations(changed, allowed, folder) {
+export function fenceViolations(changed: string[], allowed: string[], folder: string | null) {
 	const ok = new Set(allowed);
 	return changed.filter((f) => !isRoundPaperwork(f, folder) && !ok.has(f));
 }
 
 // `command: <line>` under `## Repro` in RESEARCH.md.
-export function reproCommand(text) {
+export function reproCommand(text: string) {
 	const body = text.replace(/\r\n/g, '\n');
 	const section = /^## Repro[ \t]*\n([\s\S]*?)(?=^## |(?![\s\S]))/m.exec(body);
 	const m = section && /^command:[ \t]*(.+)$/m.exec(section[1]);
@@ -52,13 +61,13 @@ export function reproCommand(text) {
 
 // Split a command line on whitespace, honouring "double quotes" — enough for the one
 // line RESEARCH.md checks in; no shell is involved anywhere in wf.
-export function tokenize(line) {
+export function tokenize(line: string) {
 	return [...line.matchAll(/"([^"]*)"|(\S+)/g)].map((m) => m[1] ?? m[2]);
 }
 
 // Pure: the commands to run, in order. `projectTasks(test)` is the project's commands for the diff
 // plus `test` (the row's test path, or null); `repro` is the RESEARCH.md command line (or null).
-export function buildTasks({ row, projectTasks, repro, reproOnly = false }) {
+export function buildTasks({ row, projectTasks, repro, reproOnly = false }: { row: { check?: string } | null | undefined; projectTasks: (test: string | null) => CheckTask[]; repro: string | null; reproOnly?: boolean }): CheckTask[] {
 	// The command is the first `code span` when there is one — a cell may add a note after it
 	// (TJEW-700 row 6: "`vitest run …ts` (fixture carries …)" took `number)` as the path).
 	const cell = row?.check ?? '';
@@ -77,13 +86,13 @@ export function buildTasks({ row, projectTasks, repro, reproOnly = false }) {
 
 // Pure: whether every file of a plan row is in the round's repro folder (a row that fixes the repro
 // before the product fix).
-export function isReproOnly(files, folder) {
+export function isReproOnly(files: string[], folder: string | null) {
 	const dir = `${(folder ?? '').replace(/\\/g, '/').replace(/\/?$/, '/')}repro/`;
 	return Boolean(folder) && files.length > 0 && files.every((f) => f.startsWith(dir));
 }
 
 // Pure: the checks.log line for one run.
-export function checkRunLine({ ts, row, rowCheck, tasks, result }) {
+export function checkRunLine({ ts, row, rowCheck, tasks, result }: { ts: string; row: number | string | null; rowCheck: string | null; tasks: CheckRun[]; result: string }) {
 	return JSON.stringify({ ts, row, rowCheck, tasks, result });
 }
 
@@ -92,12 +101,12 @@ export function runCheck() {
 	const state = readState(toplevel);
 	const { folder } = roundOf(state, toplevel);
 	const changed = changedFiles(toplevel);
-	const ran = [];
-	const logRun = (result) => {
+	const ran: CheckRun[] = [];
+	const logRun = (result: string) => {
 		mkdirSync(join(toplevel, '.wf'), { recursive: true });
 		appendFileSync(join(toplevel, '.wf', 'checks.log'), `${checkRunLine({ ts: new Date().toISOString(), row: state?.commit ?? null, rowCheck: row?.check ?? null, tasks: ran, result })}\n`);
 	};
-	let row = null;
+	let row: PlanRow | null = null;
 	if (state?.commit && folder && existsSync(join(toplevel, folder, 'PLAN.md'))) {
 		row = planCommitRows(readFileSync(join(toplevel, folder, 'PLAN.md'), 'utf8')).find((r) => r.n === Number(state.commit)) ?? null;
 		const violations = fenceViolations(changed, rowFiles(row), folder);
@@ -118,7 +127,7 @@ export function runCheck() {
 			logRun('red');
 			process.exit(1);
 		}
-		const run = spawnSync(task.cmd, task.args, { cwd: join(toplevel, task.cwd), encoding: 'utf8', shell: process.platform === 'win32' });
+		const run = spawnSync(task.cmd!, task.args!, { cwd: join(toplevel, task.cwd!), encoding: 'utf8', shell: process.platform === 'win32' });
 		const output = `${run.stdout ?? ''}${run.stderr ?? ''}`;
 		if (task.expectRed) {
 			ran.push({ label: task.label, exit: run.status, expect: 'red', output: output.split('\n').slice(-15).join('\n').trimEnd() });
@@ -129,19 +138,19 @@ export function runCheck() {
 		}
 		ran.push({ label: task.label, exit: run.status });
 		if (run.status === 0) continue;
-		console.error(`FAILED: ${task.cmd} ${task.args.join(' ')}`);
+		console.error(`FAILED: ${task.cmd} ${task.args!.join(' ')}`);
 		console.error(output.split('\n').slice(-TAIL).join('\n').trimEnd());
 		logRun('red');
 		process.exit(1);
 	}
 	logRun('green');
 	const blocked = folder && state?.commit ? join(toplevel, folder, 'BLOCKED.md') : null;
-	if (blocked && existsSync(blocked)) renameSync(blocked, join(toplevel, folder, resolvedBlockedName(state.commit, readdirSync(join(toplevel, folder)))));
+	if (blocked && existsSync(blocked)) renameSync(blocked, join(toplevel, folder!, resolvedBlockedName(state!.commit!, readdirSync(join(toplevel, folder!)))));
 }
 
 // A block the row got past becomes its record: BLOCKED.md → BLOCKED-commit<n>.md, one name in every
 // round (682 and 700 renamed theirs by hand three different ways). The next block starts a fresh BLOCKED.md.
-export function resolvedBlockedName(n, taken) {
+export function resolvedBlockedName(n: number, taken: string[]) {
 	for (let i = 1; ; i++) {
 		const name = `BLOCKED-commit${n}${i === 1 ? '' : `-${i}`}.md`;
 		if (!taken.includes(name)) return name;

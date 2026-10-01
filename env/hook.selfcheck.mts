@@ -5,8 +5,8 @@ import { gateVerdict, hookBlock, teardownFailures, withHookBlock } from './hook.
 import { repo, setup } from '../project.mts';
 
 let failures = 0;
-const check = (name, cond, detail = '') =>
-  console.log(cond ? `  ok   ${name}` : `  FAIL ${name}${detail ? ` — ${detail}` : ''}`) || (cond || failures++);
+const check = (name: string, cond: unknown, detail = '') =>
+  (console.log(cond ? `  ok   ${name}` : `  FAIL ${name}${detail ? ` — ${detail}` : ''}`) as unknown) || (cond || failures++);
 
 // ── the block and its install
 const block = hookBlock('C:/wf/wf.mjs');
@@ -22,12 +22,12 @@ check('a changed block replaces the old one', withHookBlock(once, hookBlock('D:/
 // ── the reap gate
 check('a worktree outside the workflow is removable', gateVerdict({ state: undefined, force: false }) === null);
 check('a merged round is removable', gateVerdict({ state: { step: 'merged' }, force: false }) === null);
-check('an unmerged round is refused, naming its step', /"implement"/.test(gateVerdict({ state: { step: 'implement' }, force: false })));
-check('unreadable state is refused', /unreadable/.test(gateVerdict({ state: null, force: false })));
+check('an unmerged round is refused, naming its step', /"implement"/.test(gateVerdict({ state: { step: 'implement' }, force: false })!));
+check('unreadable state is refused', /unreadable/.test(gateVerdict({ state: null, force: false })!));
 check('WF_FORCE_REAP overrides', gateVerdict({ state: { step: 'implement' }, force: true }) === null);
 
 // ── teardown: a piece already gone is not a failure
-const run = (status, stderr) => ({ t: { cmd: 'docker', args: ['rm', 'x'] }, r: { status, stdout: '', stderr } });
+const run = (status: number, stderr: string) => ({ t: { cmd: 'docker', args: ['rm', 'x'] }, r: { status, stdout: '', stderr } });
 check('a clean teardown has no failures', teardownFailures([run(0, ''), run(0, '')]).length === 0);
 check('"no such container" and "not found" are already gone', teardownFailures([run(1, 'Error: No such container: x'), run(1, 'network x not found')]).length === 0);
 check('any other error is a failure, naming the command', teardownFailures([run(1, 'daemon is not running')])[0] === 'docker rm x: daemon is not running');

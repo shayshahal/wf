@@ -5,8 +5,8 @@ import { briefGap, handoffText } from './brief.mts';
 import { briefKey, handoffGap, planAsks, planClass, rowDone, tokenOf, validationVerdict } from './handoff.mts';
 
 let failures = 0;
-const check = (name, cond, detail = '') =>
-	console.log(cond ? `  ok   ${name}` : `  FAIL ${name}${detail ? ` — ${detail}` : ''}`) || (cond || failures++);
+const check = (name: string, cond: boolean | undefined, detail = '') =>
+	(console.log(cond ? `  ok   ${name}` : `  FAIL ${name}${detail ? ` — ${detail}` : ''}`) as unknown) || (cond || failures++);
 
 const research = '# r\r\n## Repro\r\ncommand: pnpm x\r\nred output:\r\n<!-- brief: 3f9a1c -->\r\n';
 check('the token is read from its HTML comment, CRLF or not', tokenOf(research) === '3f9a1c' && tokenOf('no token') === null);
@@ -17,7 +17,7 @@ check('before plan: a RESEARCH.md with no repro command is refused', handoffGap(
 check('no file at all', handoffGap('plan', null, { token: 'x' }) === 'no PLAN.md');
 check('before implement: a PLAN.md with no commit rows is refused', handoffGap('plan', '# p\n## Commits\n| # | message | files | check |\n', null) === 'PLAN.md ## Commits has no rows');
 check('before deliver: a VALIDATION.md with no verdict is refused', handoffGap('validate', '# v\nVerdict: pending\n', null)?.includes('no `Verdict:'));
-const intent = (lines) => `Verdict: matches plan\n\n## Intent\n${lines.join('\n')}\n`;
+const intent = (lines: string[]) => `Verdict: matches plan\n\n## Intent\n${lines.join('\n')}\n`;
 const MET = '"time kept before the date": met: DateTimePicker.svelte:100 \u00b7 before: 12:00 AM (RESEARCH.md red output) \u00b7 after: 10:00 PM (repro green)';
 check('a round begun before briefs is judged on its sections alone', handoffGap('validate', intent([MET]), undefined) === null);
 check('Intent: met with a before and an after, NOT MEASURED, not met and left out are verdicts', handoffGap('validate', intent([MET, '"hover": NOT MEASURED \u2014 CalendarPanel.svelte:195 \u00b7 research did not measure hover', '"x": not met: no handler', '"y": left out: the admin picker']), null) === null);

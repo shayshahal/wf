@@ -14,9 +14,14 @@ export const VERDICTS = ['approved', 'changes-requested', 'dismissed'];
 // BJEW-586 T2: Shay's approval folded as changes-requested and --done sent the round back to implement).
 // An approval that carries a comment is logged `approved-with-notes` on both surfaces (0.27.16 binary);
 // it folded as changes-requested and sent an approved T1 back to revise (TJEW-700).
-export const verdictOf = (d) => (d === 'approved' || d === 'lgtm' || d === 'approved-with-notes' ? 'approved' : d === 'dismissed' ? 'dismissed' : 'changes-requested');
+export const verdictOf = (d: string | undefined) => (d === 'approved' || d === 'lgtm' || d === 'approved-with-notes' ? 'approved' : d === 'dismissed' ? 'dismissed' : 'changes-requested');
 
-export function commentLine(a = {}) {
+// One annotation, as Plannotator logs it on submit.
+export type Annotation = { text?: string; file?: string; lineStart?: number; lineEnd?: number; blockId?: string };
+// The line a review UI returns (seams.reviewUI), or the JSON text of one.
+export type ReviewFeedback = { decision?: string; feedback?: string; message?: string; annotations?: Annotation[]; target?: { review?: { base?: string; changedFiles?: number } } };
+
+export function commentLine(a: Annotation = {}) {
   const text = (a.text ?? '').trim();
   if (a.file) {
     const range = a.lineStart ? `:${a.lineStart}${a.lineEnd && a.lineEnd !== a.lineStart ? `-${a.lineEnd}` : ''}` : '';
@@ -26,8 +31,8 @@ export function commentLine(a = {}) {
 }
 
 // Pure: one `path:line[-end] — text` line per annotation, then the verdict line.
-export function foldFeedbackLine(input) {
-  const line = typeof input === 'string' ? JSON.parse(input) : input;
+export function foldFeedbackLine(input: ReviewFeedback | string) {
+  const line: ReviewFeedback = typeof input === 'string' ? JSON.parse(input) : input;
   const out = [];
   const fb = (line.feedback ?? line.message ?? '').trim();
   if (fb) out.push(`note — ${fb}`);
@@ -46,11 +51,11 @@ const today = () => new Date().toISOString().slice(0, 10);
 // "look at:" — every changed page, as a URL on this worktree's server, so the reviewer opens the
 // screen and not only the diff (Shay, BJEW-600 pilot, 2026-09-19). The project says which files are
 // pages (project.mts pageOf); `urls` is the header's `<app>: <url>` lines.
-export function lookAtLines(urls, files, pageFor = pageOf) {
+export function lookAtLines(urls: string | null, files: string[], pageFor: (file: string) => { app: string; path: string } | null = pageOf): string[] {
   if (!urls) return [];
-  const origin = (app) => urls.match(new RegExp(`^${app}:\\s*(\\S+)`, 'm'))?.[1];
-  const seen = new Set();
-  const out = [];
+  const origin = (app: string) => urls.match(new RegExp(`^${app}:\\s*(\\S+)`, 'm'))?.[1];
+  const seen = new Set<string>();
+  const out: string[] = [];
   for (const f of files) {
     const page = pageFor(f);
     const base = page && origin(page.app);
@@ -60,7 +65,8 @@ export function lookAtLines(urls, files, pageFor = pageOf) {
   }
   return out;
 }
-export function renderHeader({ round, klass = '—', base = null, specSha = null, date = today(), urls = null, files = [], beforeAfter = null }) {
+export type ReviewHeader = { round: string; klass?: string; base?: string | null; specSha?: string | null; date?: string; urls?: string | null; files?: string[]; beforeAfter?: string | null };
+export function renderHeader({ round, klass = '—', base = null, specSha = null, date = today(), urls = null, files = [], beforeAfter = null }: ReviewHeader) {
   return [
     `# Review — ${round}`,
     ``,
@@ -81,24 +87,25 @@ export function renderHeader({ round, klass = '—', base = null, specSha = null
 }
 
 // Pure: a fresh file = header + empty comments + a pending verdict `--done` refuses.
-export function renderSkeleton(opts) {
+export function renderSkeleton(opts: ReviewHeader) {
   return `${renderHeader(opts)}comments:\n(none yet — one \`path:line[-end] — text\` line per comment)\n\nverdict: pending (set one of: ${VERDICTS.join(' | ')})\n`;
 }
 
 // Last `<key>: <value>` line wins (review files are append-only dated sections).
-export const lastField = (text, key) => [...text.matchAll(new RegExp(`^${key}:[ \\t]*(\\S+)[ \\t]*$`, 'gm'))].at(-1)?.[1] ?? null;
+export const lastField = (text: string, key: string) => [...text.matchAll(new RegExp(`^${key}:[ \\t]*(\\S+)[ \\t]*$`, 'gm'))].at(-1)?.[1] ?? null;
 
 // The as-built call stack a B/C worker delivers (plan Task 6). T2 must see it: the one
 // contract change of BJEW-586 (a new error_code on a 400) was in this file and nowhere on
 // the reviewer's screen. It lives in the round's diff, wherever the bug folder is.
-export const asBuiltFile = (files) => files.find((f) => /(^|\/)proof\/CALL-STACK-AS-BUILT\.md$/.test(f)) ?? null;
+export const asBuiltFile = (files: string[]) => files.find((f) => /(^|\/)proof\/CALL-STACK-AS-BUILT\.md$/.test(f)) ?? null;
 
 // Pure: the round's before/after screenshots, paired by number: research takes `proof/before-<n>.png` on
 // the base, validate `proof/after-<n>.png` of the same view on the fix. T2 sees the change, not only the
 // diff (Factory's /demo shoots both branches with the same steps; taken into wf 2026-09-28). A number
 // with one side only is still shown: a new screen has no before.
-export function proofPairs(names) {
-  const pairs = new Map();
+export type ProofPair = { n: number; before?: string; after?: string };
+export function proofPairs(names: string[]): ProofPair[] {
+  const pairs = new Map<number, ProofPair>();
   for (const name of names) {
     const m = /^(before|after)-(\d+)\.png$/.exec(name);
     if (!m) continue;
@@ -110,16 +117,16 @@ export function proofPairs(names) {
 
 // Pure: a picture's caption, from the first line of RESEARCH.md or VALIDATION.md that names it
 // (`proof/before-1.png — admin on /admin/listings: …`), without the name and its dashes.
-export function captionFor(name, texts) {
+export function captionFor(name: string, texts: (string | null | undefined)[]) {
   const line = texts.flatMap((t) => (t ?? '').split('\n')).find((l) => l.includes(`proof/${name}`));
   return line ? line.replace(/`/g, '').replace(`proof/${name}`, '').replace(/^[\s\-—:|]+|[\s\-—:|]+$/g, '').trim() : '';
 }
 
-const escapeHtml = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 // Pure: the page `wf review` writes to .wf/before-after.html. `src` is the proof folder as seen from it.
-export function beforeAfterPage({ round, pairs, captions, src }) {
-  const cell = (name) => (name
+export function beforeAfterPage({ round, pairs, captions, src }: { round: string; pairs: ProofPair[]; captions: Record<string, string>; src: string }) {
+  const cell = (name: string | undefined) => (name
     ? `<figure><img src="${escapeHtml(`${src}/${name}`)}"><figcaption dir="auto">${escapeHtml(captions[name] ?? '')}</figcaption></figure>`
     : '<figure class="none">none</figure>');
   const rows = pairs.map((p) => `<tr><th>${p.n}</th><td>${cell(p.before)}</td><td>${cell(p.after)}</td></tr>`).join('\n');
@@ -134,13 +141,13 @@ ${rows}
 }
 
 // Last `verdict: <v>` line wins; anything but a real verdict (e.g. pending) → null.
-export function readVerdict(text) {
-  let found = null;
+export function readVerdict(text: string) {
+  let found: string | null = null;
   for (const m of text.matchAll(/^verdict:\s*(\S+)\s*$/gm)) found = m[1];
-  return VERDICTS.includes(found) ? found : null;
+  return (VERDICTS as (string | null)[]).includes(found) ? found : null;
 }
 
-export function specShaFor(worktree) {
+export function specShaFor(worktree: string) {
   const f = roundFile(worktree, 'SPEC.md');
   if (!existsSync(f)) return null;
   return `sha256:${createHash('sha256').update(readFileSync(f, 'utf8').replace(/\r\n/g, '\n')).digest('hex')}`;
@@ -148,9 +155,9 @@ export function specShaFor(worktree) {
 
 // The worktree's stack names for the header. A detached worktree has no branch, so return null
 // and the header says so.
-export function devUrlsFor(worktree) {
+export function devUrlsFor(worktree: string): string | null {
   try {
-    const branch = listWorktrees(worktree).find((t) => t.path.replace(/\\/g, '/') === worktree.replace(/\\/g, '/'))?.branch;
+    const branch = listWorktrees(worktree).find((t: { path: string; branch: string | null }) => t.path.replace(/\\/g, '/') === worktree.replace(/\\/g, '/'))?.branch;
     if (!branch) return null;
     return urlLines(stackUrls({ slug: slugForBranch(branch), port: basePortForBranch(branch) }));
   } catch {
@@ -159,7 +166,7 @@ export function devUrlsFor(worktree) {
 }
 
 // Never overwrite silently: first write wins, later runs append a dated section.
-export function appendDatedSection(file, body, date = today()) {
+export function appendDatedSection(file: string, body: string, date = today()) {
   if (!existsSync(file)) writeFileSync(file, `${body.replace(/\n+$/, '')}\n`);
   else appendFileSync(file, `\n## ${date}\n\n${body.replace(/\n+$/, '')}\n`);
 }

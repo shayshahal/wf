@@ -11,11 +11,11 @@ import { fileURLToPath } from 'node:url';
 import { anchorToolPaths } from './anchor.mts';
 import { name as projectName } from './project.mts';
 
-const MODELS = { 'anthropic/claude-sonnet-5': 'sonnet', 'anthropic/claude-opus-5-5': 'opus' };
-const TOOLS = { read: 'Read', bash: 'Bash', write: 'Write', edit: 'Edit', subagent: 'Agent' };
+const MODELS: Record<string, string> = { 'anthropic/claude-sonnet-5': 'sonnet', 'anthropic/claude-opus-5-5': 'opus' };
+const TOOLS: Record<string, string> = { read: 'Read', bash: 'Bash', write: 'Write', edit: 'Edit', subagent: 'Agent' };
 
 // Pure: a pi agent file → its Claude Code copy, named `from` in the header line.
-export function claudeAgent(text, from) {
+export function claudeAgent(text: string, from: string) {
 	const m = /^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/.exec(text);
 	if (!m) throw new Error(`${from}: no frontmatter`);
 	const fields = m[1].split(/\r?\n/).flatMap((line) => {

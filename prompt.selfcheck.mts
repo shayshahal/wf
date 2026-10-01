@@ -7,8 +7,8 @@ import { planCommitRows, renderPrompt, rowFiles, ticketIntent } from './prompt.m
 import { readState, writeState } from './state.mts';
 
 let failures = 0;
-const check = (name, cond, detail = '') =>
-  console.log(cond ? `  ok   ${name}` : `  FAIL ${name}${detail ? ` — ${detail}` : ''}`) || (cond || failures++);
+const check = (name: string, cond: boolean, detail = '') =>
+  (console.log(cond ? `  ok   ${name}` : `  FAIL ${name}${detail ? ` — ${detail}` : ''}`) as unknown) || (cond || failures++);
 
 const plan = [
   '# BJEW-1 — plan',
@@ -40,7 +40,7 @@ const dir = mkdtempSync(join(tmpdir(), 'wf-prompt-'));
 writeState(dir, { round: 'r', id: 'BJEW-1', folder: 'bug-reports/x' });
 writeState(dir, { commit: 2 });
 const state = readState(dir);
-check('writeState merges instead of replacing', state.id === 'BJEW-1' && state.commit === 2, JSON.stringify(state));
+check('writeState merges instead of replacing', state!.id === 'BJEW-1' && state!.commit === 2, JSON.stringify(state));
 writeFileSync(join(dir, 'broken.json'), 'x');
 const ticket = '# BJEW-1 — x\r\n\r\n## Intent\r\n\r\n- Einat, 2026-09-22: «the heart is cut»\r\n\r\n## Thread\r\n1. …\r\n';
 check('ticketIntent is the section body, verbatim, CRLF or not', ticketIntent(ticket) === '- Einat, 2026-09-22: «the heart is cut»', JSON.stringify(ticketIntent(ticket)));

@@ -17,11 +17,15 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { handoffGap, rowDone } from './handoff.mts';
 import { snapshotOf } from './next.mts';
+import type { Snapshot } from './next.mts';
 import { planCommitRows } from './prompt.mts';
 import { readState, writeState } from './state.mts';
+import type { Brief } from './state.mts';
+
+type HookInput = { cwd?: string; stop_hook_active?: boolean; agent_type?: string; hook_event_name?: string; tool_input?: { subagent_type?: string } };
 
 // Pure: the most recent brief, as { key, phase, n }, or null.
-export function lastBrief(briefs = {}) {
+export function lastBrief(briefs: Record<string, Brief> = {}): { key: string; phase: string; n: number | null } | null {
 	const [key] = Object.entries(briefs).sort(([, a], [, b]) => String(b.at).localeCompare(String(a.at)))[0] ?? [];
 	if (!key) return null;
 	const [phase, n] = key.split(' ');
@@ -29,7 +33,7 @@ export function lastBrief(briefs = {}) {
 }
 
 // Pure: null when the round-worker may end, else what it still owes. Its phase is the last brief's.
-export function stopGap(s) {
+export function stopGap(s: Snapshot): string | null {
 	const last = lastBrief(s.briefs);
 	if (!last) return null;
 	if (last.phase === 'implement') {
@@ -37,24 +41,24 @@ export function stopGap(s) {
 		if (!row || s.files.blocked || rowDone(row, s)) return null;
 		return `commit ${last.n} is not made: its row's message, after \`wf check\` is green, or BLOCKED.md if you cannot`;
 	}
-	const file = { research: 'research', plan: 'plan', 'as-built': 'asBuilt', validate: 'validation' }[last.phase];
+	const file = ({ research: 'research', plan: 'plan', 'as-built': 'asBuilt', validate: 'validation' } as Partial<Record<string, keyof Snapshot['files']>>)[last.phase];
 	if (!file) return null; // fix-review: its commit is counted by wf next
 	const gap = handoffGap(last.phase, s.files[file], s.briefs[last.key]);
 	return gap ? `${gap}. Your brief's Handoff section says what to write before you end.` : null;
 }
 
 // Pure: why an Agent call is refused, or null.
-export function forkGap(input) {
+export function forkGap(input: HookInput | null | undefined): string | null {
 	return input?.tool_input?.subagent_type === 'fork' ? 'no forks in a round: a fork carries this whole conversation. Dispatch a fresh wf:round-worker with the line `wf next` printed (round skill, Dispatch in this harness).' : null;
 }
 
-async function stdinJson() {
+async function stdinJson(): Promise<HookInput> {
 	let text = '';
 	for await (const chunk of process.stdin) text += chunk;
-	try { return JSON.parse(text); } catch { return {}; }
+	try { return JSON.parse(text) as HookInput; } catch { return {}; }
 }
 
-function roundAt(cwd) {
+function roundAt(cwd: string): string | null {
 	try {
 		const toplevel = execFileSync('git', ['-C', cwd, 'rev-parse', '--show-toplevel'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
 		return existsSync(join(toplevel, '.wf', 'state.json')) && readState(toplevel)?.folder ? toplevel : null;
@@ -63,7 +67,7 @@ function roundAt(cwd) {
 	}
 }
 
-export async function runHandoff(argv) {
+export async function runHandoff(argv: string[]): Promise<void> {
 	const input = await stdinJson();
 	const toplevel = roundAt(input.cwd ?? process.cwd());
 	if (!toplevel) return;
@@ -77,7 +81,7 @@ export async function runHandoff(argv) {
 		const gap = stopGap(s);
 		if (!gap) return;
 		const state = readState(toplevel);
-		writeState(toplevel, { briefs: { ...state.briefs, [last.key]: { ...state.briefs[last.key], sent_back: true } } });
+		writeState(toplevel, { briefs: { ...state!.briefs, [last.key]: { ...state!.briefs![last.key], sent_back: true } } });
 		const out = input.hook_event_name === 'PreToolUse'
 			? { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: `not yet: ${gap}` } }
 			: { decision: 'block', reason: gap };

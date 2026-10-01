@@ -5,6 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { teardown } from '../project.mts';
 import { stragglersStep } from '../serve.mts';
 import { excludeWfFolder, resolveWorktree } from '../worktree.mts';
+import type { RemovalStep, Seams } from '../seams.mts';
 
 // Created with no hooks, then only wf's (`wt hook <type> user:`) run inside it. worktrunk reads the
 // project's hooks from the folder the command runs in, and 20 older checkouts still carry the
@@ -15,9 +16,9 @@ import { excludeWfFolder, resolveWorktree } from '../worktree.mts';
 // and the caller hangs on the tether (measured 40 min on 2026-09-20). A log file hands the tether a
 // descriptor of its own, so this returns as soon as wt exits. Returns the worktree, or throws with
 // the log.
-export function createWorktree({ branch, base, log }) {
+export function createWorktree({ branch, base, log }: Parameters<NonNullable<Seams['createWorktree']>>[0]) {
 	const fd = openSync(log, 'w');
-	const step = (label, args, cwd) => {
+	const step = (label: string, args: string[], cwd?: string) => {
 		const r = spawnSync('wt', args, { stdio: ['ignore', fd, fd], cwd });
 		if (r.status === 0) return;
 		closeSync(fd);
@@ -33,7 +34,7 @@ export function createWorktree({ branch, base, log }) {
 }
 
 // Pure: the ordered steps. `rm` is done in-process (fs.rmSync), so it carries no cmd.
-export function removalPlan({ branch, path, slug, pid }) {
+export function removalPlan({ branch, path, slug, pid }: Parameters<NonNullable<Seams['removalPlan']>>[0]): RemovalStep[] {
 	// Stragglers go first: a live dev server holds the tree, and `wt remove` fails on Windows while
 	// it runs, leaving git without the worktree but the folder, container, volume, network and
 	// routes in place (measured 2026-09-24: 23 processes). The sweep is the kit's (serve.mts).

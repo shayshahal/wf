@@ -13,7 +13,7 @@ export function opensWindows(env = process.env) {
 	return !env.CLAUDECODE;
 }
 
-function resolvable(bin) {
+function resolvable(bin: string) {
 	try {
 		execFileSync(process.platform === 'win32' ? 'where' : 'which', [bin], { stdio: 'ignore' });
 		return true;
@@ -24,21 +24,21 @@ function resolvable(bin) {
 
 // Pure: how to start `raw` on `paths`: [command, args, shell]. Windows goes through cmd.exe as one
 // quoted line, so .cmd shims start and a path with spaces stays one argument.
-export function editorCommand(raw, paths, platform = process.platform) {
+export function editorCommand(raw: string, paths: string[], platform: NodeJS.Platform = process.platform): [string, string[], boolean] {
 	const [bin, ...rest] = raw.trim().split(/\s+/);
 	return platform === 'win32' ? [[bin, ...rest, ...paths.map((p) => `"${p}"`)].join(' '), [], true] : [bin, [...rest, ...paths], false];
 }
 
 // A file in the machine's default app (the before/after page in a browser), under the same rule as the
 // editor. explorer.exe on Windows: `cmd /c start` would flash a console window (TJEW-670.11, 2026-09-28).
-export function openFile(file, platform = process.platform) {
+export function openFile(file: string, platform: NodeJS.Platform = process.platform) {
 	if (!opensWindows()) return false;
 	const [command, args] = platform === 'win32' ? ['explorer.exe', [file.replace(/\//g, '\\')]] : [platform === 'darwin' ? 'open' : 'xdg-open', [file]];
 	spawn(command, args, { detached: true, stdio: 'ignore', windowsHide: true }).unref();
 	return true;
 }
 
-export function openInEditor(paths) {
+export function openInEditor(paths: string[]) {
 	if (!opensWindows()) return false;
 	for (const raw of [process.env.VISUAL, process.env.EDITOR, 'code']) {
 		if (!raw || !resolvable(raw.trim().split(/\s+/)[0])) continue;

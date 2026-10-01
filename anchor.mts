@@ -6,7 +6,7 @@
 
 // Pure: {{wf}} and ${CLAUDE_PLUGIN_ROOT} → `home`, {{project}} → `home`/projects/<project>, with
 // forward slashes.
-export function anchorToolPaths(text, home, project) {
+export function anchorToolPaths(text: string, home: string, project?: string) {
 	const h = home.replace(/\\/g, '/');
 	return text.split('{{project}}').join(`${h}/projects/${project}`).split('{{wf}}').join(h).split('${CLAUDE_PLUGIN_ROOT}').join(h);
 }

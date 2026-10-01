@@ -4,8 +4,8 @@
 import { DEV_SERVER_PATTERN, devEnv, qaEnvText, qaWatchDecision, stackAddresses } from './stacks.mts';
 
 let failures = 0;
-const check = (name, cond, detail = '') =>
-  console.log(cond ? `  ok   ${name}` : `  FAIL ${name}${detail ? ` — ${detail}` : ''}`) || (cond || failures++);
+const check = (name: string, cond: unknown, detail = '') =>
+  (console.log(cond ? `  ok   ${name}` : `  FAIL ${name}${detail ? ` — ${detail}` : ''}`) as unknown) || (cond || failures++);
 
 const env = Object.fromEntries(
   qaEnvText({ jwtSecret: 'x'.repeat(64) }).split('\n').filter((l) => /^[A-Z0-9_]+=/.test(l)).map((l) => l.split(/=(.*)/s).slice(0, 2)),

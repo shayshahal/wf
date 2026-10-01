@@ -49,7 +49,7 @@ The kit alone, as a Claude Code plugin: this repo is its marketplace (`.claude-p
     from `agents/` by `node plugin.mts`);
   - two hooks: a phase agent is sent back once while its handoff is missing (`wf handoff
     check`), and no fork is started inside a round (`wf handoff no-fork`).
-- **Needs:** git, gh, node ≥ 22, the project's own tools (JewelryX: pnpm, uv), and one MongoDB
+- **Needs:** git, gh, node ≥ 22.18 (wf is TypeScript, which Node runs as is from 22.18), the project's own tools (JewelryX: pnpm, uv), and one MongoDB
   (`MONGO_URL`, default `mongodb://127.0.0.1:27017`). The project's `.env` files sit in the
   person's clone, where they keep them to run the app; every round's worktree copies them.
 - **Try a change without installing:** `claude --plugin-dir <this clone>`.
@@ -87,11 +87,12 @@ what the two share becomes the interface. Not before.
 
 ## Install (Shay's machine, the kit with `env/`)
 
-The team installs the kit alone (docs/plans/2026-09-27-kit-and-env.md, step 5). Needs: git, node ≥ 22, [worktrunk](https://github.com/max-sixty/worktrunk) (`wt`), `gh`, pi and/or
+The team installs the kit alone (docs/plans/2026-09-27-kit-and-env.md, step 5). Needs: git, node ≥ 22.18, [worktrunk](https://github.com/max-sixty/worktrunk) (`wt`), `gh`, pi and/or
 Claude Code, plus what the project's `setup` runs (JewelryX: pnpm, uv, docker, portless).
 
 1. `git clone https://github.com/shayshahal/wf ~/work/wf`: the editing clone. Never run wf from it.
-   Then `git -C ~/work/wf config core.hooksPath .githooks`: its pre-push hook runs every self-check.
+   Then `git -C ~/work/wf config core.hooksPath .githooks`: its pre-push hook runs every self-check,
+   and `npm ci` in it: tsc, which the self-checks run (wf itself needs no packages).
 2. `node ~/work/wf/env/update.mts`: installs the committed code into `~/.local/share/wf`, and wf's
    agents into pi (`~/.pi/agent/agents`). Claude Code gets wf from the plugin, as the team does:
    nothing of wf goes into `~/.claude/`, where a user-level agent or skill would outrank the plugin's.
@@ -123,6 +124,6 @@ After a push to `main`, the next `wf` command installs it by itself and prints
 
 ## Self-checks
 
-From this folder: `node selfcheck.mts` (every `*.selfcheck.mts`, wf's and the projects', in parallel).
-Pure checks, no network; `review.selfcheck.mts` needs a git checkout (this one). The pre-push hook
+From this folder: `node selfcheck.mts` (every `*.selfcheck.mts`, wf's and the projects', and `tsc`, in
+parallel). Pure checks, no network; `review.selfcheck.mts` needs a git checkout (this one). The pre-push hook
 runs it and refuses a red push.

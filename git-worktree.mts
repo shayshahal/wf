@@ -5,14 +5,15 @@
 import { closeSync, openSync, readFileSync } from 'node:fs';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { setup, teardown } from './project.mts';
+import type { RemovalStep, Seams, Worktree } from './seams.mts';
 import { servePid, startServers, stopServersStep, stragglersStep } from './serve.mts';
 import { basePortForBranch, excludeFromGit, excludeWfFolder, listWorktrees, slugForBranch, worktreesHome } from './worktree.mts';
 
 // The project's setup steps all at once, as worktrunk runs them: a command runs in a shell, its
 // output in the log; a function is awaited here. Returns the failed steps.
-async function runSetup({ worktree, slug, port, fd }) {
+async function runSetup({ worktree, slug, port, fd }: { worktree: string; slug: string; port: number; fd: number }) {
 	const runs = Object.entries(setup).map(([name, step]) => (typeof step === 'string'
-		? new Promise((resolve) => spawn(step, { cwd: worktree, shell: true, stdio: ['ignore', fd, fd] })
+		? new Promise<string | null>((resolve) => spawn(step, { cwd: worktree, shell: true, stdio: ['ignore', fd, fd] })
 			.on('error', (e) => resolve(`${name}: ${e.message}`))
 			.on('exit', (code) => resolve(code === 0 ? null : `${name} (exit ${code})`)))
 		: Promise.resolve().then(() => step({ worktree, slug, port })).then(() => null, (e) => `${name}: ${e.message}`)));
@@ -22,7 +23,7 @@ async function runSetup({ worktree, slug, port, fd }) {
 // A `git worktree add -b` whose checkout fails removes the worktree but leaves the branch: BJEW-602's
 // first try (2026-09-27), deleted by hand before the second. Only a branch this call made goes: -b
 // also fails when the branch already exists, and that one is someone's work.
-export function addWorktree({ branch, path, base, cwd }) {
+export function addWorktree({ branch, path, base, cwd }: { branch: string; path: string; base: string; cwd?: string }) {
 	const existed = spawnSync('git', ['show-ref', '--verify', '--quiet', `refs/heads/${branch}`], { cwd }).status === 0;
 	try {
 		// --quiet: git's checkout progress was ~100 lines of the agent's output (2026-09-27).
@@ -35,7 +36,7 @@ export function addWorktree({ branch, path, base, cwd }) {
 
 // Returns the worktree, or throws naming the failed steps and the log's end. A failed setup leaves
 // the worktree for a look; `wf reap` removes it.
-export async function createWorktree({ branch, base, log }) {
+export async function createWorktree({ branch, base, log }: Parameters<NonNullable<Seams['createWorktree']>>[0]): Promise<Worktree> {
 	const path = `${worktreesHome(listWorktrees())}/${slugForBranch(branch)}`;
 	// Windows: the clone's .claude/worktrees/<slug>/ is 89 characters before a tracked path starts, and
 	// a project's 185-character one put the checkout past 260: "Filename too long", exit 128, on
@@ -59,7 +60,7 @@ export async function createWorktree({ branch, base, log }) {
 // Pure but for the pid file: the ordered steps. The project's teardown runs before the folder goes:
 // dropping the database takes the worktree's own python. No `git worktree remove`: rm and prune do
 // the same without a path through the shell reap runs commands in.
-export function removalPlan({ path, slug, pid: self }) {
+export function removalPlan({ path, slug, pid: self }: Pick<Parameters<NonNullable<Seams['removalPlan']>>[0], 'path' | 'slug' | 'pid'>): RemovalStep[] {
 	const pid = servePid(path);
 	return [
 		...(pid ? [stopServersStep(pid)] : []),

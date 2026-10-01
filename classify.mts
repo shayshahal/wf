@@ -11,7 +11,7 @@ import { baseBranch, contractPaths as contractPathsFile } from "./project.mts";
 
 // Pure: the project's contract paths (one pathspec glob per line, # comments) as a gitattributes
 // file. Last match wins, so the default A comes first.
-export function classAttributes(contractPaths) {
+export function classAttributes(contractPaths: string) {
   const globs = contractPaths.split(/\r?\n/).map((l) => l.trim()).filter((l) => l && !l.startsWith("#"));
   return ["** wf-class=A", ...globs.map((g) => `${g} wf-class=B`)].join("\n") + "\n";
 }
@@ -36,7 +36,7 @@ const names = execFileSync("git", ["diff", "--name-only", `${base}...HEAD`], { e
 // with the code it describes. It must exist: without it every path read as A, and a B endpoint
 // went through as A (fix/role-assign-dialog, 2026-09-23).
 const listFile = join(top, contractPathsFile);
-let contractPaths;
+let contractPaths: string;
 try { contractPaths = readFileSync(listFile, "utf8"); } catch { throw new Error(`classify: ${listFile} is missing; the project names its contract paths there`); }
 const attributesFile = join(tmpdir(), `wf-class-${process.pid}.gitattributes`);
 writeFileSync(attributesFile, classAttributes(contractPaths));

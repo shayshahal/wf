@@ -12,8 +12,8 @@ import { join } from 'node:path';
 import { REPRO_CONFIG, REPRO_GLOBAL_SETUP, reproConfig, verifyStackEnv, VERIFY_SKILL, writeReproConfig } from './round.mts';
 
 let failures = 0;
-const check = (name, cond, detail = '') =>
-  console.log(cond ? `  ok   ${name}` : `  FAIL ${name}${detail ? ` — ${detail}` : ''}`) || (cond || failures++);
+const check = (name: string, cond: unknown, detail = '') =>
+  (console.log(cond ? `  ok   ${name}` : `  FAIL ${name}${detail ? ` — ${detail}` : ''}`) as unknown) || (cond || failures++);
 
 // ── ports and addresses
 const direct = directUrls(12345);
@@ -50,7 +50,7 @@ check('sanitizing twice changes nothing', sanitizeEnv(env, db) === env);
 // ── the secrets a worktree copies
 check('.worktreeinclude: plain paths, leading / dropped, comments and blanks skipped', includedFiles('/.env\r\n# x\r\n\r\n/packages/backend/.env\r\n').join() === '.env,packages/backend/.env');
 let glob = '';
-try { includedFiles('/packages/*/.env'); } catch (e) { glob = e.message; }
+try { includedFiles('/packages/*/.env'); } catch (e) { glob = (e as Error).message; }
 check('a pattern is refused, not silently skipped', glob.includes('is a pattern'), glob);
 
 // ── the dev servers (cases from the project's dev-worktree.mjs --check)

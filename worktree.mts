@@ -12,39 +12,42 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { hashPort, sanitizeBranch } from './ports.mts';
 import { seams } from './seams.mts';
+import type { RemovalStep, Seams, Worktree } from './seams.mts';
 
-const norm = (p) => p.replace(/\\/g, '/').replace(/\/+$/, '');
+const norm = (p: string) => p.replace(/\\/g, '/').replace(/\/+$/, '');
 
 // ── read ─────────────────────────────────────────────────────────────────────
 
+export type WorktreeEntry = { path: string; branch: string | null; detached: boolean; bare: boolean };
+
 // Pure: `git worktree list --porcelain` → [{ path, branch, detached, bare }]; branch is null when detached or bare.
-export function parseWorktreeList(porcelain) {
+export function parseWorktreeList(porcelain: string): WorktreeEntry[] {
 	return porcelain.replace(/\r\n/g, '\n').split('\n\n').flatMap((block) => {
 		const path = /^worktree (.+)$/m.exec(block)?.[1]?.trim();
 		return path ? [{ path, branch: /^branch refs\/heads\/(.+)$/m.exec(block)?.[1]?.trim() ?? null, detached: /^detached$/m.test(block), bare: /^bare$/m.test(block) }] : [];
 	});
 }
 
-export function listWorktrees(cwd) {
+export function listWorktrees(cwd?: string) {
 	return parseWorktreeList(execFileSync('git', ['worktree', 'list', '--porcelain'], { encoding: 'utf8', cwd }));
 }
 
 // Pure: the repository's main checkout, where a person keeps their clone: the first worktree git
 // lists. Null when that is a bare repository (Shay's layout), which checks nothing out.
-export function mainCheckout(trees) {
+export function mainCheckout(trees: Pick<WorktreeEntry, 'path' | 'bare'>[]) {
 	return trees[0] && !trees[0].bare ? trees[0].path : null;
 }
 
 // Pure: the folder the kit's worktrees go in, <repo>/.claude/worktrees: Claude Code Desktop's own
 // place for them (kit and env plan, decided 2026-09-27). <repo> is the main checkout, or the folder
 // holding a bare repository.
-export function worktreesHome(trees) {
+export function worktreesHome(trees: Pick<WorktreeEntry, 'path' | 'bare'>[]) {
 	const first = norm(trees[0].path);
 	return `${trees[0].bare ? dirname(first) : first}/.claude/worktrees`;
 }
 
 // A round, branch, folder name or absolute path → { path, branch }. Throws listing the candidates.
-export function resolveWorktree(name, trees = listWorktrees()) {
+export function resolveWorktree(name: string, trees = listWorktrees()) {
 	const n = norm(String(name));
 	const abs = /^[a-zA-Z]:\//.test(n) || n.startsWith('/');
 	const hits = trees.filter((t) => (abs ? norm(t.path) === n : t.branch === n || basename(norm(t.path)) === n));
@@ -60,12 +63,12 @@ export const slugForBranch = sanitizeBranch;
 
 // Both values for many branches. It batched `wt step eval` calls when they cost ~0.5 s each (wf
 // status, 23 worktrees, 2026-09-23: 28 s); it is pure now and kept for status's single call site.
-export function portsAndSlugsForBranches(branches) {
+export function portsAndSlugsForBranches(branches: string[]) {
 	return new Map(branches.map((b) => [b, { port: hashPort(b), slug: sanitizeBranch(b) }]));
 }
 
 // Pure: the lines wf prints under a round's header, one per app: `<app>: <url>`.
-export function urlLines(urls) {
+export function urlLines(urls: Record<string, string>) {
 	const width = Math.max(...Object.keys(urls).map((app) => app.length)) + 2;
 	return Object.entries(urls).map(([app, url]) => `${`${app}:`.padEnd(width)}${url}`).join('\n');
 }
@@ -75,21 +78,21 @@ export function urlLines(urls) {
 // The machine decides how a worktree is made and removed (seams.mts): worktrunk and its hooks on
 // Shay's (env/worktrees.mts), plain git where no env plugged one in (git-worktree.mts). Both are
 // awaited: the kit's create runs the setup steps side by side.
-export async function createWorktree(o) {
+export async function createWorktree(o: Parameters<NonNullable<Seams['createWorktree']>>[0]): Promise<Worktree> {
 	return (seams.createWorktree ?? (await import('./git-worktree.mts')).createWorktree)(o);
 }
-export async function removalPlan(o) {
+export async function removalPlan(o: Parameters<NonNullable<Seams['removalPlan']>>[0]): Promise<RemovalStep[]> {
 	return (seams.removalPlan ?? (await import('./git-worktree.mts')).removalPlan)(o);
 }
 
 // wf's own files in a worktree (.wf/: state, logs) stay out of git without the project naming
 // them: the exclude file is shared by every worktree of the repository.
-export function excludeWfFolder(worktree) {
+export function excludeWfFolder(worktree: string) {
 	excludeFromGit(worktree, '.wf/');
 }
 
 // `pattern` joins the repository's exclude file (info/exclude, shared by all its worktrees), once.
-export function excludeFromGit(worktree, pattern) {
+export function excludeFromGit(worktree: string, pattern: string) {
 	const common = execFileSync('git', ['-C', worktree, 'rev-parse', '--path-format=absolute', '--git-common-dir'], { encoding: 'utf8' }).trim();
 	const exclude = join(common, 'info', 'exclude');
 	mkdirSync(dirname(exclude), { recursive: true });

@@ -13,12 +13,12 @@ import { roundFile } from './state.mts';
 import { runStep } from './step.mts';
 
 // The `## For T1` section of a SPEC, or null when it has none (`wf step design` refuses that SPEC).
-export function forT1Section(text) {
+export function forT1Section(text: string) {
   const m = /^## For T1[ \t]*\r?\n([\s\S]*?)(?=^## |(?![\s\S]))/m.exec(text.replace(/\r\n/g, '\n'));
   return m ? m[0].trimEnd() + '\n' : null;
 }
 
-export async function runDesign(argv) {
+export async function runDesign(argv: string[]) {
   const round = argv.find((a) => !a.startsWith('-'));
   if (!round) {
     console.error('usage: wf design <round>');

@@ -10,6 +10,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { repo, serve, setup, teardown } from '../project.mts';
+import type { State } from '../state.mts';
 import { urlLines } from '../worktree.mts';
 import { stackNames } from './projects/jewelryx/index.mts';
 
@@ -17,9 +18,9 @@ const BEGIN = '# >>> wf worktree hooks';
 const END = '# <<< wf worktree hooks';
 
 // Pure: the block for wt's user config. `wf` is the wf.mjs the hooks call.
-export function hookBlock(wf) {
-	const call = (step, args = '{{ branch | sanitize }} {{ branch | hash_port }}') => `'node ${wf} hook ${step} ${args}'`;
-	const t = (name) => `[projects."${repo}".${name}]`;
+export function hookBlock(wf: string) {
+	const call = (step: string, args = '{{ branch | sanitize }} {{ branch | hash_port }}') => `'node ${wf} hook ${step} ${args}'`;
+	const t = (name: string) => `[projects."${repo}".${name}]`;
 	return [
 		`${BEGIN} (written by \`wf hook install\`; change wf/env/hook.mts, not this block)`,
 		t('pre-start'),
@@ -42,7 +43,7 @@ export function hookBlock(wf) {
 
 // Pure: the user config with the block in place of an earlier one, or appended. The global `urls`
 // alias that called the project's scripts/dev-worktree.mjs goes: the block's alias replaces it.
-export function withHookBlock(config, block) {
+export function withHookBlock(config: string, block: string) {
 	const s = config.replace(/\r\n/g, '\n').replace(/^urls = .*scripts\/dev-worktree\.mjs.*\n/m, '');
 	const a = s.indexOf(BEGIN);
 	const b = s.indexOf(END);
@@ -52,17 +53,17 @@ export function withHookBlock(config, block) {
 
 // Pure: the reap gate. A worktree whose round has not reached "merged" is refused; one that never
 // entered the workflow (no state) is removable; WF_FORCE_REAP=1 overrides.
-export function gateVerdict({ state, force }) {
+export function gateVerdict({ state, force }: { state: State | null | undefined; force: boolean }) {
 	if (force || state === undefined) return null;
 	if (state === null) return 'its .wf/state.json is unreadable';
 	return state.step === 'merged' ? null : `round step is "${state.step ?? 'unknown'}" (expected "merged"); run wf step merged first`;
 }
 
 // Pure: the teardown steps that failed. A piece that is already gone is not a failure.
-export function teardownFailures(runs) {
+export function teardownFailures(runs: { t: { cmd?: string; args?: string[] }; r: { status: number | null; stdout?: string | null; stderr?: string | null } }[]) {
 	return runs.flatMap(({ t, r }) => {
 		const out = `${r.stdout ?? ''}${r.stderr ?? ''}`;
-		return r.status === 0 || /no such (container|volume|network)|not found/i.test(out) ? [] : [`${t.cmd} ${t.args.join(' ')}: ${out.trim()}`];
+		return r.status === 0 || /no such (container|volume|network)|not found/i.test(out) ? [] : [`${t.cmd} ${t.args!.join(' ')}: ${out.trim()}`];
 	});
 }
 
@@ -70,15 +71,15 @@ function userConfigPath() {
 	const out = spawnSync('wt', ['config', 'show'], { encoding: 'utf8' }).stdout ?? '';
 	const path = /USER CONFIG @ (\S+)/.exec(out)?.[1];
 	if (!path) throw new Error('wf hook install: `wt config show` names no user config');
-	return path.replace(/^~/, process.env.USERPROFILE ?? process.env.HOME);
+	return path.replace(/^~/, (process.env.USERPROFILE ?? process.env.HOME) as string);
 }
 
-function sh(command) {
+function sh(command: string) {
 	const r = spawnSync(command, { stdio: 'inherit', shell: true });
 	if (r.status !== 0) process.exit(r.status ?? 1);
 }
 
-export async function runHook(argv) {
+export async function runHook(argv: string[]) {
 	const [step, slug, port] = argv;
 	if (step === 'install') {
 		const file = userConfigPath();
@@ -95,7 +96,7 @@ export async function runHook(argv) {
 	if (step === 'serve') return serve({ worktree, slug, port });
 	if (step === 'gate') {
 		const file = join(worktree, '.wf', 'state.json');
-		let state;
+		let state: State | null | undefined;
 		if (existsSync(file)) try { state = JSON.parse(readFileSync(file, 'utf8')); } catch { state = null; }
 		const refusal = gateVerdict({ state, force: process.env.WF_FORCE_REAP === '1' });
 		if (!refusal) return;
@@ -103,7 +104,7 @@ export async function runHook(argv) {
 		process.exit(1);
 	}
 	if (step === 'down') {
-		const failures = teardownFailures(teardown({ slug }).map((t) => ({ t, r: spawnSync(t.cmd, t.args, { encoding: 'utf8', shell: process.platform === 'win32', env: { ...process.env, ...t.env } }) })));
+		const failures = teardownFailures(teardown({ slug }).map((t) => ({ t, r: spawnSync(t.cmd!, t.args!, { encoding: 'utf8', shell: process.platform === 'win32', env: { ...process.env, ...t.env } }) })));
 		if (failures.length) { console.error(failures.join('\n')); process.exit(1); }
 		return console.log(`worktree down: ${slug}`);
 	}

@@ -1,6 +1,7 @@
 // projects/jewelryx/round.mts — what a new JewelryX round gets besides its folder (index.mts newRound).
 import { existsSync, lstatSync, mkdirSync, rmdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import type { Origins } from './index.mts';
 
 const SKILL_DIRS = ['.pi/skills', '.claude/skills', '.agents/skills'];
 
@@ -10,8 +11,8 @@ const SKILL_DIRS = ['.pi/skills', '.claude/skills', '.agents/skills'];
 // docs/plans/2026-09-27-verification-skill.md, step 5e). The links are local and gitignored:
 // removing them here changes nobody else's machine, and the team keeps v1.
 const COMPETING_SKILLS = ['bug-fix-orchestrator', 'cr-implement-orchestrator', 'verify-b2b', 'verify-admin'];
-export function unlinkCompetingSkills(worktree) {
-	const removed = [];
+export function unlinkCompetingSkills(worktree: string): string[] {
+	const removed: string[] = [];
 	for (const dir of SKILL_DIRS) {
 		for (const name of COMPETING_SKILLS) {
 			const link = join(worktree, dir, name);
@@ -27,10 +28,10 @@ export function unlinkCompetingSkills(worktree) {
 // project. Linked here, in Shay's worktrees only, not by link-tools: that would show the team a
 // second "verify B2B" skill next to v1's (the plan's Constraint). A base without it links nothing.
 export const VERIFY_SKILL = 'docs/agents/verify-jewelryx';
-export function linkVerifySkill(worktree) {
+export function linkVerifySkill(worktree: string): string[] {
 	const target = join(worktree, VERIFY_SKILL);
 	if (!existsSync(target)) return [];
-	const linked = [];
+	const linked: string[] = [];
 	for (const dir of SKILL_DIRS) {
 		const link = join(worktree, dir, 'verify-jewelryx');
 		if (existsSync(link)) continue;
@@ -45,7 +46,7 @@ export function linkVerifySkill(worktree) {
 // and the file its three servers write to, whose errors control-jewelryx prints: of 568 agent
 // sessions (June to 2026-09-28), 33 met a real 500 and 3 read that output; 25 wrote their own
 // browser listeners instead.
-export function verifyStackEnv(direct, log) {
+export function verifyStackEnv(direct: Origins, log: string): string {
 	return `B2B_URL=${direct.b2b}\nADMIN_URL=${direct.admin}\nAPI_URL=${direct.api}\nSTACK_LOG=${log}\n`;
 }
 
@@ -55,7 +56,7 @@ export function verifyStackEnv(direct, log) {
 // budget went on the config, the defect was never measured). With the verification skill in the base,
 // the config also logs the three roles in first, so a spec holds only the defect's own steps (the five
 // repros of 2026-09-27 had four login implementations).
-export function reproConfig({ direct, withAuth }) {
+export function reproConfig({ direct, withAuth }: { direct: Origins; withAuth: boolean }): string {
 	return `// Written by wf new. Keep the repro self-contained: import only @playwright/test and node:*,
 // never import.meta (use __dirname) — see wf/projects/jewelryx/round.mts reproConfig.
 import { defineConfig, devices } from '@playwright/test';${withAuth ? "\nimport { resolve } from 'node:path';" : ''}
@@ -109,13 +110,13 @@ export default async function globalSetup() {
 export const REPRO_CONFIG = `${VERIFY_SKILL}/repro.config.ts`;
 
 // 'wx' leaves a reopened round's own files alone. Only for a base older than REPRO_CONFIG.
-export function writeReproConfig({ worktree, folder, direct }) {
+export function writeReproConfig({ worktree, folder, direct }: { worktree: string; folder: string; direct: Origins }): void {
 	const withAuth = existsSync(join(worktree, VERIFY_SKILL));
 	const dir = join(worktree, folder, 'repro');
 	mkdirSync(dir, { recursive: true });
 	if (existsSync(join(worktree, REPRO_CONFIG))) return;
-	const files = { 'playwright.config.ts': reproConfig({ direct, withAuth }), ...(withAuth ? { 'global-setup.ts': REPRO_GLOBAL_SETUP } : {}) };
+	const files: Record<string, string> = { 'playwright.config.ts': reproConfig({ direct, withAuth }), ...(withAuth ? { 'global-setup.ts': REPRO_GLOBAL_SETUP } : {}) };
 	for (const [name, text] of Object.entries(files)) {
-		try { writeFileSync(join(dir, name), text, { flag: 'wx' }); } catch (e) { if (e.code !== 'EEXIST') throw e; }
+		try { writeFileSync(join(dir, name), text, { flag: 'wx' }); } catch (e) { if ((e as NodeJS.ErrnoException).code !== 'EEXIST') throw e; }
 	}
 }

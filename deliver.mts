@@ -19,26 +19,27 @@ import { handoffGap } from './handoff.mts';
 import { readVerdict } from './review-format.mts';
 import { readState, roundOf, toplevelOf, writeState } from './state.mts';
 import { runStep } from './step.mts';
+import type { State } from './state.mts';
 
-export function prBody({ planText, commitLines, validation }) {
+export function prBody({ planText, commitLines, validation }: { planText: string; commitLines: string[]; validation: string }) {
 	const validated = validation ? `\n${validation.replace(/\r\n/g, '\n').trimEnd()}\n` : '';
 	return `${planText.replace(/\r\n/g, '\n').trimEnd()}\n\n## Commits (as pushed)\n${commitLines.join('\n')}\n${validated}`;
 }
 
 // Pure: null when T2 approved the round (`wf review --done` moved it to step pr), else why deliver,
 // which merges, may not run yet.
-export function t2Gap(state, reviewText) {
+export function t2Gap(state: State | null, reviewText: string | null) {
 	if (state?.step === 'pr' && readVerdict(reviewText ?? '') === 'approved') return null;
 	return 'T2 has not approved this round. deliver merges, so it comes after `wf review <branch> --done` with verdict: approved';
 }
 
 // Pure: whether a failed push was the project's pre-push hook refusing it (not the network or auth).
-export const hookRefused = (output) => /pre-push/i.test(output ?? '');
+export const hookRefused = (output: string) => /pre-push/i.test(output ?? '');
 
 // Pure: the REVIEW.md section a push the hook refused becomes. Its changes-requested verdict is a T2
 // fix like any other (wf next dispatches fix-review, then T2 again): TJEW-670's orchestrator built
 // this by hand, 2026-09-28, after fallow-audit refused a push T2 had approved.
-export function refusedPushSection(output, date) {
+export function refusedPushSection(output: string, date: string) {
 	// The lines that name a failure, not the tail: the hook's last 30 lines were svelte-kit and node
 	// warnings, and the file fallow flagged was above them (bench, 2026-09-28).
 	const all = output.replace(/\r\n/g, '\n').split('\n').filter((l) => l.trim());
@@ -47,7 +48,7 @@ export function refusedPushSection(output, date) {
 	return `\n## ${date} \u2014 the push was refused by the project's pre-push hook\n\ncomments:\n(the push) \u2014 fix what the hook reports; \`wf check\` runs the same hook on the files you change:\n${lines.map((l) => `    ${l}`).join('\n')}\n\nverdict: changes-requested\n`;
 }
 
-const git = (toplevel, args) => execFileSync('git', ['-C', toplevel, ...args], { encoding: 'utf8' }).trimEnd();
+const git = (toplevel: string, args: string[]) => execFileSync('git', ['-C', toplevel, ...args], { encoding: 'utf8' }).trimEnd();
 
 export async function runDeliver() {
 	const toplevel = toplevelOf();
@@ -78,7 +79,7 @@ export async function runDeliver() {
 	}
 	const planText = readFileSync(plan, 'utf8');
 	const rows = planCommitRows(planText);
-	if (rows.length) writeState(toplevel, { commit: rows.at(-1).n });
+	if (rows.length) writeState(toplevel, { commit: rows.at(-1)!.n });
 	runCheck(); // exits 1 with the failure; silent when the last row's check is green
 
 	// The round folder ships with the PR (dev keeps every round's evidence), except
@@ -117,7 +118,7 @@ export async function runDeliver() {
 	const validationPath = join(toplevel, folder, 'VALIDATION.md');
 	const validation = existsSync(validationPath) ? readFileSync(validationPath, 'utf8') : '';
 	writeFileSync(body, prBody({ planText, commitLines, validation }));
-	const title = commitLines.at(-1).replace(/^- \w+ /, '');
+	const title = commitLines.at(-1)!.replace(/^- \w+ /, '');
 	const existing = spawnSync('gh', ['pr', 'view', '--json', 'url'], { cwd: toplevel, encoding: 'utf8' });
 	const url = existing.status === 0 ? JSON.parse(existing.stdout).url : null;
 	const pr = url
@@ -137,7 +138,7 @@ export async function runDeliver() {
 	}
 	spawnSync('git', ['-C', toplevel, 'push', '-q', 'origin', '--delete', git(toplevel, ['rev-parse', '--abbrev-ref', 'HEAD'])], { encoding: 'utf8' });
 	// Every --id the round was made with: a round on subitems has one note per subitem (TJEW-670).
-	const note = trackerNote({ ids: state?.ids ?? [id], url: prUrl });
+	const note = trackerNote({ ids: state?.ids ?? [id!], url: prUrl });
 	writeFileSync(join(toplevel, folder, note.file), note.text);
 	console.log(`${prUrl} merged; tracker note: ${folder}/${note.file}`);
 	await runStep(['merged']);

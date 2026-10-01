@@ -19,6 +19,7 @@ import { request } from 'node:http';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import type { SpawnOptions } from 'node:child_process';
 import { copySecrets } from '../../../projects/jewelryx/env.mts';
 import { basePortForBranch } from '../../../worktree.mts';
 import { SECRETS, stackNames } from './index.mts';
@@ -40,13 +41,13 @@ const QA_MONGO_PORT = 8091; // 127.0.0.1 only: the host-side seeder's way in on 
 const QA_ALIAS = 'qa.jewelryx';
 const QA_ORIGIN = `http://${QA_ALIAS}.localhost`;
 const WATCH_MS = 5 * 60_000;
-const at = (f) => join(STATE, f);
+const at = (f: string) => join(STATE, f);
 
 // ── pure (stacks.selfcheck.mts) ─────────────────────────────────────────────
 
 // Only JWT_SECRET_KEY survives a restart; everything else is rewritten, so a hand edit
 // that turns a provider on does not stick.
-export function qaEnvText({ jwtSecret }) {
+export function qaEnvText({ jwtSecret }: { jwtSecret: string }) {
   return [
     '# Written by wf stacks (stacks.mts) on every start; only JWT_SECRET_KEY is kept.',
     '# External providers OFF: media on local disk (no S3 keys), SES without keys or IAM role, Hallo SMS disabled.',
@@ -79,7 +80,7 @@ export function qaEnvText({ jwtSecret }) {
 
 // Process env beats packages/backend/.env (pydantic-settings), and the dev folder's .env
 // carries the live S3 + SMS keys: the switches below are what keep them unused.
-export function devEnv(mongoPort) {
+export function devEnv(mongoPort: number) {
   return {
     MONGODB_URL: `mongodb://127.0.0.1:${mongoPort}`,
     DATABASE_NAME: DEV_DB,
@@ -102,7 +103,7 @@ export function devEnv(mongoPort) {
 
 // The watcher's one decision. A sha whose deploy failed is not retried every 5 minutes;
 // the next push (or `wf stacks up`, which clears it) tries again.
-export function qaWatchDecision({ deployed, remote, failed }) {
+export function qaWatchDecision({ deployed, remote, failed }: { deployed: string; remote: string | undefined; failed: string }) {
   if (!remote || remote === deployed) return 'none';
   if (remote === failed) return 'skip-failed';
   return 'deploy';
@@ -122,18 +123,18 @@ export function stackAddresses() {
 
 // ── plumbing ────────────────────────────────────────────────────────────────
 
-const read = (f) => (existsSync(at(f)) ? readFileSync(at(f), 'utf8').trim() : '');
-const write = (f, s) => writeFileSync(at(f), `${s}\n`);
-function log(file, msg) {
+const read = (f: string) => (existsSync(at(f)) ? readFileSync(at(f), 'utf8').trim() : '');
+const write = (f: string, s: string | number) => writeFileSync(at(f), `${s}\n`);
+function log(file: string, msg: string) {
   const line = `${new Date().toISOString()} ${msg}\n`;
   appendFileSync(at(file), line);
   process.stdout.write(line);
 }
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 // Async so a 5-minute image build never blocks the dev supervisor's restart loop.
-function sh(cmd, args, opts = {}) {
-  return new Promise((resolve) => {
+function sh(cmd: string, args: string[], opts: SpawnOptions = {}) {
+  return new Promise<{ status: number | null; out: string }>((resolve) => {
     const child = spawn(cmd, args, { windowsHide: true, ...opts, stdio: ['ignore', 'pipe', 'pipe'] });
     let out = '';
     child.stdout.on('data', (d) => (out += d));
@@ -142,24 +143,24 @@ function sh(cmd, args, opts = {}) {
     child.on('close', (status) => resolve({ status, out }));
   });
 }
-async function must(cmd, args, opts) {
+async function must(cmd: string, args: string[], opts?: SpawnOptions) {
   const r = await sh(cmd, args, opts);
   if (r.status !== 0) throw new Error(`${cmd} ${args.join(' ')} → exit ${r.status}\n${tail(r.out)}`);
   return r.out;
 }
-const tail = (s, n = 25) => s.trim().split(/\r?\n/).slice(-n).join('\n');
-const git = (dir, ...args) => must('git', ['-C', dir, ...args]).then((s) => s.trim());
+const tail = (s: string, n = 25) => s.trim().split(/\r?\n/).slice(-n).join('\n');
+const git = (dir: string, ...args: string[]) => must('git', ['-C', dir, ...args]).then((s) => s.trim());
 
-function commandLineOf(pid) {
+function commandLineOf(pid: number) {
   const ps = `(Get-CimInstance Win32_Process -Filter "ProcessId=${Number(pid)}").CommandLine`;
   return spawnSync('powershell', ['-NoProfile', '-Command', ps], { encoding: 'utf8', windowsHide: true }).stdout?.trim() ?? '';
 }
 // A pid file can outlive its process and the pid be reused: kill only when the command line still matches.
-function alivePid(file, marker) {
+function alivePid(file: string, marker: string) {
   const pid = Number(read(file));
   return pid && commandLineOf(pid).includes(marker) ? pid : 0;
 }
-function killTree(file, marker) {
+function killTree(file: string, marker: string) {
   const pid = alivePid(file, marker);
   if (pid) spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { windowsHide: true });
   return pid;
@@ -177,11 +178,11 @@ function killDevServers() {
   return pids.length;
 }
 
-function probe(url, timeoutMs = 20_000) {
+function probe(url: string, timeoutMs = 20_000) {
   // Connect to the proxy directly with a Host header: Windows' resolver does not map
   // *.localhost to loopback (portless doctor), curl and browsers do it themselves.
   const u = new URL(url);
-  return new Promise((resolve) => {
+  return new Promise<number | string | undefined>((resolve) => {
     const req = request({ host: '127.0.0.1', port: 80, path: u.pathname, headers: { Host: u.host }, timeout: timeoutMs }, (res) => {
       res.resume();
       resolve(res.statusCode);
@@ -191,7 +192,7 @@ function probe(url, timeoutMs = 20_000) {
     req.end();
   });
 }
-const answers = (s) => typeof s === 'number' && s >= 200 && s < 400;
+const answers = (s: number | string | undefined) => typeof s === 'number' && s >= 200 && s < 400;
 
 async function waitForDocker() {
   for (let i = 0; ; i++) {
@@ -209,7 +210,7 @@ async function ensureProxy() {
 
 // Seeded = the seed's buyer exists. Not "db is empty": the backend creates its collections
 // at startup, so a DB that came up once unseeded would never be seeded after.
-async function seedIfNeeded(container, database, slug) {
+async function seedIfNeeded(container: string, database: string, slug: string) {
   const js = `db.getSiblingDB('${database}').users.countDocuments({ email: 'buyer@seed.jewelryx' })`;
   const n = (await must('docker', ['exec', container, 'mongosh', '--quiet', '--eval', js])).trim();
   if (n !== '0') return;
@@ -237,7 +238,7 @@ async function devLoop() {
       const code = await new Promise((r) => child.on('close', r));
       log('stacks.log', `dev: servers exited (code ${code}) — restarting in 10s`);
     } catch (e) {
-      log('stacks.log', `dev: ${e.message}`);
+      log('stacks.log', `dev: ${(e as Error).message}`);
     }
     await sleep(10_000);
   }
@@ -245,7 +246,7 @@ async function devLoop() {
 
 // ── QA ──────────────────────────────────────────────────────────────────────
 
-const compose = (...rest) => [
+const compose = (...rest: string[]) => [
   'compose', '-p', 'jewelryx-qa',
   '-f', join(QA_DIR, 'docker-compose.qa.yml'), '-f', join(TOOLS, 'docker-compose.qa-local.yml'),
   '--env-file', at('qa.env'), ...rest,
@@ -267,7 +268,7 @@ function takeQaLock() {
   }
   return null;
 }
-function isAlive(pid) {
+function isAlive(pid: number) {
   try { process.kill(pid, 0); return true; } catch { return false; }
 }
 
@@ -282,14 +283,14 @@ async function qaPrepare() {
   await must('portless', ['alias', QA_ALIAS, String(QA_HTTP_PORT), '--force']);
 }
 
-async function qaDeploy(sha, deployed) {
+async function qaDeploy(sha: string, deployed: string) {
   log('qa-watch.log', `qa: ${deployed ? deployed.slice(0, 9) : '(none)'} → ${sha.slice(0, 9)} — checkout + build`);
   await git(QA_DIR, 'checkout', '--detach', '--force', sha);
   // One image at a time, then `up`: nothing is replaced until every build passed, so a failed
   // build leaves the previous containers serving. Not `up --build`: it runs the builds in
   // parallel (two vite builds at once in Docker Desktop's 8 GB VM), and the engine went down
   // during the first such build (2026-09-23).
-  let r = { status: 0, out: '' };
+  let r: { status: number | null; out: string } = { status: 0, out: '' };
   for (const service of ['backend', 'frontend', 'admin-dashboard']) {
     const b = await sh('docker', compose('build', service));
     r = { status: b.status, out: `${r.out}\n── build ${service}\n${b.out}` };
@@ -313,7 +314,7 @@ async function qaDeploy(sha, deployed) {
 }
 
 // One watcher check. `injected` stands in for origin/qa (proof arm; the remote is not touched).
-export async function qaCheck({ injected } = {}) {
+export async function qaCheck({ injected }: { injected?: string } = {}) {
   const release = takeQaLock();
   if (!release) return log('stacks.log', 'qa-check: another deploy holds the lock — skipped');
   try {
@@ -342,7 +343,7 @@ async function qaLoop() {
       }
       await qaCheck();
     } catch (e) {
-      log('qa-watch.log', `qa: ${e.message}`);
+      log('qa-watch.log', `qa: ${(e as Error).message}`);
     }
   }
 }
@@ -417,7 +418,7 @@ async function status() {
     const s = await probe(url);
     console.log(`  ${answers(s) ? '✓' : '✗'} ${name.padEnd(9)} ${url.padEnd(46)} ${s}`);
   }
-  const short = (s) => (s ? s.slice(0, 9) : '-');
+  const short = (s: string | undefined) => (s ? s.slice(0, 9) : '-');
   const devHead = (await sh('git', ['-C', DEV_DIR, 'rev-parse', 'HEAD'])).out.trim();
   console.log(`dev: serving ${short(devHead)} (dev folder HEAD; never pulled) · db ${DEV_DB} in jewelryx-mongo-dev`);
   const remote = /^([0-9a-f]{40})/m.exec((await sh('git', ['-C', QA_DIR, 'ls-remote', 'origin', 'refs/heads/qa'])).out)?.[1];
@@ -430,7 +431,7 @@ async function status() {
   console.log(`logs: ${STATE}\\{stacks,qa-watch,dev}.log`);
 }
 
-export async function runStacks(argv) {
+export async function runStacks(argv: string[]) {
   const [sub] = argv;
   mkdirSync(STATE, { recursive: true });
   if (sub === 'up') up();

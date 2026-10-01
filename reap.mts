@@ -15,18 +15,20 @@ import { roundsDir } from './project.mts';
 import { writeCloneLaunch } from './new.mts';
 import { frictionLine } from './friction.mts';
 import { readState } from './state.mts';
+import type { State } from './state.mts';
+import type { RemovalStep } from './seams.mts';
 import { removalPlan, resolveWorktree, slugForBranch } from './worktree.mts';
 
 // Pure: the uncommitted round paperwork in `git status --porcelain --untracked-files=all` output.
 // The root REVIEW.md is written after deliver commits the round folder, so it is uncommitted on
 // every round; reap deleted it and any unfinished SPEC/notes without a word (TJEW-700).
-export function paperworkToKeep(porcelain) {
+export function paperworkToKeep(porcelain: string) {
 	return porcelain.split('\n').filter((l) => l.length > 3 && !l.startsWith(' D') && !l.startsWith('D '))
-		.map((l) => l.slice(3).split(' -> ').at(-1).replace(/^"|"$/g, ''))
+		.map((l) => l.slice(3).split(' -> ').at(-1)!.replace(/^"|"$/g, ''))
 		.filter((f) => f.startsWith(`${roundsDir}/`) || /^(SPEC|SPEC-REVIEW|REVIEW)\.md$/.test(f));
 }
 
-function keepPaperwork(path, slug) {
+function keepPaperwork(path: string, slug: string) {
 	let porcelain = '';
 	try { porcelain = execFileSync('git', ['-C', path, 'status', '--porcelain', '--untracked-files=all'], { encoding: 'utf8' }); } catch { return; }
 	const files = paperworkToKeep(porcelain);
@@ -41,8 +43,8 @@ function keepPaperwork(path, slug) {
 
 // The round's friction line (friction.mts), printed and added to ~/.cache/wf-reaped/ROUNDS.md, one
 // line per round, before the worktree and its .wf/ go.
-function recordFriction(path, state) {
-	const read = (f) => (existsSync(f) ? readFileSync(f, 'utf8') : '');
+function recordFriction(path: string, state: State) {
+	const read = (f: string) => (existsSync(f) ? readFileSync(f, 'utf8') : '');
 	const line = frictionLine({
 		state,
 		checksLog: read(join(path, '.wf', 'checks.log')),
@@ -58,28 +60,28 @@ function recordFriction(path, state) {
 }
 
 // Pure: whether reap runs its steps, or only prints them.
-export function reapRuns(env, state) {
+export function reapRuns(env: NodeJS.ProcessEnv, state: State | null) {
 	return env.WF_FORCE_REAP === '1' || state?.step === 'merged';
 }
 
 // Pure: the step that deletes the round's local branch, or null. Only a merged round's (wf deliver
 // merged it and deleted the remote one): a force-reaped round that never merged keeps its work. The
 // team's clone collected them, cr/TJEW-670-texts-buttons and -back-button (2026-09-28).
-export function branchStep(state, branch, gitDir) {
+export function branchStep(state: State | null, branch: string, gitDir: string): Extract<RemovalStep, { cmd: string }> | null {
 	return state?.step === 'merged' ? { label: `delete local branch ${branch}`, cmd: 'git', args: [`--git-dir=${gitDir}`, 'branch', '-D', branch] } : null;
 }
 
-export async function runReap(argv) {
+export async function runReap(argv: string[]) {
 	const branch = argv.find((a) => !a.startsWith('-'));
 	if (!branch) {
 		console.error('usage: wf reap <branch>   (WF_FORCE_REAP=1 to actually run)');
 		process.exit(2);
 	}
-	let path;
+	let path: string;
 	try {
 		path = resolveWorktree(branch).path;
 	} catch (e) {
-		console.error(e.message);
+		console.error((e as Error).message);
 		process.exit(1);
 	}
 	const slug = slugForBranch(branch);
@@ -91,7 +93,7 @@ export async function runReap(argv) {
 	const gitDir = execFileSync('git', ['-C', path, 'rev-parse', '--path-format=absolute', '--git-common-dir'], { encoding: 'utf8' }).trim();
 	const deleteBranch = branchStep(state, branch, gitDir);
 	for (const step of [...(await removalPlan({ branch, path, slug, pid: process.pid })), ...(deleteBranch ? [deleteBranch] : [])]) {
-		const shown = step.rm ? `rm -rf ${step.rm}` : step.run ? step.label : `${step.cmd} ${step.args.join(' ')}`;
+		const shown = step.rm ? `rm -rf ${step.rm}` : step.run ? step.label : `${step.cmd} ${step.args!.join(' ')}`;
 		if (!force) {
 			console.log(`would: ${shown}`);
 			continue;
@@ -103,7 +105,7 @@ export async function runReap(argv) {
 				rmSync(step.rm, { recursive: true, force: true, maxRetries: 10, retryDelay: 1000 });
 				console.log(`${step.label}: ok`);
 			} catch (e) {
-				console.log(`${step.label}: ${e.code ?? 'failed'} (already gone?)`);
+				console.log(`${step.label}: ${(e as NodeJS.ErrnoException).code ?? 'failed'} (already gone?)`);
 			}
 			continue;
 		}
@@ -114,11 +116,11 @@ export async function runReap(argv) {
 				step.run();
 				console.log(`${step.label}: ok`);
 			} catch (e) {
-				console.log(`${step.label}: already gone or failed (${e.message})`);
+				console.log(`${step.label}: already gone or failed (${(e as Error).message})`);
 			}
 			continue;
 		}
-		const run = spawnSync(step.cmd, step.args, { encoding: 'utf8', env: { ...process.env, WF_FORCE_REAP: '1', ...step.env }, shell: process.platform === 'win32' });
+		const run = spawnSync(step.cmd!, step.args!, { encoding: 'utf8', env: { ...process.env, WF_FORCE_REAP: '1', ...(step as { env?: Record<string, string> }).env }, shell: process.platform === 'win32' });
 		console.log(`${step.label}: ${run.status === 0 ? 'ok' : `already gone or failed (${(run.stderr ?? '').trim().split('\n').at(-1) || `exit ${run.status}`})`}`);
 	}
 	if (!force) {

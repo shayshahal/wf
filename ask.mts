@@ -11,13 +11,14 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { appendDecision, notifyAdapters, planPath } from './step.mts';
 import { people } from './project.mts';
 import { readState, roundFile, toplevelOf, writeState } from './state.mts';
+import type { Question, State } from './state.mts';
 
 const PEOPLE = ['user', ...people];
 
 // Pure: the state with one more open question. The round now waits on the oldest open question's person.
 // Numbers only go up (last_question): "q1" in chat names one question for the whole round.
-export function addQuestion(state, { to, text, dflt = null, source = null }, now = new Date().toISOString()) {
-	const questions = [...(state.questions ?? [])];
+export function addQuestion(state: State, { to, text, dflt = null, source = null }: { to: string; text: string; dflt?: string | null; source?: string | null }, now = new Date().toISOString()): State & { questions: Question[] } {
+	const questions: Question[] = [...(state.questions ?? [])];
 	const n = Math.max(state.last_question ?? 0, ...questions.map((q) => q.n)) + 1;
 	questions.push({ n, to, text, ...(dflt ? { default: dflt } : {}), ...(source ? { source } : {}), asked: now });
 	return { ...state, questions, last_question: n, waiting_on: questions[0].to, since: now };
@@ -26,7 +27,7 @@ export function addQuestion(state, { to, text, dflt = null, source = null }, now
 // Pure: the state without question n, and the question. With one question open, n may be omitted.
 // The question moves to `answered` with its answer: `wf next` acts on a ruling (fix or accept) and
 // knows which Asks it has put already.
-export function closeQuestion(state, n, now = new Date().toISOString(), answer = null) {
+export function closeQuestion(state: State, n: number | null, now = new Date().toISOString(), answer: string | null = null): { question: Question; state: State & { questions: Question[]; answered: Question[] } } {
 	const open = state.questions ?? [];
 	if (n == null && open.length > 1) throw new Error(`${open.length} questions are open — name one with --q: ${open.map((q) => `q${q.n}`).join(', ')}`);
 	const question = n == null ? open[0] : open.find((q) => q.n === n);
@@ -37,55 +38,57 @@ export function closeQuestion(state, n, now = new Date().toISOString(), answer =
 }
 
 // Pure: null, or why the round cannot move on. An open question means someone owes an answer first.
-export function openQuestionGate(state) {
+export function openQuestionGate(state: State | null): string | null {
 	const open = state?.questions ?? [];
 	if (!open.length) return null;
 	return `${open.length} open question${open.length > 1 ? 's' : ''} — ${open.map((q) => `q${q.n} → ${q.to}: ${q.text}`).join(' | ')}. Their answer → \`wf decide\` first.`;
 }
 
 // Pure: the one-line Question of a BLOCKED.md (prompts/implement.md).
-export function blockedQuestion(text) {
+export function blockedQuestion(text: string): string | null {
 	return text.replace(/\r\n/g, '\n').match(/^Question:[ \t]*(.+)$/m)?.[1].trim() || null;
 }
 
 // Pure: BLOCKED.md with the answer under `## Answer`, which the next implement agent follows.
-export function appendAnswer(blockedText, answer, date = new Date().toISOString().slice(0, 10)) {
+export function appendAnswer(blockedText: string, answer: string, date = new Date().toISOString().slice(0, 10)) {
 	const body = blockedText.replace(/\r\n/g, '\n').trimEnd();
 	const line = `${date} ${answer.trim()}`;
 	return /^## Answer[ \t]*$/m.test(body) ? `${body}\n${line}\n` : `${body}\n\n## Answer\n${line}\n`;
 }
 
 // Pure: `wf status --all` lines under a round.
-export function questionLines(state) {
+export function questionLines(state: State | null): string[] {
 	return (state?.questions ?? []).map((q) => `? q${q.n} → ${q.to}: ${q.text}${q.default ? ` (default: ${q.default})` : ''}`);
 }
 
 // Pure: flags that take a value, boolean flags, the rest as words. An unknown flag throws: `--q2 x`
 // once closed the only open question with the answer "x".
-export function parseArgs(argv, valued, booleans = []) {
-	const out = { positionals: [] };
+export type Args<V extends string, B extends string> = { positionals: string[] } & { [K in V]?: string } & { [K in B]?: true };
+
+export function parseArgs<V extends string, B extends string = never>(argv: string[], valued: readonly V[], booleans: readonly B[] = []): Args<V, B> {
+	const out: { positionals: string[]; [flag: string]: string | true | string[] } = { positionals: [] };
 	for (let i = 0; i < argv.length; i++) {
 		const name = argv[i].startsWith('--') ? argv[i].slice(2) : null;
-		if (name && valued.includes(name)) {
+		if (name && valued.includes(name as V)) {
 			if (i + 1 >= argv.length) throw new Error(`--${name} needs a value`);
 			out[name] = argv[++i];
-		} else if (name && booleans.includes(name)) out[name] = true;
+		} else if (name && booleans.includes(name as B)) out[name] = true;
 		else if (name) throw new Error(`unknown flag ${argv[i]}`);
 		else out.positionals.push(argv[i]);
 	}
-	return out;
+	return out as Args<V, B>;
 }
 
-function parse(cmd, argv, valued, booleans) {
+function parse<V extends string, B extends string = never>(cmd: string, argv: string[], valued: readonly V[], booleans?: readonly B[]): Args<V, B> {
 	try {
 		return parseArgs(argv, valued, booleans);
 	} catch (e) {
-		console.error(`wf ${cmd}: ${e.message}`);
+		console.error(`wf ${cmd}: ${(e as Error).message}`);
 		process.exit(2);
 	}
 }
 
-function roundState(cmd) {
+function roundState(cmd: string) {
 	const toplevel = toplevelOf();
 	const state = readState(toplevel);
 	if (!state) {
@@ -95,7 +98,7 @@ function roundState(cmd) {
 	return { toplevel, state };
 }
 
-export async function runAsk(argv) {
+export async function runAsk(argv: string[]): Promise<void> {
 	const a = parse('ask', argv, ['to', 'default'], ['blocked']);
 	const to = a.to ?? 'user';
 	if (!PEOPLE.includes(to)) {
@@ -103,8 +106,8 @@ export async function runAsk(argv) {
 		process.exit(2);
 	}
 	const { toplevel, state } = roundState('ask');
-	let text = a.positionals.join(' ').trim();
-	let source = null;
+	let text: string | null = a.positionals.join(' ').trim();
+	let source: string | null = null;
 	if (a.blocked) {
 		const file = roundFile(toplevel, 'BLOCKED.md');
 		text = existsSync(file) ? blockedQuestion(readFileSync(file, 'utf8')) : null;
@@ -119,12 +122,12 @@ export async function runAsk(argv) {
 		process.exit(2);
 	}
 	const next = writeState(toplevel, addQuestion(state, { to, text, dflt: a.default, source }));
-	const q = next.questions.at(-1);
+	const q = next.questions!.at(-1)!;
 	console.log(`q${q.n} → ${to}: ${text}`);
 	await notifyAdapters(next);
 }
 
-export async function runDecide(argv) {
+export async function runDecide(argv: string[]): Promise<void> {
 	const a = parse('decide', argv, ['q']);
 	const answer = a.positionals.join(' ').trim();
 	if (!answer) {
@@ -143,13 +146,13 @@ export async function runDecide(argv) {
 		console.log(`recorded in ${plan} § Decisions`);
 		return;
 	}
-	let closed;
+	let closed: ReturnType<typeof closeQuestion>;
 	try {
 		const n = a.q == null ? null : Number(String(a.q).replace(/^q/, ''));
 		if (n !== null && !Number.isInteger(n)) throw new Error(`--q ${a.q} is not a question number`);
 		closed = closeQuestion(state, n, undefined, answer);
 	} catch (e) {
-		console.error(`wf decide: ${e.message}`);
+		console.error(`wf decide: ${(e as Error).message}`);
 		process.exit(2);
 	}
 	const { question } = closed;
@@ -174,7 +177,7 @@ export async function runDecide(argv) {
 // to be revised before anything is built (BJEW-562, 2026-09-27: q1 "also drop the pink
 // background? default: no" answered yes, and wf next dispatched the build of the plan as written).
 // The default is `default` or the default's own words, as the question tool's option gives them.
-export function overruledAsks(answered = [], token) {
-	const same = (a, b) => a.trim().replace(/\.$/, '').toLowerCase() === b.trim().replace(/\.$/, '').toLowerCase();
+export function overruledAsks(answered: Question[] = [], token: string | undefined): Question[] {
+	const same = (a: string, b: string) => a.trim().replace(/\.$/, '').toLowerCase() === b.trim().replace(/\.$/, '').toLowerCase();
 	return answered.filter((q) => q.source?.startsWith(`PLAN.md#${token}:`) && !same(q.answer ?? '', 'default') && !(q.default && same(q.answer ?? '', q.default)));
 }

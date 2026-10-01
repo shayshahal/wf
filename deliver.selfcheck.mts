@@ -1,10 +1,11 @@
 // deliver.selfcheck.mts — node deliver.selfcheck.mts → exit 0 when green.
 // Fixture PLAN.md → the PR body, MONDAY.md.
 import { hookRefused, prBody, refusedPushSection, t2Gap } from './deliver.mts';
+import type { State } from './state.mts';
 
 let failures = 0;
-const check = (name, cond, detail = '') =>
-  console.log(cond ? `  ok   ${name}` : `  FAIL ${name}${detail ? ` — ${detail}` : ''}`) || (cond || failures++);
+const check = (name: string, cond: boolean, detail = '') =>
+  (console.log(cond ? `  ok   ${name}` : `  FAIL ${name}${detail ? ` — ${detail}` : ''}`) as unknown) || (cond || failures++);
 
 const plan = [
   '# BJEW-1 — plan',
@@ -38,7 +39,7 @@ check('a hook refusal is told from a network one', hookRefused(refusedOutput) &&
 const section = refusedPushSection(refusedOutput, '2026-09-28');
 check('the refusal is one changes-requested verdict, the one wf next counts', [...`verdict: approved\n${section}`.matchAll(/^verdict:\s*changes-requested\s*$/gm)].length === 1 && section.includes('    \u2717 complexity: 1 finding') && section.includes('packages/frontend/admin/src/lib/x.ts') && section.includes(':1 probe CRITICAL') && !section.includes('warning 39'), section);
 check('T2 approved: deliver may run', t2Gap({ step: 'pr' }, 'verdict: approved\n') === null);
-check('before T2, T2 pending or changes requested: refused', [[{ step: 'implement' }, null], [{ step: 'review' }, 'verdict: pending'], [{ step: 'pr' }, 'verdict: changes-requested'], [{ step: 'pr' }, null]].every(([s, r]) => t2Gap(s, r)?.startsWith('T2 has not approved')));
+check('before T2, T2 pending or changes requested: refused', ([[{ step: 'implement' }, null], [{ step: 'review' }, 'verdict: pending'], [{ step: 'pr' }, 'verdict: changes-requested'], [{ step: 'pr' }, null]] satisfies [State, string | null][]).every(([s, r]) => t2Gap(s, r)?.startsWith('T2 has not approved')));
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');
 process.exit(failures ? 1 : 0);

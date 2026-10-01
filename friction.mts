@@ -3,23 +3,26 @@
 // a round's session log by hand (TJEW-670.11: the broken pre-push hook, the as-built file committed by
 // hand, the false "deviates"); Factory's Missions measure the same things (cycle time, retries).
 // Pure; reap.mts reads the files and writes the line.
+import type { State } from './state.mts';
+
+type Step = { step: string; at: string };
 
 // Pure: state.history with `step` entered at `at`. A step run again (wf next's bookkeeping re-steps the
 // round) is the same stretch of time, not a new one.
-export function stepHistory(history, step, at) {
+export function stepHistory(history: Step[] | undefined, step: string, at: string): Step[] {
 	const past = history ?? [];
 	return past.at(-1)?.step === step ? past : [...past, { step, at }];
 }
 
 // Pure: 95 min → "1h35m", 12 min → "12m", under a minute → "0m".
-export function duration(ms) {
+export function duration(ms: number): string {
 	const m = Math.max(0, Math.round(ms / 60000));
 	return m >= 60 ? `${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}m` : `${m}m`;
 }
 
 // Pure: minutes per step name, summed (a round goes back to implement after a T2 fix), in first-seen order.
-export function timeInSteps(history, end) {
-	const spent = new Map();
+export function timeInSteps(history: Step[], end: string): string[] {
+	const spent = new Map<string, number>();
 	(history ?? []).forEach((h, i) => {
 		const until = Date.parse(history[i + 1]?.at ?? end);
 		spent.set(h.step, (spent.get(h.step) ?? 0) + (until - Date.parse(h.at)));
@@ -28,8 +31,8 @@ export function timeInSteps(history, end) {
 }
 
 // Pure: agents per phase ("implement 1", "implement 2" → implement), from state.briefs counts.
-export function agentsPerPhase(briefs) {
-	const per = new Map();
+export function agentsPerPhase(briefs: Record<string, { count?: number }> | undefined): string[] {
+	const per = new Map<string, number>();
 	for (const [key, b] of Object.entries(briefs ?? {})) {
 		const phase = key.split(' ')[0];
 		per.set(phase, (per.get(phase) ?? 0) + (b.count ?? 1));
@@ -37,17 +40,17 @@ export function agentsPerPhase(briefs) {
 	return [...per].map(([phase, n]) => `${phase} ${n}`);
 }
 
-const jsonLines = (text) => (text ?? '').split('\n').filter((l) => l.trim()).flatMap((l) => {
-	try { return [JSON.parse(l)]; } catch { return []; }
+const jsonLines = <T,>(text: string): T[] => (text ?? '').split('\n').filter((l) => l.trim()).flatMap((l) => {
+	try { return [JSON.parse(l) as T]; } catch { return []; }
 });
 
 // Pure: the round's line. checksLog / eventsLog are .wf/checks.log and .wf/events.log, reviewText the
 // round's REVIEW.md (each T2 and each refused push is a `verdict:` line in it).
-export function frictionLine({ state, checksLog, eventsLog, reviewText, end }) {
+export function frictionLine({ state, checksLog, eventsLog, reviewText, end }: { state: State | null; checksLog: string; eventsLog: string; reviewText: string; end: string }): string {
 	const history = state?.history ?? [];
 	const start = history[0]?.at ?? Object.values(state?.briefs ?? {}).map((b) => b.at).sort()[0] ?? null;
-	const checks = jsonLines(checksLog);
-	const refusals = jsonLines(eventsLog);
+	const checks = jsonLines<{ result: string }>(checksLog);
+	const refusals = jsonLines<{ cmd: string; msg: string }>(eventsLog);
 	const verdicts = [...(reviewText ?? '').matchAll(/^verdict:\s*(\S+)\s*$/gm)].map((m) => m[1]).filter((v) => v !== 'pending');
 	const pushRefused = (reviewText?.match(/refused by the project's pre-push hook/g) ?? []).length;
 	const questions = (state?.answered?.length ?? 0) + (state?.questions?.length ?? 0);
@@ -65,7 +68,7 @@ export function frictionLine({ state, checksLog, eventsLog, reviewText, end }) {
 
 // Pure: the .wf/events.log line for a wf command that exited non-zero in a round. `wf check` is left
 // out: its runs are in checks.log already.
-export function refusalLine({ ts, argv, code, message }) {
+export function refusalLine({ ts, argv, code, message }: { ts: string; argv: string[]; code: number; message: string }): string | null {
 	if (!code || argv[0] === 'check') return null;
 	return JSON.stringify({ ts, cmd: argv.slice(0, 2).join(' '), exit: code, msg: (message ?? '').split('\n')[0].trim() });
 }

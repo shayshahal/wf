@@ -6,10 +6,12 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { forkGap, lastBrief, stopGap } from './handoff-hook.mts';
 import { claudeAgent, pluginFiles } from './plugin.mts';
+import type { Snapshot } from './next.mts';
+import type { Brief } from './state.mts';
 
 let failures = 0;
-const check = (name, cond, detail = '') =>
-	console.log(cond ? `  ok   ${name}` : `  FAIL ${name}${detail ? ` — ${detail}` : ''}`) || (cond || failures++);
+const check = (name: string, cond: unknown, detail = '') =>
+	(console.log(cond ? `  ok   ${name}` : `  FAIL ${name}${detail ? ` — ${detail}` : ''}`) as unknown) || (cond || failures++);
 const root = dirname(fileURLToPath(import.meta.url));
 
 // ── an agent's copy
@@ -26,7 +28,7 @@ for (const [path, text] of pluginFiles()) {
 	const committed = existsSync(join(root, path)) ? readFileSync(join(root, path), 'utf8').replace(/\r\n/g, '\n') : null;
 	check(`${path} is what plugin.mts writes`, committed === text.replace(/\r\n/g, '\n'), committed === null ? 'missing: node plugin.mts' : 'stale: node plugin.mts');
 }
-const manifest = JSON.parse(readFileSync(join(root, '.claude-plugin', 'plugin.json'), 'utf8'));
+const manifest: { name: string; agents: string[]; hooks: string } = JSON.parse(readFileSync(join(root, '.claude-plugin', 'plugin.json'), 'utf8'));
 check('plugin.json names agent files that exist', manifest.agents.every((a) => existsSync(join(root, a))), manifest.agents.join());
 check('its hooks file exists and calls this repo\'s wf.mjs', readFileSync(join(root, manifest.hooks), 'utf8').includes('${CLAUDE_PLUGIN_ROOT}/wf.mjs'));
 // A matcher of letters and hyphens only is an exact match, and a plugin's agent type is
@@ -34,14 +36,14 @@ check('its hooks file exists and calls this repo\'s wf.mjs', readFileSync(join(r
 const stop = JSON.parse(readFileSync(join(root, manifest.hooks), 'utf8')).hooks.SubagentStop[0];
 check('SubagentStop matches the plugin-scoped agent type, anchored', stop.matcher === `^${manifest.name}:round-worker$`, stop.matcher);
 // In auto mode the report goes through SubagentHandback, before SubagentStop (BJEW-562, 2026-09-27).
-const handback = JSON.parse(readFileSync(join(root, manifest.hooks), 'utf8')).hooks.PreToolUse.find((h) => h.matcher === 'SubagentHandback');
+const handback = JSON.parse(readFileSync(join(root, manifest.hooks), 'utf8')).hooks.PreToolUse.find((h: { matcher: string; hooks: { args: string[] }[] }) => h.matcher === 'SubagentHandback');
 check('a hand-back is checked too, before it reaches the orchestrator', handback?.hooks[0].args.slice(1).join(' ') === 'handoff check');
 const skills = ['round', 'design-session'].map((s) => readFileSync(join(root, 'skills', s, 'SKILL.md'), 'utf8'));
 check('the skills name wf\'s files as ${CLAUDE_PLUGIN_ROOT}, no {{wf}} or {{project}} left', skills.every((t) => !t.includes('{{wf}}') && !t.includes('{{project}}')));
 
 // ── the hooks
-check('the last brief is the most recent one', lastBrief({ research: { at: '2026-09-27T10:00' }, 'implement 2': { at: '2026-09-27T11:00' } })?.key === 'implement 2' && lastBrief({ 'implement 2': { at: 'x' } }).n === 2);
-const snap = (patch) => ({ briefs: {}, files: {}, subjects: [], checks: [], ...patch });
+check('the last brief is the most recent one', lastBrief({ research: { at: '2026-09-27T10:00' } as Brief, 'implement 2': { at: '2026-09-27T11:00' } as Brief })?.key === 'implement 2' && lastBrief({ 'implement 2': { at: 'x' } as Brief })!.n === 2);
+const snap = (patch: object) => ({ briefs: {}, files: {}, subjects: [], checks: [], ...patch }) as unknown as Snapshot;
 check('a research agent ending with no RESEARCH.md is sent back', stopGap(snap({ briefs: { research: { token: 'aa11', at: '1' } } }))?.startsWith('no RESEARCH.md'));
 check('ending with the handoff is allowed', stopGap(snap({ briefs: { research: { token: 'aa11', at: '1' } }, files: { research: '## Repro\ncommand: x\n<!-- brief: aa11 -->' } })) === null);
 const plan = '## Commits\n| # | message | files | check |\n| 1 | fix(x): one | a.ts | repro |\n';

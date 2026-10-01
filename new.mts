@@ -18,6 +18,8 @@ import { baseBranch, newRound, roundBranches, roundsDir, stackUrls } from './pro
 import { basePortForBranch, createWorktree, excludeFromGit, listWorktrees, mainCheckout, slugForBranch, urlLines } from './worktree.mts';
 import { seams } from './seams.mts';
 import { writeState } from './state.mts';
+
+type LaunchJson = { version?: string; configurations?: { name?: string; url?: string }[] };
 import { liveRounds, realReadState, realWorktrees } from './status.mts';
 
 // Where round work lives: the base branch and the round branches. Not --all: the tooling branches
@@ -30,14 +32,14 @@ const ROUND_REFS = [`origin/${baseBranch}`, ...roundBranches.flatMap((b) => [`--
 // and numbers is optional: a round's folder is named from its branch, fix-tjew682-auction-pickers, and
 // "tjew-682" never matched it (TJEW-682 reopen, 2026-09-27). A number never continues into another
 // digit: TJEW-670.1 is not TJEW-670.10, BJEW-46 is not BJEW-461 (a subitem round's id, 2026-09-28).
-export function namesId(text, id) {
+export function namesId(text: string, id: string) {
 	const parts = id.toLowerCase().match(/[a-z]+|[0-9]+/g) ?? [];
 	return parts.length > 0 && new RegExp(`(?<![0-9])${parts.join('[^a-z0-9]*')}(?![0-9])`).test(text.toLowerCase());
 }
 
-export function findExistingRounds(ids, base) {
+export function findExistingRounds(ids: string[], base: string) {
 	const hits = [];
-	let folders = [];
+	let folders: string[] = [];
 	try { folders = execFileSync('git', ['ls-tree', '-d', '--name-only', `${base}:${roundsDir}`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).split('\n').filter(Boolean); } catch { /* no rounds folder on the base */ }
 	for (const id of ids) {
 		for (const f of folders) if (namesId(f, id)) hits.push(`${roundsDir}/${f}`);
@@ -50,7 +52,7 @@ export function findExistingRounds(ids, base) {
 }
 
 // Pure: the lines of a PLAN.md's `## Decisions` (wf decide writes them), or none.
-export function decisionsOf(planText) {
+export function decisionsOf(planText: string | null) {
 	const section = /^## Decisions[ \t]*\n([\s\S]*?)(?=^## |(?![\s\S]))/m.exec((planText ?? '').replace(/\r\n/g, '\n'))?.[1] ?? '';
 	return section.split('\n').map((l) => l.trim()).filter((l) => l.startsWith('- '));
 }
@@ -58,7 +60,7 @@ export function decisionsOf(planText) {
 // Pure: EARLIER.md for a reopened ticket: the earlier work, and the rulings its rounds recorded. The
 // plan's Asks take a ruling as their default: the 2026-09-27 replay of TJEW-682 re-asked both
 // questions Shay had ruled on four days before, whose round folder the plan agent never read.
-export function earlierText({ ids, dupes, rulings }) {
+export function earlierText({ ids, dupes, rulings }: { ids: string[]; dupes: string[]; rulings: { folder: string; lines: string[] }[] }) {
 	const ruled = rulings.filter((r) => r.lines.length);
 	return [
 		`# Earlier work on ${ids.join(', ')}`, '', 'This ticket came back. Every earlier fix below shipped and did not hold.', '',
@@ -70,7 +72,7 @@ export function earlierText({ ids, dupes, rulings }) {
 // Pure: the worktree's .claude/launch.json for Claude Code Desktop's Browser pane: one entry per app
 // in attach mode (a url, no command), so the pane shows the stack wf started and never starts its own
 // (kit and env plan, step 3). Desktop takes a localhost url as a bare origin only.
-export function launchConfig(urls) {
+export function launchConfig(urls: Record<string, string>) {
 	return `${JSON.stringify({ version: '0.0.1', configurations: Object.entries(urls).map(([name, url]) => ({ name, url: new URL(url).origin })) }, null, 2)}\n`;
 }
 
@@ -79,8 +81,8 @@ export function launchConfig(urls) {
 // Claude Code Desktop reads launch.json from the folder the session opened, the clone, never from the
 // worktree EnterWorktree moved it to: TJEW-670's T2 (2026-09-28) could not start the pane by name,
 // and by URL it keeps no login.
-export function cloneLaunch(text, slug, urls) {
-	let json = { version: '0.0.1', configurations: [] };
+export function cloneLaunch(text: string, slug: string, urls: Record<string, string> | null) {
+	let json: LaunchJson = { version: '0.0.1', configurations: [] };
 	if (text?.trim()) {
 		try { json = JSON.parse(text); } catch { return null; }
 	}
@@ -90,7 +92,7 @@ export function cloneLaunch(text, slug, urls) {
 }
 
 // Writes cloneLaunch's result into the main checkout, when there is one (not a bare layout).
-export function writeCloneLaunch(slug, urls) {
+export function writeCloneLaunch(slug: string, urls: Record<string, string> | null) {
 	const main = mainCheckout(listWorktrees());
 	if (!main) return;
 	const file = join(main, '.claude', 'launch.json');
@@ -104,12 +106,12 @@ export function writeCloneLaunch(slug, urls) {
 
 // Pure: the `git fetch` that brings `base` up to date first, or null when it is not a remote branch
 // (a local ref or a sha is what the person asked for).
-export function fetchFor(base) {
+export function fetchFor(base: string) {
 	const m = /^origin\/(.+)$/.exec(base);
 	return m ? ['fetch', '--quiet', 'origin', m[1]] : null;
 }
 
-export async function runNew(argv) {
+export async function runNew(argv: string[]) {
 	const branch = argv[0];
 	// A flag first is not a branch: `wf new --help` went to git as one and printed git branch's usage (TJEW-670).
 	if (!branch || branch.startsWith('-')) { console.error('usage: wf new <branch> [--base <ref>] [--class B|C] [--check] [--id <token>]...'); process.exit(2); }
@@ -119,11 +121,11 @@ export async function runNew(argv) {
 	if (!base) { console.error('wf new: --base needs a ref'); process.exit(2); }
 	const ci = argv.indexOf('--class');
 	const klass = ci === -1 ? null : argv[ci + 1];
-	if (ci !== -1 && !['B', 'C'].includes(klass)) { console.error('wf new: --class is B or C (A is the measured default)'); process.exit(2); }
+	if (ci !== -1 && !['B', 'C'].includes(klass!)) { console.error('wf new: --class is B or C (A is the measured default)'); process.exit(2); }
 	const ids = argv.flatMap((a, i) => (a === '--id' && argv[i + 1] ? [argv[i + 1]] : []));
 	const live = liveRounds({ paths: realWorktrees(), readState: realReadState });
 	if (live.length >= 2 && !argv.includes('--force')) {
-		console.error(`wf new: two rounds are already live — finish or hold one first:\n  ${live.map((r) => `${r.state.id ?? r.state.round} · ${r.state.step} · ${r.path}`).join('\n  ')}\n(--force to cut a third anyway)`);
+		console.error(`wf new: two rounds are already live — finish or hold one first:\n  ${live.map((r) => `${r.state!.id ?? r.state!.round} · ${r.state!.step} · ${r.path}`).join('\n  ')}\n(--force to cut a third anyway)`);
 		process.exit(1);
 	}
 	// Neither wt nor git fetches: a clone days behind branched its round off a stale base (the kit
@@ -145,7 +147,7 @@ export async function runNew(argv) {
 	try {
 		({ path } = await createWorktree({ branch, base, log }));
 	} catch (e) {
-		console.error(`wf new: ${e.message}`);
+		console.error(`wf new: ${(e as Error).message}`);
 		process.exit(1);
 	}
 	console.log(`wf new: worktree ready (hook log: ${log})`);
@@ -158,7 +160,7 @@ export async function runNew(argv) {
 	const notes = newRound({ worktree: path, folder, port: basePortForBranch(branch) });
 	writeState(path, { id: ids[0] ?? branch, ...(ids.length > 1 ? { ids } : {}), folder, made_by: seams.madeBy, entry: seams.entry.replace(/\\/g, '/'), ...(argv.includes('--check') ? { check: true } : {}) });
 	if (reopen && dupes.length) {
-		const plan = (f) => { try { return execFileSync('git', ['show', `${base}:${f}/PLAN.md`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }); } catch { return null; } };
+		const plan = (f: string) => { try { return execFileSync('git', ['show', `${base}:${f}/PLAN.md`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }); } catch { return null; } };
 		const rulings = dupes.filter((d) => d.startsWith(`${roundsDir}/`)).map((f) => ({ folder: f, lines: decisionsOf(plan(f)) }));
 		writeFileSync(join(path, folder, 'EARLIER.md'), earlierText({ ids, dupes, rulings }));
 	}

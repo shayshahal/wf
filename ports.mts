@@ -4,10 +4,10 @@
 // Source: worktrunk 0.76.0 src/config/expansion.rs, `string_to_port` and `sanitize_branch_name`.
 
 const MASK = (1n << 64n) - 1n;
-const rotl = (x, b) => ((x << BigInt(b)) | (x >> BigInt(64 - b))) & MASK;
+const rotl = (x: bigint, b: number) => ((x << BigInt(b)) | (x >> BigInt(64 - b))) & MASK;
 
 // SipHash-1-3 with both keys 0: Rust's `DefaultHasher::new()`.
-function sipHash13(bytes) {
+function sipHash13(bytes: number[]) {
 	let v0 = 0x736f6d6570736575n;
 	let v1 = 0x646f72616e646f6dn;
 	let v2 = 0x6c7967656e657261n;
@@ -18,7 +18,7 @@ function sipHash13(bytes) {
 		v0 = (v0 + v3) & MASK; v3 = rotl(v3, 21); v3 ^= v0;
 		v2 = (v2 + v1) & MASK; v1 = rotl(v1, 17); v1 ^= v2; v2 = rotl(v2, 32);
 	};
-	const word = (i, n) => {
+	const word = (i: number, n: number) => {
 		let m = 0n;
 		for (let j = n - 1; j >= 0; j--) m = (m << 8n) | BigInt(bytes[i + j]);
 		return m;
@@ -37,12 +37,12 @@ function sipHash13(bytes) {
 
 // Pure: the port range 10000-19999, from the branch. Rust hashes a `str` as its UTF-8 bytes and
 // then one 0xFF byte (`Hasher::write_str`), so the 0xFF is part of what is hashed.
-export function hashPort(branch) {
+export function hashPort(branch: string) {
 	const bytes = [...Buffer.from(String(branch), 'utf8'), 0xff];
 	return 10000 + Number(sipHash13(bytes) % 10000n);
 }
 
 // Pure: the branch as one path component: `/` and `\` become `-`.
-export function sanitizeBranch(branch) {
+export function sanitizeBranch(branch: string) {
 	return String(branch).replace(/[/\\]/g, '-');
 }

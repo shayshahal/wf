@@ -11,28 +11,29 @@ import { closeSync, existsSync, mkdirSync, openSync, readFileSync, writeFileSync
 import { join } from 'node:path';
 import { serve, stackUrls } from './project.mts';
 import { seams } from './seams.mts';
+import type { RemovalStep } from './seams.mts';
 import { realProbeStack } from './status.mts';
 import { basePortForBranch, slugForBranch, urlLines } from './worktree.mts';
 
-export const pidFile = (worktree) => join(worktree, '.wf', 'serve.pid');
+export const pidFile = (worktree: string) => join(worktree, '.wf', 'serve.pid');
 
 // The pid `wf serve` recorded for this worktree, or null.
-export function servePid(worktree) {
+export function servePid(worktree: string) {
 	const file = pidFile(worktree);
 	const pid = existsSync(file) ? Number(readFileSync(file, 'utf8').trim()) : NaN;
 	return Number.isInteger(pid) && pid > 0 ? pid : null;
 }
 
-const alive = (pid) => {
-	try { process.kill(pid, 0); return true; } catch (e) { return e.code === 'EPERM'; }
+const alive = (pid: number) => {
+	try { process.kill(pid, 0); return true; } catch (e) { return (e as NodeJS.ErrnoException).code === 'EPERM'; }
 };
 
 // Pure: the step that stops the servers, with every process under them. Windows: taskkill's tree.
 // Elsewhere the detached process leads its own process group, so the group gets the signal.
-export function stopServersStep(pid, platform = process.platform) {
+export function stopServersStep(pid: number, platform: NodeJS.Platform = process.platform) {
 	return platform === 'win32'
-		? { label: 'stop servers', cmd: 'taskkill', args: ['/PID', String(pid), '/T', '/F'] }
-		: { label: 'stop servers', cmd: 'kill', args: ['-TERM', `-${pid}`] };
+		? { label: 'stop servers', cmd: 'taskkill', args: ['/PID', String(pid), '/T', '/F'] } satisfies RemovalStep
+		: { label: 'stop servers', cmd: 'kill', args: ['-TERM', `-${pid}`] } satisfies RemovalStep;
 }
 
 // Pure: the step that ends every node and python process still running from the worktree but this
@@ -41,17 +42,17 @@ export function stopServersStep(pid, platform = process.platform) {
 // left the folder to the playwright daemon of `wf show`'s headed window. git reports the path with
 // forward slashes, a command line carries backslashes: match either spelling. -EncodedCommand, not
 // -Command: reap runs steps through cmd.exe on Windows, which cut the script at its first `|`.
-export function stragglersStep(path, pid, platform = process.platform) {
-	if (platform !== 'win32') return { label: 'kill stragglers', cmd: 'pkill', args: ['-f', path] };
+export function stragglersStep(path: string, pid: number, platform: NodeJS.Platform = process.platform) {
+	if (platform !== 'win32') return { label: 'kill stragglers', cmd: 'pkill', args: ['-f', path] } satisfies RemovalStep;
 	const fwd = path.replace(/\\/g, '/').replace(/'/g, "''");
 	const bck = fwd.replace(/\//g, '\\');
 	const ps = `$ProgressPreference = 'SilentlyContinue'; Get-CimInstance Win32_Process -Filter "Name='node.exe' or Name='python.exe'" | Where-Object { ($_.CommandLine -like '*${fwd}*' -or $_.CommandLine -like '*${bck}*') -and $_.ProcessId -ne ${pid} } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`;
-	return { label: 'kill stragglers', cmd: 'powershell', args: ['-NoProfile', '-EncodedCommand', Buffer.from(ps, 'utf16le').toString('base64')] };
+	return { label: 'kill stragglers', cmd: 'powershell', args: ['-NoProfile', '-EncodedCommand', Buffer.from(ps, 'utf16le').toString('base64')] } satisfies RemovalStep;
 }
 
 // Starts the stack detached; returns its pid. stdio goes to a file, not this process: a server that
 // inherits a pipe keeps its reader waiting for EOF (40 min under an agent harness, 2026-09-20).
-export function startServers(worktree) {
+export function startServers(worktree: string) {
 	mkdirSync(join(worktree, '.wf', 'logs'), { recursive: true });
 	const fd = openSync(join(worktree, '.wf', 'logs', 'serve.log'), 'a');
 	const child = spawn(process.execPath, [seams.entry, 'serve', '--foreground'], { cwd: worktree, detached: true, stdio: ['ignore', fd, fd], windowsHide: true });
@@ -68,13 +69,13 @@ export function startServers(worktree) {
 // Pipes, not inherited stdio: libuv asks for CREATE_NO_WINDOW only when no stdio is inherited. With
 // 'inherit' the hop got a console with SW_HIDE, and Windows Terminal (the default terminal) still
 // flashed a window for it at every wf new and wf serve (the console watcher, 2026-09-28 17:34:20).
-export function hiddenHop(platform, env) {
+export function hiddenHop(platform: NodeJS.Platform, env: NodeJS.ProcessEnv): { args: string[]; options: { stdio: ['ignore', 'pipe', 'pipe']; windowsHide: boolean; env: NodeJS.ProcessEnv } } | null {
 	if (platform !== 'win32' || env.WF_SERVE_HIDDEN) return null;
 	return { args: [seams.entry, 'serve', '--foreground'], options: { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, env: { ...env, WF_SERVE_HIDDEN: '1' } } };
 }
 
-export async function runServe(argv) {
-	const git = (...args) => execFileSync('git', args, { encoding: 'utf8' }).trim();
+export async function runServe(argv: string[]) {
+	const git = (...args: string[]) => execFileSync('git', args, { encoding: 'utf8' }).trim();
 	const worktree = git('rev-parse', '--show-toplevel');
 	const branch = git('rev-parse', '--abbrev-ref', 'HEAD');
 	const slug = slugForBranch(branch);

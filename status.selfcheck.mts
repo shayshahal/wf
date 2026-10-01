@@ -5,13 +5,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { plug } from './seams.mts';
 import { allLines, collectRows, formatRow, liveRounds, prLabel, formatAgeSince, realDetailFor } from './status.mts';
+import type { Question, State } from './state.mts';
 
 let failures = 0;
-const check = (name, cond, detail = '') =>
-  console.log(cond ? `  ok   ${name}` : `  FAIL ${name}${detail ? ` — ${detail}` : ''}`) || (cond || failures++);
+const check = (name: string, cond: boolean, detail = '') =>
+  (console.log(cond ? `  ok   ${name}` : `  FAIL ${name}${detail ? ` — ${detail}` : ''}`) as unknown) || (cond || failures++);
 
 const root = mkdtempSync(join(tmpdir(), 'wf-status-'));
-const fake = (dir, state) => {
+const fake = (dir: string, state: State | null) => {
   const p = join(root, dir);
   mkdirSync(join(p, '.wf'), { recursive: true });
   if (state) writeFileSync(join(p, '.wf', 'state.json'), JSON.stringify(state));
@@ -29,7 +30,7 @@ states.set(mid, JSON.parse(readFileSync(join(mid, '.wf', 'state.json'), 'utf8'))
 const rows = await collectRows({ paths: [mid, old, bare, mine], readState: (p) => states.get(p) ?? null, pullRequests: prs, now });
 check('mine-waiting row sorts first', rows[0].path === mine, rows.map((r) => r.path).join(','));
 check('longest-waiting sorts before newer within a group', rows[1].path === old && rows[2].path === mid, rows.map((r) => r.path).join(','));
-check('stateless worktree sorts last as —', rows.at(-1).path === bare && formatRow(rows.at(-1)).endsWith('—'));
+check('stateless worktree sorts last as —', rows.at(-1)!.path === bare && formatRow(rows.at(-1)!).endsWith('—'));
 check('first row carries the ← YOU marker', formatRow(rows[0], now).includes('← YOU'));
 check('other rows carry no marker', !formatRow(rows[1], now).includes('← YOU'));
 check('PR column shows number + decision + failing CI', formatRow(rows[0], now).includes('#42 approved ✗ci'), formatRow(rows[0], now));
@@ -38,8 +39,8 @@ check('age renders hours', formatAgeSince('2026-09-17T14:00:00.000Z', now) === '
 check('prLabel tolerates null', prLabel(null) === '-');
 
 // stack arm (offline: stubbed port derivation + probe, no wt, no network).
-const ports = { 'feat/y': 15748, 'feat/x': 15749, 'feat/z': 15750 };
-const ups = { 15748: true, 15749: false, 15750: true };
+const ports: Record<string, number> = { 'feat/y': 15748, 'feat/x': 15749, 'feat/z': 15750 };
+const ups: Record<number, boolean> = { 15748: true, 15749: false, 15750: true };
 const brows = await collectRows({
   paths: [old, mine],
   readState: (p) => states.get(p) ?? null,
@@ -48,12 +49,12 @@ const brows = await collectRows({
   basePortFor: async (branch) => ports[branch],
   probeStack: async (port) => ups[port] ?? false,
 });
-check('stack column shows port + ✓ when the probe answers', formatRow(brows.find((r) => r.path === mine), now).includes('stack :15748 ✓'));
-check('stack column shows port + ✗ when the probe refuses', formatRow(brows.find((r) => r.path === old), now).includes('stack :15749 ✗'));
+check('stack column shows port + ✓ when the probe answers', formatRow(brows.find((r) => r.path === mine)!, now).includes('stack :15748 ✓'));
+check('stack column shows port + ✗ when the probe refuses', formatRow(brows.find((r) => r.path === old)!, now).includes('stack :15749 ✗'));
 
 // Names arm: with a slug the column shows the project's first address for a person (probe unchanged):
 // the direct one with no machine plugged in, the machine's name for it when it has one (portless).
-const slugs = { 'feat/y': 'feat-y', 'feat/x': 'feat-x' };
+const slugs: Record<string, string> = { 'feat/y': 'feat-y', 'feat/x': 'feat-x' };
 const nrows = await collectRows({
   paths: [old, mine],
   readState: (p) => states.get(p) ?? null,
@@ -63,19 +64,19 @@ const nrows = await collectRows({
   probeStack: async (port) => ups[port] ?? false,
   slugFor: async (branch) => slugs[branch],
 });
-check('stack column shows the first app\'s direct address with no machine names', formatRow(nrows.find((r) => r.path === mine), now).includes('stack http://localhost:15748 ✓'), formatRow(nrows.find((r) => r.path === mine), now));
-plug({ project: { names: (slug) => ({ b2b: `http://${slug}.b2b.example.localhost` }) } });
+check('stack column shows the first app\'s direct address with no machine names', formatRow(nrows.find((r) => r.path === mine)!, now).includes('stack http://localhost:15748 ✓'), formatRow(nrows.find((r) => r.path === mine)!, now));
+plug({ project: { names: (slug: string) => ({ b2b: `http://${slug}.b2b.example.localhost` }) } });
 const named = await collectRows({ paths: [mine], readState: (p) => states.get(p) ?? null, pullRequests: [], now, basePortFor: async (branch) => ports[branch], probeStack: async (port) => ups[port] ?? false, slugFor: async (branch) => slugs[branch] });
 check('stack column shows the machine\'s name for the first app when it has one', formatRow(named[0], now).includes('stack http://feat-y.b2b.example.localhost ✓'), formatRow(named[0], now));
 
 // --all arm: the grouped morning screen over the same fixture worktrees (offline, detail stubbed).
-const allStates = new Map([
+const allStates = new Map<string, State>([
   [old, { id: 'BJEW-1', folder: 'bug-reports/BJEW-1', step: 'implement', waiting_on: null, since: '2026-09-17T14:57:00.000Z', commit: 2 }],
   [mine, { id: 'BJEW-2', step: 'review', waiting_on: 'user', since: '2026-09-16T15:00:00.000Z' }],
   [mid, { id: 'BJEW-3', step: 'held', waiting_on: 'einat', since: '2026-09-17T13:00:00.000Z' }],
 ]);
-allStates.set(mine, { ...allStates.get(mine), questions: [{ n: 1, to: 'user', text: 'hide or delete?', default: 'hide' }] });
-const readAll = (p) => allStates.get(p) ?? null;
+allStates.set(mine, { ...allStates.get(mine), questions: [{ n: 1, to: 'user', text: 'hide or delete?', default: 'hide' } as Question] });
+const readAll = (p: string) => allStates.get(p) ?? null;
 const all = allLines({ paths: [old, mine, mid, bare], readState: readAll, detailFor: (_p, s) => (s.step === 'implement' ? `commit ${s.commit} of 3` : s.step === 'review' ? 'https://pr/2' : ''), now });
 check('groups printed in order: waiting on you, running, held', all.filter((l) => !l.startsWith(' ')).join('|') === 'waiting on you:|running:|held:', all.join('|'));
 check('the waiting line is id, step, who, age, detail', all[1] === '  BJEW-2  review  user  24h  https://pr/2', JSON.stringify(all[1]));
@@ -86,7 +87,7 @@ check('no rounds → no lines', allLines({ paths: [bare], readState: readAll, de
 check('liveRounds counts everything but merged and held', liveRounds({ paths: [old, mine, mid, bare], readState: readAll }).map((r) => r.state.id).join() === 'BJEW-1,BJEW-2', JSON.stringify(liveRounds({ paths: [old, mine, mid, bare], readState: readAll }).map((r) => r.state.id)));
 mkdirSync(join(old, 'bug-reports', 'BJEW-1'), { recursive: true });
 writeFileSync(join(old, 'bug-reports', 'BJEW-1', 'PLAN.md'), '# p\n\n## Commits\n| # | m | f | c |\n| 1 | a | b | c |\n| 2 | a | b | c |\n');
-check('real detail for implement counts the PLAN.md rows', realDetailFor(old, readAll(old)) === 'commit 2 of 2', realDetailFor(old, readAll(old)));
+check('real detail for implement counts the PLAN.md rows', realDetailFor(old, readAll(old)!) === 'commit 2 of 2', realDetailFor(old, readAll(old)!));
 check('real detail for plan counts PLAN.md lines', realDetailFor(old, { ...readAll(old), step: 'plan' }) === 'PLAN.md 6 lines', realDetailFor(old, { ...readAll(old), step: 'plan' }));
 
 rmSync(root, { recursive: true, force: true });

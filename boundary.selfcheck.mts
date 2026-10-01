@@ -8,24 +8,24 @@ import { fileURLToPath } from 'node:url';
 
 const root = dirname(fileURLToPath(import.meta.url));
 const SKIP = new Set(['env', 'docs', 'node_modules', '.git']);
-const kitFiles = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+const kitFiles = (dir: string): string[] => readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
 	if (e.isDirectory()) return SKIP.has(e.name) && dir === root ? [] : kitFiles(join(dir, e.name));
 	return /\.m[jt]s$/.test(e.name) ? [join(dir, e.name)] : [];
 });
 
 // Pure: the env imports in a file's text (static and dynamic).
-export function envImports(text) {
+export function envImports(text: string) {
 	return [...text.matchAll(/(?:from\s+|import\s*\(\s*)['"]([^'"]*\benv\/[^'"]*)['"]/g)].map((m) => m[1]);
 }
 // Pure: Shay's machine paths in a file's code (comment lines are not code).
 const MACHINE = [/\.herdr\b/, /['"/]\.bare\b/, /LOCALAPPDATA/, /['"]\.config['"],\s*['"]wf['"]/, /~\/\.config\/wf/, /['"]work['"],\s*['"]wf['"]/, /~\/work\/wf/];
-export function machinePaths(text) {
+export function machinePaths(text: string) {
 	return text.split('\n').filter((l) => !/^\s*(\/\/|\*)/.test(l)).flatMap((l) => MACHINE.filter((re) => re.test(l)).map(() => l.trim()));
 }
 
 let failures = 0;
-const check = (name, cond, detail = '') =>
-	console.log(cond ? `  ok   ${name}` : `  FAIL ${name}${detail ? ` — ${detail}` : ''}`) || (cond || failures++);
+const check = (name: string, cond: unknown, detail = '') =>
+	(console.log(cond ? `  ok   ${name}` : `  FAIL ${name}${detail ? ` — ${detail}` : ''}`) as unknown) || (cond || failures++);
 
 check('envImports sees static and dynamic imports of env/', envImports("import { x } from './env/a.mts';\nawait import('../../env/b.mts');\nimport { y } from './env.mts';").join() === './env/a.mts,../../env/b.mts');
 check('machinePaths skips comments and sees code', machinePaths("// ~/.herdr\nconst a = join(homedir(), '.config', 'wf');").length === 1);

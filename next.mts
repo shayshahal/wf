@@ -18,6 +18,7 @@ import { planCommitRows } from './prompt.mts';
 import { lastField, readVerdict, specShaFor } from './review-format.mts';
 import { seams } from './seams.mts';
 import { readState, toplevelOf, writeState } from './state.mts';
+import type { Brief, Question, RoundClass } from './state.mts';
 import { notifyAdapters, runStep } from './step.mts';
 
 // A phase briefed this many times without a handoff goes to Shay, not to a third agent.
@@ -30,20 +31,38 @@ const MAX_BRIEFS = 2;
 //     subjects (commit subjects since the base), checks (.wf/checks.log lines),
 //     fixesAfterValidate (fix(review) commits since the validate brief's head) }
 // → { say, effects }, effects being { step: [args] } | { ask: { to, text, dflt, source } }.
-export function nextAction(s) {
-	const effects = [];
-	const act = (say) => ({ say, effects });
+export type Snapshot = {
+	branch: string;
+	entry: string;
+	step: string | null;
+	klass: RoundClass | null;
+	check: boolean;
+	questions: Question[];
+	answered: Question[];
+	briefs: Record<string, Brief>;
+	commit: number | null;
+	files: Record<'research' | 'plan' | 'blocked' | 'asBuilt' | 'validation' | 'review', string | null>;
+	t1: { spec: string | null; reviewed: string | null; verdict: string | null };
+	subjects: string[];
+	checks: { row: number | null; result: string }[];
+	fixesAfterValidate: number;
+};
+export type Effect = { step: string[]; ask?: undefined } | { ask: { to: string; text: string; dflt: string | null; source: string }; step?: undefined };
+
+export function nextAction(s: Snapshot): { say: string; effects: Effect[] } {
+	const effects: Effect[] = [];
+	const act = (say: string) => ({ say, effects });
 	const briefs = s.briefs ?? {};
-	const brief = (phase, n) => briefs[briefKey(phase, n)];
+	const brief = (phase: string, n?: number | string | null): Brief | undefined => briefs[briefKey(phase, n)];
 	const wf = `node ${s.entry}`;
 	// The line a fresh round-worker gets: it runs wf brief itself, so its brief is wf's own text.
-	const dispatch = (phase, args = [], gap = null) => {
+	const dispatch = (phase: string, args: (number | string | null)[] = [], gap: string | null = null) => {
 		const b = brief(phase, args[0]);
 		const label = [phase, ...args].join(' ');
 		if (b && gap && (b.count ?? 1) >= MAX_BRIEFS) return act(`wait user: ${label} was briefed ${b.count} times and ${gap} — a harness gap (round skill, When a round goes wrong)`);
 		return act(`dispatch ${label}: run \`${wf} brief ${label}\` in this worktree and do exactly what it prints${b && gap ? ` (again: ${gap})` : ''}`);
 	};
-	const asked = (source) => [...(s.questions ?? []), ...(s.answered ?? [])].some((q) => q.source === source);
+	const asked = (source: string) => [...(s.questions ?? []), ...(s.answered ?? [])].some((q) => q.source === source);
 	const open = s.questions ?? [];
 
 	if (open.length) return act(open.map((q) => `wait ${q.to}: q${q.n} ${q.text}${q.default ? ` (default: ${q.default})` : ''}`).join('\n'));
@@ -148,18 +167,18 @@ export function nextAction(s) {
 
 // ── the shell ────────────────────────────────────────────────────────────────
 
-const read = (file) => (existsSync(file) ? readFileSync(file, 'utf8') : null);
+const read = (file: string) => (existsSync(file) ? readFileSync(file, 'utf8') : null);
 
 // fix(review) commits after `head` (a validate brief from before this field: none counted).
-function fixesSince(git, head) {
+function fixesSince(git: (...args: string[]) => string, head: string | undefined): number {
 	if (!head) return 0;
 	try { return git('log', '--format=%s', `${head}..HEAD`).split('\n').filter((x) => x.startsWith('fix(review):')).length; } catch { return 0; }
 }
 
-export function snapshotOf(toplevel) {
+export function snapshotOf(toplevel: string): Snapshot {
 	const state = readState(toplevel) ?? {};
 	const dir = join(toplevel, state.folder ?? '');
-	const git = (...args) => execFileSync('git', ['-C', toplevel, ...args], { encoding: 'utf8' }).trim();
+	const git = (...args: string[]) => execFileSync('git', ['-C', toplevel, ...args], { encoding: 'utf8' }).trim();
 	const branch = git('rev-parse', '--abbrev-ref', 'HEAD');
 	const base = git('merge-base', state.base ?? `origin/${baseBranch}`, 'HEAD');
 	const specReview = read(join(dir, 'SPEC-REVIEW.md')) ?? '';
@@ -173,11 +192,11 @@ export function snapshotOf(toplevel) {
 		answered: state.answered ?? [],
 		briefs: state.briefs ?? {},
 		commit: state.commit ?? null,
-		files: Object.fromEntries([['research', 'RESEARCH.md'], ['plan', 'PLAN.md'], ['blocked', 'BLOCKED.md'], ['asBuilt', HANDOFF_FILES['as-built']], ['validation', 'VALIDATION.md'], ['review', 'REVIEW.md']].map(([k, f]) => [k, read(join(dir, f))])),
+		files: Object.fromEntries([['research', 'RESEARCH.md'], ['plan', 'PLAN.md'], ['blocked', 'BLOCKED.md'], ['asBuilt', HANDOFF_FILES['as-built']], ['validation', 'VALIDATION.md'], ['review', 'REVIEW.md']].map(([k, f]) => [k, read(join(dir, f))])) as Snapshot['files'],
 		t1: { spec: specShaFor(toplevel), reviewed: lastField(specReview, 'spec-sha'), verdict: readVerdict(specReview) },
 		subjects: git('log', '--format=%s', `${base}..HEAD`).split('\n').filter(Boolean),
 		fixesAfterValidate: fixesSince(git, state.briefs?.validate?.head),
-		checks: (read(join(toplevel, '.wf', 'checks.log')) ?? '').split('\n').filter(Boolean).flatMap((l) => { try { return [JSON.parse(l)]; } catch { return []; } }).map((c) => ({ ...c, row: c.row == null ? null : Number(c.row) })),
+		checks: (read(join(toplevel, '.wf', 'checks.log')) ?? '').split('\n').filter(Boolean).flatMap((l) => { try { return [JSON.parse(l) as { row: number | string | null; result: string }]; } catch { return []; } }).map((c) => ({ ...c, row: c.row == null ? null : Number(c.row) })),
 	};
 }
 
@@ -190,11 +209,11 @@ export async function runNext() {
 	let { say, effects } = nextAction(snapshotOf(toplevel));
 	for (const e of effects) {
 		if (e.step) await runStep(e.step, { quiet: true });
-		else writeState(toplevel, addQuestion(readState(toplevel), e.ask));
+		else writeState(toplevel, addQuestion(readState(toplevel)!, e.ask));
 	}
 	// A question just recorded is printed as an open one, with the q<n> that `wf decide --q` takes.
 	if (effects.some((e) => e.ask)) {
-		await notifyAdapters(readState(toplevel));
+		await notifyAdapters(readState(toplevel)!);
 		({ say } = nextAction(snapshotOf(toplevel)));
 	}
 	console.log(say);

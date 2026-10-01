@@ -6,13 +6,17 @@
 //              the stricter svelte-check, so the --tsgo one above is dropped then)
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
+import type { CheckTask } from '../../check.mts';
 
-const isPyTest = (f) => /(^|\/)tests?\//.test(f) || /(^|\/)test_[^/]+\.py$/.test(f);
-const isJsTest = (f) => /\.(test|spec)\.[cm]?[jt]s$/.test(f);
+export type Pkg = { name: string; dir: string; svelte: boolean };
+export type PkgFor = (file: string) => Pkg | null;
+
+const isPyTest = (f: string) => /(^|\/)tests?\//.test(f) || /(^|\/)test_[^/]+\.py$/.test(f);
+const isJsTest = (f: string) => /\.(test|spec)\.[cm]?[jt]s$/.test(f);
 
 // Pure: the commands to run, in order. `pkgFor(file)` returns { name, dir, svelte } for a frontend
 // file or null; `test` is the plan row's test path or null; `pushHook`: the repo has a lefthook.yml.
-export function checkTasks({ changed, test, pkgFor, pushHook = false }) {
+export function checkTasks({ changed, test, pkgFor, pushHook = false }: { changed: string[]; test: string | null; pkgFor: PkgFor; pushHook?: boolean }): CheckTask[] {
 	const tasks = rowTasks({ changed, test, pkgFor, pushHook });
 	if (!pushHook || !changed.length || tasks.some((t) => t.missing)) return tasks;
 	// What the push will run, run before the commit: TJEW-670 (2026-09-28) was approved at T2, then
@@ -21,11 +25,11 @@ export function checkTasks({ changed, test, pkgFor, pushHook = false }) {
 	return [...tasks, { label: 'lefthook pre-push', cmd: 'pnpm', args: ['exec', 'lefthook', 'run', 'pre-push', ...changed.flatMap((f) => ['--file', f])], cwd: '.' }];
 }
 
-function rowTasks({ changed, test, pkgFor, pushHook }) {
-	const tasks = [];
-	const add = (t) => { if (!tasks.some((x) => x.label === t.label)) tasks.push(t); };
+function rowTasks({ changed, test, pkgFor, pushHook }: { changed: string[]; test: string | null; pkgFor: PkgFor; pushHook: boolean }): CheckTask[] {
+	const tasks: CheckTask[] = [];
+	const add = (t: CheckTask) => { if (!tasks.some((x) => x.label === t.label)) tasks.push(t); };
 	const backend = changed.filter((f) => f.startsWith('packages/backend/') && f.endsWith('.py'));
-	const rel = (f) => (f.startsWith('packages/backend/') ? f.slice('packages/backend/'.length) : f);
+	const rel = (f: string) => (f.startsWith('packages/backend/') ? f.slice('packages/backend/'.length) : f);
 	if (backend.length) {
 		add({ label: `ruff check ${backend.map(rel).join(' ')}`, cmd: 'uv', args: ['run', '--frozen', 'ruff', 'check', ...backend.map(rel)], cwd: 'packages/backend' });
 		add({ label: `ruff format --check ${backend.map(rel).join(' ')}`, cmd: 'uv', args: ['run', '--frozen', 'ruff', 'format', '--check', ...backend.map(rel)], cwd: 'packages/backend' });
@@ -34,12 +38,12 @@ function rowTasks({ changed, test, pkgFor, pushHook }) {
 	if (test?.endsWith('.py') && !pytests.includes(test)) pytests.push(test);
 	if (pytests.length) add({ label: `pytest ${pytests.map(rel).join(' ')}`, cmd: 'uv', args: ['run', '--frozen', 'pytest', ...pytests.map(rel)], cwd: 'packages/backend' });
 
-	const pkgs = new Map();
+	const pkgs = new Map<string, Pkg & { tests: string[] }>();
 	for (const f of changed.filter((f) => f.startsWith('packages/frontend/'))) {
 		const pkg = pkgFor(f);
 		if (!pkg) continue;
 		if (!pkgs.has(pkg.name)) pkgs.set(pkg.name, { ...pkg, tests: [] });
-		if (isJsTest(f)) pkgs.get(pkg.name).tests.push(relative(pkg.dir, f).replace(/\\/g, '/'));
+		if (isJsTest(f)) pkgs.get(pkg.name)!.tests.push(relative(pkg.dir, f).replace(/\\/g, '/'));
 	}
 	for (const pkg of pkgs.values()) {
 		if (pkg.svelte && !pushHook) add({ label: `svelte-check ${pkg.name}`, cmd: 'pnpm', args: ['--filter', pkg.name, 'exec', 'svelte-check', '--threshold', 'error', '--incremental', '--tsgo'], cwd: '.' });
@@ -60,17 +64,17 @@ function rowTasks({ changed, test, pkgFor, pushHook }) {
 
 // Nearest package.json above a frontend file; svelte-check only where a svelte.config lives.
 // `dir` comes back repo-relative, because checkTasks makes test paths relative to it.
-export function realPkgFor(toplevel) {
-	const cache = new Map();
+export function realPkgFor(toplevel: string): PkgFor {
+	const cache = new Map<string, Pkg | null>();
 	return (file) => {
 		let dir = dirname(join(toplevel, file));
 		const stop = join(toplevel, 'packages', 'frontend');
 		while (dir.startsWith(stop) && dir !== stop) {
 			if (!cache.has(dir)) {
 				const manifest = join(dir, 'package.json');
-				cache.set(dir, existsSync(manifest) ? { name: JSON.parse(readFileSync(manifest, 'utf8')).name, dir: relative(toplevel, dir).replace(/\\/g, '/'), svelte: existsSync(join(dir, 'svelte.config.js')) } : null);
+				cache.set(dir, existsSync(manifest) ? { name: (JSON.parse(readFileSync(manifest, 'utf8')) as { name: string }).name, dir: relative(toplevel, dir).replace(/\\/g, '/'), svelte: existsSync(join(dir, 'svelte.config.js')) } : null);
 			}
-			if (cache.get(dir)) return cache.get(dir);
+			if (cache.get(dir)) return cache.get(dir)!;
 			dir = dirname(dir);
 		}
 		return null;

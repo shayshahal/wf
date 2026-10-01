@@ -2,7 +2,7 @@
 import { anchorToolPaths } from './anchor.mts';
 
 let failed = 0;
-const check = (name, cond) => { console.log(`  ${cond ? 'ok  ' : 'FAIL'} ${name}`); if (!cond) failed++; };
+const check = (name: string, cond: unknown) => { console.log(`  ${cond ? 'ok  ' : 'FAIL'} ${name}`); if (!cond) failed++; };
 const live = 'C:\\Users\\x\\.local\\share\\wf';
 check('a doc path points at the installed copy', anchorToolPaths('read `{{wf}}/process/A.md`', live) === 'read `C:/Users/x/.local/share/wf/process/A.md`');
 check('{{project}} is the project\'s folder in the installed copy', anchorToolPaths('`{{project}}/ROUND.md`', live, 'p') === '`C:/Users/x/.local/share/wf/projects/p/ROUND.md`');

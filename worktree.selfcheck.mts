@@ -4,8 +4,8 @@
 import { mainCheckout, parseWorktreeList, resolveWorktree, urlLines, worktreesHome } from './worktree.mts';
 
 let failures = 0;
-const check = (name, cond, detail = '') =>
-  console.log(cond ? `  ok   ${name}` : `  FAIL ${name}${detail ? ` — ${detail}` : ''}`) || (cond || failures++);
+const check = (name: string, cond: unknown, detail = '') =>
+  (console.log(cond ? `  ok   ${name}` : `  FAIL ${name}${detail ? ` — ${detail}` : ''}`) as unknown) || (cond || failures++);
 
 const porcelain = 'worktree C:/r/.bare\r\nbare\r\n\r\nworktree C:/wt/dev\r\nHEAD abc\r\nbranch refs/heads/dev\r\n\r\nworktree C:/wt/qa\r\nHEAD def\r\ndetached\r\n\r\nworktree C:/wt/fix-bjew-1\r\nHEAD 123\r\nbranch refs/heads/fix/bjew-1\r\n';
 const trees = parseWorktreeList(porcelain);
@@ -19,7 +19,7 @@ check('resolve by branch', resolveWorktree('fix/bjew-1', trees).path === 'C:/wt/
 check('resolve by folder name', resolveWorktree('qa', trees).path === 'C:/wt/qa');
 check('resolve by absolute path, either slash', resolveWorktree('C:\\wt\\dev\\', trees).branch === 'dev');
 let err = '';
-try { resolveWorktree('nope', trees); } catch (e) { err = e.message; }
+try { resolveWorktree('nope', trees); } catch (e) { err = (e as Error).message; }
 check('an unknown name throws with the candidates', err.startsWith('no worktree for "nope"') && err.includes('fix/bjew-1  C:/wt/fix-bjew-1'), err);
 
 const clone = [{ path: 'C:/work/jx', branch: 'dev', bare: false }, { path: 'C:/work/jx/.claude/worktrees/fix-a', branch: 'fix/a', bare: false }];

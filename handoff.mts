@@ -12,27 +12,27 @@ import { planCommitRows } from './prompt.mts';
 export const newToken = () => randomBytes(3).toString('hex');
 
 // The key a brief is recorded under: the phase, and the row for implement.
-export const briefKey = (phase, n) => (phase === 'implement' ? `implement ${n}` : phase);
+export const briefKey = (phase: string, n?: number | string | null) => (phase === 'implement' ? `implement ${n}` : phase);
 
 // The file each phase writes, in the round folder.
-export const HANDOFF_FILES = { research: 'RESEARCH.md', plan: 'PLAN.md', 'as-built': 'proof/CALL-STACK-AS-BUILT.md', validate: 'VALIDATION.md' };
+export const HANDOFF_FILES: Record<string, string> = { research: 'RESEARCH.md', plan: 'PLAN.md', 'as-built': 'proof/CALL-STACK-AS-BUILT.md', validate: 'VALIDATION.md' };
 
-export const tokenLine = (token) => `<!-- brief: ${token} -->`;
+export const tokenLine = (token: string) => `<!-- brief: ${token} -->`;
 
 // Pure: the last brief token in a file, or null.
-export function tokenOf(text) {
+export function tokenOf(text: string | null | undefined): string | null {
 	return [...(text ?? '').matchAll(/<!--\s*brief:\s*([0-9a-f]+)\s*-->/g)].at(-1)?.[1] ?? null;
 }
 
 // Pure: `matches plan` | `deviates` | null, from VALIDATION.md's Verdict line.
-export function validationVerdict(text) {
+export function validationVerdict(text: string | null | undefined): string | null {
 	return /^Verdict:[ \t]*(matches plan|deviates)\b/m.exec((text ?? '').replace(/\r\n/g, '\n'))?.[1] ?? null;
 }
 
 // Pure: null when `text` is the phase's current handoff, else why not. `brief` is the recorded
 // brief ({ token }) or undefined: a round begun before briefs (or a file a person wrote on
 // purpose, with no brief) is judged on its sections alone.
-export function handoffGap(phase, text, brief) {
+export function handoffGap(phase: string, text: string | null | undefined, brief: { token: string } | null | undefined): string | null {
 	const file = HANDOFF_FILES[phase];
 	if (text == null) return `no ${file}`;
 	const token = tokenOf(text);
@@ -47,7 +47,7 @@ export function handoffGap(phase, text, brief) {
 // Pure: null when every line of VALIDATION.md's `## Intent` is one verdict, and every `met:` has a
 // measurement on each side (prompts/validate.md); else the first line that is not. v1's claim
 // table: a claim is measured before and after, or visibly NOT MEASURED, never met from the code.
-export function intentGap(text) {
+export function intentGap(text: string): string | null {
 	const section = /^## Intent[ \t]*\n([\s\S]*?)(?=^## |(?![\s\S]))/m.exec(text.replace(/\r\n/g, '\n'))?.[1];
 	const lines = (section ?? '').split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('<!--'));
 	if (!lines.length) return 'VALIDATION.md has no `## Intent` lines';
@@ -61,13 +61,13 @@ export function intentGap(text) {
 }
 
 // Pure: PLAN.md's Class line, or null.
-export function planClass(text) {
+export function planClass(text: string | null | undefined): string | null {
 	return /^Class:[ \t]*([ABC])\b/m.exec((text ?? '').replace(/\r\n/g, '\n'))?.[1] ?? null;
 }
 
 // Pure: PLAN.md's Asks, one `- <question> — default: <default>` line each (prompts/plan.md). A line
 // saying none, or no section, is no Asks.
-export function planAsks(text) {
+export function planAsks(text: string | null | undefined): { text: string; dflt: string | null }[] {
 	const section = /^## Asks[ \t]*\n([\s\S]*?)(?=^## |(?![\s\S]))/m.exec((text ?? '').replace(/\r\n/g, '\n'))?.[1] ?? '';
 	return section.split('\n').map((l) => l.trim()).filter((l) => /^[-*]\s+/.test(l)).map((l) => l.replace(/^[-*]\s+/, ''))
 		.filter((l) => !/^(none|\(none\)|—|-)\.?$/i.test(l))
@@ -78,10 +78,10 @@ export function planAsks(text) {
 }
 
 // Pure: the row's message as a commit subject: backticks and surrounding space dropped.
-export const rowSubject = (row) => row.message.replace(/^`|`$/g, '').trim();
+export const rowSubject = (row: { message: string }) => row.message.replace(/^`|`$/g, '').trim();
 
 // Pure: row n is done when a commit since the base has its message and `wf check` was green on it
 // (.wf/checks.log lines, parsed). The check is the record the validate agent reads too.
-export function rowDone(row, { subjects, checks }) {
+export function rowDone(row: { n: number; message: string }, { subjects, checks }: { subjects: string[]; checks: { row: number | null; result: string }[] }): boolean {
 	return subjects.includes(rowSubject(row)) && checks.some((c) => c.row === row.n && c.result === 'green');
 }

@@ -4,7 +4,10 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-export const dataDir = (worktree) => join(worktree, '.wf', 'plannotator');
+import type { ReviewFeedback } from '../../review-format.mts';
+import type { ReviewUI } from '../../seams.mts';
+type FeedbackLine = ReviewFeedback & { surface?: string; ts: string };
+export const dataDir = (worktree: string) => join(worktree, '.wf', 'plannotator');
 // The binary: PATH first; else the Windows installer's dir, because a harness started
 // before the install (pi, herdr) keeps its old PATH and would otherwise fall back to $EDITOR.
 const installedExe = () => (process.env.LOCALAPPDATA ? join(process.env.LOCALAPPDATA, 'plannotator', 'plannotator.exe') : null);
@@ -20,8 +23,8 @@ export function isPlannotatorPresent() {
   if (process.env.PLANNOTATOR_DISABLE === '1') return false;
   return plannotatorBin() !== null;
 }
-function newestLine(dir, surface, since) {
-  let best = null;
+function newestLine(dir: string, surface: string, since: string) {
+  let best: FeedbackLine | null = null;
   const fb = join(dir, 'feedback');
   for (const proj of existsSync(fb) ? readdirSync(fb) : []) {
     const f = join(fb, proj, 'index.jsonl');
@@ -29,7 +32,7 @@ function newestLine(dir, surface, since) {
     for (const raw of readFileSync(f, 'utf8').split('\n')) {
       if (!raw.trim()) continue;
       try {
-        const line = JSON.parse(raw); // partial write on submit throws — skipped
+        const line: FeedbackLine = JSON.parse(raw); // partial write on submit throws — skipped
         if (line.surface === surface && (!since || line.ts >= since) && (!best || line.ts > best.ts)) best = line;
       } catch { /* skip */ }
     }
@@ -37,12 +40,12 @@ function newestLine(dir, surface, since) {
   return best;
 }
 // Blocking spawn (human submits in the browser); fold the newest line. Null = dismissed/none.
-function runAndFold({ worktree, args, surface, since }) {
-  spawnSync(plannotatorBin(), args, { cwd: worktree, env: { ...process.env, PLANNOTATOR_DATA_DIR: dataDir(worktree) }, stdio: 'inherit' });
+function runAndFold({ worktree, args, surface, since }: { worktree: string; args: string[]; surface: string; since: string }) {
+  spawnSync(plannotatorBin()!, args, { cwd: worktree, env: { ...process.env, PLANNOTATOR_DATA_DIR: dataDir(worktree) }, stdio: 'inherit' });
   const line = newestLine(dataDir(worktree), surface, since);
   return !line || line.decision === 'dismissed' ? null : line;
 }
-export const annotateFile = ({ worktree, file, since }) =>
+export const annotateFile: ReviewUI['annotate'] = ({ worktree, file, since }) =>
   runAndFold({ worktree, args: ['annotate', file, '--gate', '--json', '--require-approval'], surface: 'annotate', since });
-export const reviewDiff = ({ worktree, base, diffType = 'branch', since }) =>
+export const reviewDiff: ReviewUI['reviewDiff'] = ({ worktree, base, diffType = 'branch', since }) =>
   runAndFold({ worktree, args: ['review', '--base', base, '--diff-type', diffType, '--json'], surface: 'review', since });

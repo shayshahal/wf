@@ -6,8 +6,8 @@ import { seedDatabase, worktreeDatabase } from './db.mts';
 import { seedUrl } from './index.mts';
 import { basePortForBranch, slugForBranch } from '../../worktree.mts';
 
-export function runSeed(argv) {
-  const git = (...args) => execFileSync('git', args, { encoding: 'utf8' }).trim();
+export function runSeed(argv: string[]): void {
+  const git = (...args: string[]) => execFileSync('git', args, { encoding: 'utf8' }).trim();
   const branch = git('rev-parse', '--abbrev-ref', 'HEAD');
   const slug = slugForBranch(branch);
   const mongoUrl = seedUrl({ slug, port: basePortForBranch(branch) });

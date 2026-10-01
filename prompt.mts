@@ -21,11 +21,12 @@ const REVISE_ASKS = '\n## This is a revision\n\n`{{folder}}/PLAN.md` exists, and
 
 // A `## Commits` row is a table line whose first cell is the commit number; header and
 // `|---|` separator rows are not. `line` is verbatim (that is what the prompt shows).
-export function planCommitRows(text) {
+export type PlanRow = { n: number; line: string; message: string; files: string; check: string };
+export function planCommitRows(text: string): PlanRow[] {
 	const body = text.replace(/\r\n/g, '\n');
 	const section = /^## Commits[ \t]*\n([\s\S]*?)(?=^## |(?![\s\S]))/m.exec(body);
 	if (!section) return [];
-	const rows = [];
+	const rows: PlanRow[] = [];
 	for (const line of section[1].split('\n')) {
 		if (!line.trim().startsWith('|')) continue;
 		const cells = line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map((c) => c.trim());
@@ -36,12 +37,12 @@ export function planCommitRows(text) {
 }
 
 // Whitespace- or comma-separated paths in a row's `files` cell, backticks stripped.
-export function rowFiles(row) {
+export function rowFiles(row: Pick<PlanRow, 'files'> | null) {
 	return (row?.files ?? '').split(/[\s,]+/).map((f) => f.replace(/`/g, '').trim()).filter(Boolean);
 }
 
-export function renderPrompt(template, vars) {
-	return template.replace(/\{\{(\w+)\}\}/g, (m, key) => (key in vars ? String(vars[key]) : m));
+export function renderPrompt(template: string, vars: Record<string, unknown>) {
+	return template.replace(/\{\{(\w+)\}\}/g, (m, key: string) => (key in vars ? String(vars[key]) : m));
 }
 
 const templatesDir = join(dirname(fileURLToPath(import.meta.url)), 'prompts');
@@ -49,12 +50,15 @@ const templatesDir = join(dirname(fileURLToPath(import.meta.url)), 'prompts');
 // Pure: the body of TICKET.md's `## Intent` — the requester's words, verbatim — or null. Research and
 // plan start from it, and validate judges the diff against it, not only against the plan the round
 // wrote for itself (firstmate's "Captain's intent": the reviewer's acceptance criteria).
-export function ticketIntent(text) {
+export function ticketIntent(text: string) {
 	const body = text.replace(/\r\n/g, '\n').match(/^## Intent[ \t]*\n([\s\S]*?)(?=^## |(?![\s\S]))/m)?.[1].trim();
 	return body || null;
 }
 
 const INTENT_PHASES = ['research', 'plan', 'validate'];
+
+// The {{…}} a prompt template substitutes; the project's direct URLs add one per app.
+type PromptVars = { round: string; folder: string | null; base: string; review: string; intent?: string | null; overruled?: string; n?: number; total?: number; row?: string; [app: string]: unknown };
 
 export const PHASES = ['research', 'plan', 'implement', 'as-built', 'validate', 'fix-review'];
 export const USAGE = 'research | plan [--revise] | implement N | as-built | validate | fix-review';
@@ -62,7 +66,7 @@ export const USAGE = 'research | plan [--revise] | implement N | as-built | vali
 // The composed prompt for `argv` (`<phase> [N] [--revise]`), with `{ toplevel, state, folder, phase, n }`.
 // Throws with the reason it cannot be composed; `wf prompt` and `wf brief` (brief.mts) print it.
 // `implement N` records `commit: N` in state, which `wf check` fences on.
-export function composePrompt(argv) {
+export function composePrompt(argv: string[]) {
 	const phase = argv[0];
 	if (!PHASES.includes(phase)) throw new Error(`usage: <${USAGE}>`);
 	const toplevel = toplevelOf();
@@ -77,10 +81,10 @@ export function composePrompt(argv) {
 	// as-built diff against. origin/<base branch> for a round cut from another ref put the commits
 	// between the two into the diff (the TJEW-682 replay's second validate, 2026-09-27: three
 	// "Unplanned" lines, all from the reverts its base was built with).
-	const vars = { round: id, folder, base: state?.base ?? `origin/${baseBranch}`, review: from === -1 ? 'REVIEW.md' : argv[from + 1] };
+	const vars: PromptVars = { round: id, folder, base: state?.base ?? `origin/${baseBranch}`, review: from === -1 ? 'REVIEW.md' : argv[from + 1] };
 	if (INTENT_PHASES.includes(phase)) {
 		let ticket = '';
-		try { ticket = readFileSync(join(toplevel, folder, 'TICKET.md'), 'utf8'); } catch { /* reported below */ }
+		try { ticket = readFileSync(join(toplevel, folder!, 'TICKET.md'), 'utf8'); } catch { /* reported below */ }
 		vars.intent = ticketIntent(ticket);
 		if (!vars.intent) throw new Error(`${phase}: ${folder}/TICKET.md has no \`## Intent\` — the requester's words, verbatim and attributed (round skill, Start 1)`);
 	}
@@ -101,7 +105,7 @@ export function composePrompt(argv) {
 	if (existsSync(notes)) template += `\n${readFileSync(notes, 'utf8')}`;
 	if (phase === 'implement') {
 		const n = Number(argv[1]);
-		const plan = join(toplevel, folder, 'PLAN.md');
+		const plan = join(toplevel, folder!, 'PLAN.md');
 		let rows;
 		try {
 			rows = planCommitRows(readFileSync(plan, 'utf8'));
@@ -124,11 +128,11 @@ export function composePrompt(argv) {
 }
 
 // wf prompt: the prompt as it is, for reading. A dispatch runs `wf brief`, which adds the handoff.
-export function runPrompt(argv) {
+export function runPrompt(argv: string[]) {
 	try {
 		process.stdout.write(composePrompt(argv).text);
 	} catch (e) {
-		console.error(`wf prompt ${e.message}`);
+		console.error(`wf prompt ${(e as Error).message}`);
 		process.exit(2);
 	}
 }
