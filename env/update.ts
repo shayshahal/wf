@@ -45,9 +45,10 @@ export function install(gitDir: string, rev: string) {
 		rmSync(join(fresh, '_wf.tar'));
 		// The project's folder name, from the copy being installed. Read, not imported: the updater never
 		// loads project code, so a broken project cannot stop the update that fixes it.
-		// Any of the names wf has had: .mjs, .mts (2026-10-01), .ts (later the same day). An updater that does not
-		// know the name it installs fails every update and stays on the old copy.
-		const projectFile = ['project.ts', 'project.mts', 'project.mjs'].map((f) => join(fresh, f)).find((f) => existsSync(f));
+		// Any of the places wf has had it: project.mjs, .mts and .ts (2026-10-01), src/project.ts (the next
+		// move). An updater that does not know where the copy it installs keeps it fails every update and
+		// stays on the old copy.
+		const projectFile = ['src/project.ts', 'project.ts', 'project.mts', 'project.mjs'].map((f) => join(fresh, f)).find((f) => existsSync(f));
 		const project = projectFile && /projects\/([\w-]+)\/index\.m?[jt]s/.exec(readFileSync(projectFile, 'utf8'))?.[1];
 		if (!project) throw new Error('project.ts names no projects/<name>/index.ts');
 		for (const f of markdownUnder(fresh)) writeFileSync(f, anchorToolPaths(readFileSync(f, 'utf8'), LIVE, project));
