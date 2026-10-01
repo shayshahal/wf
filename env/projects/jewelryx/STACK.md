@@ -1,6 +1,6 @@
 # JewelryX: a worktree's stack
 
-What `index.mts`'s `setup`, `serve` and `teardown` do for JewelryX ({{wf}}/process/LIFECYCLE.md
+What `index.ts`'s `setup`, `serve` and `teardown` do for JewelryX ({{wf}}/process/LIFECYCLE.md
 is the part every project shares).
 
 Once per machine, from an **elevated** shell (it binds port 80): `portless service install --no-tls`
@@ -16,7 +16,7 @@ the worktree's own. `node` installs and builds the shared packages, `verify` ins
 mongo and seeds it.
 
 Servers: post-start tethers b2b, backend and admin on the hashed port P: b2b P, backend P+10000,
-admin P+20000 (`dev.mts`). Each child runs under `portless --name <slug>.<role>.jewelryx --app-port
+admin P+20000 (`dev.ts`). Each child runs under `portless --name <slug>.<role>.jewelryx --app-port
 <port>`, inside the tether's process tree (killing the tether frees all three hashed ports in
 <10 s; `wt remove`'s background teardown lags behind that with or without portless — measured
 9 min on 2026-09-22, both arms), giving the browser-facing names `http://<slug>.b2b.jewelryx.localhost`,
@@ -27,7 +27,7 @@ Server-side calls stay off the proxy: `INTERNAL_API_URL` is `http://127.0.0.1:<b
 `.localhost` name. `PORTLESS=0` skips the proxy and serves the hashed ports directly (fallback when
 the proxy is down); stale routes are cleared with `portless prune`.
 
-DB per worktree: `mongo.compose.yml` starts `jewelryx-mongo-<slug>` on 40000+(P−10000) (`db.mts`);
+DB per worktree: `mongo.compose.yml` starts `jewelryx-mongo-<slug>` on 40000+(P−10000) (`db.ts`);
 the `db` step brings it up and fills it with the project's fixture set
 (`packages/backend/scripts/seed_fixtures.py`). The env step points `MONGODB_URL`/`DATABASE_NAME`
 (`jewelryx_<slug>`) at it, so no worktree ever shares dev's Atlas database. `wf seed [--reset]`

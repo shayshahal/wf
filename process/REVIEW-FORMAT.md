@@ -1,8 +1,8 @@
 # Review format — the contract for SPEC-REVIEW.md (T1) and REVIEW.md (T2)
 
 Both files share one shape: a header block, one line per comment, a final verdict line.
-`review-format.mts` implements it (`foldFeedbackLine`, `renderHeader`/`renderSkeleton`,
-`readVerdict`); `design.mts` and `review.mts` only call those.
+`review-format.ts` implements it (`foldFeedbackLine`, `renderHeader`/`renderSkeleton`,
+`readVerdict`); `design.ts` and `review.ts` only call those.
 
 ```
 # Review — <round>
@@ -12,11 +12,11 @@ class: <A | B | C | —>
 base: <git ref the diff is against | n/a (SPEC review)>
 spec-sha: <sha256:<hex> of SPEC.md | n/a>
 date: <YYYY-MM-DD>
-urls: <one `<app>: <url>` line per app, worktree.mts urlLines
+urls: <one `<app>: <url>` line per app, worktree.ts urlLines
       | n/a — a detached worktree has no stack>
 ```
 
-The names come from the worktree's branch (`worktree.mts`, `wt`'s `sanitize`); a
+The names come from the worktree's branch (`worktree.ts`, `wt`'s `sanitize`); a
 detached worktree has no stack — omit the URLs and say so, never invent one.
 
 ```

@@ -2,9 +2,9 @@
 
 Run `wf …` from a worktree, never from the bare root. The worktree hooks are wf's, not the
 project's: `wf hook install` writes them into worktrunk's user config for this project only
-(`hook.mts`); run it again after changing `hook.mts` or the project's `setup` steps. User hooks
+(`hook.ts`); run it again after changing `hook.ts` or the project's `setup` steps. User hooks
 need no approval. What the hooks do is the project's: its `setup`, `serve` and `teardown` in
-`projects/<name>/index.mts` (JewelryX's: `{{project}}/STACK.md`).
+`projects/<name>/index.ts` (JewelryX's: `{{project}}/STACK.md`).
 
 Create worktrees only via `wf new <branch> [--base <ref>] [--class B|C] [--check] [--id <token>]...`
 (default base `origin/<the project's base branch>`) — it runs `wt switch --create --base --no-hooks`,
