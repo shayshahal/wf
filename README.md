@@ -9,33 +9,41 @@ round commits (for JewelryX, `bug-reports/<round>/`).
 
 ## Where things are
 
-- `wf.mjs`: the kit's entry. `run.mts` is the dispatcher; one module per command, each with a
-  `*.selfcheck.mts`
-- `seams.mts`: what differs between machines (worktrees, the database, review screen, notifications)
-  and the kit's defaults for it. An env's own entry plugs its pieces in: `env/wf.mjs` is Shay's.
-- `env/`: Shay's machine, which the kit never imports: worktrunk and its hooks (`env/hook.mts`,
-  `env/worktrees.mts`), self-update (`env/update.mts`), plannotator and herdr (`env/adapters/`), and
-  per project a MongoDB container per worktree, portless and the permanent stacks (`env/projects/`).
-  `boundary.selfcheck.mts` fails if the kit reaches into it.
+- `wf.mjs`: the kit's entry. The code is under `src/`, one module per command, each with a
+  `*.selfcheck.ts` beside it:
+  - `src/run.ts` is the dispatcher; `src/paths.ts` says where wf's own files are (`WF_ROOT`)
+  - `src/seams.ts`: what differs between machines (worktrees, the database, review screen,
+    notifications) and the kit's defaults for it. An env's own entry plugs its pieces in:
+    `env/wf.mjs` is Shay's.
+  - `src/project.ts` → `projects/<name>/`: everything project-specific. See *Projects* below.
+  - `src/round/`: a round's state and its loop. `state.ts` is `.wf/state.json`; `next.ts` is
+    `wf next`, the round's next action from its state and files (the orchestrator's whole loop);
+    `brief.ts` + `handoff.ts` are `wf brief <phase>`, what a phase agent runs first and what it
+    hands the next; `step`, `ask`/`decide`, `prompt`, `status`, `notes`, and `handoff-hook.ts`
+    (`wf handoff`, the Claude Code hooks)
+  - `src/gates/`: what a round has to pass. `classify`, T1 (`design.ts`) and T2 (`review.ts`,
+    both written through `review-format.ts`), `wf check` (`check.ts`) and `wf deliver`
+  - `src/worktrees/`: `worktree.ts` is the one interface to worktrees: list, ports and slugs
+    (`ports.ts`), create (`wf new`), remove (`wf reap`). Where no env plugs its own in,
+    `git-worktree.ts` makes them in `<repo>/.claude/worktrees/`, and `wf serve` (`serve.ts`) runs
+    the stack in the background (pid and logs in the worktree's `.wf/`)
+  - `src/plugin/`: `plugin.ts` writes `claude/agents/` from `agents/`; `anchor.ts` fills the paths
+    in text (below)
+  - `src/selfcheck.ts` runs every selfcheck and tsc; `src/boundary.selfcheck.ts` fails if the kit
+    reaches into `env/`
+- `env/`: Shay's machine, which the kit never imports: worktrunk and its hooks (`env/hook.ts`,
+  `env/worktrees.ts`), self-update (`env/update.ts`), plannotator and herdr (`env/adapters/`), and
+  per project a MongoDB container per worktree, portless and the permanent stacks (`env/projects/`)
 - `skills/round/SKILL.md`: the orchestrator skill ("start 662", "resume 662"); `skills/design-session/` for T1
-- `next.mts`: `wf next`, the round's next action from its state and files: the orchestrator's
-  whole loop. `brief.mts` + `handoff.mts`: `wf brief <phase>`, what a phase agent runs first (the
-  prompt, and a token its file ends with); what each phase hands the next and whether it is current
 - `prompts/`: one prompt per phase (`wf prompt <phase>` prints it without the handoff)
-- `.claude-plugin/` + `claude/`: the Claude Code plugin (manifest, marketplace, agents, hooks).
-  `plugin.mts` writes `claude/agents/` from `agents/`; `handoff-hook.mts` is `wf handoff`, its hooks;
-  `wf notes` prints the project's ROUND.md for the round skill
+- `.claude-plugin/` + `claude/`: the Claude Code plugin (manifest, marketplace, agents, hooks)
 - `agents/`: `round-worker` (every phase), `codebase-locator` and `codebase-analyzer` (research, pi only)
 - `process/`: lifecycle, classes, design session, review format, touchpoints
-- `worktree.mts`: the one interface to worktrees: list, ports and slugs (`ports.mts`), create, remove.
-  Where no env plugs its own in, `git-worktree.mts` makes them in `<repo>/.claude/worktrees/`, and
-  `wf serve` (`serve.mts`) runs the stack in the background (pid and logs in the worktree's `.wf/`)
-- `project.mts` → `projects/<name>/`: everything project-specific. See *Projects* below.
 - `docs/plans/2026-09-17-workflow-v2.md`: the plan wf was built from (history; done)
 
 Text names wf's own files as `{{wf}}/…` (prompts, docs) or `${CLAUDE_PLUGIN_ROOT}/…` (the skills),
 and the project's folder as `{{project}}/…`: `wf prompt`, Claude Code (for the plugin) and the
-installed copy fill in the real paths (`anchor.mts`).
+installed copy fill in the real paths (`anchor.ts`).
 
 ## Install (the team: the Claude Code plugin)
 
@@ -46,7 +54,7 @@ The kit alone, as a Claude Code plugin: this repo is its marketplace (`.claude-p
 - **It carries:**
   - the skills `wf:round` and `wf:design-session`;
   - the agents `wf:round-worker`, `wf:codebase-locator` and `wf:codebase-analyzer` (generated
-    from `agents/` by `node plugin.mts`);
+    from `agents/` by `node plugin.ts`);
   - two hooks: a phase agent is sent back once while its handoff is missing (`wf handoff
     check`), and no fork is started inside a round (`wf handoff no-fork`).
 - **Needs:** git, gh, node ≥ 22.18 (wf is TypeScript, which Node runs as is from 22.18), the project's own tools (JewelryX: pnpm, uv), and one MongoDB
@@ -70,8 +78,8 @@ The kit alone, as a Claude Code plugin: this repo is its marketplace (`.claude-p
 
 ## Projects
 
-wf runs rounds on one project at a time, named in `project.mts`. Its folder, `projects/<name>/`,
-holds everything wf knows about it, and `index.mts` there is the only file the rest of wf imports:
+wf runs rounds on one project at a time, named in `project.ts`. Its folder, `projects/<name>/`,
+holds everything wf knows about it, and `index.ts` there is the only file the rest of wf imports:
 
 - names, ports and URLs of its apps; which changed files are pages
 - `setup` (the pre-start steps), `serve`, `teardown`
@@ -93,7 +101,7 @@ Claude Code, plus what the project's `setup` runs (JewelryX: pnpm, uv, docker, p
 1. `git clone https://github.com/shayshahal/wf ~/work/wf`: the editing clone. Never run wf from it.
    Then `git -C ~/work/wf config core.hooksPath .githooks`: its pre-push hook runs every self-check,
    and `npm ci` in it: tsc, which the self-checks run (wf itself needs no packages).
-2. `node ~/work/wf/env/update.mts`: installs the committed code into `~/.local/share/wf`, and wf's
+2. `node ~/work/wf/env/update.ts`: installs the committed code into `~/.local/share/wf`, and wf's
    agents into pi (`~/.pi/agent/agents`). Claude Code gets wf from the plugin, as the team does:
    nothing of wf goes into `~/.claude/`, where a user-level agent or skill would outrank the plugin's.
 3. Put `wf` on the PATH through Shay's entry: `~/bin/wf` is
@@ -119,11 +127,11 @@ Claude Code, plus what the project's `setup` runs (JewelryX: pnpm, uv, docker, p
 ## Update
 
 After a push to `main`, the next `wf` command installs it by itself and prints
-`wf: updated <old> → <new>`. `wf update` fetches first. After changing `env/hook.mts` or the project's
+`wf: updated <old> → <new>`. `wf update` fetches first. After changing `env/hook.ts` or the project's
 `setup` steps: `wf hook install` again.
 
 ## Self-checks
 
-From this folder: `node selfcheck.mts` (every `*.selfcheck.mts`, wf's and the projects', and `tsc`, in
-parallel). Pure checks, no network; `review.selfcheck.mts` needs a git checkout (this one). The pre-push hook
+From this folder: `node selfcheck.ts` (every `*.selfcheck.ts`, wf's and the projects', and `tsc`, in
+parallel). Pure checks, no network; `review.selfcheck.ts` needs a git checkout (this one). The pre-push hook
 runs it and refuses a red push.
