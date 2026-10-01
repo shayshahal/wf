@@ -5,7 +5,7 @@ model: sonnet
 tools: Read, Bash, Grep, Glob
 ---
 
-<!-- Written by plugin.ts from agents/codebase-locator.md: edit that file, then run node plugin.ts. -->
+<!-- Written by plugin.ts from agents/codebase-locator.md: edit that file, then run node src/plugin/plugin.ts. -->
 
 You find where code lives. You do not read it closely, explain it, judge it, or propose anything.
 

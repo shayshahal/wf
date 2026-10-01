@@ -1,7 +1,7 @@
 // env/worktrees.selfcheck.ts — node env/worktrees.selfcheck.ts → exit 0 when green.
 // Pure arm: the removal plan on Shay's machine (worktrees.ts). Nothing is run or removed.
-import { teardown } from '../project.ts';
-import { plug } from '../seams.ts';
+import { teardown } from '../src/project.ts';
+import { plug } from '../src/seams.ts';
 import { pieces } from './projects/jewelryx/index.ts';
 import { removalPlan } from './worktrees.ts';
 

@@ -9,6 +9,6 @@ if (!(major > 23 || (major === 23 && minor >= 6) || (major === 22 && minor >= 18
 	process.exit(1);
 }
 const { fileURLToPath } = await import('node:url');
-const { run } = await import('./run.ts');
+const { run } = await import('./src/run.ts');
 
 await run(process.argv.slice(2), { entry: fileURLToPath(import.meta.url) });

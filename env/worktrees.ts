@@ -2,10 +2,10 @@
 // removes them. Plugged into the kit's createWorktree and removalPlan seams by env/wf.mjs.
 import { closeSync, openSync, readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
-import { teardown } from '../project.ts';
-import { stragglersStep } from '../serve.ts';
-import { excludeWfFolder, resolveWorktree } from '../worktree.ts';
-import type { RemovalStep, Seams } from '../seams.ts';
+import { teardown } from '../src/project.ts';
+import { stragglersStep } from '../src/worktrees/serve.ts';
+import { excludeWfFolder, resolveWorktree } from '../src/worktrees/worktree.ts';
+import type { RemovalStep, Seams } from '../src/seams.ts';
 
 // Created with no hooks, then only wf's (`wt hook <type> user:`) run inside it. worktrunk reads the
 // project's hooks from the folder the command runs in, and 20 older checkouts still carry the

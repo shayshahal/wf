@@ -4,8 +4,8 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { ReviewFeedback } from '../../review-format.ts';
-import type { ReviewUI } from '../../seams.ts';
+import type { ReviewFeedback } from '../../src/gates/review-format.ts';
+import type { ReviewUI } from '../../src/seams.ts';
 type FeedbackLine = ReviewFeedback & { surface?: string; ts: string };
 export const dataDir = (worktree: string) => join(worktree, '.wf', 'plannotator');
 // The binary: PATH first; else the Windows installer's dir, because a harness started

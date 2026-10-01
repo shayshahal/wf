@@ -4,7 +4,7 @@
 import { execFileSync } from 'node:child_process';
 import { seedDatabase, worktreeDatabase } from './db.ts';
 import { seedUrl } from './index.ts';
-import { basePortForBranch, slugForBranch } from '../../worktree.ts';
+import { basePortForBranch, slugForBranch } from '../../src/worktrees/worktree.ts';
 
 export function runSeed(argv: string[]): void {
   const git = (...args: string[]) => execFileSync('git', args, { encoding: 'utf8' }).trim();

@@ -3,7 +3,7 @@
 // and what the kit's project folder does with them plugged in. Nothing is run.
 import { devCommands } from '../../../projects/jewelryx/dev.ts';
 import { stackUrls, teardown } from '../../../projects/jewelryx/index.ts';
-import { plug } from '../../../seams.ts';
+import { plug } from '../../../src/seams.ts';
 import { pieces, portlessServers, stackNames } from './index.ts';
 import { mongoPortForBase, mongoUrlFromDockerPort, worktreeMongoUrl } from './mongo.ts';
 

@@ -1,7 +1,7 @@
 // checks.selfcheck.ts — node projects/jewelryx/checks.selfcheck.ts → exit 0 when green.
 // Pure: JewelryX's commands for a diff and a plan row, through core's buildTasks (the row's check
 // cell, the repro) with this project's checkTasks, as `wf check` runs them. No git, no runners.
-import { buildTasks as coreBuildTasks } from '../../check.ts';
+import { buildTasks as coreBuildTasks } from '../../src/gates/check.ts';
 import { checkTasks } from './checks.ts';
 import type { PkgFor } from './checks.ts';
 

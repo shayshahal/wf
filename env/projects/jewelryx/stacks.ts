@@ -21,7 +21,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { SpawnOptions } from 'node:child_process';
 import { copySecrets } from '../../../projects/jewelryx/env.ts';
-import { basePortForBranch } from '../../../worktree.ts';
+import { basePortForBranch } from '../../../src/worktrees/worktree.ts';
 import { SECRETS, stackNames } from './index.ts';
 import { mongoPortForBase, mongoUp, seedContainer } from './mongo.ts';
 

@@ -9,28 +9,36 @@ round commits (for JewelryX, `bug-reports/<round>/`).
 
 ## Where things are
 
-- `wf.mjs`: the kit's entry. `run.ts` is the dispatcher; one module per command, each with a
-  `*.selfcheck.ts`
-- `seams.ts`: what differs between machines (worktrees, the database, review screen, notifications)
-  and the kit's defaults for it. An env's own entry plugs its pieces in: `env/wf.mjs` is Shay's.
+- `wf.mjs`: the kit's entry. The code is under `src/`, one module per command, each with a
+  `*.selfcheck.ts` beside it:
+  - `src/run.ts` is the dispatcher; `src/paths.ts` says where wf's own files are (`WF_ROOT`)
+  - `src/seams.ts`: what differs between machines (worktrees, the database, review screen,
+    notifications) and the kit's defaults for it. An env's own entry plugs its pieces in:
+    `env/wf.mjs` is Shay's.
+  - `src/project.ts` → `projects/<name>/`: everything project-specific. See *Projects* below.
+  - `src/round/`: a round's state and its loop. `state.ts` is `.wf/state.json`; `next.ts` is
+    `wf next`, the round's next action from its state and files (the orchestrator's whole loop);
+    `brief.ts` + `handoff.ts` are `wf brief <phase>`, what a phase agent runs first and what it
+    hands the next; `step`, `ask`/`decide`, `prompt`, `status`, `notes`, and `handoff-hook.ts`
+    (`wf handoff`, the Claude Code hooks)
+  - `src/gates/`: what a round has to pass. `classify`, T1 (`design.ts`) and T2 (`review.ts`,
+    both written through `review-format.ts`), `wf check` (`check.ts`) and `wf deliver`
+  - `src/worktrees/`: `worktree.ts` is the one interface to worktrees: list, ports and slugs
+    (`ports.ts`), create (`wf new`), remove (`wf reap`). Where no env plugs its own in,
+    `git-worktree.ts` makes them in `<repo>/.claude/worktrees/`, and `wf serve` (`serve.ts`) runs
+    the stack in the background (pid and logs in the worktree's `.wf/`)
+  - `src/plugin/`: `plugin.ts` writes `claude/agents/` from `agents/`; `anchor.ts` fills the paths
+    in text (below)
+  - `src/selfcheck.ts` runs every selfcheck and tsc; `src/boundary.selfcheck.ts` fails if the kit
+    reaches into `env/`
 - `env/`: Shay's machine, which the kit never imports: worktrunk and its hooks (`env/hook.ts`,
   `env/worktrees.ts`), self-update (`env/update.ts`), plannotator and herdr (`env/adapters/`), and
-  per project a MongoDB container per worktree, portless and the permanent stacks (`env/projects/`).
-  `boundary.selfcheck.ts` fails if the kit reaches into it.
+  per project a MongoDB container per worktree, portless and the permanent stacks (`env/projects/`)
 - `skills/round/SKILL.md`: the orchestrator skill ("start 662", "resume 662"); `skills/design-session/` for T1
-- `next.ts`: `wf next`, the round's next action from its state and files: the orchestrator's
-  whole loop. `brief.ts` + `handoff.ts`: `wf brief <phase>`, what a phase agent runs first (the
-  prompt, and a token its file ends with); what each phase hands the next and whether it is current
 - `prompts/`: one prompt per phase (`wf prompt <phase>` prints it without the handoff)
-- `.claude-plugin/` + `claude/`: the Claude Code plugin (manifest, marketplace, agents, hooks).
-  `plugin.ts` writes `claude/agents/` from `agents/`; `handoff-hook.ts` is `wf handoff`, its hooks;
-  `wf notes` prints the project's ROUND.md for the round skill
+- `.claude-plugin/` + `claude/`: the Claude Code plugin (manifest, marketplace, agents, hooks)
 - `agents/`: `round-worker` (every phase), `codebase-locator` and `codebase-analyzer` (research, pi only)
 - `process/`: lifecycle, classes, design session, review format, touchpoints
-- `worktree.ts`: the one interface to worktrees: list, ports and slugs (`ports.ts`), create, remove.
-  Where no env plugs its own in, `git-worktree.ts` makes them in `<repo>/.claude/worktrees/`, and
-  `wf serve` (`serve.ts`) runs the stack in the background (pid and logs in the worktree's `.wf/`)
-- `project.ts` → `projects/<name>/`: everything project-specific. See *Projects* below.
 - `docs/plans/2026-09-17-workflow-v2.md`: the plan wf was built from (history; done)
 
 Text names wf's own files as `{{wf}}/…` (prompts, docs) or `${CLAUDE_PLUGIN_ROOT}/…` (the skills),

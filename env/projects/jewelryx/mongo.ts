@@ -8,7 +8,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { seedDatabase } from '../../../projects/jewelryx/db.ts';
 import type { Port } from '../../../projects/jewelryx/index.ts';
-import type { RemovalStep } from '../../../seams.ts';
+import type { RemovalStep } from '../../../src/seams.ts';
 
 // Pure: mongo host port for a base port P. Throws outside 10000-19999.
 export function mongoPortForBase(basePort: Port): number {

@@ -9,10 +9,10 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { opensWindows } from '../../editor.ts';
-import { writeCloneLaunch } from '../../new.ts';
-import { readState, roundOf, toplevelOf, writeState } from '../../state.ts';
-import { basePortForBranch, slugForBranch } from '../../worktree.ts';
+import { opensWindows } from '../../src/worktrees/editor.ts';
+import { writeCloneLaunch } from '../../src/worktrees/new.ts';
+import { readState, roundOf, toplevelOf, writeState } from '../../src/round/state.ts';
+import { basePortForBranch, slugForBranch } from '../../src/worktrees/worktree.ts';
 import { logins, stackUrls } from './index.ts';
 import type { Origins, SeedRole } from './index.ts';
 import { VERIFY_SKILL } from './round.ts';

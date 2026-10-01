@@ -2,7 +2,7 @@
 // Pure arms: the wt hook block and its install, the reap gate, what a teardown counts as failed.
 // Nothing is run. What the project's steps do: projects/<name>/index.selfcheck.ts.
 import { gateVerdict, hookBlock, teardownFailures, withHookBlock } from './hook.ts';
-import { repo, setup } from '../project.ts';
+import { repo, setup } from '../src/project.ts';
 
 let failures = 0;
 const check = (name: string, cond: unknown, detail = '') =>

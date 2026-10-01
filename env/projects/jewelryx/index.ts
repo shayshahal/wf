@@ -4,7 +4,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { containerUrl, mongoTeardown, mongoUp, worktreeMongoUrl } from './mongo.ts';
 import type { Machine, Origins, Wrap } from '../../../projects/jewelryx/index.ts';
-import type { Command } from '../../../seams.ts';
+import type { Command } from '../../../src/seams.ts';
 
 // The machine's copy of the files the project's .worktreeinclude names, at the same paths. Until
 // 2026-09-24 new worktrees copied them from the dev worktree (`wt step copy-ignored --from dev`),

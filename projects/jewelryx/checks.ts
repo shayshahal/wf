@@ -6,7 +6,7 @@
 //              the stricter svelte-check, so the --tsgo one above is dropped then)
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
-import type { CheckTask } from '../../check.ts';
+import type { CheckTask } from '../../src/gates/check.ts';
 
 export type Pkg = { name: string; dir: string; svelte: boolean };
 export type PkgFor = (file: string) => Pkg | null;

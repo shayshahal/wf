@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import type { State } from '../../state.ts';
+import type { State } from '../../src/round/state.ts';
 // Herdr sidebar adapter: present only inside a Herdr pane; pushes the declared step as the pane summary.
 export const isHerdrPresent = () => process.env.HERDR_ENV === '1';
 export function reportStepToHerdr(state: State) {

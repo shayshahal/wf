@@ -1,6 +1,6 @@
 // show.selfcheck.ts — node show.selfcheck.ts → exit 0 when green.
 import assert from 'node:assert/strict';
-import { opensWindows } from '../../editor.ts';
+import { opensWindows } from '../../src/worktrees/editor.ts';
 import type { Origins } from './index.ts';
 import { openLineOf, paneText, parseOpen, setupArgs, setupLinesOf, showArgs, unMsys } from './show.ts';
 

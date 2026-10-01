@@ -9,9 +9,9 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { repo, serve, setup, teardown } from '../project.ts';
-import type { State } from '../state.ts';
-import { urlLines } from '../worktree.ts';
+import { repo, serve, setup, teardown } from '../src/project.ts';
+import type { State } from '../src/round/state.ts';
+import { urlLines } from '../src/worktrees/worktree.ts';
 import { stackNames } from './projects/jewelryx/index.ts';
 
 const BEGIN = '# >>> wf worktree hooks';

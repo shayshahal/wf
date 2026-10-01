@@ -1,4 +1,4 @@
-// env/update.selfcheck.ts — node env/update.selfcheck.ts (the path anchoring it installs: ../anchor.selfcheck.ts)
+// env/update.selfcheck.ts — node env/update.selfcheck.ts (the path anchoring it installs: ../src/plugin/anchor.selfcheck.ts)
 import { shouldUpdate } from './update.ts';
 
 let failed = 0;
