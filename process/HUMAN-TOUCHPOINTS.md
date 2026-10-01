@@ -7,9 +7,10 @@ command writes the skeleton and opens `$VISUAL` / `$EDITOR` / `code`, and the us
 the `path:line — text` lines by hand. Either way the same files land.
 
 **T1 — `wf design <round>`** writes `<round folder>/SPEC-REVIEW.md`. It requires SPEC.md,
-marks `step design --waiting-on user`, opens the spec for annotation (Plannotator
+marks `step design --waiting-on user`, opens the SPEC's `## For T1` for annotation (Plannotator
 `annotate --gate`), and folds the result into the REVIEW-FORMAT.md shape: one comment
-line each plus a final `verdict:` line.
+line each plus a final `verdict:` line. `## For T1` is what T1 approves and what binds the build;
+a T1 given in chat records what the user was shown (DESIGN-SESSION.md § 5).
 
 **T2 — `wf review <round> [--base <ref>]`** writes `<round folder>/REVIEW.md`, then commits and pushes it to the PR branch so the
 merge carries it. It marks
@@ -26,7 +27,8 @@ changes-requested → `step implement`; a missing or dismissed verdict exits 2.
 (measured on BJEW-586, 2026-09-22 — all three happened in one round):
 
 - `wf step implement` on a B/C round refuses unless `SPEC-REVIEW.md` approves the
-  **current** `SPEC.md` sha. A re-spec is a re-T1; a chat question is not a T1.
+  **current** `SPEC.md` sha. A re-spec is a re-T1; a chat question is not a T1, and a chat verdict
+  is one only once `SPEC-REVIEW.md` records it.
 - `wf review` on a B/C round refuses without `proof/CALL-STACK-AS-BUILT.md` in the diff,
   and lists it first under `look at:` — the contract change is what T2 reads first.
 - `wf review --done` refuses when the reviewed base (header, and what Plannotator
