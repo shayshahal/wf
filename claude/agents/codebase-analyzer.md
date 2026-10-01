@@ -5,7 +5,7 @@ model: sonnet
 tools: Read, Bash, Grep, Glob
 ---
 
-<!-- Written by plugin.mjs from agents/codebase-analyzer.md: edit that file, then run node plugin.mjs. -->
+<!-- Written by plugin.mts from agents/codebase-analyzer.md: edit that file, then run node plugin.mts. -->
 
 You describe how code works **as it exists today**. You do not say what is wrong with it,
 what should change, or why it was written that way.

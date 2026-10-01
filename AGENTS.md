@@ -7,7 +7,7 @@ wf is Shay's agent workflow (README.md). This file is for changing wf itself.
 The installed copy (`~/.local/share/wf`) updates itself on the next `wf` command after `main`
 moves. There is no staging and no CI. So, before every push:
 
-- `node selfcheck.mjs`, all green (the pre-push hook runs it too, once `core.hooksPath` is set)
+- `node selfcheck.mts`, all green (the pre-push hook runs it too, once `core.hooksPath` is set)
 - for a change to worktree creation, the hooks or a project's `setup`/`serve`/`teardown`: one real
   cycle from the editing clone, through Shay's entry: `node env/wf.mjs hook install` (points
   worktrunk at this clone), `node env/wf.mjs new bench/<x>`, check the stack answers,
@@ -19,11 +19,11 @@ moves. There is no staging and no CI. So, before every push:
 
 - Core (everything outside `projects/` and `env/`) names no project and no project technology: no
   app, port offset, database, language tool, tracker or person other than Shay. What a project
-  differs in, it gets from `project.mjs`.
+  differs in, it gets from `project.mts`.
 - The kit (core and `projects/`) is what the team runs, alone. It never imports `env/` and never
-  names Shay's machine (`boundary.selfcheck.mjs`). What differs between machines goes through a
-  seam (`seams.mjs`), with Shay's piece in `env/` and plugged in by `env/wf.mjs`.
-- `projects/<name>/index.mjs` is the only file core imports from a project folder. Its exports are
+  names Shay's machine (`boundary.selfcheck.mts`). What differs between machines goes through a
+  seam (`seams.mts`), with Shay's piece in `env/` and plugged in by `env/wf.mjs`.
+- `projects/<name>/index.mts` is the only file core imports from a project folder. Its exports are
   what the project needed, not a designed interface: add one when core needs something
   project-specific, and do not add fields "for later".
 - A project's facts that hold without wf (layout, test conventions, seed data, tracker ids) live in
@@ -33,7 +33,13 @@ moves. There is no staging and no CI. So, before every push:
 
 ## Style
 
-- One module per command, each with a `*.selfcheck.mjs`: pure functions checked there, the
+- One module per command, each with a `*.selfcheck.mts`: pure functions checked there, the
   side-effecting shell around them kept thin.
 - Comments say why, with the incident or measurement that decided it (date, round, number).
-- No dependencies.
+- TypeScript that Node runs as is: erasable syntax only (no `enum`, `namespace`, parameter
+  properties), and imports name their `.mts` file. Node never reads the types, so only `tsc` in
+  `selfcheck.mts` catches a wrong one. The two entries, `wf.mjs` and `env/wf.mjs`, stay JavaScript:
+  the plugin, `~/bin/wf` and the hooks call them by name, and `wf.mjs` must still load on an old Node
+  to say it is too old.
+- No runtime dependencies: wf runs on Node alone. `typescript` and `@types/node` (package.json) are
+  for the `tsc` check only.

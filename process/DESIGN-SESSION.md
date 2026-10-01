@@ -105,7 +105,7 @@ before revising, and say what changed. BJEW-586 rev 2 came from one six-word que
 *«are we sure this needs to be an effect?»* — which removed a defect class, deleted a previous
 round's workaround and rewrote the recommendation. **A revised SPEC has a new sha, and a new sha
 is a new T1**: `wf step implement` refuses a B/C round whose `SPEC-REVIEW.md` approves an older
-sha or carries no `approved` verdict (`step.mjs` `t1Gap`). A chat question is not a T1; a verdict
+sha or carries no `approved` verdict (`step.mts` `t1Gap`). A chat question is not a T1; a verdict
 given in chat is, once `SPEC-REVIEW.md` records it (move 5).
 
 ## 5 · freeze
