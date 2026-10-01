@@ -1,6 +1,7 @@
 {
   "private": true,
-  "description": "wf has no runtime dependencies. These two are for `tsc --noEmit` in selfcheck.mts only: wf itself runs on Node alone.",
+  "type": "module",
+  "description": "wf has no runtime dependencies. These two are for `tsc --noEmit` in selfcheck.ts only: wf itself runs on Node alone.",
   "devDependencies": {
     "@types/node": "26.6.3",
     "typescript": "7.0.2"

@@ -80,7 +80,7 @@ four replies in a row were the text before the last tool call, the files right e
 A T2 that asks for a fix in a file no PLAN.md row lists first gets a new row (`fix(review): …`, its
 files, `repro`): `wf check` fences against the rows (3187601171). Every dispatch is a **fresh**
 agent: never resume or message a finished round agent, and never read its session file to "see
-what happened". If a line `wf next` printed is wrong for the round, the fix is in wf (`next.mts`),
+what happened". If a line `wf next` printed is wrong for the round, the fix is in wf (`next.ts`),
 not a step you take around it: stop and tell the user. `wf brief` is the dispatched agent's (it refuses
 a brief `wf next` is not dispatching); to read a phase's prompt, `wf prompt`. PLAN.md is the plan
 agent's and `.wf/state.json` is wf's: you edit neither (BJEW-562, 2026-09-27: a previewed brief
