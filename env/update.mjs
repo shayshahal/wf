@@ -45,8 +45,10 @@ export function install(gitDir, rev) {
 		rmSync(join(fresh, '_wf.tar'));
 		// The project's folder name, from the copy being installed. Read, not imported: the updater never
 		// loads project code, so a broken project cannot stop the update that fixes it.
-		const project = /projects\/([\w-]+)\/index\.mjs/.exec(readFileSync(join(fresh, 'project.mjs'), 'utf8'))?.[1];
-		if (!project) throw new Error('project.mjs names no projects/<name>/index.mjs');
+		// .mts or .mjs: this updater installs the TypeScript wf too, whose file is project.mts (2026-09-30).
+		const projectFile = ['project.mts', 'project.mjs'].map((f) => join(fresh, f)).find((f) => existsSync(f));
+		const project = projectFile && /projects\/([\w-]+)\/index\.m[jt]s/.exec(readFileSync(projectFile, 'utf8'))?.[1];
+		if (!project) throw new Error('project.mts names no projects/<name>/index.mts');
 		for (const f of markdownUnder(fresh)) writeFileSync(f, anchorToolPaths(readFileSync(f, 'utf8'), LIVE, project));
 		writeFileSync(join(fresh, 'REVISION'), `${rev}\n`);
 		// Swap whole, so a half-written copy is never live; links point at LIVE's path and follow.
