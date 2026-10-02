@@ -35,6 +35,9 @@ export type State = {
 	briefs?: Record<string, Brief>;
 	// The validation token whose T2 setup `wf show` already ran (projects/jewelryx/show.ts).
 	t2_setup?: string;
+	// The tracker note `wf deliver` wrote, from the worktree's top: `wf next` reads which of its
+	// sections are posted (src/round/next.ts, unpostedSections).
+	note?: string;
 };
 
 export function toplevelOf(cwd = process.cwd()): string {
