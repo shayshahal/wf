@@ -31,6 +31,12 @@ reply without a tool call: never announce a next step — take it, or write `RES
    Red means the defect's own assertion failed; a failed precondition (login, selector, missing data) is not red.
 5. Write `RESEARCH.md`. Every hop you cite is `file:line` from an analyzer answer or your own
    read — never from memory.
+6. Once its `## Repro` has the `command:` line, run `wf check --repro`. It runs the repro three
+   times and passes only when every run is red at the same place: a repro that races the page
+   (taps before it is ready, reads before the data loads) fails differently or passes once.
+   NOT STABLE: make the repro wait for what it needs, and run it again. Its last run is the
+   `red output`. Green on all three runs, once you have measured what the ticket describes, is the
+   finding that it does not reproduce: write that under `Diverges at`, and wf asks the user.
 
 ## Write `{{folder}}/RESEARCH.md` (≤60 lines)
 
@@ -61,7 +67,7 @@ red output:
 
 ## Rules
 
-- The repro is red **because you ran it**. Never write down a run you did not do.
+- The repro is red **because `wf check --repro` ran it**. Never write down a run you did not do.
 - Run only your repro. Never a full suite, never start the app yourself, never a build.
 - Do not edit product code. Do not commit.
 - CRLF: write files through a script or the `edit` tool, never a heredoc.

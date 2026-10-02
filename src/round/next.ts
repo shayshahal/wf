@@ -46,6 +46,8 @@ export type Snapshot = {
 	t1: { spec: string | null; reviewed: string | null; verdict: string | null };
 	subjects: string[];
 	checks: { row: number | null; result: string }[];
+	// The last `wf check --repro` result per research token: stable | unstable | green (checks.log, row `repro`).
+	repro: Record<string, string>;
 	fixesAfterValidate: number;
 	note: { file: string; text: string | null } | null;
 };
@@ -99,6 +101,16 @@ export function nextAction(s: Snapshot): { say: string; effects: Effect[] } {
 			if (step !== 'research') effects.push({ step: ['research', '--waiting-on', 'user'] });
 			return act(`wait user: check — RESEARCH.md says whether it reproduces. Go on: \`${wf} step plan\`, then set the started status; stop: \`WF_FORCE_REAP=1 ${wf} reap ${s.branch}\``);
 		}
+		// Plan builds on the repro being a measurement: `wf check --repro` found it red at one place three
+		// times for this brief (TJEW-665: a repro racing hydration blocked commit 2). A check round stops
+		// above: its repro may be green, which is its answer.
+		const token = brief('research')?.token;
+		const repro = token ? (s.repro ?? {})[token] : 'stable';
+		if (repro === 'green') {
+			if (step !== 'research') effects.push({ step: ['research', '--waiting-on', 'user'] });
+			return act(`wait user: it does not reproduce — \`${wf} check --repro\` was green on every run (RESEARCH.md says what was measured). Go on anyway: \`${wf} step plan\`; stop: \`WF_FORCE_REAP=1 ${wf} reap ${s.branch}\``);
+		}
+		if (repro !== 'stable') return dispatch('research', [], `\`${wf} check --repro\` has not found its repro red at one place on every run`);
 		effects.push({ step: ['plan'] });
 		step = 'plan';
 	}
@@ -212,7 +224,8 @@ export function snapshotOf(toplevel: string): Snapshot {
 		subjects: git('log', '--format=%s', `${base}..HEAD`).split('\n').filter(Boolean),
 		fixesAfterValidate: fixesSince(git, state.briefs?.validate?.head),
 		note: state.note ? { file: state.note, text: read(join(toplevel, state.note)) } : null,
-		checks: (read(join(toplevel, '.wf', 'checks.log')) ?? '').split('\n').filter(Boolean).flatMap((l) => { try { return [JSON.parse(l) as { row: number | string | null; result: string }]; } catch { return []; } }).map((c) => ({ ...c, row: c.row == null ? null : Number(c.row) })),
+		repro: Object.fromEntries((read(join(toplevel, '.wf', 'checks.log')) ?? '').split('\n').flatMap((l) => { try { const c = JSON.parse(l); return c.row === 'repro' && c.token ? [[c.token as string, c.result as string]] : []; } catch { return []; } })),
+		checks: (read(join(toplevel, '.wf', 'checks.log')) ?? '').split('\n').filter(Boolean).flatMap((l) => { try { return [JSON.parse(l) as { row: number | string | null; result: string }]; } catch { return []; } }).filter((c) => c.row !== 'repro').map((c) => ({ ...c, row: c.row == null ? null : Number(c.row) })),
 	};
 }
 

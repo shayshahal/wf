@@ -9,6 +9,9 @@
 //             edits the repro runs it too, and it must be red: that run is the round's before-the-fix
 //             measurement, its output kept in checks.log (TJEW-670: the repro was fixed in a row
 //             checked `—`, and two of four subitems never had a red run)
+// `wf check --repro` (research, prompts/research.md): RESEARCH.md's repro, three times; stable only when
+// all three are red at the same place. Its line in checks.log (row `repro`, result stable|unstable)
+// carries the research brief's token, which `wf next` requires before plan.
 // Every run appends one JSON line to .wf/checks.log (row, the row's check, each task's exit,
 // green|red). The validate agent reads that, never the commit message: "the check was run"
 // is then observed, not claimed (llm-as-a-verifier: trust observed output, not narration).
@@ -92,8 +95,69 @@ export function isReproOnly(files: string[], folder: string | null) {
 }
 
 // Pure: the checks.log line for one run.
-export function checkRunLine({ ts, row, rowCheck, tasks, result }: { ts: string; row: number | string | null; rowCheck: string | null; tasks: CheckRun[]; result: string }) {
-	return JSON.stringify({ ts, row, rowCheck, tasks, result });
+export function checkRunLine({ ts, row, rowCheck, tasks, result, token }: { ts: string; row: number | string | null; rowCheck: string | null; tasks: CheckRun[]; result: string; token?: string }) {
+	return JSON.stringify({ ts, row, rowCheck, tasks, result, ...(token ? { token } : {}) });
+}
+
+// TJEW-665 (2026-09-28): the repro tapped before the page had hydrated, failed on its precondition
+// instead of the defect, and blocked commit 2. A repro racing the page fails differently from run to
+// run, or passes once; three runs red at one place is a repro that measures the defect.
+export const REPRO_RUNS = 3;
+
+// Pure: what a failing run failed on: its first error line and the first stack frame outside
+// node_modules (file:line), colours and durations dropped. Two runs red for one reason share it.
+export function failureSignature(output: string): string {
+	const lines = output.replace(/\x1b\[[0-9;]*m/g, '').split(/\r?\n/);
+	const error = lines.find((l) => /^\s*(\w*Error|AssertionError)\b/.test(l))?.trim();
+	const frame = lines.map((l) => /^\s*at .*?([^\s()\\/]+:\d+):\d+\)?\s*$/.exec(l)).find((m) => m && !m[0].includes('node_modules'))?.[1];
+	const signature = [error, frame].filter(Boolean).join(' @ ') || lines.filter((l) => l.trim()).at(-1)?.trim() || '';
+	return signature.replace(/\s*\(\d+(\.\d+)?m?s\)/g, '');
+}
+
+// Pure: whether the repro's runs make it a measurement: `stable`, every run red at one place;
+// `green`, every run green (the ticket does not reproduce here, a finding); else `unstable`.
+export type ReproResult = 'stable' | 'unstable' | 'green';
+export function reproVerdict(runs: { exit: number | null; output: string }[]): { result: ReproResult; say: string } {
+	if (runs.every((r) => r.exit === 0)) return { result: 'green', say: `green on all ${runs.length} runs: the defect does not show on this checkout` };
+	const green = runs.findIndex((r) => r.exit === 0);
+	if (green >= 0) return { result: 'unstable', say: `run ${green + 1} of ${runs.length} was green: the repro passes on this checkout some of the time` };
+	const signatures = runs.map((r) => failureSignature(r.output));
+	if (new Set(signatures).size > 1) return { result: 'unstable', say: `the runs failed in different places:\n${signatures.map((s, i) => `  run ${i + 1}: ${s}`).join('\n')}` };
+	return { result: 'stable', say: `red ${runs.length} times, each at: ${signatures[0]}` };
+}
+
+export function runRepro() {
+	const toplevel = toplevelOf();
+	const state = readState(toplevel);
+	const { folder } = roundOf(state, toplevel);
+	const research = join(toplevel, folder ?? '', 'RESEARCH.md');
+	const repro = existsSync(research) ? reproCommand(readFileSync(research, 'utf8')) : null;
+	if (!repro) {
+		console.error('check --repro: RESEARCH.md ## Repro has no `command:` line yet: write it first');
+		process.exit(1);
+	}
+	const [cmd, ...args] = tokenize(repro);
+	const runs: { exit: number | null; output: string }[] = [];
+	for (let i = 1; i <= REPRO_RUNS; i++) {
+		const run = spawnSync(cmd, args, { cwd: toplevel, encoding: 'utf8', shell: process.platform === 'win32' });
+		const output = `${run.stdout ?? ''}${run.stderr ?? ''}`;
+		runs.push({ exit: run.status, output });
+		console.log(`run ${i}: ${run.status === 0 ? 'green' : `red at ${failureSignature(output)}`}`);
+	}
+	const verdict = reproVerdict(runs);
+	mkdirSync(join(toplevel, '.wf'), { recursive: true });
+	const tasks = runs.map((r) => ({ label: repro, exit: r.exit, output: r.output.split('\n').slice(-15).join('\n').trimEnd() }));
+	appendFileSync(join(toplevel, '.wf', 'checks.log'), `${checkRunLine({ ts: new Date().toISOString(), row: 'repro', rowCheck: null, tasks, result: verdict.result, token: state?.briefs?.research?.token })}\n`);
+	console.log(`\n${verdict.result === 'unstable' ? 'NOT STABLE' : verdict.result}: ${verdict.say}`);
+	if (verdict.result === 'unstable') {
+		console.log('Fix the repro so it waits for what it needs (the page, the data), then run `wf check --repro` again.');
+		process.exit(1);
+	}
+	if (verdict.result === 'green') {
+		console.log('If the repro measures what the ticket describes, that is the finding: RESEARCH.md says it does not reproduce, and wf next asks the user.');
+		return;
+	}
+	console.log(`\nthe last run, for RESEARCH.md's red output:\n${runs.at(-1)!.output.split('\n').filter((l) => l.trim()).slice(-10).join('\n')}`);
 }
 
 export function runCheck() {

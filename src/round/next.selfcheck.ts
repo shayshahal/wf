@@ -20,7 +20,7 @@ const base = (patch: Fixture = {}) => ({
 	branch: 'fix/r', entry: 'C:/wf/wf.mjs', step: 'classify', klass: 'A', questions: [], answered: [], commit: null,
 	briefs: { research: { token: 'aaa111', count: 1 }, plan: { token: 'bbb222', count: 1 }, validate: { token: 'ccc333', count: 1 } },
 	files: { research: null, plan: null, blocked: null, asBuilt: null, validation: null, review: null },
-	t1: { spec: null, reviewed: null, verdict: null }, subjects: [], checks: [], note: null, ...patch,
+	t1: { spec: null, reviewed: null, verdict: null }, subjects: [], checks: [], repro: { aaa111: 'stable' }, note: null, ...patch,
 	...(patch.files ? { files: { research: null, plan: null, blocked: null, asBuilt: null, validation: null, review: null, ...patch.files } } : {}),
 }) as Snapshot;
 const say = (s: Snapshot) => nextAction(s).say;
@@ -41,6 +41,13 @@ check('research → wf step plan, dispatch plan', steps(researched).join() === '
 
 // a check (wf new --check): research first, then Shay; his go is `wf step plan`
 check('a check with no RESEARCH.md yet: research, as a round', say(base({ check: true, briefs: {} })).startsWith('dispatch research:'));
+// The repro is a measurement before plan: wf check --repro found it red at one place on every run (TJEW-665).
+check('research in, its repro never found stable for this brief: research again, saying why', say(base({ files: { research: RESEARCH }, repro: {} })) === 'dispatch research: run `node C:/wf/wf.mjs brief research` in this worktree and do exactly what it prints (again: `node C:/wf/wf.mjs check --repro` has not found its repro red at one place on every run)', say(base({ files: { research: RESEARCH }, repro: {} })));
+check('a stable repro from an earlier brief does not count', say(base({ files: { research: RESEARCH }, repro: { old999: 'stable' } })).startsWith('dispatch research:'));
+const notReproduced = base({ files: { research: RESEARCH }, repro: { aaa111: 'green' } });
+check('green on every run: wait on the user, no second research', say(notReproduced).startsWith('wait user: it does not reproduce — `node C:/wf/wf.mjs check --repro` was green on every run') && steps(notReproduced).join() === 'research --waiting-on user', say(notReproduced));
+check('unstable for this brief: research again', say(base({ files: { research: RESEARCH }, repro: { aaa111: 'unstable' } })).startsWith('dispatch research:'));
+check('a check round needs no stable repro: green is its answer', say(base({ check: true, files: { research: RESEARCH }, repro: {} })).startsWith('wait user: check'));
 const checked = base({ check: true, files: { research: RESEARCH } });
 check('a check, research in: it waits on the user, no plan', steps(checked).join() === 'research --waiting-on user' && say(checked).startsWith('wait user: check') && say(checked).includes('`node C:/wf/wf.mjs step plan`') && say(checked).includes('WF_FORCE_REAP=1 node C:/wf/wf.mjs reap fix/r'), say(checked));
 check('a check already waiting: the same line, no step again', !steps({ ...checked, step: 'research' }).length && say({ ...checked, step: 'research' }) === say(checked));
