@@ -29,7 +29,8 @@ const MAX_BRIEFS = 2;
 //     files: { research, plan, blocked, asBuilt, validation, review } (text or null),
 //     t1: { spec, reviewed, verdict } (SPEC.md's sha, SPEC-REVIEW.md's last spec-sha and verdict),
 //     subjects (commit subjects since the base), checks (.wf/checks.log lines),
-//     fixesAfterValidate (fix(review) commits since the validate brief's head) }
+//     fixesAfterValidate (fix(review) commits since the validate brief's head),
+//     note (the tracker note wf deliver wrote: its path and text, or null) }
 // → { say, effects }, effects being { step: [args] } | { ask: { to, text, dflt, source } }.
 export type Snapshot = {
 	branch: string;
@@ -46,6 +47,7 @@ export type Snapshot = {
 	subjects: string[];
 	checks: { row: number | null; result: string }[];
 	fixesAfterValidate: number;
+	note: { file: string; text: string | null } | null;
 };
 export type Effect = { step: string[]; ask?: undefined } | { ask: { to: string; text: string; dflt: string | null; source: string }; step?: undefined };
 
@@ -67,11 +69,18 @@ export function nextAction(s: Snapshot): { say: string; effects: Effect[] } {
 
 	if (open.length) return act(open.map((q) => `wait ${q.to}: q${q.n} ${q.text}${q.default ? ` (default: ${q.default})` : ''}`).join('\n'));
 	if (s.step === 'held') return act('wait user: the round is held (wf step <name> resumes it)');
-	if (s.step === 'merged') return act('done');
+	// The tracker hears last, one section per item, and a session can die between two posts: the note
+	// says which are posted, so a resumed round posts the rest and never one twice (2026-10-03: `done`
+	// right after deliver left a half-posted note with nothing to say so).
+	if (s.step === 'merged') {
+		const left = unpostedSections(s.note?.text ?? null);
+		if (left.length) return act(`post: ${left.join(', ')} — each section of ${s.note!.file} on its own item, with the delivered status (ROUND.md); right after each, its heading gets \` (posted)\`. Then \`${wf} next\``);
+		return act(`done: \`${wf} reap ${s.branch}\``);
+	}
 	// T2 is local, before anything leaves the machine; the approval is the merge, and the tracker hears
 	// last (Shay, 2026-09-27: BJEW-562's PR was merged in GitHub before its T2, and Monday said
 	// Fixed in Local before anyone had looked).
-	if (s.step === 'pr') return act(`deliver: T2 approved — \`${wf} deliver\` (push, PR, merge), then post the tracker note it wrote and set the delivered status (ROUND.md), then \`${wf} reap ${s.branch}\``);
+	if (s.step === 'pr') return act(`deliver: T2 approved — \`${wf} deliver\` (push, PR, merge, the tracker note), then \`${wf} next\``);
 	const t2 = `review: T2 — see the fix first (ROUND.md's T2, as the round skill's *Dispatch in this harness* says), then \`${wf} review ${s.branch}\`; once it has a verdict, \`${wf} review ${s.branch} --done\``;
 	if (s.step === 'review') {
 		if (readVerdict(s.files.review ?? '') === 'dismissed') return act(`wait user: T2 was closed without a verdict — \`${wf} review ${s.branch}\` again when they are ready`);
@@ -169,6 +178,12 @@ export function nextAction(s: Snapshot): { say: string; effects: Effect[] } {
 
 const read = (file: string) => (existsSync(file) ? readFileSync(file, 'utf8') : null);
 
+// Pure: the ids of the tracker note's `## <id>` sections not yet marked ` (posted)`. No note (a
+// round delivered before wf deliver recorded it) has nothing left to post.
+export function unpostedSections(note: string | null): string[] {
+	return [...(note ?? '').matchAll(/^## (\S+)(.*)$/gm)].filter((m) => !/\(posted\)/.test(m[2])).map((m) => m[1]);
+}
+
 // fix(review) commits after `head` (a validate brief from before this field: none counted).
 function fixesSince(git: (...args: string[]) => string, head: string | undefined): number {
 	if (!head) return 0;
@@ -196,6 +211,7 @@ export function snapshotOf(toplevel: string): Snapshot {
 		t1: { spec: specShaFor(toplevel), reviewed: lastField(specReview, 'spec-sha'), verdict: readVerdict(specReview) },
 		subjects: git('log', '--format=%s', `${base}..HEAD`).split('\n').filter(Boolean),
 		fixesAfterValidate: fixesSince(git, state.briefs?.validate?.head),
+		note: state.note ? { file: state.note, text: read(join(toplevel, state.note)) } : null,
 		checks: (read(join(toplevel, '.wf', 'checks.log')) ?? '').split('\n').filter(Boolean).flatMap((l) => { try { return [JSON.parse(l) as { row: number | string | null; result: string }]; } catch { return []; } }).map((c) => ({ ...c, row: c.row == null ? null : Number(c.row) })),
 	};
 }

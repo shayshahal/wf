@@ -1,7 +1,7 @@
 // next.selfcheck.ts — node next.selfcheck.ts → exit 0 when green.
 // Pure arms: wf next's action for each row of what was the round skill's *On each result* table
 // (next.ts nextAction), from a fixture round. Nothing is run.
-import { nextAction } from './next.ts';
+import { nextAction, unpostedSections } from './next.ts';
 import type { Snapshot } from './next.ts';
 import type { Brief, Question } from './state.ts';
 
@@ -20,7 +20,7 @@ const base = (patch: Fixture = {}) => ({
 	branch: 'fix/r', entry: 'C:/wf/wf.mjs', step: 'classify', klass: 'A', questions: [], answered: [], commit: null,
 	briefs: { research: { token: 'aaa111', count: 1 }, plan: { token: 'bbb222', count: 1 }, validate: { token: 'ccc333', count: 1 } },
 	files: { research: null, plan: null, blocked: null, asBuilt: null, validation: null, review: null },
-	t1: { spec: null, reviewed: null, verdict: null }, subjects: [], checks: [], ...patch,
+	t1: { spec: null, reviewed: null, verdict: null }, subjects: [], checks: [], note: null, ...patch,
 	...(patch.files ? { files: { research: null, plan: null, blocked: null, asBuilt: null, validation: null, review: null, ...patch.files } } : {}),
 }) as Snapshot;
 const say = (s: Snapshot) => nextAction(s).say;
@@ -93,8 +93,16 @@ check('the T2 fix committed → validate again: the PR carries VALIDATION.md (TJ
 check('a second T2 fix re-validates too, never escalating as a missing handoff', say(impl({ ...t2Fixed, fixesAfterValidate: 1, briefs: { ...base().briefs, validate: { token: 'ccc333', count: 3 } } })).startsWith('dispatch validate:'));
 check('validated after the fix → T2 again', say(impl({ ...t2Fixed, fixesAfterValidate: 0 })).startsWith('review: T2'));
 check('T2 dismissed: nothing merges, wait on the user', say(base({ step: 'review', files: { review: 'verdict: dismissed\n' } })).startsWith('wait user: T2 was closed'));
-check('T2 approved → deliver (push, PR, merge), then the tracker note, then reap', say(base({ step: 'pr' })) === 'deliver: T2 approved — `node C:/wf/wf.mjs deliver` (push, PR, merge), then post the tracker note it wrote and set the delivered status (ROUND.md), then `node C:/wf/wf.mjs reap fix/r`', say(base({ step: 'pr' })));
-check('merged → done', say(base({ step: 'merged' })) === 'done');
+check('T2 approved → deliver (push, PR, merge, the note), then wf next', say(base({ step: 'pr' })) === 'deliver: T2 approved — `node C:/wf/wf.mjs deliver` (push, PR, merge, the tracker note), then `node C:/wf/wf.mjs next`', say(base({ step: 'pr' })));
+// The tracker note: a section per item, each marked once posted, so a resumed round never posts one twice.
+const NOTE = '<!-- one per ## -->\n\n## TJEW-670.2\nתוקן ✅\nPR: u\n\n## TJEW-670.3\nתוקן ✅\nPR: u\n';
+const merged = (text: string | null) => base({ step: 'merged', note: { file: 'bug-reports/r/MONDAY.md', text } });
+check('merged, nothing posted → post every section', say(merged(NOTE)) === 'post: TJEW-670.2, TJEW-670.3 — each section of bug-reports/r/MONDAY.md on its own item, with the delivered status (ROUND.md); right after each, its heading gets ` (posted)`. Then `node C:/wf/wf.mjs next`', say(merged(NOTE)));
+check('one posted → only the other', say(merged(NOTE.replace('## TJEW-670.2', '## TJEW-670.2 (posted)'))).startsWith('post: TJEW-670.3 — '));
+check('all posted → done: reap', say(merged(NOTE.replace(/^## (\S+)$/gm, '## $1 (posted)'))) === 'done: `node C:/wf/wf.mjs reap fix/r`');
+check('no note recorded (delivered before wf recorded it) → done: reap', say(base({ step: 'merged' })) === 'done: `node C:/wf/wf.mjs reap fix/r`');
+check('a recorded note gone from disk → done, not a crash', say(merged(null)).startsWith('done: '));
+check('the ## lines of a section body are not sections', unpostedSections('## A\ntext ## B\n').join() === 'A');
 check('held → wait on the user', say(base({ step: 'held' })).startsWith('wait user: the round is held'));
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');

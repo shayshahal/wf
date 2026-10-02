@@ -30,6 +30,11 @@ before *Start*.
   per item. Fill each section's lines in plain Hebrew from `TICKET.md` and what the round changed, with
   no file path, code name or line number, show the user the exact text, and post each section on its
   own item without its `##` line.
+- A section whose heading has no ` (posted)` may still be on its item: a session can die between the
+  post and the mark. Before posting one, read the item's updates: one with the section's PR url is
+  that post, so mark the heading and post nothing. Pictures are uploaded under the PR's number
+  (`<pr>-before-1.png`), so one already in the column is this round's and is not uploaded again.
+  Statuses are safe to set twice.
 - The round's pictures go with the note: `proof/before-<n>.png` and `proof/after-<n>.png` in the round
   folder (research took the befores, validate the afters; they are gitignored, and gone after reap).
   The connector cannot attach a file to an update, only to a file column (BJEW-532). Read the item's

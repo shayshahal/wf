@@ -5,7 +5,8 @@
 //   2. the PR: PLAN.md verbatim + the pushed commits + VALIDATION.md (the validate agent's
 //      hop-by-hop as-built check; a word heuristic here printed "missing: loop" — TJEW-700)
 //   3. the merge, and the branch deleted
-//   4. the project's tracker note in the round folder (the round skill posts it last; wf never calls the tracker)
+//   4. the project's tracker note in the round folder (the round skill posts it last; wf never calls the
+//      tracker), its path in .wf/state.json for `wf next`
 //   5. `wf step merged`
 import { execFileSync, spawnSync } from 'node:child_process';
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
@@ -53,6 +54,11 @@ const git = (toplevel: string, args: string[]) => execFileSync('git', ['-C', top
 export async function runDeliver() {
 	const toplevel = toplevelOf();
 	const state = readState(toplevel);
+	// Run again after the merge, it pushed the deleted branch back and failed at gh pr merge.
+	if (state?.step === 'merged') {
+		console.error(`wf deliver: already merged${state.note ? ` (tracker note: ${state.note})` : ''}; \`wf next\` says what is left`);
+		process.exit(2);
+	}
 	const gate = openQuestionGate(state);
 	if (gate) {
 		console.error(`wf deliver: ${gate}`);
@@ -145,6 +151,7 @@ export async function runDeliver() {
 	// Every --id the round was made with: a round on subitems has one note per subitem (TJEW-670).
 	const note = trackerNote({ ids: state?.ids ?? [id], url: prUrl });
 	writeFileSync(join(toplevel, folder, note.file), note.text);
+	writeState(toplevel, { note: `${folder}/${note.file}` });
 	console.log(`${prUrl} merged; tracker note: ${folder}/${note.file}`);
 	await runStep(['merged']);
 }
