@@ -225,6 +225,9 @@ async function main() {
 			const token = tokenOf(readFileSync(join(ws, c.folder, 'RESEARCH.md'), 'utf8'));
 			mkdirSync(join(ws, '.wf'), { recursive: true });
 			writeFileSync(join(ws, '.wf', 'state.json'), JSON.stringify({ round: c.id, id: c.id, folder: c.folder, step: 'plan', base: c.base, briefs: { research: { token, count: 1 } } }, null, 2));
+			// The round's research was delivered: its repro counts as the stable one wf next asks for
+			// before plan (wf check --repro). An arm from before that check ignores the line.
+			writeFileSync(join(ws, '.wf', 'checks.log'), `${JSON.stringify({ row: 'repro', result: 'stable', token })}\n`);
 			return execFileSync(process.execPath, [join(armRoot(arm), 'wf.mjs'), 'brief', 'plan'], { cwd: ws, encoding: 'utf8', windowsHide: true });
 		});
 		const sessions = join(out, 'sessions', name);

@@ -75,8 +75,9 @@ export async function run(argv: string[], pieces: Partial<Seams> = {}) {
 		const { runPrompt } = await import('./round/prompt.ts');
 		runPrompt(rest);
 	} else if (cmd === 'check') {
-		const { runCheck } = await import('./gates/check.ts');
-		runCheck();
+		const { runCheck, runRepro } = await import('./gates/check.ts');
+		if (rest.includes('--repro')) runRepro();
+		else runCheck();
 	} else if (cmd === 'deliver') {
 		const { runDeliver } = await import('./gates/deliver.ts');
 		await runDeliver();
