@@ -10,6 +10,13 @@
   before the tests run; a spec starts logged in with `test.use({ storageState: ... })` (the comment in
   the config) and holds no login code. A feature file that disagrees with the screen: one line under
   `## Could not find`, starting `map drift:`, naming the file and what the screen showed instead.
+- A Figma frame the ticket links (`figma.com/design/<file key>/...?node-id=<a>-<b>`): read it with the
+  Figma tool, `get_figma_data` with that `fileKey` and `nodeId` `<a>:<b>` (under pi, from a `codemode`
+  script), and write the sizes, spacing and order it gives the element the ticket names under
+  `## Diverges at`, as the expected values, citing the node. A Figma screenshot is not a measure:
+  BJEW-602 had one, and T2 corrected the spacing twice (2026-09-28). The storefront's frames are not
+  named by screen: a ticket that refers to the Figma without a link gets one line under
+  `## Could not find`, never a frame you picked.
 - A screenshot of each screen the ticket is about, as it is on this checkout (the base: nothing is
   fixed yet): `control-jewelryx screenshot --name before-<n>` on the view that shows it, `n` from 1,
   then move the file to `{{folder}}/proof/before-<n>.png`. Validate takes `after-<n>` of the same view

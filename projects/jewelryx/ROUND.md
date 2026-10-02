@@ -8,8 +8,19 @@ before *Start*.
 - Tickets live on two boards: Bugs (`BJEW-`) and Tasks (`TJEW-`), both reachable by numeric id.
   Board ids, status labels and how a comment to Einat reads: `docs/agents/monday.md` in the worktree.
 - Fetch the whole item: every update and reply, oldest first, and every asset, both those attached
-  to updates **and those in the item's file columns** (`monday_get_assets` → `public_url` →
-  download into the round folder → `read` the image).
+  to updates **and those in the item's file columns**, and the same for each subitem. One
+  `all_api_read` call returns all of it (2026-10-03: BJEW-602, and TJEW-670 with its 11 subitems;
+  under pi, Monday's tools are called from a `codemode` script), with `variables` `{"ids": ["<item id>"]}`:
+  ```
+  query($ids: [ID!]) { items(ids: $ids) { id name board { id name } assets(assets_source: columns) { id name public_url }
+    updates(limit: 100) { id created_at text_body creator { name } assets { id name public_url }
+      replies { id created_at text_body creator { name } assets { id name public_url } } }
+    subitems { id name assets(assets_source: columns) { id name public_url }
+      updates(limit: 100) { id created_at text_body creator { name } assets { id name public_url }
+        replies { id created_at text_body creator { name } assets { id name public_url } } } } } }
+  ```
+  Then download each `public_url` into the round folder (it expires within the hour) and `read` the
+  images. 100 updates is a page: an item with that many needs `page: 2`.
 - A TJEW item that is one sentence is the "ticket that is a sentence" of *Start*: scope questions first.
 - An item with subitems is not one round (TJEW-670, 2026-09-28: a title, and 11 subitems that are
   11 changes). Fetch every subitem's thread and assets too, list them for the user (position, title,
