@@ -21,12 +21,11 @@ const OUT = join(homedir(), '.cache', 'wf-evals');
 // pnpm's pi shim names the bundle it runs; spawning node on it needs no shell (and opens no window).
 const PI_SHIM = join(homedir(), 'AppData', 'Local', 'pnpm', 'bin', 'pi');
 
-// Delivered rounds, by the commit that added their round folder to dev. Left out: BJEW-548 (Class C,
-// its plan came out of a design session, not the plan phase alone) and BJEW-603 (its TICKET.md is from
+// Delivered rounds, by the commit that added their round folder to dev. Left out: BJEW-548 and
+// TJEW-670.11 (a SPEC.md: their plans came after a design session the eval does not give the agent) and BJEW-603 (its TICKET.md is from
 // before `## Intent`, which wf brief now requires).
 export const CASES = [
 	{ id: 'TJEW-665', docs: 'aa51c35d1' },
-	{ id: 'TJEW-670.11', docs: '92d14e379' },
 	{ id: 'BJEW-602', docs: 'b2e0311b3' },
 	{ id: 'BJEW-562', docs: '13c61ffae' },
 	{ id: 'TJEW-670.1', docs: 'b873959ea' },
@@ -40,6 +39,7 @@ export type Grade = { handoff: string | null; rows: number; lastRepro: boolean; 
 
 // Pure: how a plan's prose names a file: its name, or for a SvelteKit route file (+page.svelte, which
 // every route has) its last three segments, the way plans write them (`listing/[id]/+page.svelte`).
+export const stemOf = (f: string) => f.split('/').at(-1)!.toLowerCase().replace(/[-_]/g, '');
 export const nameOf = (f: string) => { const parts = f.split('/'); return parts.at(-1)!.startsWith('+') ? parts.slice(-3).join('/') : parts.at(-1)!; };
 function section(text: string, title: string): string {
 	const lines = text.replace(/\r\n/g, '\n').split('\n');
@@ -54,16 +54,25 @@ function section(text: string, title: string): string {
 // call it left to the person, which the round's own plan made with their answer (BJEW-602, the
 // listing page: an Ask, default no; the round built it). It still fails, but is not a file the plan
 // never saw.
+// A file the round created counts as named when a row creates one of the same name, whatever its
+// folder, case or - and _, or a new file of the same kind in the same folder: a new file's name is the
+// plan's to choose (TJEW-670.1: BackButton.svelte in layout/; the plans made back-button.svelte,
+// admin/BackButton.svelte and layout/BackLink.svelte). `before`: the files of those folders at the base.
 // A null brief skips the token: the rounds' own plans from before handoff tokens (BJEW-603).
-export function grade({ plan, brief, fix }: { plan: string | null; brief: { token: string } | null; fix: string[] }): Grade {
+export function grade({ plan, brief, fix, created = [], before = [] }: { plan: string | null; brief: { token: string } | null; fix: string[]; created?: string[]; before?: string[] }): Grade {
 	const rows = plan ? planCommitRows(plan) : [];
 	const listed = new Set(rows.flatMap((r) => rowFiles(r)));
-	const missing = fix.filter((f) => !isTest(f) && !listed.has(f));
+	const stems = new Set([...listed].map(stemOf));
+	const dirOf = (f: string) => f.slice(0, f.lastIndexOf('/'));
+	const extOf = (f: string) => f.slice(f.lastIndexOf('.'));
+	const madeBeside = (f: string) => [...listed].some((l) => !before.includes(l) && dirOf(l) === dirOf(f) && extOf(l) === extOf(f));
+	const named = (f: string) => listed.has(f) || (created.includes(f) && (stems.has(stemOf(f)) || madeBeside(f)));
+	const missing = fix.filter((f) => !isTest(f) && !named(f));
 	const aside = plan ? section(plan, 'Not doing') + section(plan, 'Asks') : '';
 	const scoped = missing.filter((f) => aside.includes(nameOf(f)));
 	const handoff = handoffGap('plan', plan, brief);
 	const lastRepro = rows.at(-1)?.check.replace(/`/g, '').trim() === 'repro';
-	const recall = fix.length ? fix.filter((f) => listed.has(f)).length / fix.length : 1;
+	const recall = fix.length ? fix.filter(named).length / fix.length : 1;
 	return { handoff, rows: rows.length, lastRepro, missing, scoped, recall, pass: !handoff && lastRepro && !missing.length };
 }
 
@@ -106,7 +115,11 @@ function caseOf({ id, docs }: { id: string; docs: string }) {
 	const commits = git(REPO, 'log', '--format=%H %s', `${base}..${merge}^2`).split('\n').filter((l) => l && !/^\S+ (fix\(review\)|docs\()/.test(l)).map((l) => l.split(' ')[0]);
 	const touched = commits.flatMap((h) => git(REPO, 'show', '--name-only', '--format=', h).split('\n'));
 	const fix = [...new Set(touched)].filter((f) => f && !f.startsWith('bug-reports/')).sort();
-	return { id, docs, folder, base, fix };
+	const added = new Set(git(REPO, 'diff', '--name-only', '--diff-filter=A', base, `${merge}^2`).split('\n'));
+	const created = fix.filter((f) => added.has(f));
+	const dirs = [...new Set(created.map((f) => f.slice(0, f.lastIndexOf('/') + 1)))];
+	const before = dirs.length ? git(REPO, 'ls-tree', '--name-only', base, ...dirs).split('\n').filter(Boolean) : [];
+	return { id, docs, folder, base, fix, created, before };
 }
 
 function piCommand(): string[] {
@@ -140,14 +153,17 @@ function sessionCost(dir: string): number | null {
 	return seen ? total : null;
 }
 
-// A run's saved plans graded by today's grader, without an agent. The handoff (the brief's token) was
-// judged when it ran and is kept.
+// A run's saved plans graded by today's grader and today's cases (read from git again; a case since
+// dropped is left out), without an agent. The handoff (the brief's token) was judged when it ran and
+// is kept.
 function regrade(dir: string): string {
-	const saved = JSON.parse(readFileSync(join(dir, 'results.json'), 'utf8')) as { arms: string[]; cases: { id: string; fix: string[] }[]; results: Result[] };
-	const results = saved.results.map((r) => {
+	const saved = JSON.parse(readFileSync(join(dir, 'results.json'), 'utf8')) as { arms: string[]; results: Result[] };
+	const cases = CASES.map(caseOf);
+	const results = saved.results.filter((r) => cases.some((c) => c.id === r.case)).map((r) => {
 		const file = join(dir, 'plans', `${r.case}-${r.arm.replace(/[^\w.-]/g, '_')}-${r.run}.md`);
 		const plan = existsSync(file) ? readFileSync(file, 'utf8') : null;
-		const g = grade({ plan, brief: null, fix: saved.cases.find((c) => c.id === r.case)!.fix });
+		const c = cases.find((x) => x.id === r.case)!;
+		const g = grade({ plan, brief: null, fix: c.fix, created: c.created, before: c.before });
 		return { ...r, grade: { ...g, handoff: r.grade.handoff, pass: g.pass && !r.grade.handoff } };
 	});
 	return report(results, saved.arms);
@@ -166,7 +182,7 @@ async function main() {
 	// The round's own plan, graded the same way: what the grader asks of a plan a person approved.
 	for (const c of cases) {
 		const own = git(REPO, 'show', `${c.docs}:${c.folder}/PLAN.md`);
-		const g = grade({ plan: own, brief: tokenOf(own) ? { token: tokenOf(own)! } : null, fix: c.fix });
+		const g = grade({ plan: own, brief: tokenOf(own) ? { token: tokenOf(own)! } : null, fix: c.fix, created: c.created, before: c.before });
 		console.log(`${c.id}: ${c.fix.length} files shipped; the round's own plan ${g.pass ? 'passes' : `fails (${g.handoff ?? (g.missing.length ? `missing ${g.missing.join(' ')}` : 'last check not repro')})`}, recall ${Math.round(g.recall * 100)}%`);
 	}
 	if (process.argv.includes('--dry')) return;
@@ -217,7 +233,7 @@ async function main() {
 		const planFile = join(ws, c.folder, 'PLAN.md');
 		const plan = existsSync(planFile) ? readFileSync(planFile, 'utf8') : null;
 		const state = JSON.parse(readFileSync(join(ws, '.wf', 'state.json'), 'utf8'));
-		const result: Result = { arm, case: c.id, run: n, grade: grade({ plan, brief: state.briefs.plan, fix: c.fix }), cost: sessionCost(sessions), seconds: (Date.now() - started) / 1000, ...(r.code ? { error: `pi exit ${r.code}` } : {}) };
+		const result: Result = { arm, case: c.id, run: n, grade: grade({ plan, brief: state.briefs.plan, fix: c.fix, created: c.created, before: c.before }), cost: sessionCost(sessions), seconds: (Date.now() - started) / 1000, ...(r.code ? { error: `pi exit ${r.code}` } : {}) };
 		results.push(result);
 		mkdirSync(join(out, 'plans'), { recursive: true });
 		if (plan) writeFileSync(join(out, 'plans', `${name}.md`), plan);

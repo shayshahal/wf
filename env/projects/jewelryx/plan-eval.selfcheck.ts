@@ -19,6 +19,13 @@ const notDoing = grade({ plan: aside('## Not doing\n- the en.json strings stay\n
 check('named under Not doing: scoped out, still a fail', !notDoing.pass && notDoing.scoped.join() === 'packages/b2b/messages/en.json');
 check('asked about: scoped out', grade({ plan: aside('## Asks\n- also en.json? \u2014 default: no'), brief, fix }).scoped.length === 1);
 check('named only in Build: missed, not scoped', grade({ plan: aside('## Build\nen.json unchanged\n\n## Asks\n- none'), brief, fix }).scoped.length === 0);
+const made = ['packages/admin/src/lib/components/layout/BackButton.svelte'];
+const layoutBefore = ['packages/admin/src/lib/components/layout/detail-topbar.svelte'];
+const elsewhere = (path: string) => grade({ plan: plan(`| 1 | feat: back | ${path} | repro |`), brief, fix: made, created: made, before: layoutBefore });
+check('a file the round created: the same name elsewhere, or in kebab case, is that file', elsewhere('packages/admin/src/lib/components/admin/BackButton.svelte').pass && elsewhere('packages/admin/src/lib/components/layout/back-button.svelte').pass);
+check('a file the round created: a new file of its kind in its folder is that file', elsewhere('packages/admin/src/lib/components/layout/BackLink.svelte').pass);
+check('a file the round created: not an existing file of its folder, nor a new one of another kind or folder', !elsewhere('packages/admin/src/lib/components/layout/detail-topbar.svelte').pass && !elsewhere('packages/admin/src/lib/components/layout/back.ts').pass && !elsewhere('packages/admin/src/lib/nav/ReturnLink.svelte').pass);
+check('a file that existed: only its own path counts', !grade({ plan: plan('| 1 | fix: a | packages/other/BackButton.svelte | repro |'), brief, fix: made }).pass);
 check('a route file is named by its last three segments', nameOf('packages/b2b/src/routes/(store)/listing/[id]/+page.svelte') === 'listing/[id]/+page.svelte' && nameOf('a/b/marketplace_service.py') === 'marketplace_service.py');
 check('the last check not repro: fail', !grade({ plan: plan('| 1 | fix: a | packages/b2b/src/A.svelte packages/b2b/messages/en.json | packages/b2b/a.test.ts |'), brief, fix }).pass);
 const stale = grade({ plan: plan('| 1 | fix: a | packages/b2b/src/A.svelte packages/b2b/messages/en.json | repro |', 'fff000'), brief, fix });
