@@ -33,6 +33,7 @@ delete process.env.PORTLESS;
 plug({ project: pieces });
 check('a person gets the portless names', stackUrls({ slug: 'my-slug', port: 18001 }).b2b === 'http://my-slug.b2b.jewelryx.localhost');
 const down = teardown({ slug: 'fix-bjew-1', worktree: 'C:/wt/fix-bjew-1' });
+check('teardown: the container goes with its anonymous volumes (-v)', down.find((x) => x.label === 'docker rm mongo')?.args?.includes('-v'));
 check('teardown: mongo container, volume, compose network, then portless routes', down.map((x) => x.label).join(' → ') === 'docker rm mongo → docker volume rm → docker network rm → portless prune', down.map((x) => x.label).join(' → '));
 check('docker names come from the slug', down[0].args!.at(-1) === 'jewelryx-mongo-fix-bjew-1' && down[1].args!.at(-1) === 'jewelryx-wt-mongo-fix-bjew-1');
 check('the compose network is removed by its slug name', down[2].args!.join(' ') === 'network rm jewelryx-wt-fix-bjew-1_default', down[2].args!.join(' '));
