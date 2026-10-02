@@ -28,10 +28,16 @@ export function paperworkToKeep(porcelain: string) {
 		.filter((f) => f.startsWith(`${roundsDir}/`) || /^(SPEC|SPEC-REVIEW|REVIEW)\.md$/.test(f));
 }
 
+// The round's own record in .wf/, which git never lists (wf excludes the folder): its state, with the
+// time it spent in each step, and the logs friction.ts reads. Reap dropped them, so no past round could
+// be measured but by its ROUNDS.md line (2026-10-03: the five reaped rounds had none). Not logs/: the
+// dev servers' output.
+export const ROUND_RECORD = ['state.json', 'checks.log', 'events.log'];
+
 function keepPaperwork(path: string, slug: string) {
 	let porcelain = '';
 	try { porcelain = execFileSync('git', ['-C', path, 'status', '--porcelain', '--untracked-files=all'], { encoding: 'utf8' }); } catch { return; }
-	const files = paperworkToKeep(porcelain);
+	const files = [...paperworkToKeep(porcelain), ...ROUND_RECORD.map((f) => `.wf/${f}`).filter((f) => existsSync(join(path, f)))];
 	if (!files.length) return;
 	const dest = join(homedir(), '.cache', 'wf-reaped', slug);
 	for (const f of files) {
