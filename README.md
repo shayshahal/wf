@@ -13,9 +13,12 @@ round commits (for JewelryX, `bug-reports/<round>/`).
 - `wf.mjs`: the kit's entry. The code is under `src/`, one module per command, each with a
   `*.selfcheck.ts` beside it:
   - `src/run.ts` is the dispatcher; `src/paths.ts` says where wf's own files are (`WF_ROOT`)
+  - `src/models.ts`: each phase's effort level (`low` for the read-only judges, `medium` for the
+    rest) and `wf models`, the model each level runs on here. Agent files say `effort:`, never a
+    model: Claude Code's aliases are the kit's, pi's patterns are Shay's (`env/models.ts`)
   - `src/seams.ts`: what differs between machines (worktrees, the database, review screen,
-    notifications) and the kit's defaults for it. An env's own entry plugs its pieces in:
-    `env/wf.mjs` is Shay's.
+    notifications, the model for each effort level) and the kit's defaults for it. An env's own
+    entry plugs its pieces in: `env/wf.mjs` is Shay's.
   - `src/project.ts` → `projects/<name>/`: everything project-specific. See *Projects* below.
   - `src/round/`: a round's state and its loop. `state.ts` is `.wf/state.json`; `next.ts` is
     `wf next`, the round's next action from its state and files (the orchestrator's whole loop);

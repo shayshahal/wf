@@ -1,7 +1,7 @@
 {
   "name": "wf",
   "displayName": "wf rounds",
-  "version": "0.1.28",
+  "version": "0.1.29",
   "description": "Run a ticket to a merged PR as a round: one fresh agent per phase (research, plan, one per commit, validate), deterministic checks between, a person at T1 and T2.",
   "author": { "name": "Shay Shahal" },
   "repository": "https://github.com/shayshahal/wf",

@@ -5,6 +5,8 @@
 // 2026-09-27). The kit never imports an env; it only reads what was plugged in here.
 import { join } from 'node:path';
 import { WF_ROOT } from './paths.ts';
+import { CLAUDE_CODE_MODELS } from './models.ts';
+import type { Models } from './models.ts';
 import type { ReviewFeedback } from './gates/review-format.ts';
 import type { State } from './round/state.ts';
 
@@ -30,6 +32,8 @@ export type Seams = {
 	reviewUI: ReviewUI | null;
 	notify: ((state: State) => unknown)[];
 	commands: Record<string, Command>;
+	models: Models;
+	resolveModel: ((model: string) => string | null) | null;
 	// Typed by the project that reads it (projects/<name>/index.ts).
 	project: object;
 };
@@ -52,6 +56,12 @@ export const seams: Seams = {
 	notify: [],
 	// wf subcommands the env adds: name → (argv) => void.
 	commands: {},
+	// The model each effort level runs on (models.ts): what `wf next` names in a dispatch, and what
+	// an agent file's `effort:` becomes. The kit's are Claude Code's aliases.
+	models: CLAUDE_CODE_MODELS,
+	// (model) → the model the harness resolves it to, or null when it has none; `wf models` prints it.
+	// null: the harness cannot be asked (Claude Code resolves its aliases inside the session).
+	resolveModel: null,
 	// The project's machine pieces; the project's own folder says which it reads (projects/<name>/index.ts).
 	project: {},
 };

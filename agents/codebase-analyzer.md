@@ -1,7 +1,7 @@
 ---
 name: codebase-analyzer
 description: Explains HOW a specific piece of code works today — traces one flow from entry to exit as a call stack with file:line, every error arm and where it lands. Give it the files (from codebase-locator) and the exact question. Documents; never diagnoses or proposes. Read-only.
-model: anthropic/claude-sonnet-5
+effort: low
 tools: read, bash
 ---
 

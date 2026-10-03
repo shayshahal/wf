@@ -92,6 +92,12 @@ check('ruled accept → T2', say(ruled('accept, the label is fine')).startsWith(
 check('ruled fix → fix-review from VALIDATION.md', say(ruled('fix it')).startsWith('dispatch fix-review --from VALIDATION.md: run `node C:/wf/wf.mjs brief fix-review --from VALIDATION.md`'));
 check('the fix committed → validate again', say(impl({ ...done2, subjects: [...done2.subjects, 'fix(review): the label'], files: { validation: VALID('deviates') }, answered: [{ n: 3, source: 'VALIDATION.md#ccc333', answer: 'fix' }] })).startsWith('dispatch validate:'));
 
+// the model: this machine's for the phase's effort level (models.ts), named in the dispatch line
+const onModels = (s: Snapshot) => say({ ...s, models: { low: 'sonnet', medium: 'opus' } });
+check('a dispatch names the model for its phase\'s level: medium for research, a commit, a revised plan', onModels(fresh) === 'dispatch research (model: opus): run `node C:/wf/wf.mjs brief research` in this worktree and do exactly what it prints' && onModels(planned).startsWith('dispatch implement 1 (model: opus): ') && onModels(answeredAsk('3')).startsWith('dispatch plan --revise (model: opus): '), onModels(fresh));
+check('low for the read-only judges', onModels(impl({ ...done2, files: {} })).startsWith('dispatch validate (model: sonnet): ') && onModels(impl({ ...done2, klass: 'B', files: {} })).startsWith('dispatch as-built (model: sonnet): '));
+check('a wait names no model', onModels(base({ briefs: { research: { token: 'aaa111', count: 2 } } })).startsWith('wait user: research was briefed 2 times'));
+
 // the standards axis: one fresh agent per .agents/checks rule that covers the diff, after spec is settled
 const REPORT = (t = 'ddd444') => `# r — standards: perf\nCheck: .agents/checks/perf.md\nResult: pass\n\n## Issues\nnone\n${tok(t)}`;
 const rules = (perf: string | null, errors: string | null = null, fixesAfter = 0) => [{ id: 'perf', text: perf, fixesAfter }, { id: 'api/errors', text: errors, fixesAfter: 0 }];

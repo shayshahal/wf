@@ -1,7 +1,7 @@
 ---
 name: codebase-locator
 description: Finds WHERE code for a feature or behaviour lives — implementation, tests, config, types — and returns paths grouped by purpose. A super-grep; call it instead of running rg/ls more than once yourself. Read-only.
-model: anthropic/claude-sonnet-5
+effort: low
 tools: read, bash
 ---
 

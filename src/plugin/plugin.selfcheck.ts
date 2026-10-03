@@ -15,12 +15,13 @@ const check = (name: string, cond: unknown, detail = '') =>
 const root = WF_ROOT;
 
 // ── an agent's copy
-const pi = '---\r\nname: codebase-locator\r\ndescription: Finds WHERE code lives.\r\nmodel: anthropic/claude-sonnet-5\r\ntools: read, bash\r\nauto-exit: true\r\n---\r\n\r\nRead `{{wf}}/process/A.md`.\r\n';
+const pi = '---\r\nname: codebase-locator\r\ndescription: Finds WHERE code lives.\r\neffort: low\r\ntools: read, bash\r\nauto-exit: true\r\n---\r\n\r\nRead `{{wf}}/process/A.md`.\r\n';
 const cc = claudeAgent(pi, 'agents/codebase-locator.md');
-check('pi\'s model and tools become Claude Code\'s, with its search tools', cc.includes('model: sonnet') && cc.includes('tools: Read, Bash, Grep, Glob'), cc);
+check('the effort level becomes the kit\'s model, pi\'s tools Claude Code\'s with its search tools', cc.includes('model: sonnet') && cc.includes('tools: Read, Bash, Grep, Glob'), cc);
 check('pi\'s auto-exit is dropped, name and description kept', !cc.includes('auto-exit') && cc.includes('name: codebase-locator') && cc.includes('description: Finds WHERE code lives.'));
 check('wf\'s paths become the plugin root', cc.includes('`${CLAUDE_PLUGIN_ROOT}/process/A.md`'), cc);
 check('the copy says where it comes from', cc.includes('Written by plugin.ts from agents/codebase-locator.md'));
+check('an unknown effort level is refused, not dropped', (() => { try { claudeAgent('---\nname: w\neffort: max\n---\nx\n', 'w'); return false; } catch (e) { return (e as Error).message.includes('effort: max'); } })());
 check('an agent with no model or tools inherits them', !/^(model|tools):/m.test(claudeAgent('---\nname: w\ndescription: d\n---\nx\n', 'w')));
 
 // ── the committed plugin

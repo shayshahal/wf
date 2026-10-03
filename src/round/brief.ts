@@ -40,7 +40,7 @@ export function startGap(phase: string, toplevel: string, state: State | null): 
 // refused, the plan no longer handed off.
 export function briefGap(argv: string[], say: string): string | null {
 	const label = argv.join(' ');
-	if (say.split('\n').some((l) => l.startsWith(`dispatch ${label}:`))) return null;
+	if (say.split('\n').some((l) => l.startsWith(`dispatch ${label}:`) || l.startsWith(`dispatch ${label} (model: `))) return null;
 	return `wf next is not dispatching \`${label}\` (it says: ${say.split('\n')[0]}). A brief records a new token and voids the last one's handoff; to read a phase's prompt, \`wf prompt ${label}\``;
 }
 
