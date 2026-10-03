@@ -49,6 +49,9 @@ check('ending with the handoff is allowed', stopGap(snap({ briefs: { research: {
 const plan = '## Commits\n| # | message | files | check |\n| 1 | fix(x): one | a.ts | repro |\n';
 check('implement ending with no commit is sent back', stopGap(snap({ briefs: { 'implement 1': { at: '1' } }, files: { plan } }))?.startsWith('commit 1 is not made'));
 check('implement ending with BLOCKED.md, or with its row done, is allowed', stopGap(snap({ briefs: { 'implement 1': { at: '1' } }, files: { plan, blocked: 'Question: x' } })) === null && stopGap(snap({ briefs: { 'implement 1': { at: '1' } }, files: { plan }, subjects: ['fix(x): one'], checks: [{ row: 1, result: 'green' }] })) === null);
+check('a standards brief\'s key keeps its rule id whole', lastBrief({ 'standards api/errors': { at: '1' } as Brief })?.arg === 'api/errors' && lastBrief({ 'standards api/errors': { at: '1' } as Brief })?.n === null);
+const rule = (text: string | null) => snap({ briefs: { 'standards perf': { token: 'dd44', at: '1' } }, standards: [{ id: 'perf', text, fixesAfter: 0 }] });
+check('a standards agent ending without its report is sent back, naming the file', stopGap(rule(null))?.startsWith('no standards/perf.md') && stopGap(rule('Result: pass\n## Issues\nnone\n<!-- brief: dd44 -->')) === null);
 check('a fork is refused, any other agent is not', forkGap({ tool_input: { subagent_type: 'fork' } })?.startsWith('no forks') && forkGap({ tool_input: { subagent_type: 'wf:round-worker' } }) === null);
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');

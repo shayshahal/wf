@@ -64,8 +64,10 @@ export function lookAtLines(urls: string | null, files: string[], pageFor: (file
   }
   return out;
 }
-export type ReviewHeader = { round: string; klass?: string; base?: string | null; specSha?: string | null; date?: string; urls?: string | null; files?: string[]; beforeAfter?: string | null };
-export function renderHeader({ round, klass = '—', base = null, specSha = null, date = today(), urls = null, files = [], beforeAfter = null }: ReviewHeader) {
+// `standards`: one line per rule's report (standards.ts summaryLines), beside the diff and never
+// folded into VALIDATION.md: one axis must not mask the other (PRACTICES.md, Second-model review).
+export type ReviewHeader = { round: string; klass?: string; base?: string | null; specSha?: string | null; date?: string; urls?: string | null; files?: string[]; beforeAfter?: string | null; standards?: string[] };
+export function renderHeader({ round, klass = '—', base = null, specSha = null, date = today(), urls = null, files = [], beforeAfter = null, standards = [] }: ReviewHeader) {
   return [
     `# Review — ${round}`,
     ``,
@@ -78,6 +80,7 @@ export function renderHeader({ round, klass = '—', base = null, specSha = null
     ...(asBuiltFile(files) ? [`look at: ${asBuiltFile(files)}  ← the call stack as built, diffed against SPEC — read first`] : []),
     ...(beforeAfter ? [`look at: ${beforeAfter}  ← screenshots: before (the base) and after (this round)`] : []),
     ...lookAtLines(urls, files),
+    ...standards,
     ``,
     `files changed (${files.length}):`,
     ...(files.length ? files.map((f) => `- ${f}`) : [`(none)`]),

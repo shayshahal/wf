@@ -1,8 +1,9 @@
 # wf
 
 Shay's agent workflow: a ticket becomes a merged PR through fresh-context phases (research → plan
-→ one agent per commit → validate), deterministic checks (`wf check`), and two human gates (T1
-plan, T2 diff, both in plannotator). Runs in pi and in Claude Code, on Windows.
+→ one agent per commit → validate, and one per repository rule), deterministic checks (`wf
+check`), and two human gates (T1 plan, T2 diff, both in plannotator). Runs in pi and in Claude
+Code, on Windows.
 
 It lives outside every project's repo on purpose. A project's repo keeps only the round memory each
 round commits (for JewelryX, `bug-reports/<round>/`).
@@ -22,7 +23,8 @@ round commits (for JewelryX, `bug-reports/<round>/`).
     hands the next; `step`, `ask`/`decide`, `prompt`, `status`, `notes`, and `handoff-hook.ts`
     (`wf handoff`, the Claude Code hooks)
   - `src/gates/`: what a round has to pass. `classify`, T1 (`design.ts`) and T2 (`review.ts`,
-    both written through `review-format.ts`), `wf check` (`check.ts`; `--repro`, research's three runs) and `wf deliver`
+    both written through `review-format.ts`), `wf check` (`check.ts`; `--repro`, research's three runs),
+    `wf standards` (`standards.ts`: the project's `.agents/checks/` rules that cover the diff) and `wf deliver`
   - `src/worktrees/`: `worktree.ts` is the one interface to worktrees: list, ports and slugs
     (`ports.ts`), create (`wf new`), remove (`wf reap`). Where no env plugs its own in,
     `git-worktree.ts` makes them in `<repo>/.claude/worktrees/`, and `wf serve` (`serve.ts`) runs
@@ -40,7 +42,7 @@ round commits (for JewelryX, `bug-reports/<round>/`).
 - `prompts/`: one prompt per phase (`wf prompt <phase>` prints it without the handoff)
 - `.claude-plugin/` + `claude/`: the Claude Code plugin (manifest, marketplace, agents, hooks)
 - `agents/`: `round-worker` (every phase), `codebase-locator` and `codebase-analyzer` (research, pi only)
-- `process/`: lifecycle, classes, design session, review format, touchpoints
+- `process/`: lifecycle, classes, design session, review format, touchpoints, standards
 - `docs/plans/2026-09-17-workflow-v2.md`: the plan wf was built from (history; done)
 
 Text names wf's own files as `{{wf}}/…` (prompts, docs) or `${CLAUDE_PLUGIN_ROOT}/…` (the skills),

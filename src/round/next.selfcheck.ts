@@ -92,6 +92,20 @@ check('ruled accept → T2', say(ruled('accept, the label is fine')).startsWith(
 check('ruled fix → fix-review from VALIDATION.md', say(ruled('fix it')).startsWith('dispatch fix-review --from VALIDATION.md: run `node C:/wf/wf.mjs brief fix-review --from VALIDATION.md`'));
 check('the fix committed → validate again', say(impl({ ...done2, subjects: [...done2.subjects, 'fix(review): the label'], files: { validation: VALID('deviates') }, answered: [{ n: 3, source: 'VALIDATION.md#ccc333', answer: 'fix' }] })).startsWith('dispatch validate:'));
 
+// the standards axis: one fresh agent per .agents/checks rule that covers the diff, after spec is settled
+const REPORT = (t = 'ddd444') => `# r — standards: perf\nCheck: .agents/checks/perf.md\nResult: pass\n\n## Issues\nnone\n${tok(t)}`;
+const rules = (perf: string | null, errors: string | null = null, fixesAfter = 0) => [{ id: 'perf', text: perf, fixesAfter }, { id: 'api/errors', text: errors, fixesAfter: 0 }];
+const ruled2 = (standards: Snapshot['standards'], briefs = {}) => impl({ ...done2, files: { validation: VALID() }, standards, briefs: { ...base().briefs, ...briefs } });
+check('validated, rules cover the diff: the first rule, by its id', say(ruled2(rules(null))) === 'dispatch standards perf: run `node C:/wf/wf.mjs brief standards perf` in this worktree and do exactly what it prints', say(ruled2(rules(null))));
+check('validation deviating and unruled: spec is settled first, no standards yet', say(impl({ ...done2, files: { validation: VALID('deviates') }, standards: rules(null) })).startsWith('wait user: fix or accept'));
+check('one at a time: the next rule once the first handed off', say(ruled2(rules(REPORT()), { 'standards perf': { token: 'ddd444', count: 1 } })).startsWith('dispatch standards api/errors:'), say(ruled2(rules(REPORT()), { 'standards perf': { token: 'ddd444', count: 1 } })));
+check('a report from an earlier brief is not the answer', say(ruled2(rules(REPORT('old999')), { 'standards perf': { token: 'ddd444', count: 1 } })).includes('(again: standards/perf.md is not the answer to the last brief'));
+check('a rule briefed twice without its report goes to the user', say(ruled2(rules(null), { 'standards perf': { token: 'ddd444', count: 2 } })).startsWith('wait user: standards perf was briefed 2 times'));
+const allIn = { 'standards perf': { token: 'ddd444', count: 1 }, 'standards api/errors': { token: 'eee555', count: 1 } };
+check('every rule reported, issues or not → T2: the reports go to the person as they are', say(ruled2(rules(REPORT(), REPORT('eee555').replace('Result: pass', 'Result: issues').replace('none', '- high · api/o.ts:4 — x · fix: y')), allIn)).startsWith('review: T2'));
+check('a fix(review) after a rule\'s brief: that rule again', say(ruled2(rules(REPORT(), REPORT('eee555'), 1), allIn)).startsWith('dispatch standards perf:'));
+check('no rule covers the diff (no .agents/checks): T2 as before', say(ruled2([])).startsWith('review: T2') && say(ruled2(undefined)).startsWith('review: T2'));
+
 // T2 (local) → deliver: push, PR, merge → the tracker, last
 check('delivered: T2, then wf review and --done', say(base({ step: 'review' })) === 'review: T2 — see the fix first (ROUND.md\'s T2, as the round skill\'s *Dispatch in this harness* says), then `node C:/wf/wf.mjs review fix/r`; once it has a verdict, `node C:/wf/wf.mjs review fix/r --done`');
 check('T2 annotated (step back to implement) → fix-review', say(impl({ ...done2, files: { validation: VALID(), review: 'verdict: changes-requested\n' } })).startsWith('dispatch fix-review: run `node C:/wf/wf.mjs brief fix-review`'));

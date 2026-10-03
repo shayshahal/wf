@@ -34,9 +34,11 @@ check('Asks: "none", or no section, is none', planAsks('## Asks\n- none\n').leng
 const row = { n: 2, message: '`fix(x): two`' };
 check('a row is done with its commit and a green check', rowDone(row, { subjects: ['fix(x): two'], checks: [{ row: 2, result: 'green' }] }));
 check('not without the green check, not with another row\'s', !rowDone(row, { subjects: ['fix(x): two'], checks: [{ row: 1, result: 'green' }, { row: 2, result: 'red' }] }));
-check('brief keys: implement carries its row', briefKey('implement', 3) === 'implement 3' && briefKey('plan', '--revise') === 'plan');
+check('brief keys: implement carries its row, standards its rule', briefKey('implement', 3) === 'implement 3' && briefKey('standards', 'api/errors') === 'standards api/errors' && briefKey('plan', '--revise') === 'plan');
+check('a standards report is judged on its own file\'s sections', handoffGap('standards', 'Result: maybe\n<!-- brief: aa -->', { token: 'aa' }, 'standards/perf.md') === 'standards/perf.md has no `Result: pass | issues` line' && handoffGap('standards', null, null, 'standards/perf.md') === 'no standards/perf.md');
 
 check('a file phase is told the exact token line', handoffText({ phase: 'research', folder: 'bug-reports/r', token: 'abc123' }).includes('End `bug-reports/r/RESEARCH.md` with this line, exactly: `<!-- brief: abc123 -->`'));
+check('a standards agent is told its own report file', handoffText({ phase: 'standards', folder: 'f', token: 'abc123', file: 'standards/api/errors.md' }).includes('End `f/standards/api/errors.md` with this line, exactly: `<!-- brief: abc123 -->`'));
 check('implement hands off its commit, no token', !handoffText({ phase: 'implement', folder: 'f', token: 'abc123' }).includes('abc123'));
 
 // ── a brief only for what wf next dispatches (brief.ts briefGap)

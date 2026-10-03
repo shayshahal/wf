@@ -12,7 +12,9 @@ import { WF_HOME, WF_ROOT } from '../paths.ts';
 import { anchorToolPaths } from '../plugin/anchor.ts';
 import { seams } from '../seams.ts';
 import { basePortForBranch } from '../worktrees/worktree.ts';
+import { roundChecks } from '../gates/standards.ts';
 import { openQuestionGate, overruledAsks } from './ask.ts';
+import { briefKey } from './handoff.ts';
 import { readState, roundOf, toplevelOf, writeState } from './state.ts';
 
 const REVISE = '\nRead `{{folder}}/SPEC-REVIEW.md` (wf design writes it there); revise `{{folder}}/SPEC.md` and `{{folder}}/PLAN.md` to answer every annotation; change nothing it does not mention. `## For T1` is what binds (DESIGN-SESSION.md § 5): an answer that changes the design changes it there, and the Build in PLAN.md agrees with its Build.\n';
@@ -58,12 +60,13 @@ export function ticketIntent(text: string) {
 const INTENT_PHASES = ['research', 'plan', 'validate'];
 
 // The {{…}} a prompt template substitutes; the project's direct URLs add one per app.
-type PromptVars = { round: string; folder: string | null; base: string; review: string; intent?: string | null; overruled?: string; n?: number; total?: number; row?: string; [app: string]: unknown };
+type PromptVars = { round: string; folder: string | null; base: string; review: string; intent?: string | null; overruled?: string; n?: number; total?: number; row?: string; check?: string; [app: string]: unknown };
 
-export const PHASES = ['research', 'plan', 'implement', 'as-built', 'validate', 'fix-review'];
-export const USAGE = 'research | plan [--revise] | implement N | as-built | validate | fix-review';
+export const PHASES = ['research', 'plan', 'implement', 'as-built', 'validate', 'standards', 'fix-review'];
+export const USAGE = 'research | plan [--revise] | implement N | as-built | validate | standards <check> | fix-review';
 
-// The composed prompt for `argv` (`<phase> [N] [--revise]`), with `{ toplevel, state, folder, phase, n }`.
+// The composed prompt for `argv` (`<phase> [N | <check>] [--revise]`), with `{ toplevel, state, folder, phase, n, key }`,
+// key being what its brief is recorded under.
 // Throws with the reason it cannot be composed; `wf prompt` and `wf brief` (brief.ts) print it.
 // `implement N` records `commit: N` in state, which `wf check` fences on.
 export function composePrompt(argv: string[]) {
@@ -117,13 +120,20 @@ export function composePrompt(argv: string[]) {
 		Object.assign(vars, { n, total: rows.length, row: row.line });
 		writeState(toplevel, { commit: n });
 	}
+	// standards <check>: the one rule, inline, and the changed files it covers (standards.ts).
+	if (phase === 'standards') {
+		const checks = roundChecks(toplevel);
+		const c = checks.find((x) => x.id === argv[1]);
+		if (!c) throw new Error(`standards ${argv[1] ?? ''}: no .agents/checks rule with that id covers this diff (${checks.map((x) => x.id).join(', ') || 'none does'})`);
+		Object.assign(vars, { check: c.id, name: c.name, path: c.path, scope: c.scope ? `${c.scope}/` : 'the whole repository', severity: c.severity, rule: c.rule, files: c.files.map((f) => `- \`${f}\``).join('\n') });
+	}
 	// A round's tree is cut from the base branch, whose own `wf` may predate these commands: point the
 	// agent at the wf that composed its prompt, not at whatever `wf` resolves to in its tree. The entry
 	// that is running (seams.entry), so an agent in Shay's round runs his env's wf, not the bare kit.
 	const wf = `node ${seams.entry.replace(/\\/g, '/')}`;
 	// Same for the docs a prompt cites: a round's worktree does not hold wf.
 	const text = anchorToolPaths(renderPrompt(template, vars).replace(/`wf /g, `\`${wf} `), WF_HOME, projectName);
-	return { text, toplevel, state, folder, phase, n: vars.n ?? null };
+	return { text, toplevel, state, folder, phase, n: vars.n ?? null, key: briefKey(phase, vars.n ?? vars.check) };
 }
 
 // wf prompt: the prompt as it is, for reading. A dispatch runs `wf brief`, which adds the handoff.
