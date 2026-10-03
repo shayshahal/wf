@@ -12,7 +12,8 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { addQuestion, blockedQuestion, overruledAsks } from './ask.ts';
-import { briefKey, handoffGap, HANDOFF_FILES, planAsks, planClass, rowDone, validationVerdict } from './handoff.ts';
+import { briefKey, handoffFile, handoffGap, HANDOFF_FILES, planAsks, planClass, rowDone, validationVerdict } from './handoff.ts';
+import { reportFile, roundChecks } from '../gates/standards.ts';
 import { baseBranch } from '../project.ts';
 import { planCommitRows } from './prompt.ts';
 import { lastField, readVerdict, specShaFor } from '../gates/review-format.ts';
@@ -30,7 +31,9 @@ const MAX_BRIEFS = 2;
 //     t1: { spec, reviewed, verdict } (SPEC.md's sha, SPEC-REVIEW.md's last spec-sha and verdict),
 //     subjects (commit subjects since the base), checks (.wf/checks.log lines),
 //     fixesAfterValidate (fix(review) commits since the validate brief's head),
-//     note (the tracker note wf deliver wrote: its path and text, or null) }
+//     note (the tracker note wf deliver wrote: its path and text, or null),
+//     standards (each .agents/checks rule that covers the diff: its id, its report's text or null,
+//     and the fix(review) commits since its brief) }
 // → { say, effects }, effects being { step: [args] } | { ask: { to, text, dflt, source } }.
 export type Snapshot = {
 	branch: string;
@@ -50,6 +53,7 @@ export type Snapshot = {
 	repro: Record<string, string>;
 	fixesAfterValidate: number;
 	note: { file: string; text: string | null } | null;
+	standards?: { id: string; text: string | null; fixesAfter: number }[];
 };
 export type Effect = { step: string[]; ask?: undefined } | { ask: { to: string; text: string; dflt: string | null; source: string }; step?: undefined };
 
@@ -181,6 +185,14 @@ export function nextAction(s: Snapshot): { say: string; effects: Effect[] } {
 			}
 			if (!/^\s*accept\b/i.test(ruling.answer ?? '')) return act(`wait user: q${ruling.n}'s answer "${ruling.answer}" is neither fix nor accept — ask again with \`${wf} ask\``);
 		}
+		// The standards axis, once spec is settled: one fresh agent per rule that covers the diff, one at
+		// a time (the hook judges a stopping agent by the last brief), and again after a fix(review)
+		// commit, as validate is. Their reports go to T2 as they are (standards.ts).
+		for (const c of s.standards ?? []) {
+			const gap = handoffGap('standards', c.text, brief('standards', c.id), handoffFile('standards', c.id));
+			if (gap) return dispatch('standards', [c.id], gap);
+			if (c.fixesAfter > 0) return dispatch('standards', [c.id], null);
+		}
 		return act(t2);
 	}
 	return act(`wait user: step "${step}" has no next action`);
@@ -224,6 +236,7 @@ export function snapshotOf(toplevel: string): Snapshot {
 		subjects: git('log', '--format=%s', `${base}..HEAD`).split('\n').filter(Boolean),
 		fixesAfterValidate: fixesSince(git, state.briefs?.validate?.head),
 		note: state.note ? { file: state.note, text: read(join(toplevel, state.note)) } : null,
+		standards: roundChecks(toplevel, base).map((c) => ({ id: c.id, text: read(join(dir, reportFile(c.id))), fixesAfter: fixesSince(git, state.briefs?.[briefKey('standards', c.id)]?.head) })),
 		repro: Object.fromEntries((read(join(toplevel, '.wf', 'checks.log')) ?? '').split('\n').flatMap((l) => { try { const c = JSON.parse(l); return c.row === 'repro' && c.token ? [[c.token as string, c.result as string]] : []; } catch { return []; } })),
 		checks: (read(join(toplevel, '.wf', 'checks.log')) ?? '').split('\n').filter(Boolean).flatMap((l) => { try { return [JSON.parse(l) as { row: number | string | null; result: string }]; } catch { return []; } }).filter((c) => c.row !== 'repro').map((c) => ({ ...c, row: c.row == null ? null : Number(c.row) })),
 	};

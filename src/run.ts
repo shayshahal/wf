@@ -1,6 +1,6 @@
 // run.ts — the dispatcher: run(argv, pieces). wf.mjs calls it with the kit's defaults, an env's
 // entry with its own pieces plugged into the seams (seams.ts).
-// Commands: next, brief, step, status, new, serve, classify (delegated to ./gates/classify.ts when installed), design + review
+// Commands: next, brief, step, status, new, serve, check, standards, classify (delegated to ./gates/classify.ts when installed), design + review
 // (human touchpoints), the project's own (project.ts commands: JewelryX's seed, show) and the env's.
 import { plug, seams } from './seams.ts';
 import type { Command, Seams } from './seams.ts';
@@ -78,6 +78,9 @@ export async function run(argv: string[], pieces: Partial<Seams> = {}) {
 		const { runCheck, runRepro } = await import('./gates/check.ts');
 		if (rest.includes('--repro')) runRepro();
 		else runCheck();
+	} else if (cmd === 'standards') {
+		const { runStandards } = await import('./gates/standards.ts');
+		runStandards();
 	} else if (cmd === 'deliver') {
 		const { runDeliver } = await import('./gates/deliver.ts');
 		await runDeliver();
@@ -108,7 +111,7 @@ export async function run(argv: string[], pieces: Partial<Seams> = {}) {
 		const all: Record<string, Command> = { ...commands, ...seams.commands };
 		if (Object.hasOwn(all, cmd)) await all[cmd](rest);
 		else {
-			console.log(`usage: wf <new|serve|next|brief|notes|handoff|step|prompt|check|deliver|ask|decide|status|reap|classify|design|review|${Object.keys(all).join('|')}> [...]`);
+			console.log(`usage: wf <new|serve|next|brief|notes|handoff|step|prompt|check|standards|deliver|ask|decide|status|reap|classify|design|review|${Object.keys(all).join('|')}> [...]`);
 			process.exit(2);
 		}
 	}

@@ -31,6 +31,8 @@ in one.
 not write the code reads it — a different model where possible — along two
 axes kept apart: standards (does it follow this repo's rules?) and spec
 (does it do what was asked, no more?). The two reports are presented side by
-side, never merged, so one axis cannot mask the other.
+side, never merged, so one axis cannot mask the other. In a round, validate is
+the spec axis, and one `standards` agent per repository rule is the other
+(STANDARDS.md).
 
 superpowers implements these if installed; the practices don't depend on it.
