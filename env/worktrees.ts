@@ -3,7 +3,7 @@
 import { closeSync, openSync, readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { teardown } from '../src/project.ts';
-import { stragglersStep } from '../src/worktrees/serve.ts';
+import { servePid, stopServersStep, stragglersStep } from '../src/worktrees/serve.ts';
 import { excludeWfFolder, resolveWorktree } from '../src/worktrees/worktree.ts';
 import type { RemovalStep, Seams } from '../src/seams.ts';
 
@@ -11,11 +11,9 @@ import type { RemovalStep, Seams } from '../src/seams.ts';
 // project's hooks from the folder the command runs in, and 20 older checkouts still carry the
 // .config/wt.toml that left JewelryX in #222: from one of them, `wt switch --create` ran those too,
 // against scripts the new checkout no longer has, and the create failed (2026-09-24).
-// wt's post-start tether keeps the dev servers alive in the background, and they inherit whatever
-// stdout wt was given. Under a pipe (an agent harness, `wf new | tee`) that pipe never reaches EOF
-// and the caller hangs on the tether (measured 40 min on 2026-09-20). A log file hands the tether a
-// descriptor of its own, so this returns as soon as wt exits. Returns the worktree, or throws with
-// the log.
+// No post-start hook: nothing serves the worktree from here (serve.ts ensureServers starts the stack
+// when a phase needs it; until 2026-10-04 wt's post-start tether ran it). wt's output goes to a log
+// file. Returns the worktree, or throws with the log.
 export function createWorktree({ branch, base, log }: Parameters<NonNullable<Seams['createWorktree']>>[0]) {
 	const fd = openSync(log, 'w');
 	const step = (label: string, args: string[], cwd?: string) => {
@@ -28,7 +26,6 @@ export function createWorktree({ branch, base, log }: Parameters<NonNullable<Sea
 	const tree = resolveWorktree(branch);
 	excludeWfFolder(tree.path);
 	step('pre-start hooks', ['hook', 'pre-start', 'user:', '--yes'], tree.path);
-	step('post-start hooks', ['hook', 'post-start', 'user:', '--yes'], tree.path);
 	closeSync(fd);
 	return tree;
 }
@@ -43,7 +40,10 @@ export function removalPlan({ branch, path, slug, pid }: Parameters<NonNullable<
 	// The project's teardown before the folder goes, as the kit's plan has it: dropping the database
 	// runs the worktree's python. Until 2026-10-04 it came after, which was right while a container
 	// per worktree needed no worktree; the first shared-mongo reap failed its drop that way.
+	// A stack `wf serve` started (serve.ts) goes with its whole process tree first, as the kit's plan has it.
+	const served = servePid(path);
 	return [
+		...(served ? [stopServersStep(served, platform)] : []),
 		stragglersStep(path, pid, platform),
 		...teardown({ slug, worktree: path }),
 		{ label: 'wt remove', cmd: 'wt', args: ['remove', branch, '--no-delete-branch', '--force', '--foreground', '-y'] },

@@ -6,7 +6,7 @@ import { seedUrl, stackUrls, teardown } from '../../../projects/jewelryx/index.t
 import { plug } from '../../../src/seams.ts';
 import { basePortForBranch } from '../../../src/worktrees/worktree.ts';
 import { oldContainerSteps, pieces, portlessServers, sharedMongoUrl, stackNames } from './index.ts';
-import { mongoPortForBase, mongoUrlFromDockerPort } from './mongo.ts';
+import { mongoPortForBase } from './mongo.ts';
 
 let failures = 0;
 const check = (name: string, cond: unknown, detail = '') =>
@@ -17,7 +17,6 @@ check('mongo sits at 40000+(P-10000)', mongoPortForBase(12345) === 42345);
 let range = '';
 try { mongoPortForBase(9999); } catch (e) { range = (e as Error).message; }
 check('a base port outside 10000-19999 throws', range.includes('out of range'), range);
-check('the seeder writes to the container\'s published port', mongoUrlFromDockerPort('0.0.0.0:47554\n[::]:47554\n') === 'mongodb://127.0.0.1:47554');
 
 // ── portless
 check('names carry the full slug', stackNames('tools-workflow-v2').b2b === 'http://tools-workflow-v2.b2b.jewelryx.localhost');
@@ -34,8 +33,8 @@ delete process.env.PORTLESS;
 plug({ project: pieces });
 check('a person gets the portless names', stackUrls({ slug: 'my-slug', port: 18001 }).b2b === 'http://my-slug.b2b.jewelryx.localhost');
 
-// ── every round's database in the dev stack's mongo (2026-10-04)
-check('a worktree\'s backend uses the dev stack\'s mongo, whatever its own port', seedUrl({ slug: 'fix-bjew-1', port: 17554 }) === `mongodb://127.0.0.1:${mongoPortForBase(basePortForBranch('dev'))}` && seedUrl({ slug: 'x', port: 11000 }) === sharedMongoUrl());
+// ── every round's database in the one mongo, jewelryx-mongo-dev (2026-10-04)
+check('a worktree\'s backend uses the one mongo, whatever its own port', seedUrl({ slug: 'fix-bjew-1', port: 17554 }) === `mongodb://127.0.0.1:${mongoPortForBase(basePortForBranch('dev'))}` && seedUrl({ slug: 'x', port: 11000 }) === sharedMongoUrl());
 const down = teardown({ slug: 'fix-bjew-1', worktree: 'C:/wt/fix-bjew-1' });
 check('reap drops the worktree\'s database, then its own container if it has one, then portless routes', down.map((x) => x.label).join(' → ') === 'drop database → its own mongo container, if any → portless prune', down.map((x) => x.label).join(' → '));
 check('the plan itself runs nothing (the container is looked for at reap)', down.slice(0, 2).every((x) => typeof x.run === 'function'));

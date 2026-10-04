@@ -24,7 +24,7 @@ code, a wrong line of code costs one.
 
 Ground means measured, not read:
 
-- **Run the live stack and record what it does today**, with a **control row** — the same
+- **Run the live stack (`wf serve --wait` starts it) and record what it does today**, with a **control row** — the same
   measurement on a path that works, or on the pre-fix body. BJEW-585's three delete routes read
   zero stones; only the control, which still reproduces the symptom, makes those zeros mean
   anything. BJEW-586's two channels disproved the reporter's own sentence.

@@ -7,6 +7,7 @@ import { dirname, join } from 'node:path';
 import { CLASSIFY } from '../paths.ts';
 import { openFile, openInEditor, opensWindows } from '../worktrees/editor.ts';
 import { baseBranch } from '../project.ts';
+import { ensureServers } from '../worktrees/serve.ts';
 import { resolveWorktree } from '../worktrees/worktree.ts';
 import { appendDatedSection, asBuiltFile, beforeAfterPage, captionFor, devUrlsFor, foldFeedbackLine, lastField, proofPairs, readVerdict, renderHeader, renderSkeleton, specShaFor } from './review-format.ts';
 import { seams } from '../seams.ts';
@@ -115,6 +116,9 @@ export async function runReview(argv: string[]) {
     process.exit(2);
   }
   await inWorktree(worktree, round, 'review');
+  // T2 opens the round's pages: the stack is started for it, since nothing serves a worktree from its
+  // creation (2026-10-04, serve.ts). A stack that will not start leaves the diff to review, and says so.
+  try { console.log(await ensureServers(worktree, { wait: true })); } catch (e) { /* the diff is still reviewable: the line says why there are no pages */ console.error((e as Error).message); }
   const beforeAfter = writeBeforeAfter(worktree, round);
   if (beforeAfter) {
     console.log(`before/after: ${beforeAfter}`);

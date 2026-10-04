@@ -22,6 +22,7 @@ import { checks } from '../project.ts';
 import { planCommitRows, rowFiles } from '../round/prompt.ts';
 import type { PlanRow } from '../round/prompt.ts';
 import { readState, roundOf, toplevelOf } from '../round/state.ts';
+import { ensureServers } from '../worktrees/serve.ts';
 
 const TAIL = 40;
 // `pnpm` is a .cmd shim on Windows, so its runs need shell:true; Node then prints DEP0190
@@ -31,9 +32,11 @@ process.noDeprecation = true;
 
 // One `wf check` command, or `missing`: the check the plan row names cannot run. The project's
 // commands are these too (project.ts checks); `expectRed` only on the repro of a repro-only row.
+// `stack`: the command drives the running app, so the worktree's stack is started (and answering)
+// before it runs: nothing serves a worktree from its creation (2026-10-04, serve.ts).
 export type CheckTask =
-	| { label: string; cmd: string; args: string[]; cwd: string; expectRed?: boolean; missing?: never }
-	| { label: string; missing: string; cmd?: never; args?: never; cwd?: never; expectRed?: never };
+	| { label: string; cmd: string; args: string[]; cwd: string; expectRed?: boolean; stack?: boolean; missing?: never }
+	| { label: string; missing: string; cmd?: never; args?: never; cwd?: never; expectRed?: never; stack?: never };
 // One task's run, as checks.log records it.
 export type CheckRun = { label: string; exit: number | null; missing?: string; expect?: 'red'; output?: string };
 
@@ -84,7 +87,8 @@ export function buildTasks({ row, projectTasks, repro, reproOnly = false }: { ro
 	if (check !== 'repro' && !reproOnly) return tasks;
 	if (!repro) return [...tasks, { label: 'repro', missing: 'RESEARCH.md ## Repro has no `command:` line' }];
 	const [cmd, ...args] = tokenize(repro);
-	return [...tasks, { label: repro, cmd, args, cwd: '.', ...(reproOnly ? { expectRed: true } : {}) }];
+	// Research's repro reproduces the defect in the running app (prompts/research.md).
+	return [...tasks, { label: repro, cmd, args, cwd: '.', stack: true, ...(reproOnly ? { expectRed: true } : {}) }];
 }
 
 // Pure: whether every file of a plan row is in the round's repro folder (a row that fixes the repro
@@ -126,7 +130,18 @@ export function reproVerdict(runs: { exit: number | null; output: string }[]): {
 	return { result: 'stable', say: `red ${runs.length} times, each at: ${signatures[0]}` };
 }
 
-export function runRepro() {
+// Starts the stack and waits for it, or exits red naming its logs: the next command would fail
+// against no app, and say less.
+async function stackOrExit(toplevel: string) {
+	try {
+		console.error(await ensureServers(toplevel, { wait: true }));
+	} catch (e) {
+		console.error(`FAILED: ${(e as Error).message}`);
+		process.exit(1);
+	}
+}
+
+export async function runRepro() {
 	const toplevel = toplevelOf();
 	const state = readState(toplevel);
 	const { folder } = roundOf(state, toplevel);
@@ -136,6 +151,7 @@ export function runRepro() {
 		console.error('check --repro: RESEARCH.md ## Repro has no `command:` line yet: write it first');
 		process.exit(1);
 	}
+	await stackOrExit(toplevel);
 	const [cmd, ...args] = tokenize(repro);
 	const runs: { exit: number | null; output: string }[] = [];
 	for (let i = 1; i <= REPRO_RUNS; i++) {
@@ -160,7 +176,7 @@ export function runRepro() {
 	console.log(`\nthe last run, for RESEARCH.md's red output:\n${runs.at(-1)!.output.split('\n').filter((l) => l.trim()).slice(-10).join('\n')}`);
 }
 
-export function runCheck() {
+export async function runCheck() {
 	const toplevel = toplevelOf();
 	const state = readState(toplevel);
 	const { folder } = roundOf(state, toplevel);
@@ -184,12 +200,24 @@ export function runCheck() {
 	const research = join(toplevel, folder ?? '', 'RESEARCH.md');
 	const repro = existsSync(research) ? reproCommand(readFileSync(research, 'utf8')) : null;
 	const reproOnly = row ? isReproOnly(rowFiles(row), folder) : false;
+	let served = false;
 	for (const task of buildTasks({ row, projectTasks: (test) => checks({ toplevel, changed, test }), repro, reproOnly })) {
 		if (task.missing) {
 			console.error(`check: ${task.missing}`);
 			ran.push({ label: task.label, exit: null, missing: task.missing });
 			logRun('red');
 			process.exit(1);
+		}
+		if (task.stack && !served) {
+			served = true;
+			try {
+				await ensureServers(toplevel, { wait: true });
+			} catch (e) {
+				console.error(`FAILED: ${(e as Error).message}`);
+				ran.push({ label: 'stack', exit: null, missing: (e as Error).message });
+				logRun('red');
+				process.exit(1);
+			}
 		}
 		const run = spawnSync(task.cmd!, task.args!, { cwd: join(toplevel, task.cwd!), encoding: 'utf8', shell: process.platform === 'win32' });
 		const output = `${run.stdout ?? ''}${run.stderr ?? ''}`;
@@ -222,4 +250,4 @@ export function resolvedBlockedName(n: number, taken: string[]) {
 }
 
 // basename, not endsWith: `deliver.selfcheck.ts` ends with `check.ts` too.
-if (process.argv[1] && basename(process.argv[1]) === 'check.ts') runCheck();
+if (process.argv[1] && basename(process.argv[1]) === 'check.ts') await runCheck();

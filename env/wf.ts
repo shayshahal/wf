@@ -1,6 +1,6 @@
 // env/wf.ts — Shay's wf: the kit (../src/run.ts) with his machine plugged into its seams (../src/seams.ts):
-// worktrunk and its hooks, a MongoDB container per worktree, portless, plannotator, herdr, the
-// permanent stacks, and self-update from shayshahal/wf. ~/bin/wf and worktrunk's hooks run it
+// worktrunk and its hooks, the one MongoDB the worktrees' databases share, portless, plannotator,
+// herdr, and self-update from shayshahal/wf. ~/bin/wf and worktrunk's hooks run it
 // through env/wf.mjs; the team's plugin runs the kit's own ../wf.mjs (kit and env plan, 2026-09-27).
 import { run } from '../src/run.ts';
 import { isHerdrPresent, reportStepToHerdr } from './adapters/herdr.ts';
@@ -29,7 +29,6 @@ export async function runEnvWf(entry: string, argv: string[]) {
 		commands: {
 			hook: async (a) => (await import('./hook.ts')).runHook(a),
 			update: async () => (await import('./update.ts')).runUpdate(),
-			...jewelryx.commands,
 		},
 		project: jewelryx.pieces,
 		models: PI_MODELS,

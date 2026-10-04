@@ -3,13 +3,14 @@
 // per project:
 //   wf hook install            write the block below into wt's user config (replaces an earlier one)
 //   wf hook <step> <slug> [P]  one step, called by wt with {{ branch | sanitize }} {{ branch | hash_port }}
-// Steps: pre-start = the project's setup steps (in parallel) · post-start serve · pre-remove gate ·
-// post-remove down (the project's teardown) · alias urls. What each does is the project's (project.ts).
+// Steps: pre-start = the project's setup steps (in parallel) · pre-remove gate · post-remove down (the
+// project's teardown) · alias urls. No post-start serve since 2026-10-04: the phases that use a stack
+// start it (src/worktrees/serve.ts ensureServers). What each does is the project's (project.ts).
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { repo, serve, setup, teardown } from '../src/project.ts';
+import { repo, setup, teardown } from '../src/project.ts';
 import type { State } from '../src/round/state.ts';
 import { urlLines } from '../src/worktrees/worktree.ts';
 import { stackNames } from './projects/jewelryx/index.ts';
@@ -25,9 +26,6 @@ export function hookBlock(wf: string) {
 		`${BEGIN} (written by \`wf hook install\`; change wf/env/hook.ts, not this block)`,
 		t('pre-start'),
 		...Object.keys(setup).map((s) => `${s} = ${call(s)}`),
-		'',
-		t('post-start'),
-		`server = 'wt step tether -- node ${wf} hook serve {{ branch | sanitize }} {{ branch | hash_port }}'`,
 		'',
 		t('pre-remove'),
 		`gate = ${call('gate', '{{ branch | sanitize }}')}`,
@@ -93,7 +91,6 @@ export async function runHook(argv: string[]) {
 		const s = setup[step];
 		return typeof s === 'string' ? sh(s) : s({ worktree, slug, port });
 	}
-	if (step === 'serve') return serve({ worktree, slug, port });
 	if (step === 'gate') {
 		const file = join(worktree, '.wf', 'state.json');
 		let state: State | null | undefined;

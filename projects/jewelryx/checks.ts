@@ -62,7 +62,8 @@ function rowTasks({ changed, test, pkgFor, pushHook }: { changed: string[]; test
 
 	if (!test || test.endsWith('.py')) return tasks;
 	if (!test.endsWith('.ts')) return [...tasks, { label: 'check', missing: `PLAN.md row check "${test}" is not runnable — use \`repro\`, one repo-rooted test path, or — (fence only)` }];
-	if (test.startsWith('verification/')) add({ label: `playwright ${test}`, cmd: 'pnpm', args: ['exec', 'playwright', 'test', test], cwd: '.' });
+	// verification/ drives the running app: wf check starts the stack first (stack: true, check.ts).
+	if (test.startsWith('verification/')) add({ label: `playwright ${test}`, cmd: 'pnpm', args: ['exec', 'playwright', 'test', test], cwd: '.', stack: true });
 	else {
 		// vitest lives in the package, not at the root (TJEW-700 row 3: `Command "vitest" not found`).
 		const pkg = test.startsWith('packages/frontend/') ? pkgFor(test) : null;

@@ -8,16 +8,18 @@ need no approval. What the hooks do is the project's: its `setup`, `serve` and `
 
 Create worktrees only via `wf new <branch> [--base <ref>] [--class B|C] [--check] [--id <token>]...`
 (default base `origin/<the project's base branch>`) — it runs `wt switch --create --base --no-hooks`,
-then wf's own pre/post-start hooks (`wt hook <type> user:`), whichever folder it runs from; raw
-`git worktree add` skips the server) then `wf step classify`. `--id <ticket id>`
+then wf's own pre-start hooks (`wt hook pre-start user:`), whichever folder it runs from; raw
+`git worktree add` skips the setup) then `wf step classify`. `--id <ticket id>`
 refuses to cut the worktree when a round folder or a commit already names the id — read
 that first. `--class B|C` asserts the class at creation: a design-first round has no code to
 measure, and `wf step classify` only ever upgrades (A→B→C), never downgrades.
 
 Ports: one hashed port P per branch (`{{ branch | hash_port }}`, 10000–19999); the project spreads
-its apps from there. Post-start runs the project's `serve` under `wt step tether`: killing the
-tether stops the servers. `wf status` probes P and prints the first app's name; `wf review`
-restarts a dead tether.
+its apps from there. No worktree is served from its creation (Shay, 2026-10-04: a stack per
+worktree was too much). `wf serve [--wait]` starts the project's `serve` in the background, and the
+phases that drive the app run it themselves: `wf brief research` and `wf brief validate`,
+`wf check` before the repro or a task marked `stack`, and `wf review`. It stops at reap. `wf status`
+probes P and prints the first app's name.
 
 Reap gate: `wt remove` runs a pre-remove hook that refuses
 unless `.wf/state.json` says `step: "merged"`. Override with

@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 // serve.ts — wf serve: start this worktree's stack (the project's serve) in the background, unless it
-// is running already. Where no env keeps the servers alive (worktrunk's tether on Shay's), `wf new`
-// starts them this way, and a person restarts a stack that died the same way (kit and env plan,
-// step 3). The pid is in .wf/serve.pid for `wf reap`; the servers' output in .wf/logs/dev.log, and
-// what happens before they start (a missing dependency) in .wf/logs/serve.log.
+// is running already. Nothing starts a stack when the worktree is made: the phases that use one start
+// it (ensureServers): research and validate's briefs, `wf check` before the repro or a task that drives
+// the app, and `wf review`. Until 2026-10-04 every worktree served from `wf new` on; Shay: "too much".
+// The pid is in .wf/serve.pid for `wf reap`; the servers' output in .wf/logs/dev.log, and what
+// happens before they start (a missing dependency) in .wf/logs/serve.log.
 //   wf serve               start it, detached
+//   wf serve --wait        start it, and return once it answers
 //   wf serve --foreground  run it here until it dies (what the detached process runs)
 import { execFileSync, spawn } from 'node:child_process';
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, writeFileSync } from 'node:fs';
@@ -74,6 +76,28 @@ export function hiddenHop(platform: NodeJS.Platform, env: NodeJS.ProcessEnv): { 
 	return { args: [seams.entry, 'serve', '--foreground'], options: { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, env: { ...env, WF_SERVE_HIDDEN: '1' } } };
 }
 
+// Starts the worktree's stack unless it answers or is starting already; returns what it did, for the
+// caller to print. `wait`: until the stack answers (a cold start takes ~20-40 s), for a caller that
+// drives the app next; throws after `timeoutMs`, naming the logs.
+export async function ensureServers(worktree: string, { wait = false, timeoutMs = 180_000 }: { wait?: boolean; timeoutMs?: number } = {}): Promise<string> {
+	const branch = execFileSync('git', ['-C', worktree, 'rev-parse', '--abbrev-ref', 'HEAD'], { encoding: 'utf8' }).trim();
+	const slug = slugForBranch(branch);
+	const port = basePortForBranch(branch);
+	const urls = urlLines(stackUrls({ slug, port }));
+	const logs = join(worktree, '.wf', 'logs');
+	if (await realProbeStack(port)) return `wf serve: the stack answers already\n${urls}`;
+	const pid = servePid(worktree);
+	// Still starting: a second one would lose the port and the pid.
+	const said = pid && alive(pid) ? `wf serve: started already (pid ${pid}), not answering yet: see ${logs}` : `wf serve: starting (pid ${startServers(worktree)}; logs in ${logs})\n${urls}`;
+	if (!wait) return said;
+	const t0 = Date.now();
+	while (!(await realProbeStack(port))) {
+		if (Date.now() - t0 > timeoutMs) throw new Error(`wf serve: the stack did not answer within ${timeoutMs / 1000} s: see ${logs}`);
+		await new Promise((r) => setTimeout(r, 2000));
+	}
+	return `${said}\nwf serve: the stack answers (${((Date.now() - t0) / 1000).toFixed(0)} s)`;
+}
+
 export async function runServe(argv: string[]) {
 	const git = (...args: string[]) => execFileSync('git', args, { encoding: 'utf8' }).trim();
 	const worktree = git('rev-parse', '--show-toplevel');
@@ -91,9 +115,5 @@ export async function runServe(argv: string[]) {
 		}
 		return serve({ worktree, slug, port });
 	}
-	const pid = servePid(worktree);
-	if (await realProbeStack(port)) return console.log(`wf serve: the stack answers already\n${urlLines(stackUrls({ slug, port }))}`);
-	// Still starting (a cold vite takes ~20 s): a second one would lose the port and the pid.
-	if (pid && alive(pid)) return console.log(`wf serve: started already (pid ${pid}), not answering yet: see ${join(worktree, '.wf', 'logs')}`);
-	console.log(`wf serve: starting (pid ${startServers(worktree)}; logs in ${join(worktree, '.wf', 'logs')})\n${urlLines(stackUrls({ slug, port }))}`);
+	console.log(await ensureServers(worktree, { wait: argv.includes('--wait') }));
 }

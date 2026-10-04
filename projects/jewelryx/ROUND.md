@@ -75,6 +75,4 @@ before *Start*.
 
 ## This machine
 
-- `wf stacks up|down` (the permanent dev and QA stacks at `dev.*.jewelryx.localhost` and
-  `qa.jewelryx.localhost`): Shay only. `wf stacks status` is read-only.
 - `wf seed [--reset]` puts the round's database back to the seeded fixtures.

@@ -33,6 +33,7 @@ const noRepro = buildTasks({ changed: [], row: { check: 'repro' }, pkgFor, repro
 check('check: repro with no command line reports it instead of passing', noRepro.at(-1)!.missing?.includes('RESEARCH.md'), JSON.stringify(noRepro));
 const pw = buildTasks({ changed: [], row: { check: 'verification/specs/login.spec.ts' }, pkgFor, repro: null });
 check('a verification/ .ts check runs playwright', pw[0].args!.join(' ') === 'exec playwright test verification/specs/login.spec.ts', JSON.stringify(pw[0]));
+check('playwright drives the running app: wf check starts the stack first', pw[0].stack === true && !buildTasks({ changed: [], row: { check: 'packages/frontend/b2b/src/x.spec.ts' }, pkgFor, repro: null }).some((t) => t.stack), JSON.stringify(pw[0]));
 const vt = buildTasks({ changed: [], row: { check: 'packages/frontend/b2b/src/x.spec.ts' }, pkgFor, repro: null });
 check('a package .ts check runs vitest inside its package', vt[0].args!.join(' ') === '--filter jewelryx-frontend exec vitest run src/x.spec.ts', JSON.stringify(vt[0]));
 const pyCmd = buildTasks({ changed: [], row: { check: '`pytest packages/backend/tests/test_auth.py`' }, pkgFor, repro: null });

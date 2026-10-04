@@ -1,13 +1,12 @@
-// env/projects/jewelryx/mongo.ts — Shay's machine: the permanent stacks' MongoDB containers.
+// env/projects/jewelryx/mongo.ts — Shay's machine: its MongoDB container.
 //   up:       jewelryx-mongo-<slug> on 40000+(P-10000) (mongo.compose.yml), healthy before it returns.
-//             The dev stack's (slug dev) holds every round's database too (index.ts sharedMongoUrl).
+//             Only slug dev's now, which holds every worktree's database (index.ts sharedMongoUrl).
 //   teardown: a container, its volume and its compose network (worktrees made before 2026-10-04)
 // The kit names the database and seeds it (projects/jewelryx/db.ts); this is where it lives.
 import { spawnSync } from 'node:child_process';
 import { createConnection } from 'node:net';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { seedDatabase } from '../../../projects/jewelryx/db.ts';
 import type { Port } from '../../../projects/jewelryx/index.ts';
 import type { RemovalStep } from '../../../src/seams.ts';
 
@@ -20,20 +19,6 @@ export function mongoPortForBase(basePort: Port): number {
 export const containerOf = (slug: string): string => `jewelryx-mongo-${slug}`;
 export const volumeOf = (slug: string): string => `jewelryx-wt-mongo-${slug}`;
 export const composeProjectOf = (slug: string): string => `jewelryx-wt-${slug}`;
-
-// Pure: `docker port <container> 27017` → the URL the seeder writes to. The seeder's own .env may
-// name another mongo (the permanent stacks seed from dev's checkout), so it is always pointed at
-// the target container.
-export function mongoUrlFromDockerPort(output: string): string | undefined {
-	const port = /:(\d+)\s*$/m.exec(output)?.[1];
-	return port ? `mongodb://127.0.0.1:${port}` : undefined;
-}
-
-export function containerUrl(slug: string): string {
-	const url = mongoUrlFromDockerPort(spawnSync('docker', ['port', containerOf(slug), '27017'], { encoding: 'utf8' }).stdout ?? '');
-	if (!url) throw new Error(`worktree db: ${containerOf(slug)} publishes no port; is it up?`);
-	return url;
-}
 
 function waitForPort(port: number, timeoutMs = 90000) {
 	const t0 = Date.now();
@@ -64,11 +49,6 @@ export async function mongoUp({ slug, base }: { slug: string; base: Port }): Pro
 	if (r.status !== 0) throw new Error(`worktree db: docker compose up failed (exit ${r.status})`);
 	const waited = await waitForPort(mongoPort);
 	console.log(`worktree db: ${containerOf(slug)} listening on ${mongoPort} (waited ${waited.toFixed(1)}s)`);
-}
-
-// Seed the container of `slug` (the permanent stacks: dev's seeder, the container's own port).
-export function seedContainer({ worktree, slug, database, reset = false }: { worktree: string; slug: string; database: string; reset?: boolean }): void {
-	seedDatabase({ worktree, database, mongoUrl: containerUrl(slug), reset });
 }
 
 // Pure: what removing a worktree leaves behind, in order. Each step tolerates "already gone". The

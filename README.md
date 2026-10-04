@@ -31,16 +31,18 @@ round commits (for JewelryX, `bug-reports/<round>/`).
     critic of a validation (`critique.ts`: CRITIQUE.md, and when validate answers it) and `wf deliver`
   - `src/worktrees/`: `worktree.ts` is the one interface to worktrees: list, ports and slugs
     (`ports.ts`), create (`wf new`), remove (`wf reap`). Where no env plugs its own in,
-    `git-worktree.ts` makes them in `<repo>/.claude/worktrees/`, and `wf serve` (`serve.ts`) runs
-    the stack in the background (pid and logs in the worktree's `.wf/`)
+    `git-worktree.ts` makes them in `<repo>/.claude/worktrees/`. No worktree is served from its
+    creation: `wf serve` (`serve.ts`) runs the stack in the background (pid and logs in the
+    worktree's `.wf/`), started by the phases that use it (research and validate's briefs, `wf check`
+    before the repro or a test that drives the app, `wf review`)
   - `src/plugin/`: `plugin.ts` writes `claude/agents/` from `agents/`; `anchor.ts` fills the paths
     in text (below)
   - `src/selfcheck.ts` runs every selfcheck and tsc; `src/boundary.selfcheck.ts` fails if the kit
     reaches into `env/`
 - `env/`: Shay's machine, which the kit never imports: worktrunk and its hooks (`env/hook.ts`,
   `env/worktrees.ts`), self-update (`env/update.ts`), plannotator and herdr (`env/adapters/`), and
-  per project where the worktrees' databases live (JewelryX: the dev stack's MongoDB), portless and
-  the permanent stacks (`env/projects/`).
+  per project where the worktrees' databases live (JewelryX: one MongoDB) and portless
+  (`env/projects/`).
   `env/projects/jewelryx/plan-eval.ts` measures a change to the plan prompt: wf revisions as arms,
   on delivered JewelryX rounds, each plan graded against what the round shipped
 - `skills/round/SKILL.md`: the orchestrator skill ("start 662", "resume 662"); `skills/design-session/` for T1
@@ -97,7 +99,7 @@ holds everything wf knows about it, and `index.ts` there is the only file the re
 - `guidance`: the folder of its notes for agents, in its own repo. A note whose frontmatter has
   `globs:` (Amp's AGENTS.md form, from the repo root) is put in the brief of each commit whose row
   touches a matching file (`src/round/guidance.ts`); the rest are named by the phase prompts
-- `commands`: wf subcommands only this project has (JewelryX: `seed`, `show`, `stacks`)
+- `commands`: wf subcommands only this project has (JewelryX: `seed`, `show`)
 
 Next to it: `ROUND.md` (tracker, statuses, people, branches: read by the round skill),
 `prompts/<phase>.md` (appended to that phase's prompt) and whatever implements the above.
@@ -133,8 +135,7 @@ Claude Code, plus what the project's `setup` runs (JewelryX: pnpm, uv, docker, p
    ```
 7. The project's secrets, on this machine (JewelryX: the four `.env` files `.worktreeinclude` names,
    from `.env.example` plus the real values) at the same paths under `~/.config/wf/<project>/`.
-   Every new worktree copies them from there; the base branch's worktree needs its own copy only
-   to run the permanent dev stack.
+   Every new worktree copies them from there.
 
 ## Update
 
