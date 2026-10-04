@@ -7,7 +7,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { baseBranch, directUrls, name as projectName } from '../project.ts';
+import { baseBranch, directUrls, guidance, name as projectName } from '../project.ts';
 import { WF_HOME, WF_ROOT } from '../paths.ts';
 import { anchorToolPaths } from '../plugin/anchor.ts';
 import { seams } from '../seams.ts';
@@ -15,6 +15,7 @@ import { basePortForBranch } from '../worktrees/worktree.ts';
 import { roundChecks } from '../gates/standards.ts';
 import { openQuestionGate, overruledAsks } from './ask.ts';
 import { briefKey } from './handoff.ts';
+import { guidanceSection, notesFor, readNotes } from './guidance.ts';
 import { readState, roundOf, toplevelOf, writeState } from './state.ts';
 
 const REVISE = '\nRead `{{folder}}/SPEC-REVIEW.md` (wf design writes it there); revise `{{folder}}/SPEC.md` and `{{folder}}/PLAN.md` to answer every annotation; change nothing it does not mention. `## For T1` is what binds (DESIGN-SESSION.md § 5): an answer that changes the design changes it there, and the Build in PLAN.md agrees with its Build.\n';
@@ -98,6 +99,8 @@ export function composePrompt(argv: string[]) {
 		Object.assign(vars, directUrls(base));
 	} catch { /* not in a round worktree */ }
 	let template = readFileSync(join(templatesDir, `${phase}.md`), 'utf8');
+	// implement N: the row's files, whose project notes (guidance.ts) end the prompt as they are.
+	let files: string[] = [];
 	if (phase === 'plan' && argv.includes('--revise')) {
 		const overruled = overruledAsks(state?.answered, state?.briefs?.plan?.token);
 		vars.overruled = overruled.map((q) => `- q${q.n}: ${q.text} (default: ${q.default ?? 'none'}) \u2192 ${q.answer}`).join('\n');
@@ -119,6 +122,7 @@ export function composePrompt(argv: string[]) {
 		if (!row) throw new Error(`implement ${argv[1] ?? ''}: ${folder}/PLAN.md has no commit row ${argv[1] ?? ''} (rows: ${rows.map((r) => r.n).join(', ') || 'none'})`);
 		Object.assign(vars, { n, total: rows.length, row: row.line });
 		writeState(toplevel, { commit: n });
+		files = rowFiles(row);
 	}
 	// standards <check>: the one rule, inline, and the changed files it covers (standards.ts).
 	if (phase === 'standards') {
@@ -132,7 +136,8 @@ export function composePrompt(argv: string[]) {
 	// that is running (seams.entry), so an agent in Shay's round runs his env's wf, not the bare kit.
 	const wf = `node ${seams.entry.replace(/\\/g, '/')}`;
 	// Same for the docs a prompt cites: a round's worktree does not hold wf.
-	const text = anchorToolPaths(renderPrompt(template, vars).replace(/`wf /g, `\`${wf} `), WF_HOME, projectName);
+	const text = anchorToolPaths(renderPrompt(template, vars).replace(/`wf /g, `\`${wf} `), WF_HOME, projectName)
+		+ guidanceSection(notesFor(readNotes(toplevel, guidance), files));
 	return { text, toplevel, state, folder, phase, n: vars.n ?? null, key: briefKey(phase, vars.n ?? vars.check) };
 }
 
