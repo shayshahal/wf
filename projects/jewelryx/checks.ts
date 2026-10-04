@@ -2,6 +2,8 @@
 //   backend  — ruff check + ruff format --check, pytest for the changed tests
 //   frontend — svelte-check for the touched packages, vitest for the changed tests
 //   test     — the plan row's test path: pytest, vitest in its package, or playwright under verification/
+//   pre-commit — the repo's own lefthook pre-commit hook on the changed files, first, when it has one
+//              (prettier, eslint and oxlint with --fix, ruff --fix: it rewrites and stages what it fixes)
 //   pre-push — the repo's own lefthook pre-push hook on the changed files, when it has one (it runs
 //              the stricter svelte-check, so the --tsgo one above is dropped then)
 import { existsSync, readFileSync } from 'node:fs';
@@ -15,14 +17,22 @@ const isPyTest = (f: string) => /(^|\/)tests?\//.test(f) || /(^|\/)test_[^/]+\.p
 const isJsTest = (f: string) => /\.(test|spec)\.[cm]?[jt]s$/.test(f);
 
 // Pure: the commands to run, in order. `pkgFor(file)` returns { name, dir, svelte } for a frontend
-// file or null; `test` is the plan row's test path or null; `pushHook`: the repo has a lefthook.yml.
-export function checkTasks({ changed, test, pkgFor, pushHook = false }: { changed: string[]; test: string | null; pkgFor: PkgFor; pushHook?: boolean }): CheckTask[] {
+// file or null; `test` is the plan row's test path or null; `pushHook`: the repo has a lefthook.yml;
+// `onDisk(file)`: the file is still there (not deleted by the diff).
+export function checkTasks({ changed, test, pkgFor, pushHook = false, onDisk = () => true }: { changed: string[]; test: string | null; pkgFor: PkgFor; pushHook?: boolean; onDisk?: (file: string) => boolean }): CheckTask[] {
 	const tasks = rowTasks({ changed, test, pkgFor, pushHook });
 	if (!pushHook || !changed.length || tasks.some((t) => t.missing)) return tasks;
+	// What the commit will run, run first: ESLint (lint-kit's Svelte rules, @shadcn/lint) runs only in
+	// pre-commit, so an implementer met it at `git commit`, after wf check had said green (2026-10-04).
+	// First, because it fixes formatting the commands after it would otherwise fail on. Deleted files
+	// are left out, as a commit's staged list leaves them out: prettier exits 2 on a path that is not
+	// there (measured on a bench worktree, the same day).
+	const present = changed.filter(onDisk);
+	const preCommit: CheckTask[] = present.length ? [{ label: 'lefthook pre-commit', cmd: 'pnpm', args: ['exec', 'lefthook', 'run', 'pre-commit', ...present.flatMap((f) => ['--file', f])], cwd: '.' }] : [];
 	// What the push will run, run before the commit: TJEW-670 (2026-09-28) was approved at T2, then
 	// its push was refused by fallow-audit, and the fix commit after the approval needed a second T2.
 	// fallow audit sees uncommitted and untracked files (measured on a bench round, the same day).
-	return [...tasks, { label: 'lefthook pre-push', cmd: 'pnpm', args: ['exec', 'lefthook', 'run', 'pre-push', ...changed.flatMap((f) => ['--file', f])], cwd: '.' }];
+	return [...preCommit, ...tasks, { label: 'lefthook pre-push', cmd: 'pnpm', args: ['exec', 'lefthook', 'run', 'pre-push', ...changed.flatMap((f) => ['--file', f])], cwd: '.' }];
 }
 
 function rowTasks({ changed, test, pkgFor, pushHook }: { changed: string[]; test: string | null; pkgFor: PkgFor; pushHook: boolean }): CheckTask[] {

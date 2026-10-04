@@ -200,7 +200,7 @@ export function newRound({ worktree, folder, port }: { worktree: string; folder:
 // wf check's commands for the changed files, plus `test` (the plan row's test path, or null). Each is
 // { label, cmd, args, cwd } (cwd repo-relative), or { label, missing } when `test` is not runnable.
 export function checks({ toplevel, changed, test }: { toplevel: string; changed: string[]; test: string | null }): CheckTask[] {
-	return checkTasks({ changed, test, pkgFor: realPkgFor(toplevel), pushHook: existsSync(join(toplevel, 'lefthook.yml')) });
+	return checkTasks({ changed, test, pkgFor: realPkgFor(toplevel), pushHook: existsSync(join(toplevel, 'lefthook.yml')), onDisk: (f) => existsSync(join(toplevel, f)) });
 }
 
 // ── delivery ─────────────────────────────────────────────────────────────────

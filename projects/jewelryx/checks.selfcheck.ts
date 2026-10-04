@@ -59,9 +59,17 @@ check('a cell starting with s is not fence only', sWord.length > 0, JSON.stringi
 // svelte-check (the hook's own is stricter). TJEW-670: fallow-audit first ran at the push, after T2.
 const svelteDiff = ['packages/frontend/b2b/src/routes/x/+page.svelte'];
 const hooked = checkTasks({ changed: svelteDiff, test: null, pkgFor, pushHook: true });
-check('with a push hook: the hook on the changed files, and no --tsgo svelte-check', JSON.stringify(labels(hooked)) === '["lefthook pre-push"]' && hooked[0].args!.join(' ') === 'exec lefthook run pre-push --file packages/frontend/b2b/src/routes/x/+page.svelte', JSON.stringify(hooked));
+check('with a push hook: the hook on the changed files, and no --tsgo svelte-check', JSON.stringify(labels(hooked)) === '["lefthook pre-commit","lefthook pre-push"]' && hooked[1].args!.join(' ') === 'exec lefthook run pre-push --file packages/frontend/b2b/src/routes/x/+page.svelte', JSON.stringify(hooked));
 check('without one: svelte-check as before', labels(checkTasks({ changed: svelteDiff, test: null, pkgFor })).join() === 'svelte-check jewelryx-frontend');
 check('nothing changed: no hook run', checkTasks({ changed: [], test: null, pkgFor, pushHook: true }).length === 0);
+
+// The pre-commit hook runs first (it fixes formatting the rest would fail on), on the files still
+// there: ESLint ran only at `git commit`, after wf check said green (2026-10-04).
+const mixed = ['packages/backend/app/a.py', 'packages/frontend/b2b/src/gone.ts', ...svelteDiff];
+const withCommit = checkTasks({ changed: mixed, test: null, pkgFor, pushHook: true, onDisk: (f) => !f.endsWith('gone.ts') });
+check('pre-commit first, before ruff', labels(withCommit)[0] === 'lefthook pre-commit' && labels(withCommit)[1].startsWith('ruff check'), JSON.stringify(labels(withCommit)));
+check('pre-commit leaves a deleted file out; pre-push keeps it', withCommit[0].args!.join(' ') === 'exec lefthook run pre-commit --file packages/backend/app/a.py --file packages/frontend/b2b/src/routes/x/+page.svelte' && withCommit.at(-1)!.args!.includes('packages/frontend/b2b/src/gone.ts'), withCommit[0].args!.join(' '));
+check('only deletions: no pre-commit run, pre-push still runs', JSON.stringify(labels(checkTasks({ changed: ['packages/frontend/b2b/src/gone.ts'], test: null, pkgFor, pushHook: true, onDisk: () => false }))) === '["lefthook pre-push"]');
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');
 process.exit(failures ? 1 : 0);
