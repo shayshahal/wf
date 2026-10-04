@@ -12,7 +12,8 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { addQuestion, blockedQuestion, overruledAsks } from './ask.ts';
-import { briefKey, handoffFile, handoffGap, HANDOFF_FILES, planAsks, planClass, rowDone, validationVerdict } from './handoff.ts';
+import { briefKey, handoffFile, handoffGap, HANDOFF_FILES, planAsks, planClass, rowDone, tokenOf, validationVerdict } from './handoff.ts';
+import { critiqueVerdict, MAX_EXCHANGES } from '../gates/critique.ts';
 import { reportFile, roundChecks } from '../gates/standards.ts';
 import { baseBranch } from '../project.ts';
 import { planCommitRows } from './prompt.ts';
@@ -29,7 +30,7 @@ const MAX_BRIEFS = 2;
 
 // Pure: the action for a snapshot of the round:
 //   { branch, entry, step, klass, check, questions, answered, briefs, commit,
-//     files: { research, plan, blocked, asBuilt, validation, review } (text or null),
+//     files: { research, plan, blocked, asBuilt, validation, critique, review } (text or null),
 //     t1: { spec, reviewed, verdict } (SPEC.md's sha, SPEC-REVIEW.md's last spec-sha and verdict),
 //     subjects (commit subjects since the base), checks (.wf/checks.log lines),
 //     fixesAfterValidate (fix(review) commits since the validate brief's head),
@@ -48,7 +49,7 @@ export type Snapshot = {
 	answered: Question[];
 	briefs: Record<string, Brief>;
 	commit: number | null;
-	files: Record<'research' | 'plan' | 'blocked' | 'asBuilt' | 'validation' | 'review', string | null>;
+	files: Record<'research' | 'plan' | 'blocked' | 'asBuilt' | 'validation' | 'critique' | 'review', string | null>;
 	t1: { spec: string | null; reviewed: string | null; verdict: string | null };
 	subjects: string[];
 	checks: { row: number | null; result: string }[];
@@ -177,9 +178,18 @@ export function nextAction(s: Snapshot): { say: string; effects: Effect[] } {
 		const vToken = brief('validate')?.token ?? 'validate';
 		// A validation whose deviations were fixed is judged again, and so is one a T2 fix came after: it
 		// is what the PR carries (TJEW-670, 2026-09-28: its review fix merged under the older validation).
-		if (vGap || rulings.some((q) => q.source === `VALIDATION.md#${vToken}`)) return dispatch('validate', [], vGap);
+		// A validation answering a critique that did not hand off is briefed again as an answer.
+		if (vGap || rulings.some((q) => q.source === `VALIDATION.md#${vToken}`)) return dispatch('validate', vGap && brief('validate')?.answers ? ['--answer'] : [], vGap);
 		// No gap passed: the last validation did hand off, and a gap would count toward MAX_BRIEFS.
 		if (s.fixesAfterValidate > 0) return dispatch('validate', [], null);
+		// The critic, before the person sees the validation (gates/critique.ts): a fresh agent audits
+		// VALIDATION.md with the code frozen; a disagreement sends validate back to answer it, up to
+		// MAX_EXCHANGES critiques, and one still open goes to T2 beside it.
+		const critique = brief('critique');
+		if (critique?.of !== tokenOf(s.files.validation)) return dispatch('critique', [], null);
+		const cGap = handoffGap('critique', s.files.critique, critique);
+		if (cGap) return dispatch('critique', [], cGap);
+		if (critiqueVerdict(s.files.critique) !== 'AGREE' && (critique.exchange ?? 1) < MAX_EXCHANGES) return dispatch('validate', ['--answer'], null);
 		if (validationVerdict(s.files.validation) === 'deviates') {
 			const source = `VALIDATION.md#${vToken}`;
 			const ruling = (s.answered ?? []).find((q) => q.source === source);
@@ -237,7 +247,7 @@ export function snapshotOf(toplevel: string): Snapshot {
 		answered: state.answered ?? [],
 		briefs: state.briefs ?? {},
 		commit: state.commit ?? null,
-		files: Object.fromEntries([['research', 'RESEARCH.md'], ['plan', 'PLAN.md'], ['blocked', 'BLOCKED.md'], ['asBuilt', HANDOFF_FILES['as-built']], ['validation', 'VALIDATION.md'], ['review', 'REVIEW.md']].map(([k, f]) => [k, read(join(dir, f))])) as Snapshot['files'],
+		files: Object.fromEntries([['research', 'RESEARCH.md'], ['plan', 'PLAN.md'], ['blocked', 'BLOCKED.md'], ['asBuilt', HANDOFF_FILES['as-built']], ['validation', 'VALIDATION.md'], ['critique', HANDOFF_FILES.critique], ['review', 'REVIEW.md']].map(([k, f]) => [k, read(join(dir, f))])) as Snapshot['files'],
 		t1: { spec: specShaFor(toplevel), reviewed: lastField(specReview, 'spec-sha'), verdict: readVerdict(specReview) },
 		subjects: git('log', '--format=%s', `${base}..HEAD`).split('\n').filter(Boolean),
 		fixesAfterValidate: fixesSince(git, state.briefs?.validate?.head),

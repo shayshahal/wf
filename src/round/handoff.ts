@@ -7,6 +7,7 @@
 // (2026-09-27). Implement and fix-review hand off a commit (its row's message, a green `wf check`).
 import { randomBytes } from 'node:crypto';
 import { reproCommand } from '../gates/check.ts';
+import { critiqueGap, CRITIQUE_FILE } from '../gates/critique.ts';
 import { reportFile, reportGap } from '../gates/standards.ts';
 import { planCommitRows } from './prompt.ts';
 
@@ -16,7 +17,7 @@ export const newToken = () => randomBytes(3).toString('hex');
 export const briefKey = (phase: string, n?: number | string | null) => (phase === 'implement' || phase === 'standards' ? `${phase} ${n}` : phase);
 
 // The file each phase writes, in the round folder; standards writes one per check (handoffFile).
-export const HANDOFF_FILES: Record<string, string> = { research: 'RESEARCH.md', plan: 'PLAN.md', 'as-built': 'proof/CALL-STACK-AS-BUILT.md', validate: 'VALIDATION.md' };
+export const HANDOFF_FILES: Record<string, string> = { research: 'RESEARCH.md', plan: 'PLAN.md', 'as-built': 'proof/CALL-STACK-AS-BUILT.md', validate: 'VALIDATION.md', critique: CRITIQUE_FILE };
 export const handoffFile = (phase: string, arg?: number | string | null) => (phase === 'standards' ? reportFile(String(arg)) : HANDOFF_FILES[phase]);
 
 export const tokenLine = (token: string) => `<!-- brief: ${token} -->`;
@@ -43,6 +44,7 @@ export function handoffGap(phase: string, text: string | null | undefined, brief
 	if (phase === 'validate' && !validationVerdict(text)) return 'VALIDATION.md has no `Verdict: matches plan | deviates` line';
 	if (phase === 'validate') return intentGap(text);
 	if (phase === 'standards') return reportGap(text, file);
+	if (phase === 'critique') return critiqueGap(text, file);
 	return null;
 }
 

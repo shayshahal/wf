@@ -11,6 +11,7 @@ import { resolveWorktree } from '../worktrees/worktree.ts';
 import { appendDatedSection, asBuiltFile, beforeAfterPage, captionFor, devUrlsFor, foldFeedbackLine, lastField, proofPairs, readVerdict, renderHeader, renderSkeleton, specShaFor } from './review-format.ts';
 import { seams } from '../seams.ts';
 import { reportFile, roundChecks, summaryLines } from './standards.ts';
+import { CRITIQUE_FILE, critiqueLines } from './critique.ts';
 import { roundFile } from '../round/state.ts';
 import type { State } from '../round/state.ts';
 import { runStep } from '../round/step.ts';
@@ -86,6 +87,14 @@ function standardsFor(worktree: string): string[] {
   }
 }
 
+// The header's critique line: a dispute between validate and its critic still open after the last
+// exchange (critique.ts); none when they settled.
+function critiqueFor(worktree: string): string[] {
+  const state = readState(worktree);
+  const file = [state.folder, CRITIQUE_FILE].filter(Boolean).join('/');
+  return critiqueLines(existsSync(join(worktree, file)) ? readFileSync(join(worktree, file), 'utf8') : null, file, state.briefs?.critique?.exchange ?? null);
+}
+
 export async function runReview(argv: string[]) {
   const round = argv.find((a) => !a.startsWith('-'));
   if (!round) usage();
@@ -109,7 +118,7 @@ export async function runReview(argv: string[]) {
     console.log(`before/after: ${beforeAfter}`);
     openFile(beforeAfter);
   }
-  const standards = standardsFor(worktree);
+  const standards = [...critiqueFor(worktree), ...standardsFor(worktree)];
   const header = () => renderHeader({ round, klass, base, specSha: specShaFor(worktree), urls: devUrlsFor(worktree), files, beforeAfter, standards });
   const file = roundFile(worktree, 'REVIEW.md');
   if (!existsSync(file)) appendDatedSection(file, renderSkeleton({ round, klass, base, specSha: specShaFor(worktree), urls: devUrlsFor(worktree), files, beforeAfter, standards }));

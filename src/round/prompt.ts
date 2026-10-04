@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// prompt.ts — wf prompt <research | plan [--revise] | implement N | fix-review>
+// prompt.ts — wf prompt <research | plan [--revise] | implement N | validate [--answer] | critique | fix-review>
 // Prints the composed prompt for a fresh round agent to stdout (skills/round/SKILL.md).
 // Substitutes {{round}} {{folder}} from .wf/state.json, and for `implement N` the row
 // N of PLAN.md `## Commits` verbatim ({{row}}), {{n}} and {{total}}.
@@ -20,6 +20,8 @@ import { readState, roundOf, toplevelOf, writeState } from './state.ts';
 
 const REVISE = '\nRead `{{folder}}/SPEC-REVIEW.md` (wf design writes it there); revise `{{folder}}/SPEC.md` and `{{folder}}/PLAN.md` to answer every annotation; change nothing it does not mention. `## For T1` is what binds (DESIGN-SESSION.md § 5): an answer that changes the design changes it there, and the Build in PLAN.md agrees with its Build.\n';
 // `plan --revise` after an Ask was answered against its default (ask.ts overruledAsks).
+// `validate --answer`: a critique disagreed with the last validation (gates/critique.ts).
+const ANSWER = '\n## This is an answer\n\n`{{folder}}/VALIDATION.md` exists, and a critic who did not write it audited it: `{{folder}}/CRITIQUE.md`. Read both fully, then write VALIDATION.md again, the whole file, from the diff and the files as above. For each CRITIQUE.md row:\n\n- `AGREE`: keep that line as it is.\n- `DISAGREE_EVIDENCE`: read the `<path>:<line>` it cites. Revise the line to what the code there shows, or keep it and say in it, in a few words, why that code does not change it.\n- `DISAGREE_CONCERN`: firm the line up with a `<path>:<line>` or a measurement, or drop it. A concern is a request for evidence, not a ruling: never drop a `not met`, `missing` or `differs` only because it was questioned.\n\nA line the critique does not name is judged again as any other. The critic may be wrong; the code decides, not who spoke last.\n';
 const REVISE_ASKS = '\n## This is a revision\n\n`{{folder}}/PLAN.md` exists, and the person answered some of its Asks against the default it was written for. Their answers:\n\n{{overruled}}\n\nRevise `{{folder}}/PLAN.md` to build each answer: its Approach, Commits, *Not doing* and *T2 walk*. Delete the answered Asks, keep `## Decisions` as it is, and change nothing an answer does not touch.\n';
 
 // A `## Commits` row is a table line whose first cell is the commit number; header and
@@ -58,13 +60,13 @@ export function ticketIntent(text: string) {
 	return body || null;
 }
 
-const INTENT_PHASES = ['research', 'plan', 'validate'];
+const INTENT_PHASES = ['research', 'plan', 'validate', 'critique'];
 
 // The {{…}} a prompt template substitutes; the project's direct URLs add one per app.
 type PromptVars = { round: string; folder: string | null; base: string; review: string; intent?: string | null; overruled?: string; n?: number; total?: number; row?: string; check?: string; [app: string]: unknown };
 
-export const PHASES = ['research', 'plan', 'implement', 'as-built', 'validate', 'standards', 'fix-review'];
-export const USAGE = 'research | plan [--revise] | implement N | as-built | validate | standards <check> | fix-review';
+export const PHASES = ['research', 'plan', 'implement', 'as-built', 'validate', 'critique', 'standards', 'fix-review'];
+export const USAGE = 'research | plan [--revise] | implement N | as-built | validate [--answer] | critique | standards <check> | fix-review';
 
 // The composed prompt for `argv` (`<phase> [N | <check>] [--revise]`), with `{ toplevel, state, folder, phase, n, key }`,
 // key being what its brief is recorded under.
@@ -106,6 +108,7 @@ export function composePrompt(argv: string[]) {
 		vars.overruled = overruled.map((q) => `- q${q.n}: ${q.text} (default: ${q.default ?? 'none'}) \u2192 ${q.answer}`).join('\n');
 		template += overruled.length ? REVISE_ASKS : REVISE;
 	}
+	if (phase === 'validate' && argv.includes('--answer')) template += ANSWER;
 	// The project's notes for this phase: what its repo, apps and tests look like (projects/<name>/prompts/).
 	const notes = join(WF_ROOT, 'projects', projectName, 'prompts', `${phase}.md`);
 	if (existsSync(notes)) template += `\n${readFileSync(notes, 'utf8')}`;
