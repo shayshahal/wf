@@ -163,6 +163,7 @@ export function devUrlsFor(worktree: string): string | null {
     if (!branch) return null;
     return urlLines(stackUrls({ slug: slugForBranch(branch), port: basePortForBranch(branch) }));
   } catch {
+    // No worktree list or no stack for this branch: the header goes out without URLs.
     return null;
   }
 }

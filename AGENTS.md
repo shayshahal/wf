@@ -44,5 +44,7 @@ moves. There is no staging and no CI. So, before every push:
   `src/selfcheck.ts` catches a wrong one. The two entries, `wf.mjs` and `env/wf.mjs`, stay JavaScript:
   the plugin, `~/bin/wf` and the hooks call them by name, and `wf.mjs` must still load on an old Node
   to say it is too old.
-- No runtime dependencies: wf runs on Node alone. `typescript` and `@types/node` (package.json) are
-  for the `tsc` check only.
+- No runtime dependencies: wf runs on Node alone. Its dev dependencies (package.json) are for
+  `src/selfcheck.ts` only: `typescript` and `@types/node` for `tsc`, `eslint` and `lint-kit` for
+  lint-kit's error-handling set (`eslint.config.js`). A `catch` that drops the error says why in a
+  comment inside it, or handles the error.

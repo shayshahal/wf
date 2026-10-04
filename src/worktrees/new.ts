@@ -84,7 +84,7 @@ export function launchConfig(urls: Record<string, string>) {
 export function cloneLaunch(text: string, slug: string, urls: Record<string, string> | null) {
 	let json: LaunchJson = { version: '0.0.1', configurations: [] };
 	if (text?.trim()) {
-		try { json = JSON.parse(text); } catch { return null; }
+		try { json = JSON.parse(text); } catch { /* a launch.json wf cannot parse is someone's: left as it is */ return null; }
 	}
 	const others = (json.configurations ?? []).filter((c) => !String(c.name ?? '').startsWith(`${slug} `));
 	const ours = urls ? Object.entries(urls).map(([app, url]) => ({ name: `${slug} ${app}`, url: new URL(url).origin })) : [];
@@ -160,7 +160,7 @@ export async function runNew(argv: string[]) {
 	const notes = newRound({ worktree: path, folder, port: basePortForBranch(branch) });
 	writeState(path, { id: ids[0] ?? branch, ...(ids.length > 1 ? { ids } : {}), folder, made_by: seams.madeBy, entry: seams.entry.replace(/\\/g, '/'), ...(argv.includes('--check') ? { check: true } : {}) });
 	if (reopen && dupes.length) {
-		const plan = (f: string) => { try { return execFileSync('git', ['show', `${base}:${f}/PLAN.md`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }); } catch { return null; } };
+		const plan = (f: string) => { try { return execFileSync('git', ['show', `${base}:${f}/PLAN.md`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }); } catch { /* that round left no PLAN.md: it has no rulings */ return null; } };
 		const rulings = dupes.filter((d) => d.startsWith(`${roundsDir}/`)).map((f) => ({ folder: f, lines: decisionsOf(plan(f)) }));
 		writeFileSync(join(path, folder, 'EARLIER.md'), earlierText({ ids, dupes, rulings }));
 	}

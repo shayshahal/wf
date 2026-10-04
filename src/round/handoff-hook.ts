@@ -61,7 +61,7 @@ export function forkGap(input: HookInput | null | undefined): string | null {
 async function stdinJson(): Promise<HookInput> {
 	let text = '';
 	for await (const chunk of process.stdin) text += chunk;
-	try { return JSON.parse(text) as HookInput; } catch { return {}; }
+	try { return JSON.parse(text) as HookInput; } catch { /* no JSON from the harness: judged by the working directory alone */ return {}; }
 }
 
 function roundAt(cwd: string): string | null {
@@ -69,6 +69,7 @@ function roundAt(cwd: string): string | null {
 		const toplevel = execFileSync('git', ['-C', cwd, 'rev-parse', '--show-toplevel'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
 		return existsSync(join(toplevel, '.wf', 'state.json')) && readState(toplevel)?.folder ? toplevel : null;
 	} catch {
+		// Not a git checkout: no round here, and the hook lets the agent be.
 		return null;
 	}
 }

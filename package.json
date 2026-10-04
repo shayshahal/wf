@@ -1,9 +1,11 @@
 {
   "private": true,
   "type": "module",
-  "description": "wf has no runtime dependencies. These two are for `tsc --noEmit` in src/selfcheck.ts only: wf itself runs on Node alone.",
+  "description": "wf has no runtime dependencies. These are for src/selfcheck.ts only (tsc, and eslint with lint-kit's error-handling set): wf itself runs on Node alone.",
   "devDependencies": {
     "@types/node": "26.6.3",
+    "eslint": "10.12.0",
+    "lint-kit": "github:shayshahal/lint-kit#v0.3.0",
     "typescript": "7.0.2"
   }
 }

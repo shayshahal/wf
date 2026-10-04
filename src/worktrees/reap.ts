@@ -36,7 +36,11 @@ export const ROUND_RECORD = ['state.json', 'checks.log', 'events.log'];
 
 function keepPaperwork(path: string, slug: string) {
 	let porcelain = '';
-	try { porcelain = execFileSync('git', ['-C', path, 'status', '--porcelain', '--untracked-files=all'], { encoding: 'utf8' }); } catch { return; }
+	try { porcelain = execFileSync('git', ['-C', path, 'status', '--porcelain', '--untracked-files=all'], { encoding: 'utf8' }); } catch (e) {
+		// Reap removes the worktree next: without the list, its uncommitted paperwork went with it, unsaid.
+		console.error(`wf reap: cannot list ${path}'s uncommitted paperwork (git status: ${e instanceof Error ? e.message.split('\n')[0] : String(e)}); nothing removed`);
+		process.exit(1);
+	}
 	const files = [...paperworkToKeep(porcelain), ...ROUND_RECORD.map((f) => `.wf/${f}`).filter((f) => existsSync(join(path, f)))];
 	if (!files.length) return;
 	const dest = join(homedir(), '.cache', 'wf-reaped', slug);
@@ -93,8 +97,10 @@ export async function runReap(argv: string[]) {
 	const slug = slugForBranch(branch);
 	const state = readState(path);
 	const force = reapRuns(process.env, state);
-	if (force && state) recordFriction(path, state);
+	// Paperwork first: when it cannot be listed, reap stops, and ROUNDS.md gets no line for a round
+	// that is still there (2026-10-04, a broken .git: the line was written, then reap stopped).
 	if (force) keepPaperwork(path, slug);
+	if (force && state) recordFriction(path, state);
 	// Read before the worktree goes: the repository the branch lives in.
 	const gitDir = execFileSync('git', ['-C', path, 'rev-parse', '--path-format=absolute', '--git-common-dir'], { encoding: 'utf8' }).trim();
 	const deleteBranch = branchStep(state, branch, gitDir);
@@ -111,6 +117,7 @@ export async function runReap(argv: string[]) {
 				rmSync(step.rm, { recursive: true, force: true, maxRetries: 10, retryDelay: 1000 });
 				console.log(`${step.label}: ok`);
 			} catch (e) {
+				// Each step tolerates what is already gone; the next steps still run, and the line says which failed.
 				console.log(`${step.label}: ${(e as NodeJS.ErrnoException).code ?? 'failed'} (already gone?)`);
 			}
 			continue;
@@ -122,6 +129,7 @@ export async function runReap(argv: string[]) {
 				step.run();
 				console.log(`${step.label}: ok`);
 			} catch (e) {
+				// As above: printed, and the remaining steps run.
 				console.log(`${step.label}: already gone or failed (${(e as Error).message})`);
 			}
 			continue;

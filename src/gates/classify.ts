@@ -25,7 +25,7 @@ const top = execFileSync("git", ["rev-parse", "--show-toplevel"], { encoding: "u
 const persistedBase = () => {
   try {
     return JSON.parse(readFileSync(join(top, ".wf", "state.json"), "utf8")).base ?? null;
-  } catch { return null; }
+  } catch { /* no state.json, or none that parses: the project's base branch decides */ return null; }
 };
 const hasOriginBase = spawnSync("git", ["rev-parse", "--verify", "-q", `origin/${baseBranch}`]).status === 0;
 const base = bi === -1 ? (persistedBase() ?? (hasOriginBase ? `origin/${baseBranch}` : baseBranch)) : (args[bi + 1] ?? baseBranch);
