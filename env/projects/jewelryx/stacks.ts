@@ -2,7 +2,7 @@
 // stacks.ts — wf stacks up|down|status: the two permanent local stacks (Shay, 2026-09-23).
 //   DEV  the `dev` worktree served live by wf's projects/jewelryx/dev.ts (slug dev, base port =
 //        hash_port("dev") like any round), own mongo jewelryx-mongo-dev seeded once by
-//        db.ts. Never pulls: it serves whatever the dev folder holds.
+//        db.ts, which holds every round's database too (index.ts). Never pulls: it serves whatever the dev folder holds.
 //   QA   the qa worktree (detached at origin/qa, never committed to) built with its own
 //        docker-compose.qa.yml + docker-compose.qa-local.yml, project jewelryx-qa, nginx on
 //        127.0.0.1:8090 ← portless alias qa.jewelryx.localhost. Every 5 min origin/qa is
@@ -404,9 +404,9 @@ async function down() {
   const runner = killTree('runner.pid', 'stacks');
   const dev = killDevServers();
   console.log(`stacks: runner ${runner || '-'} + ${dev} dev server processes stopped`);
-  await sh('docker', ['stop', 'jewelryx-mongo-dev']);
+  // jewelryx-mongo-dev keeps running: every round's database lives in it too (index.ts, 2026-10-04).
   const r = await sh('docker', compose('stop'));
-  console.log(`stacks: dev mongo + qa containers stopped${r.status ? ` (compose: ${tail(r.out, 3)})` : ''}; volumes kept`);
+  console.log(`stacks: qa containers stopped${r.status ? ` (compose: ${tail(r.out, 3)})` : ''}; volumes kept; jewelryx-mongo-dev left running for the rounds`);
 }
 
 async function status() {

@@ -1,7 +1,6 @@
-# wf stack/mongo.compose.yml: one mongo per worktree.
+# env/projects/jewelryx/mongo.compose.yml: the dev stack's mongo (mongo.ts mongoUp, slug dev), which
+# holds every round's database too. Until 2026-10-04 each worktree had one of its own.
 #
-# One mongo per worktree on a hashed host port, managed by
-# wf stack/db.mjs (pre-start up + seed, post-remove down).
 # Everything unique (container, port, volume, project) comes from
 # WT_SLUG / WT_MONGO_PORT in the environment. Same image as the base
 # compose (mongo:7).

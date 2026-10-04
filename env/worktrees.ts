@@ -40,14 +40,14 @@ export function removalPlan({ branch, path, slug, pid }: Parameters<NonNullable<
 	// Stragglers go first: a live dev server holds the tree, and `wt remove` fails on Windows while
 	// it runs, leaving git without the worktree but the folder, container, volume, network and
 	// routes in place (measured 2026-09-24: 23 processes). The sweep is the kit's (serve.ts).
+	// The project's teardown before the folder goes, as the kit's plan has it: dropping the database
+	// runs the worktree's python. Until 2026-10-04 it came after, which was right while a container
+	// per worktree needed no worktree; the first shared-mongo reap failed its drop that way.
 	return [
 		stragglersStep(path, pid, platform),
+		...teardown({ slug, worktree: path }),
 		{ label: 'wt remove', cmd: 'wt', args: ['remove', branch, '--no-delete-branch', '--force', '--foreground', '-y'] },
 		{ label: 'rm -rf worktree', rm: path },
 		{ label: 'git worktree prune', cmd: 'git', args: ['worktree', 'prune'] },
-		// After the folder: right for Shay's database pieces (a container, portless routes), which need
-		// no worktree. The kit's database drop runs the worktree's python and could not run here; it
-		// never does, since env/projects/jewelryx replaces the whole database piece.
-		...teardown({ slug, worktree: path }),
 	];
 }

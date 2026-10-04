@@ -33,7 +33,7 @@ export function copySecrets(worktree: string, from: string): void {
 const FORCED: Record<string, string> = { MEDIA_STORAGE_BACKEND: 'local' };
 const BLANKED = ['AWS_S3_ACCESS_KEY_ID', 'AWS_S3_SECRET_ACCESS_KEY', 'AWS_S3_BUCKET_NAME', 'AWS_SES_ACCESS_KEY_ID', 'AWS_SES_SECRET_ACCESS_KEY'];
 
-// Pure. `db` ({ url, name }) points the backend at the worktree's own mongo; without it the
+// Pure. `db` ({ url, name }) points the backend at the worktree's own database; without it the
 // database keys are left alone.
 export type WorktreeDb = { url: string; name: string };
 export function sanitizeEnv(contents: string, db?: WorktreeDb | null): string {

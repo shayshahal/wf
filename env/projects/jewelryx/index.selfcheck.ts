@@ -1,18 +1,19 @@
 // env/projects/jewelryx/index.selfcheck.ts — node env/projects/jewelryx/index.selfcheck.ts → exit 0 when green.
-// Pure arms: JewelryX on Shay's machine: its mongo container (mongo.ts), portless names and wrapping,
+// Pure arms: JewelryX on Shay's machine: the shared mongo and its containers (mongo.ts), portless names and wrapping,
 // and what the kit's project folder does with them plugged in. Nothing is run.
 import { devCommands } from '../../../projects/jewelryx/dev.ts';
-import { stackUrls, teardown } from '../../../projects/jewelryx/index.ts';
+import { seedUrl, stackUrls, teardown } from '../../../projects/jewelryx/index.ts';
 import { plug } from '../../../src/seams.ts';
-import { pieces, portlessServers, stackNames } from './index.ts';
-import { mongoPortForBase, mongoUrlFromDockerPort, worktreeMongoUrl } from './mongo.ts';
+import { basePortForBranch } from '../../../src/worktrees/worktree.ts';
+import { oldContainerSteps, pieces, portlessServers, sharedMongoUrl, stackNames } from './index.ts';
+import { mongoPortForBase, mongoUrlFromDockerPort } from './mongo.ts';
 
 let failures = 0;
 const check = (name: string, cond: unknown, detail = '') =>
   (console.log(cond ? `  ok   ${name}` : `  FAIL ${name}${detail ? ` — ${detail}` : ''}`) as unknown) || (cond || failures++);
 
 // ── the mongo container
-check('mongo sits at 40000+(P-10000)', mongoPortForBase(12345) === 42345 && worktreeMongoUrl(17554) === 'mongodb://localhost:47554');
+check('mongo sits at 40000+(P-10000)', mongoPortForBase(12345) === 42345);
 let range = '';
 try { mongoPortForBase(9999); } catch (e) { range = (e as Error).message; }
 check('a base port outside 10000-19999 throws', range.includes('out of range'), range);
@@ -32,12 +33,19 @@ delete process.env.PORTLESS;
 // ── the kit's project folder, with these pieces plugged in
 plug({ project: pieces });
 check('a person gets the portless names', stackUrls({ slug: 'my-slug', port: 18001 }).b2b === 'http://my-slug.b2b.jewelryx.localhost');
+
+// ── every round's database in the dev stack's mongo (2026-10-04)
+check('a worktree\'s backend uses the dev stack\'s mongo, whatever its own port', seedUrl({ slug: 'fix-bjew-1', port: 17554 }) === `mongodb://127.0.0.1:${mongoPortForBase(basePortForBranch('dev'))}` && seedUrl({ slug: 'x', port: 11000 }) === sharedMongoUrl());
 const down = teardown({ slug: 'fix-bjew-1', worktree: 'C:/wt/fix-bjew-1' });
-check('teardown: the container goes with its anonymous volumes (-v)', down.find((x) => x.label === 'docker rm mongo')?.args?.includes('-v'));
-check('teardown: mongo container, volume, compose network, then portless routes', down.map((x) => x.label).join(' → ') === 'docker rm mongo → docker volume rm → docker network rm → portless prune', down.map((x) => x.label).join(' → '));
-check('docker names come from the slug', down[0].args!.at(-1) === 'jewelryx-mongo-fix-bjew-1' && down[1].args!.at(-1) === 'jewelryx-wt-mongo-fix-bjew-1');
-check('the compose network is removed by its slug name', down[2].args!.join(' ') === 'network rm jewelryx-wt-fix-bjew-1_default', down[2].args!.join(' '));
-check('portless prune runs with CI=1', (down[3] as { env: Record<string, string> }).env.CI === '1' && down[3].args!.join(' ') === 'prune');
+check('reap drops the worktree\'s database, then its own container if it has one, then portless routes', down.map((x) => x.label).join(' → ') === 'drop database → its own mongo container, if any → portless prune', down.map((x) => x.label).join(' → '));
+check('the plan itself runs nothing (the container is looked for at reap)', down.slice(0, 2).every((x) => typeof x.run === 'function'));
+// A worktree made before 2026-10-04: its own container, volume and compose network.
+const old = oldContainerSteps('fix-bjew-1', true);
+check('made before: container (with its anonymous volumes, -v), volume, compose network', old.map((x) => x.label).join(' → ') === 'docker rm mongo → docker volume rm → docker network rm' && old[0].args!.includes('-v'), old.map((x) => x.label).join(' → '));
+check('docker names come from the slug', old[0].args!.at(-1) === 'jewelryx-mongo-fix-bjew-1' && old[1].args!.at(-1) === 'jewelryx-wt-mongo-fix-bjew-1' && old[2].args!.join(' ') === 'network rm jewelryx-wt-fix-bjew-1_default');
+check('none: nothing to remove', oldContainerSteps('fix-bjew-1', false).length === 0);
+check('the dev worktree\'s container is the shared one: never removed', oldContainerSteps('dev', true).length === 0);
+check('portless prune runs with CI=1', (down[2] as { env: Record<string, string> }).env.CI === '1' && down[2].args!.join(' ') === 'prune');
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');
 process.exit(failures ? 1 : 0);
