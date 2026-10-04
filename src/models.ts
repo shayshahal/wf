@@ -26,6 +26,10 @@ export const PHASE_EFFORT: Record<string, Effort> = {
 	'as-built': 'low',
 	validate: 'low',
 	standards: 'low',
+	// Not validate's level: the critic is another model where the machine has one (PRACTICES.md,
+	// second-model review). Self-Refine, one model judging its own review, gained nothing in the paper
+	// (gates/critique.ts).
+	critique: 'medium',
 };
 
 export const isEffort = (e: string): e is Effort => (EFFORTS as readonly string[]).includes(e);

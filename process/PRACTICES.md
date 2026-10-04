@@ -33,6 +33,10 @@ axes kept apart: standards (does it follow this repo's rules?) and spec
 (does it do what was asked, no more?). The two reports are presented side by
 side, never merged, so one axis cannot mask the other. In a round, validate is
 the spec axis, and one `standards` agent per repository rule is the other
-(STANDARDS.md).
+(STANDARDS.md). Before the spec report reaches the person, a critic audits it,
+not the code: each line agreed, contradicted with a cited `path:line`, or
+questioned for evidence. A disagreement sends validate back to answer it, at
+most twice, and a dispute still open goes to T2 beside VALIDATION.md
+(`src/gates/critique.ts`; Adversarial Review, arXiv 2608.18167).
 
 superpowers implements these if installed; the practices don't depend on it.

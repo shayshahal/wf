@@ -1,6 +1,6 @@
 ---
 name: round-worker
-description: One phase of a round (research, plan, implement N, as-built, validate, standards <check>, fix-review), dispatched by the round skill with the one line `wf next` printed, which runs `wf brief`. Exits when its turn ends, so its pane closes by itself. Not for the design session, which the user talks to.
+description: One phase of a round (research, plan, implement N, as-built, validate [--answer], critique, standards <check>, fix-review), dispatched by the round skill with the one line `wf next` printed, which runs `wf brief`. Exits when its turn ends, so its pane closes by itself. Not for the design session, which the user talks to.
 auto-exit: true
 ---
 

@@ -47,7 +47,7 @@ export function stopGap(s: Snapshot): string | null {
 		const gap = c && handoffGap('standards', c.text, s.briefs[last.key], handoffFile('standards', c.id));
 		return gap ? `${gap}. Your brief's Handoff section says what to write before you end.` : null;
 	}
-	const file = ({ research: 'research', plan: 'plan', 'as-built': 'asBuilt', validate: 'validation' } as Partial<Record<string, keyof Snapshot['files']>>)[last.phase];
+	const file = ({ research: 'research', plan: 'plan', 'as-built': 'asBuilt', validate: 'validation', critique: 'critique' } as Partial<Record<string, keyof Snapshot['files']>>)[last.phase];
 	if (!file) return null; // fix-review: its commit is counted by wf next
 	const gap = handoffGap(last.phase, s.files[file], s.briefs[last.key]);
 	return gap ? `${gap}. Your brief's Handoff section says what to write before you end.` : null;

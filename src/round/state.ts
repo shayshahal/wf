@@ -11,7 +11,9 @@ export type RoundClass = 'A' | 'B' | 'C';
 // A question `wf ask` opened; `wf decide` moves it to `answered` with its answer (ask.ts).
 export type Question = { n: number; to: string; text: string; default?: string; source?: string; asked: string; answer?: string | null; answered?: string };
 // What `wf brief` recorded for a phase (handoff.ts): the token its handoff file must end with.
-export type Brief = { token: string; at: string; count: number; head?: string; sent_back?: boolean };
+// of: the validation token a critique judged; exchange: which critique of that validation's chain it is;
+// answers: the exchange a `validate --answer` answered (gates/critique.ts).
+export type Brief = { token: string; at: string; count: number; head?: string; sent_back?: boolean; of?: string | null; exchange?: number; answers?: number };
 // .wf/state.json. Every field is optional: each command writes only its own (writeState merges),
 // and a hand-cut worktree has only what `wf step` wrote.
 export type State = {

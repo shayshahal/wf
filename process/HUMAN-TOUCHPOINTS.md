@@ -22,6 +22,8 @@ When the round folder's `proof/` has `before-<n>.png` (research, on the base) or
 opens it (outside Claude Code) and lists it under `look at:`.
 Each repository rule that covered the diff gets a `standards:` line: `pass`, or its issues by
 severity and the report to read beside the diff (STANDARDS.md).
+When validate and its critic still disagree after the last exchange, a `critique:` line names
+CRITIQUE.md to read beside VALIDATION.md (`src/gates/critique.ts`); when they settled, there is none.
 `wf review <round> --done` reads the verdict line: approved → `step pr`,
 changes-requested → `step implement`; a missing or dismissed verdict exits 2.
 
