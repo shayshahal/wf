@@ -1,12 +1,13 @@
 // git-worktree.ts — the kit's worktrees, where no env plugs its own in (seams.ts): plain git,
 // in <repo>/.claude/worktrees/<slug>, Claude Code Desktop's own place (kit and env plan, step 3).
-//   create: git worktree add, the project's setup steps side by side, then its stack (wf serve)
+//   create: git worktree add, the project's setup steps side by side (no stack: the phases that use one
+//           start it, serve.ts ensureServers)
 //   remove: stop the stack, the project's teardown while the worktree is still there, then the folder
 import { closeSync, openSync, readFileSync } from 'node:fs';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { setup, teardown } from '../project.ts';
 import type { RemovalStep, Seams, Worktree } from '../seams.ts';
-import { servePid, startServers, stopServersStep, stragglersStep } from './serve.ts';
+import { servePid, stopServersStep, stragglersStep } from './serve.ts';
 import { basePortForBranch, excludeFromGit, excludeWfFolder, listWorktrees, slugForBranch, worktreesHome } from './worktree.ts';
 
 // The project's setup steps all at once, as worktrunk runs them: a command runs in a shell, its
@@ -53,7 +54,6 @@ export async function createWorktree({ branch, base, log }: Parameters<NonNullab
 	const failed = await runSetup({ worktree: path, slug: slugForBranch(branch), port: basePortForBranch(branch), fd });
 	closeSync(fd);
 	if (failed.length) throw new Error(`${readFileSync(log, 'utf8').trimEnd().split('\n').slice(-40).join('\n')}\nsetup failed: ${failed.join(', ')} (log: ${log}; worktree left at ${path})`);
-	startServers(path);
 	return { path, branch };
 }
 

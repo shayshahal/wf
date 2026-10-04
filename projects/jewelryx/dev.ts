@@ -1,7 +1,6 @@
 // projects/jewelryx/dev.ts — a worktree's three dev servers on its ports (index.ts serve).
 // Ports: B2B on P, API on P+10000, admin on P+20000 (index.ts). Every line also lands in
-// .wf/logs/dev.log, prefixed by server name, so an agent can read why a server died;
-// WF_DEV_LOG moves it (the permanent dev stack must not leave .wf/ in the dev checkout).
+// .wf/logs/dev.log, prefixed by server name, so an agent can read why a server died.
 // The machine may put each server behind a name (index.ts `machine()`: `servers(slug)` gives
 // { origins, wrap }, the browser origins and the command that serves one; portless on Shay's,
 // env/projects/jewelryx).
@@ -47,7 +46,7 @@ export function devCommands(basePort: Port, { origins = null, wrap = asIs }: { o
 // concurrently comes from the worktree's own node_modules (the project's devDependency): wf has none.
 export async function runDev({ worktree, basePort, origins, wrap }: { worktree: string; basePort: Port; origins?: Origins; wrap?: Wrap }): Promise<void> {
 	const concurrently = createRequire(join(worktree, 'package.json'))('concurrently') as (commands: DevCommand[], options: object) => { result: Promise<unknown> };
-	const logPath = process.env.WF_DEV_LOG ?? join(worktree, '.wf', 'logs', 'dev.log');
+	const logPath = join(worktree, '.wf', 'logs', 'dev.log');
 	mkdirSync(dirname(logPath), { recursive: true });
 	const outputStream = new PassThrough();
 	outputStream.pipe(process.stdout);

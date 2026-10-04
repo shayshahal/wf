@@ -168,7 +168,7 @@ export const setup: Record<string, SetupStep> = {
 	},
 };
 
-// The post-start step: the three dev servers, until they die (wt tethers it on Shay's).
+// The stack: the three dev servers, until they die (`wf serve`, when a phase needs them).
 export async function serve({ worktree, slug, port }: { worktree: string } & Stack): Promise<void> {
 	const { runDev } = await import('./dev.ts');
 	const servers = machine().servers?.(slug);

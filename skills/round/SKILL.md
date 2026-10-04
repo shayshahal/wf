@@ -41,7 +41,8 @@ session, before *Start*: every *tracker*, *status* and *base branch* below means
    A ticket that is a sentence is not a ticket: ask the user ≤5 scope questions first (what it
    must do, for whom, what it must *not* touch — widen until they say "out of scope") and write
    the answers into `TICKET.md` under `## Scope`. That is where the plan's `## Not doing` comes from.
-2. `wf new <branch> --id <id>` → worktree, stack, seed, `{{folder}}`. It refuses a third
+2. `wf new <branch> --id <id>` → worktree, seeded database, `{{folder}}` (the stack starts when a
+   phase needs it). It refuses a third
    live round; if it does, say which two are running and stop. Set the ticket's started status.
 3. The loop below, from the round's worktree.
 

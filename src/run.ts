@@ -70,14 +70,14 @@ export async function run(argv: string[], pieces: Partial<Seams> = {}) {
 		await runHandoff(rest);
 	} else if (cmd === 'brief') {
 		const { runBrief } = await import('./round/brief.ts');
-		runBrief(rest);
+		await runBrief(rest);
 	} else if (cmd === 'prompt') {
 		const { runPrompt } = await import('./round/prompt.ts');
 		runPrompt(rest);
 	} else if (cmd === 'check') {
 		const { runCheck, runRepro } = await import('./gates/check.ts');
-		if (rest.includes('--repro')) runRepro();
-		else runCheck();
+		if (rest.includes('--repro')) await runRepro();
+		else await runCheck();
 	} else if (cmd === 'models') {
 		const { runModels } = await import('./models.ts');
 		runModels(seams.models, seams.resolveModel);

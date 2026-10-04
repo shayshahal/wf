@@ -1,5 +1,5 @@
 // env/projects/jewelryx/index.ts — JewelryX on Shay's machine: what the kit's project folder reads
-// from the machine (`machine()` in projects/jewelryx/index.ts lists it), and his own commands.
+// from the machine (`machine()` in projects/jewelryx/index.ts lists it).
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -7,7 +7,7 @@ import { dropDatabase, worktreeDatabase } from '../../../projects/jewelryx/db.ts
 import { basePortForBranch } from '../../../src/worktrees/worktree.ts';
 import { containerOf, mongoPortForBase, mongoTeardown, mongoUp } from './mongo.ts';
 import type { Machine, Origins, Wrap } from '../../../projects/jewelryx/index.ts';
-import type { Command, RemovalStep } from '../../../src/seams.ts';
+import type { RemovalStep } from '../../../src/seams.ts';
 
 // The machine's copy of the files the project's .worktreeinclude names, at the same paths. Until
 // 2026-09-24 new worktrees copied them from the dev worktree (`wt step copy-ignored --from dev`),
@@ -37,15 +37,16 @@ export function portlessServers(slug: string): { origins: Origins; wrap: Wrap } 
 	};
 }
 
-// Every worktree's database, jewelryx_<slug>, in the dev stack's mongo (jewelryx-mongo-dev, stacks.ts),
-// as the kit does with one MongoDB. Until 2026-10-04 each worktree had a container, a volume and a
-// network of its own; Shay: "too much".
+// Every worktree's database, jewelryx_<slug>, in one mongo, as the kit does with one MongoDB. Until
+// 2026-10-04 each worktree had a container, a volume and a network of its own; Shay: "too much". The
+// one mongo is jewelryx-mongo-dev, on dev's port: it was the permanent dev stack's (removed the same
+// day), and keeps its name, port and volume so no database had to move.
 const DEV_BASE = basePortForBranch('dev');
 export const sharedMongoUrl = (): string => `mongodb://127.0.0.1:${mongoPortForBase(DEV_BASE)}`;
 
 // Pure: what removes a worktree's own container, when it has one. Worktrees made before 2026-10-04
-// do; once `docker ps -a --filter name=jewelryx-mongo-` shows only the stacks', this and mongoTeardown
-// go. The dev worktree's container is the shared one, never removed.
+// do; once `docker ps -a --filter name=jewelryx-mongo-` shows only jewelryx-mongo-dev, this and
+// mongoTeardown go. The dev worktree's container is the shared one, never removed.
 export const oldContainerSteps = (slug: string, exists: boolean): RemovalStep[] => (exists && slug !== 'dev' ? mongoTeardown(slug) : []);
 
 // Pure: reap's database steps. The container is looked for when reap runs, not when the plan is made,
@@ -67,7 +68,8 @@ export const pieces = {
 	secretsFrom: () => SECRETS,
 	database: {
 		url: sharedMongoUrl,
-		// compose up --wait on the running container changes nothing: the stacks supervisor runs it on every start.
+		// compose up --wait on the running container changes nothing; after a reboot, Docker restarts it
+		// (restart: unless-stopped) or this does.
 		up: () => mongoUp({ slug: 'dev', base: DEV_BASE }),
 		teardown: databaseTeardown,
 	},
@@ -76,7 +78,3 @@ export const pieces = {
 	// portless prune drops the routes whose server died with the worktree; CI=1 keeps it from prompting.
 	teardown: () => [{ label: 'portless prune', cmd: 'portless', args: ['prune'], env: { CI: '1' } }],
 } satisfies Partial<Machine>;
-
-export const commands: Record<string, Command> = {
-	stacks: async (argv) => (await import('./stacks.ts')).runStacks(argv),
-};

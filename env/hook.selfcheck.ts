@@ -11,7 +11,8 @@ const check = (name: string, cond: unknown, detail = '') =>
 // ── the block and its install
 const block = hookBlock('C:/wf/wf.mjs');
 check('every project setup step is a pre-start step calling wf hook with slug and port', Object.keys(setup).every((s) => block.includes(`${s} = 'node C:/wf/wf.mjs hook ${s} {{ branch | sanitize }} {{ branch | hash_port }}'`)), block);
-check('the dev servers run under wt\'s tether', block.includes(`server = 'wt step tether -- node C:/wf/wf.mjs hook serve`));
+// No post-start: nothing serves a worktree when it is made (2026-10-04; serve.ts ensureServers).
+check('no post-start hook: the worktree is not served at creation', !block.includes('post-start') && !block.includes('tether'));
 check('the tables are this project\'s only', block.split('\n').filter((l) => l.startsWith('[')).every((l) => l.startsWith(`[projects."${repo}".`)));
 const user = 'worktree-path = "~/x"\n[aliases]\nurls = "echo && node {{ worktree_path }}/scripts/dev-worktree.mjs --urls 1"\nother = "x"\n';
 const once = withHookBlock(user, block);

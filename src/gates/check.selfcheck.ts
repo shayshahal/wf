@@ -40,6 +40,8 @@ check('a cell starting with s is not fence only', at('ssss— x') === 'x');
 check('no row → the project runs the diff with no test', at(undefined) === null);
 const repro = buildTasks({ row: { check: 'repro' }, projectTasks, repro: 'node scripts/repro.mjs' });
 check('check: repro runs the project tasks, then the RESEARCH.md command', JSON.stringify(labels(repro)) === '["project -","node scripts/repro.mjs"]' && repro[1].cmd === 'node' && repro[1].args.join(' ') === 'scripts/repro.mjs', JSON.stringify(repro));
+// Nothing serves a worktree from its creation (2026-10-04): the repro drives the app, so wf check starts the stack for it.
+check('check: the repro needs the stack, the project\'s stand-in task does not', repro[1].stack === true && !repro[0].stack, JSON.stringify(repro));
 const noRepro = buildTasks({ row: { check: 'repro' }, projectTasks, repro: null });
 check('check: repro with no command line reports it instead of passing', noRepro.at(-1)!.missing?.includes('RESEARCH.md'), JSON.stringify(noRepro));
 check('a `repro --grep …` cell is a path for the project, which refuses it', at('`repro --grep auction`') === 'auction');

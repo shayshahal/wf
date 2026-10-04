@@ -1,5 +1,8 @@
 // env/worktrees.selfcheck.ts — node env/worktrees.selfcheck.ts → exit 0 when green.
 // Pure arm: the removal plan on Shay's machine (worktrees.ts). Nothing is run or removed.
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { teardown } from '../src/project.ts';
 import { plug } from '../src/seams.ts';
 import { pieces } from './projects/jewelryx/index.ts';
@@ -24,6 +27,16 @@ check('the sweep only targets node and python', sweep.includes("Name='node.exe' 
 check('rm is in-process, not a command', plan[at('rm -rf worktree')].rm === 'C:\\wt\\fix-bjew-1' && !plan[at('rm -rf worktree')].cmd);
 const posix = removalPlan({ branch: 'fix/bjew-1', path: '/wt/fix-bjew-1', slug: 'fix-bjew-1', pid: 4242 }, 'linux');
 check('off Windows the sweep is pkill on the tree\'s path, the rest the same', posix[0].cmd === 'pkill' && posix[0].args!.join(' ') === '-f /wt/fix-bjew-1' && posix.slice(1).map((s) => s.label).join() === plan.slice(1).map((s) => s.label).join(), JSON.stringify(posix[0]));
+
+// A stack `wf serve` started (its pid in .wf/serve.pid) stops first, with its whole tree (2026-10-04:
+// nothing serves a worktree from its creation any more, so a running stack is always wf serve's).
+const served = mkdtempSync(join(tmpdir(), 'wf-served-'));
+mkdirSync(join(served, '.wf'));
+writeFileSync(join(served, '.wf', 'serve.pid'), '5150');
+const withStack = removalPlan({ branch: 'fix/bjew-1', path: served, slug: 'fix-bjew-1', pid: 4242 }, 'win32');
+check('a served worktree: stop servers first, the tree of serve.pid', withStack[0].label === 'stop servers' && withStack[0].args!.join(' ') === '/PID 5150 /T /F' && withStack[1].label === 'kill stragglers', withStack.map((s) => s.label).join(' → '));
+check('not served: no stop step', plan[0].label === 'kill stragglers');
+rmSync(served, { recursive: true, force: true });
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');
 process.exit(failures ? 1 : 0);

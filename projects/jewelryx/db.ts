@@ -1,6 +1,6 @@
 // projects/jewelryx/db.ts — a worktree's database: its name, and the seed.
 //   the database: jewelryx_<slug>, in whichever MongoDB the machine gives the worktree (index.ts
-//                 `machine().database`; on Shay's, the dev stack's, env/projects/jewelryx/index.ts)
+//                 `machine().database`; on Shay's, jewelryx-mongo-dev, env/projects/jewelryx/index.ts)
 //   seed: the project's fixture set (packages/backend/scripts/seed_fixtures.py, docs/agents/seed.md),
 //         run straight into the target database. No snapshot: seeding an empty database took
 //         6-8 s, restoring a cached mongodump ~11 s (measured 2026-09-24), and a snapshot needs a
@@ -16,7 +16,7 @@ function run(label: string, cmd: string, args: string[], opts: SpawnSyncOptions 
 	if (r.status !== 0) throw new Error(`worktree db: ${label} failed (exit ${r.status})`);
 }
 
-// `worktree` holds the seeder (a round's worktree, or dev for the permanent stacks); `mongoUrl` is
+// `worktree` holds the seeder (the round's worktree); `mongoUrl` is
 // the MongoDB to write to, and `database` the target. Seeding again puts every fixture back to its
 // fixed values (fixed ids, so counts never move); `reset` first drops everything else too. Both
 // through the worktree's own python (pymongo is the backend's), so no mongo shell is needed.
