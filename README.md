@@ -39,7 +39,8 @@ round commits (for JewelryX, `bug-reports/<round>/`).
     reaches into `env/`
 - `env/`: Shay's machine, which the kit never imports: worktrunk and its hooks (`env/hook.ts`,
   `env/worktrees.ts`), self-update (`env/update.ts`), plannotator and herdr (`env/adapters/`), and
-  per project a MongoDB container per worktree, portless and the permanent stacks (`env/projects/`).
+  per project where the worktrees' databases live (JewelryX: the dev stack's MongoDB), portless and
+  the permanent stacks (`env/projects/`).
   `env/projects/jewelryx/plan-eval.ts` measures a change to the plan prompt: wf revisions as arms,
   on delivered JewelryX rounds, each plan graded against what the round shipped
 - `skills/round/SKILL.md`: the orchestrator skill ("start 662", "resume 662"); `skills/design-session/` for T1

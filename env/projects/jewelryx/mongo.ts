@@ -1,6 +1,7 @@
-// env/projects/jewelryx/mongo.ts — Shay's machine: one MongoDB container per worktree.
-//   up:       jewelryx-mongo-<slug> on 40000+(P-10000) (mongo.compose.yml), healthy before it returns
-//   teardown: the container, its volume and its compose network
+// env/projects/jewelryx/mongo.ts — Shay's machine: the permanent stacks' MongoDB containers.
+//   up:       jewelryx-mongo-<slug> on 40000+(P-10000) (mongo.compose.yml), healthy before it returns.
+//             The dev stack's (slug dev) holds every round's database too (index.ts sharedMongoUrl).
+//   teardown: a container, its volume and its compose network (worktrees made before 2026-10-04)
 // The kit names the database and seeds it (projects/jewelryx/db.ts); this is where it lives.
 import { spawnSync } from 'node:child_process';
 import { createConnection } from 'node:net';
@@ -19,7 +20,6 @@ export function mongoPortForBase(basePort: Port): number {
 export const containerOf = (slug: string): string => `jewelryx-mongo-${slug}`;
 export const volumeOf = (slug: string): string => `jewelryx-wt-mongo-${slug}`;
 export const composeProjectOf = (slug: string): string => `jewelryx-wt-${slug}`;
-export const worktreeMongoUrl = (base: Port): string => `mongodb://localhost:${mongoPortForBase(base)}`;
 
 // Pure: `docker port <container> 27017` → the URL the seeder writes to. The seeder's own .env may
 // name another mongo (the permanent stacks seed from dev's checkout), so it is always pointed at

@@ -12,8 +12,8 @@ Setup (pre-start, in parallel): `env` copies the files `.worktreeinclude` names 
 `~/.config/wf/jewelryx/` (same paths; it stops, naming them, when one is missing), then rewrites
 `packages/backend/.env`: production credentials blanked, media storage local, the database
 the worktree's own. `node` installs and builds the shared packages, `verify` installs
-`verification/`, `tools` runs the project's `scripts/link-tools.mjs`, `db` syncs python, starts
-mongo and seeds it.
+`verification/`, `tools` runs the project's `scripts/link-tools.mjs`, `db` syncs python, makes
+sure the dev stack's mongo is up and seeds the worktree's database in it.
 
 Servers: post-start tethers b2b, backend and admin on the hashed port P: b2b P, backend P+10000,
 admin P+20000 (`dev.ts`). Each child runs under `portless --name <slug>.<role>.jewelryx --app-port
@@ -27,10 +27,13 @@ Server-side calls stay off the proxy: `INTERNAL_API_URL` is `http://127.0.0.1:<b
 `.localhost` name. `PORTLESS=0` skips the proxy and serves the hashed ports directly (fallback when
 the proxy is down); stale routes are cleared with `portless prune`.
 
-DB per worktree: `mongo.compose.yml` starts `jewelryx-mongo-<slug>` on 40000+(P−10000) (`db.ts`);
-the `db` step brings it up and fills it with the project's fixture set
-(`packages/backend/scripts/seed_fixtures.py`). The env step points `MONGODB_URL`/`DATABASE_NAME`
-(`jewelryx_<slug>`) at it, so no worktree ever shares dev's Atlas database. `wf seed [--reset]`
-seeds it again.
+A database per worktree, in one mongo: `jewelryx_<slug>` in the dev stack's `jewelryx-mongo-dev`
+(`mongo.compose.yml`, on 40000+(P−10000) for dev's P; `index.ts` `sharedMongoUrl`). The `db` step
+fills it with the project's fixture set (`packages/backend/scripts/seed_fixtures.py`). The env step
+points `MONGODB_URL`/`DATABASE_NAME` at it, so no worktree shares dev's Atlas database or another
+round's data. `wf seed [--reset]` seeds it again; `--reset` drops only that database. `wf stacks
+down` leaves this mongo running. Until 2026-10-04 each worktree had a container of its own (Shay:
+"too much"); reap still removes one from a worktree made before.
 
-Teardown: the mongo container, its volume and its compose network, then `portless prune`.
+Teardown: the worktree's database is dropped (and a container of its own, when it has one), then
+`portless prune`.

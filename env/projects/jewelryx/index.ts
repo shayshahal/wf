@@ -2,9 +2,12 @@
 // from the machine (`machine()` in projects/jewelryx/index.ts lists it), and his own commands.
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { containerUrl, mongoTeardown, mongoUp, worktreeMongoUrl } from './mongo.ts';
+import { spawnSync } from 'node:child_process';
+import { dropDatabase, worktreeDatabase } from '../../../projects/jewelryx/db.ts';
+import { basePortForBranch } from '../../../src/worktrees/worktree.ts';
+import { containerOf, mongoPortForBase, mongoTeardown, mongoUp } from './mongo.ts';
 import type { Machine, Origins, Wrap } from '../../../projects/jewelryx/index.ts';
-import type { Command } from '../../../src/seams.ts';
+import type { Command, RemovalStep } from '../../../src/seams.ts';
 
 // The machine's copy of the files the project's .worktreeinclude names, at the same paths. Until
 // 2026-09-24 new worktrees copied them from the dev worktree (`wt step copy-ignored --from dev`),
@@ -34,13 +37,39 @@ export function portlessServers(slug: string): { origins: Origins; wrap: Wrap } 
 	};
 }
 
+// Every worktree's database, jewelryx_<slug>, in the dev stack's mongo (jewelryx-mongo-dev, stacks.ts),
+// as the kit does with one MongoDB. Until 2026-10-04 each worktree had a container, a volume and a
+// network of its own; Shay: "too much".
+const DEV_BASE = basePortForBranch('dev');
+export const sharedMongoUrl = (): string => `mongodb://127.0.0.1:${mongoPortForBase(DEV_BASE)}`;
+
+// Pure: what removes a worktree's own container, when it has one. Worktrees made before 2026-10-04
+// do; once `docker ps -a --filter name=jewelryx-mongo-` shows only the stacks', this and mongoTeardown
+// go. The dev worktree's container is the shared one, never removed.
+export const oldContainerSteps = (slug: string, exists: boolean): RemovalStep[] => (exists && slug !== 'dev' ? mongoTeardown(slug) : []);
+
+// Pure: reap's database steps. The container is looked for when reap runs, not when the plan is made,
+// so the plan (and its selfchecks) runs no docker.
+export function databaseTeardown({ slug, worktree }: { slug: string; worktree: string }): RemovalStep[] {
+	return [
+		{ label: 'drop database', run: () => dropDatabase({ worktree, database: worktreeDatabase(slug), mongoUrl: sharedMongoUrl() }) },
+		{
+			label: 'its own mongo container, if any',
+			run: () => {
+				const exists = spawnSync('docker', ['inspect', containerOf(slug)], { stdio: 'ignore' }).status === 0;
+				for (const s of oldContainerSteps(slug, exists)) spawnSync(s.cmd!, s.args!, { stdio: 'inherit' });
+			},
+		},
+	];
+}
+
 export const pieces = {
 	secretsFrom: () => SECRETS,
 	database: {
-		url: ({ port }) => worktreeMongoUrl(port!),
-		up: ({ slug, port }) => mongoUp({ slug, base: port }),
-		seedUrl: ({ slug }) => containerUrl(slug),
-		teardown: ({ slug }) => mongoTeardown(slug),
+		url: sharedMongoUrl,
+		// compose up --wait on the running container changes nothing: the stacks supervisor runs it on every start.
+		up: () => mongoUp({ slug: 'dev', base: DEV_BASE }),
+		teardown: databaseTeardown,
 	},
 	names: stackNames,
 	servers: portlessServers,
