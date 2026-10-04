@@ -15,13 +15,15 @@ const tok = (t: string) => `\n<!-- brief: ${t} -->\n`;
 const RESEARCH = `# r — research\n## Repro\ncommand: pnpm --dir verification exec playwright test -c ../bug-reports/r/repro/playwright.config.ts\n${tok('aaa111')}`;
 const plan = ({ klass = 'A', asks = 'none', token = 'bbb222' } = {}) => `# r — plan\nClass: ${klass}\nCause: x\n\n## Commits\n| # | message | files | check |\n|---|---|---|---|\n| 1 | fix(x): one | a.ts | repro |\n| 2 | fix(x): two | b.ts | repro |\n\n## Asks\n- ${asks}\n${tok(token)}`;
 const VALID = (v = 'matches plan', t = 'ccc333') => `# r — validation\nVerdict: ${v}\n## Build stack\n- hop 1: differs: returns null\n## Intent\n"one": met: a.ts:1 \u00b7 before: red \u00b7 after: green\n${tok(t)}`;
+// The critic agreed with validation ccc333 (gates/critique.ts): every arm below it is past the critique.
+const CRIT = (v = 'AGREE', t = 'fff666') => `# r — critique of the validation\n\n## Rows\n- ${v === 'AGREE' ? 'AGREE · Verdict: matches plan' : `${v} · hop 1: differs · a.ts:3 — it returns 0`}\n\nVerdict: ${v}\n${tok(t)}`;
 const green = (n: number) => ({ row: n, result: 'green' });
 const base = (patch: Fixture = {}) => ({
 	branch: 'fix/r', entry: 'C:/wf/wf.mjs', step: 'classify', klass: 'A', questions: [], answered: [], commit: null,
-	briefs: { research: { token: 'aaa111', count: 1 }, plan: { token: 'bbb222', count: 1 }, validate: { token: 'ccc333', count: 1 } },
-	files: { research: null, plan: null, blocked: null, asBuilt: null, validation: null, review: null },
-	t1: { spec: null, reviewed: null, verdict: null }, subjects: [], checks: [], note: null, ...patch,
-	...(patch.files ? { files: { research: null, plan: null, blocked: null, asBuilt: null, validation: null, review: null, ...patch.files } } : {}),
+	briefs: { research: { token: 'aaa111', count: 1 }, plan: { token: 'bbb222', count: 1 }, validate: { token: 'ccc333', count: 1 }, critique: { token: 'fff666', count: 1, of: 'ccc333', exchange: 1 } },
+	files: { research: null, plan: null, blocked: null, asBuilt: null, validation: null, critique: CRIT(), review: null },
+	t1: { spec: null, reviewed: null, verdict: null }, subjects: [], checks: [], repro: { aaa111: 'stable' }, note: null, ...patch,
+	...(patch.files ? { files: { research: null, plan: null, blocked: null, asBuilt: null, validation: null, critique: CRIT(), review: null, ...patch.files } } : {}),
 }) as Snapshot;
 const say = (s: Snapshot) => nextAction(s).say;
 const steps = (s: Snapshot) => nextAction(s).effects.filter((e) => e.step).map((e) => e.step!.join(' '));
@@ -41,6 +43,13 @@ check('research → wf step plan, dispatch plan', steps(researched).join() === '
 
 // a check (wf new --check): research first, then Shay; his go is `wf step plan`
 check('a check with no RESEARCH.md yet: research, as a round', say(base({ check: true, briefs: {} })).startsWith('dispatch research:'));
+// The repro is a measurement before plan: wf check --repro found it red at one place on every run (TJEW-665).
+check('research in, its repro never found stable for this brief: research again, saying why', say(base({ files: { research: RESEARCH }, repro: {} })) === 'dispatch research: run `node C:/wf/wf.mjs brief research` in this worktree and do exactly what it prints (again: `node C:/wf/wf.mjs check --repro` has not found its repro red at one place on every run)', say(base({ files: { research: RESEARCH }, repro: {} })));
+check('a stable repro from an earlier brief does not count', say(base({ files: { research: RESEARCH }, repro: { old999: 'stable' } })).startsWith('dispatch research:'));
+const notReproduced = base({ files: { research: RESEARCH }, repro: { aaa111: 'green' } });
+check('green on every run: wait on the user, no second research', say(notReproduced).startsWith('wait user: it does not reproduce — `node C:/wf/wf.mjs check --repro` was green on every run') && steps(notReproduced).join() === 'research --waiting-on user', say(notReproduced));
+check('unstable for this brief: research again', say(base({ files: { research: RESEARCH }, repro: { aaa111: 'unstable' } })).startsWith('dispatch research:'));
+check('a check round needs no stable repro: green is its answer', say(base({ check: true, files: { research: RESEARCH }, repro: {} })).startsWith('wait user: check'));
 const checked = base({ check: true, files: { research: RESEARCH } });
 check('a check, research in: it waits on the user, no plan', steps(checked).join() === 'research --waiting-on user' && say(checked).startsWith('wait user: check') && say(checked).includes('`node C:/wf/wf.mjs step plan`') && say(checked).includes('WF_FORCE_REAP=1 node C:/wf/wf.mjs reap fix/r'), say(checked));
 check('a check already waiting: the same line, no step again', !steps({ ...checked, step: 'research' }).length && say({ ...checked, step: 'research' }) === say(checked));
@@ -84,6 +93,41 @@ const ruled = (answer: string) => impl({ ...done2, files: { validation: VALID('d
 check('ruled accept → T2', say(ruled('accept, the label is fine')).startsWith('review: T2'));
 check('ruled fix → fix-review from VALIDATION.md', say(ruled('fix it')).startsWith('dispatch fix-review --from VALIDATION.md: run `node C:/wf/wf.mjs brief fix-review --from VALIDATION.md`'));
 check('the fix committed → validate again', say(impl({ ...done2, subjects: [...done2.subjects, 'fix(review): the label'], files: { validation: VALID('deviates') }, answered: [{ n: 3, source: 'VALIDATION.md#ccc333', answer: 'fix' }] })).startsWith('dispatch validate:'));
+
+const onModels = (s: Snapshot) => say({ ...s, models: { low: 'sonnet', medium: 'opus' } });
+// the critic: a fresh agent audits the validation before the person sees it (gates/critique.ts)
+const critiqued = (critique: string | null, cb: Partial<Brief> | undefined, vb: Partial<Brief> = { token: 'ccc333', count: 1 }, validation = VALID()) => impl({ ...done2, files: { validation, critique }, briefs: { ...base().briefs, validate: vb, critique: cb } as Fixture['briefs'] });
+check('validated, never critiqued → dispatch critique', say(critiqued(null, undefined)) === 'dispatch critique: run `node C:/wf/wf.mjs brief critique` in this worktree and do exactly what it prints', say(critiqued(null, undefined)));
+check('a critique of an earlier validation is not this one\'s: critique again, a new chain', say(critiqued(CRIT(), { token: 'fff666', count: 1, of: 'old999', exchange: 1 })).startsWith('dispatch critique: run'));
+check('critique briefed, no CRITIQUE.md: again, saying why', say(critiqued(null, { token: 'fff666', count: 1, of: 'ccc333', exchange: 1 })).includes('(again: no CRITIQUE.md)'));
+check('a critic briefed twice without its handoff goes to the user', say(critiqued(null, { token: 'fff666', count: 2, of: 'ccc333', exchange: 1 })).startsWith('wait user: critique was briefed 2 times'));
+check('a critique that agrees: on to the validation\'s verdict, as before', say(critiqued(CRIT(), { token: 'fff666', count: 1, of: 'ccc333', exchange: 1 })).startsWith('review: T2') && say(critiqued(CRIT(), { token: 'fff666', count: 1, of: 'ccc333', exchange: 1 }, undefined, VALID('deviates'))).startsWith('wait user: fix or accept'));
+check('the critic disagrees: validate answers it, before any fix-or-accept question', say(critiqued(CRIT('DISAGREE_EVIDENCE'), { token: 'fff666', count: 1, of: 'ccc333', exchange: 1 }, undefined, VALID('deviates'))) === 'dispatch validate --answer: run `node C:/wf/wf.mjs brief validate --answer` in this worktree and do exactly what it prints' && asks(critiqued(CRIT('DISAGREE_EVIDENCE'), { token: 'fff666', count: 1, of: 'ccc333', exchange: 1 }, undefined, VALID('deviates'))).length === 0);
+check('a concern is answered too', say(critiqued(CRIT('DISAGREE_CONCERN'), { token: 'fff666', count: 1, of: 'ccc333', exchange: 1 })).startsWith('dispatch validate --answer:'));
+const answered1 = (critiqued(CRIT('DISAGREE_EVIDENCE'), { token: 'fff666', count: 1, of: 'ccc333', exchange: 1 }, { token: 'abc777', count: 2, answers: 1 }, VALID('matches plan', 'abc777')));
+check('the answer handed off → the next exchange\'s critique', say(answered1).startsWith('dispatch critique: run'));
+check('an answer that did not hand off is briefed again as an answer', say(critiqued(CRIT('DISAGREE_EVIDENCE'), { token: 'fff666', count: 1, of: 'ccc333', exchange: 1 }, { token: 'abc777', count: 1, answers: 1 })).startsWith('dispatch validate --answer: run') );
+check('still disagreeing after the last exchange: the dispute goes on to T2, wf does not settle it', say(critiqued(CRIT('DISAGREE_EVIDENCE', 'def888'), { token: 'def888', count: 1, of: 'abc777', exchange: 2 }, { token: 'abc777', count: 2, answers: 1 }, VALID('matches plan', 'abc777'))).startsWith('review: T2'));
+check('the critic is another model than validate: medium, where validate is low', onModels(critiqued(null, undefined)).startsWith('dispatch critique (model: opus): '));
+
+// the model: this machine's for the phase's effort level (models.ts), named in the dispatch line
+check('a dispatch names the model for its phase\'s level: medium for research, a commit, a revised plan', onModels(fresh) === 'dispatch research (model: opus): run `node C:/wf/wf.mjs brief research` in this worktree and do exactly what it prints' && onModels(planned).startsWith('dispatch implement 1 (model: opus): ') && onModels(answeredAsk('3')).startsWith('dispatch plan --revise (model: opus): '), onModels(fresh));
+check('low for the read-only judges', onModels(impl({ ...done2, files: {} })).startsWith('dispatch validate (model: sonnet): ') && onModels(impl({ ...done2, klass: 'B', files: {} })).startsWith('dispatch as-built (model: sonnet): '));
+check('a wait names no model', onModels(base({ briefs: { research: { token: 'aaa111', count: 2 } } })).startsWith('wait user: research was briefed 2 times'));
+
+// the standards axis: one fresh agent per .agents/checks rule that covers the diff, after spec is settled
+const REPORT = (t = 'ddd444') => `# r — standards: perf\nCheck: .agents/checks/perf.md\nResult: pass\n\n## Issues\nnone\n${tok(t)}`;
+const rules = (perf: string | null, errors: string | null = null, fixesAfter = 0) => [{ id: 'perf', text: perf, fixesAfter }, { id: 'api/errors', text: errors, fixesAfter: 0 }];
+const ruled2 = (standards: Snapshot['standards'], briefs = {}) => impl({ ...done2, files: { validation: VALID() }, standards, briefs: { ...base().briefs, ...briefs } });
+check('validated, rules cover the diff: the first rule, by its id', say(ruled2(rules(null))) === 'dispatch standards perf: run `node C:/wf/wf.mjs brief standards perf` in this worktree and do exactly what it prints', say(ruled2(rules(null))));
+check('validation deviating and unruled: spec is settled first, no standards yet', say(impl({ ...done2, files: { validation: VALID('deviates') }, standards: rules(null) })).startsWith('wait user: fix or accept'));
+check('one at a time: the next rule once the first handed off', say(ruled2(rules(REPORT()), { 'standards perf': { token: 'ddd444', count: 1 } })).startsWith('dispatch standards api/errors:'), say(ruled2(rules(REPORT()), { 'standards perf': { token: 'ddd444', count: 1 } })));
+check('a report from an earlier brief is not the answer', say(ruled2(rules(REPORT('old999')), { 'standards perf': { token: 'ddd444', count: 1 } })).includes('(again: standards/perf.md is not the answer to the last brief'));
+check('a rule briefed twice without its report goes to the user', say(ruled2(rules(null), { 'standards perf': { token: 'ddd444', count: 2 } })).startsWith('wait user: standards perf was briefed 2 times'));
+const allIn = { 'standards perf': { token: 'ddd444', count: 1 }, 'standards api/errors': { token: 'eee555', count: 1 } };
+check('every rule reported, issues or not → T2: the reports go to the person as they are', say(ruled2(rules(REPORT(), REPORT('eee555').replace('Result: pass', 'Result: issues').replace('none', '- high · api/o.ts:4 — x · fix: y')), allIn)).startsWith('review: T2'));
+check('a fix(review) after a rule\'s brief: that rule again', say(ruled2(rules(REPORT(), REPORT('eee555'), 1), allIn)).startsWith('dispatch standards perf:'));
+check('no rule covers the diff (no .agents/checks): T2 as before', say(ruled2([])).startsWith('review: T2') && say(ruled2(undefined)).startsWith('review: T2'));
 
 // T2 (local) → deliver: push, PR, merge → the tracker, last
 check('delivered: T2, then wf review and --done', say(base({ step: 'review' })) === 'review: T2 — see the fix first (ROUND.md\'s T2, as the round skill\'s *Dispatch in this harness* says), then `node C:/wf/wf.mjs review fix/r`; once it has a verdict, `node C:/wf/wf.mjs review fix/r --done`');

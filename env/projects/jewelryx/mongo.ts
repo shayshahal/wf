@@ -73,10 +73,12 @@ export function seedContainer({ worktree, slug, database, reset = false }: { wor
 
 // Pure: what removing a worktree leaves behind, in order. Each step tolerates "already gone". The
 // compose network outlives its container; 23 of them exhausted docker's address pools and the next
-// `wf new` failed: "all predefined address pools have been fully subnetted" (3187601171).
+// `wf new` failed: "all predefined address pools have been fully subnetted" (3187601171). -v: the
+// mongo image declares /data/configdb a volume too, an anonymous one per container, which a plain rm
+// leaves; 137 had piled up (2026-10-03).
 export function mongoTeardown(slug: string): RemovalStep[] {
 	return [
-		{ label: 'docker rm mongo', cmd: 'docker', args: ['rm', '-f', containerOf(slug)] },
+		{ label: 'docker rm mongo', cmd: 'docker', args: ['rm', '-f', '-v', containerOf(slug)] },
 		{ label: 'docker volume rm', cmd: 'docker', args: ['volume', 'rm', volumeOf(slug)] },
 		{ label: 'docker network rm', cmd: 'docker', args: ['network', 'rm', `${composeProjectOf(slug)}_default`] },
 	];

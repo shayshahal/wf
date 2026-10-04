@@ -5,6 +5,7 @@
 import { run } from '../src/run.ts';
 import { isHerdrPresent, reportStepToHerdr } from './adapters/herdr.ts';
 import { annotateFile, isPlannotatorPresent, reviewDiff } from './adapters/plannotator.ts';
+import { PI_MODELS, resolvePi } from './models.ts';
 import * as jewelryx from './projects/jewelryx/index.ts';
 import { autoUpdate } from './update.ts';
 import { createWorktree, removalPlan } from './worktrees.ts';
@@ -31,5 +32,7 @@ export async function runEnvWf(entry: string, argv: string[]) {
 			...jewelryx.commands,
 		},
 		project: jewelryx.pieces,
+		models: PI_MODELS,
+		resolveModel: resolvePi,
 	});
 }

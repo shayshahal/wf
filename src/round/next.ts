@@ -4,7 +4,7 @@
 // reading of it enforced. The orchestrator's loop: run `wf next`, do what it prints, run it again.
 // wf next does the bookkeeping itself (the step, a question the round now waits on) and prints
 // one of:
-//   dispatch <phase>: <the line to send a fresh round-worker>
+//   dispatch <phase> (model: <m>): <the line to send a fresh round-worker, on that model>
 //   wait <person>: <what they owe>        tell them, verbatim; their answer → wf decide, then wf next
 //   design | deliver | review | merge: <what to run>   the orchestrator runs it, then wf next
 //   done
@@ -12,11 +12,15 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { addQuestion, blockedQuestion, overruledAsks } from './ask.ts';
-import { briefKey, handoffGap, HANDOFF_FILES, planAsks, planClass, rowDone, validationVerdict } from './handoff.ts';
+import { briefKey, handoffFile, handoffGap, HANDOFF_FILES, planAsks, planClass, rowDone, tokenOf, validationVerdict } from './handoff.ts';
+import { critiqueVerdict, MAX_EXCHANGES } from '../gates/critique.ts';
+import { reportFile, roundChecks } from '../gates/standards.ts';
 import { baseBranch } from '../project.ts';
 import { planCommitRows } from './prompt.ts';
 import { lastField, readVerdict, specShaFor } from '../gates/review-format.ts';
 import { seams } from '../seams.ts';
+import { modelFor } from '../models.ts';
+import type { Models } from '../models.ts';
 import { readState, toplevelOf, writeState } from './state.ts';
 import type { Brief, Question, RoundClass } from './state.ts';
 import { notifyAdapters, runStep } from './step.ts';
@@ -26,11 +30,14 @@ const MAX_BRIEFS = 2;
 
 // Pure: the action for a snapshot of the round:
 //   { branch, entry, step, klass, check, questions, answered, briefs, commit,
-//     files: { research, plan, blocked, asBuilt, validation, review } (text or null),
+//     files: { research, plan, blocked, asBuilt, validation, critique, review } (text or null),
 //     t1: { spec, reviewed, verdict } (SPEC.md's sha, SPEC-REVIEW.md's last spec-sha and verdict),
 //     subjects (commit subjects since the base), checks (.wf/checks.log lines),
 //     fixesAfterValidate (fix(review) commits since the validate brief's head),
-//     note (the tracker note wf deliver wrote: its path and text, or null) }
+//     note (the tracker note wf deliver wrote: its path and text, or null),
+//     standards (each .agents/checks rule that covers the diff: its id, its report's text or null,
+//     and the fix(review) commits since its brief),
+//     models (the model each effort level runs on here: seams.models; none, no model is named) }
 // → { say, effects }, effects being { step: [args] } | { ask: { to, text, dflt, source } }.
 export type Snapshot = {
 	branch: string;
@@ -42,12 +49,16 @@ export type Snapshot = {
 	answered: Question[];
 	briefs: Record<string, Brief>;
 	commit: number | null;
-	files: Record<'research' | 'plan' | 'blocked' | 'asBuilt' | 'validation' | 'review', string | null>;
+	files: Record<'research' | 'plan' | 'blocked' | 'asBuilt' | 'validation' | 'critique' | 'review', string | null>;
 	t1: { spec: string | null; reviewed: string | null; verdict: string | null };
 	subjects: string[];
 	checks: { row: number | null; result: string }[];
+	// The last `wf check --repro` result per research token: stable | unstable | green (checks.log, row `repro`).
+	repro: Record<string, string>;
 	fixesAfterValidate: number;
 	note: { file: string; text: string | null } | null;
+	standards?: { id: string; text: string | null; fixesAfter: number }[];
+	models?: Models;
 };
 export type Effect = { step: string[]; ask?: undefined } | { ask: { to: string; text: string; dflt: string | null; source: string }; step?: undefined };
 
@@ -57,12 +68,14 @@ export function nextAction(s: Snapshot): { say: string; effects: Effect[] } {
 	const briefs = s.briefs ?? {};
 	const brief = (phase: string, n?: number | string | null): Brief | undefined => briefs[briefKey(phase, n)];
 	const wf = `node ${s.entry}`;
-	// The line a fresh round-worker gets: it runs wf brief itself, so its brief is wf's own text.
+	// The line a fresh round-worker gets: it runs wf brief itself, so its brief is wf's own text. The
+	// model is this machine's for the phase's effort level (models.ts), not the orchestrator's pick.
 	const dispatch = (phase: string, args: (number | string | null)[] = [], gap: string | null = null) => {
 		const b = brief(phase, args[0]);
 		const label = [phase, ...args].join(' ');
 		if (b && gap && (b.count ?? 1) >= MAX_BRIEFS) return act(`wait user: ${label} was briefed ${b.count} times and ${gap} — a harness gap (round skill, When a round goes wrong)`);
-		return act(`dispatch ${label}: run \`${wf} brief ${label}\` in this worktree and do exactly what it prints${b && gap ? ` (again: ${gap})` : ''}`);
+		const model = s.models ? ` (model: ${modelFor(phase, s.models)})` : '';
+		return act(`dispatch ${label}${model}: run \`${wf} brief ${label}\` in this worktree and do exactly what it prints${b && gap ? ` (again: ${gap})` : ''}`);
 	};
 	const asked = (source: string) => [...(s.questions ?? []), ...(s.answered ?? [])].some((q) => q.source === source);
 	const open = s.questions ?? [];
@@ -99,6 +112,16 @@ export function nextAction(s: Snapshot): { say: string; effects: Effect[] } {
 			if (step !== 'research') effects.push({ step: ['research', '--waiting-on', 'user'] });
 			return act(`wait user: check — RESEARCH.md says whether it reproduces. Go on: \`${wf} step plan\`, then set the started status; stop: \`WF_FORCE_REAP=1 ${wf} reap ${s.branch}\``);
 		}
+		// Plan builds on the repro being a measurement: `wf check --repro` found it red at one place three
+		// times for this brief (TJEW-665: a repro racing hydration blocked commit 2). A check round stops
+		// above: its repro may be green, which is its answer.
+		const token = brief('research')?.token;
+		const repro = token ? (s.repro ?? {})[token] : 'stable';
+		if (repro === 'green') {
+			if (step !== 'research') effects.push({ step: ['research', '--waiting-on', 'user'] });
+			return act(`wait user: it does not reproduce — \`${wf} check --repro\` was green on every run (RESEARCH.md says what was measured). Go on anyway: \`${wf} step plan\`; stop: \`WF_FORCE_REAP=1 ${wf} reap ${s.branch}\``);
+		}
+		if (repro !== 'stable') return dispatch('research', [], `\`${wf} check --repro\` has not found its repro red at one place on every run`);
 		effects.push({ step: ['plan'] });
 		step = 'plan';
 	}
@@ -155,9 +178,18 @@ export function nextAction(s: Snapshot): { say: string; effects: Effect[] } {
 		const vToken = brief('validate')?.token ?? 'validate';
 		// A validation whose deviations were fixed is judged again, and so is one a T2 fix came after: it
 		// is what the PR carries (TJEW-670, 2026-09-28: its review fix merged under the older validation).
-		if (vGap || rulings.some((q) => q.source === `VALIDATION.md#${vToken}`)) return dispatch('validate', [], vGap);
+		// A validation answering a critique that did not hand off is briefed again as an answer.
+		if (vGap || rulings.some((q) => q.source === `VALIDATION.md#${vToken}`)) return dispatch('validate', vGap && brief('validate')?.answers ? ['--answer'] : [], vGap);
 		// No gap passed: the last validation did hand off, and a gap would count toward MAX_BRIEFS.
 		if (s.fixesAfterValidate > 0) return dispatch('validate', [], null);
+		// The critic, before the person sees the validation (gates/critique.ts): a fresh agent audits
+		// VALIDATION.md with the code frozen; a disagreement sends validate back to answer it, up to
+		// MAX_EXCHANGES critiques, and one still open goes to T2 beside it.
+		const critique = brief('critique');
+		if (critique?.of !== tokenOf(s.files.validation)) return dispatch('critique', [], null);
+		const cGap = handoffGap('critique', s.files.critique, critique);
+		if (cGap) return dispatch('critique', [], cGap);
+		if (critiqueVerdict(s.files.critique) !== 'AGREE' && (critique.exchange ?? 1) < MAX_EXCHANGES) return dispatch('validate', ['--answer'], null);
 		if (validationVerdict(s.files.validation) === 'deviates') {
 			const source = `VALIDATION.md#${vToken}`;
 			const ruling = (s.answered ?? []).find((q) => q.source === source);
@@ -168,6 +200,14 @@ export function nextAction(s: Snapshot): { say: string; effects: Effect[] } {
 				return act(`wait user: ${text}`);
 			}
 			if (!/^\s*accept\b/i.test(ruling.answer ?? '')) return act(`wait user: q${ruling.n}'s answer "${ruling.answer}" is neither fix nor accept — ask again with \`${wf} ask\``);
+		}
+		// The standards axis, once spec is settled: one fresh agent per rule that covers the diff, one at
+		// a time (the hook judges a stopping agent by the last brief), and again after a fix(review)
+		// commit, as validate is. Their reports go to T2 as they are (standards.ts).
+		for (const c of s.standards ?? []) {
+			const gap = handoffGap('standards', c.text, brief('standards', c.id), handoffFile('standards', c.id));
+			if (gap) return dispatch('standards', [c.id], gap);
+			if (c.fixesAfter > 0) return dispatch('standards', [c.id], null);
 		}
 		return act(t2);
 	}
@@ -207,12 +247,15 @@ export function snapshotOf(toplevel: string): Snapshot {
 		answered: state.answered ?? [],
 		briefs: state.briefs ?? {},
 		commit: state.commit ?? null,
-		files: Object.fromEntries([['research', 'RESEARCH.md'], ['plan', 'PLAN.md'], ['blocked', 'BLOCKED.md'], ['asBuilt', HANDOFF_FILES['as-built']], ['validation', 'VALIDATION.md'], ['review', 'REVIEW.md']].map(([k, f]) => [k, read(join(dir, f))])) as Snapshot['files'],
+		files: Object.fromEntries([['research', 'RESEARCH.md'], ['plan', 'PLAN.md'], ['blocked', 'BLOCKED.md'], ['asBuilt', HANDOFF_FILES['as-built']], ['validation', 'VALIDATION.md'], ['critique', HANDOFF_FILES.critique], ['review', 'REVIEW.md']].map(([k, f]) => [k, read(join(dir, f))])) as Snapshot['files'],
 		t1: { spec: specShaFor(toplevel), reviewed: lastField(specReview, 'spec-sha'), verdict: readVerdict(specReview) },
 		subjects: git('log', '--format=%s', `${base}..HEAD`).split('\n').filter(Boolean),
 		fixesAfterValidate: fixesSince(git, state.briefs?.validate?.head),
 		note: state.note ? { file: state.note, text: read(join(toplevel, state.note)) } : null,
-		checks: (read(join(toplevel, '.wf', 'checks.log')) ?? '').split('\n').filter(Boolean).flatMap((l) => { try { return [JSON.parse(l) as { row: number | string | null; result: string }]; } catch { return []; } }).map((c) => ({ ...c, row: c.row == null ? null : Number(c.row) })),
+		models: seams.models,
+		standards: roundChecks(toplevel, base).map((c) => ({ id: c.id, text: read(join(dir, reportFile(c.id))), fixesAfter: fixesSince(git, state.briefs?.[briefKey('standards', c.id)]?.head) })),
+		repro: Object.fromEntries((read(join(toplevel, '.wf', 'checks.log')) ?? '').split('\n').flatMap((l) => { try { const c = JSON.parse(l); return c.row === 'repro' && c.token ? [[c.token as string, c.result as string]] : []; } catch { return []; } })),
+		checks: (read(join(toplevel, '.wf', 'checks.log')) ?? '').split('\n').filter(Boolean).flatMap((l) => { try { return [JSON.parse(l) as { row: number | string | null; result: string }]; } catch { return []; } }).filter((c) => c.row !== 'repro').map((c) => ({ ...c, row: c.row == null ? null : Number(c.row) })),
 	};
 }
 

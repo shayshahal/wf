@@ -1,6 +1,7 @@
 // check.selfcheck.ts — node check.selfcheck.ts → exit 0 when green.
 // Pure arms only (no git, no runners): the fence, the repro line, and what buildTasks makes of a
 // plan row's check cell. The project's own commands: projects/<name>/checks.selfcheck.ts.
+import { failureSignature, reproVerdict } from './check.ts';
 import { checkRunLine, buildTasks, fenceViolations, isReproOnly, isRoundPaperwork, reproCommand, resolvedBlockedName, tokenize } from './check.ts';
 import type { CheckTask } from './check.ts';
 
@@ -51,6 +52,18 @@ check('a row of repro files only is repro-only', isReproOnly(['bug-reports/r/rep
 const fixRepro = buildTasks({ row: { check: '\u2014' }, projectTasks, repro: 'node scripts/repro.mjs', reproOnly: true });
 check('a repro-only row runs the repro even when its cell says fence only, and expects red', fixRepro.at(-1)!.label === 'node scripts/repro.mjs' && fixRepro.at(-1)!.expectRed === true);
 check('any other row with check repro expects green', !buildTasks({ row: { check: 'repro' }, projectTasks, repro: 'node scripts/repro.mjs' }).at(-1)!.expectRed);
+
+// ── wf check --repro: three runs, red at one place (TJEW-665)
+const defect = "  1) [chromium] › repro/outside-tap.spec.ts:12:5 › closes on outside tap (5.2s)\n\n    Error: sheet still open after a tap outside it\n\n      27 |   await page.tap('body');\n    > 29 |   expect(open).toBe(false);\n\n        at C:\\wt\\x\\bug-reports\\r\\repro\\outside-tap.spec.ts:29:23\n        at node_modules/playwright/lib/x.js:1:1\n\n  1 failed\n";
+const precondition = "  1) [chromium] › repro/outside-tap.spec.ts:12:5 › closes on outside tap (5.2s)\n\n    Error: precondition: sheet never opened\n\n      27 |   await page.tap('body');\n    > 29 |   expect(open).toBe(false);\n\n        at C:\\wt\\x\\bug-reports\\r\\repro\\outside-tap.spec.ts:18:23\n        at node_modules/playwright/lib/x.js:1:1\n\n  1 failed\n";
+check('the signature: the error line and the first frame outside node_modules, no durations', failureSignature(defect) === 'Error: sheet still open after a tap outside it @ outside-tap.spec.ts:29', failureSignature(defect));
+check('the same failure in another run, timings aside, has the same signature', failureSignature(defect.replace('(5.2s)', '(7.9s)')) === failureSignature(defect));
+check('no error line or frame: the last line stands for the run', failureSignature('a\nexit code 1\n\n') === 'exit code 1');
+check('three reds at one place: stable', reproVerdict([0, 1, 2].map(() => ({ exit: 1, output: defect }))).result === 'stable');
+check('green on every run: green, the ticket does not reproduce here', reproVerdict([0, 1, 2].map(() => ({ exit: 0, output: '' }))).result === 'green');
+check('one green run: not stable, and which one', (({ result, say }) => result === 'unstable' && say.startsWith('run 2 of 3 was green'))(reproVerdict([{ exit: 1, output: defect }, { exit: 0, output: '' }, { exit: 1, output: defect }])));
+check('red twice at the defect, once at its precondition: not stable, with each run', (({ result, say }) => result === 'unstable' && say.includes('run 3: Error: precondition: sheet never opened @ outside-tap.spec.ts:18'))(reproVerdict([{ exit: 1, output: defect }, { exit: 1, output: defect }, { exit: 1, output: precondition }])));
+check('the checks.log line carries the research token when it has one', JSON.parse(checkRunLine({ ts: 't', row: 'repro', rowCheck: null, tasks: [], result: 'stable', token: 'abc' })).token === 'abc' && !('token' in JSON.parse(checkRunLine({ ts: 't', row: 1, rowCheck: null, tasks: [], result: 'green' }))));
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');
 process.exit(failures ? 1 : 0);

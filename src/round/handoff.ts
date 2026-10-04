@@ -7,15 +7,18 @@
 // (2026-09-27). Implement and fix-review hand off a commit (its row's message, a green `wf check`).
 import { randomBytes } from 'node:crypto';
 import { reproCommand } from '../gates/check.ts';
+import { critiqueGap, CRITIQUE_FILE } from '../gates/critique.ts';
+import { reportFile, reportGap } from '../gates/standards.ts';
 import { planCommitRows } from './prompt.ts';
 
 export const newToken = () => randomBytes(3).toString('hex');
 
-// The key a brief is recorded under: the phase, and the row for implement.
-export const briefKey = (phase: string, n?: number | string | null) => (phase === 'implement' ? `implement ${n}` : phase);
+// The key a brief is recorded under: the phase, and the row for implement or the check for standards.
+export const briefKey = (phase: string, n?: number | string | null) => (phase === 'implement' || phase === 'standards' ? `${phase} ${n}` : phase);
 
-// The file each phase writes, in the round folder.
-export const HANDOFF_FILES: Record<string, string> = { research: 'RESEARCH.md', plan: 'PLAN.md', 'as-built': 'proof/CALL-STACK-AS-BUILT.md', validate: 'VALIDATION.md' };
+// The file each phase writes, in the round folder; standards writes one per check (handoffFile).
+export const HANDOFF_FILES: Record<string, string> = { research: 'RESEARCH.md', plan: 'PLAN.md', 'as-built': 'proof/CALL-STACK-AS-BUILT.md', validate: 'VALIDATION.md', critique: CRITIQUE_FILE };
+export const handoffFile = (phase: string, arg?: number | string | null) => (phase === 'standards' ? reportFile(String(arg)) : HANDOFF_FILES[phase]);
 
 export const tokenLine = (token: string) => `<!-- brief: ${token} -->`;
 
@@ -32,8 +35,7 @@ export function validationVerdict(text: string | null | undefined): string | nul
 // Pure: null when `text` is the phase's current handoff, else why not. `brief` is the recorded
 // brief ({ token }) or undefined: a round begun before briefs (or a file a person wrote on
 // purpose, with no brief) is judged on its sections alone.
-export function handoffGap(phase: string, text: string | null | undefined, brief: { token: string } | null | undefined): string | null {
-	const file = HANDOFF_FILES[phase];
+export function handoffGap(phase: string, text: string | null | undefined, brief: { token: string } | null | undefined, file = HANDOFF_FILES[phase]): string | null {
 	if (text == null) return `no ${file}`;
 	const token = tokenOf(text);
 	if (brief && token !== brief.token) return `${file} is not the answer to the last brief (it carries ${token ?? 'no token'}, the brief was ${brief.token})`;
@@ -41,6 +43,8 @@ export function handoffGap(phase: string, text: string | null | undefined, brief
 	if (phase === 'plan' && !planCommitRows(text).length) return 'PLAN.md ## Commits has no rows';
 	if (phase === 'validate' && !validationVerdict(text)) return 'VALIDATION.md has no `Verdict: matches plan | deviates` line';
 	if (phase === 'validate') return intentGap(text);
+	if (phase === 'standards') return reportGap(text, file);
+	if (phase === 'critique') return critiqueGap(text, file);
 	return null;
 }
 

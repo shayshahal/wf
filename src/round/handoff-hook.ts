@@ -15,7 +15,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { handoffGap, rowDone } from './handoff.ts';
+import { handoffFile, handoffGap, rowDone } from './handoff.ts';
 import { snapshotOf } from './next.ts';
 import type { Snapshot } from './next.ts';
 import { planCommitRows } from './prompt.ts';
@@ -24,12 +24,13 @@ import type { Brief } from './state.ts';
 
 type HookInput = { cwd?: string; stop_hook_active?: boolean; agent_type?: string; hook_event_name?: string; tool_input?: { subagent_type?: string } };
 
-// Pure: the most recent brief, as { key, phase, n }, or null.
-export function lastBrief(briefs: Record<string, Brief> = {}): { key: string; phase: string; n: number | null } | null {
+// Pure: the most recent brief, as { key, phase, n, arg }, or null: n is implement's row, arg the
+// key's second word as it is (standards' check id).
+export function lastBrief(briefs: Record<string, Brief> = {}): { key: string; phase: string; n: number | null; arg: string | null } | null {
 	const [key] = Object.entries(briefs).sort(([, a], [, b]) => String(b.at).localeCompare(String(a.at)))[0] ?? [];
 	if (!key) return null;
-	const [phase, n] = key.split(' ');
-	return { key, phase, n: n ? Number(n) : null };
+	const [phase, arg] = key.split(' ');
+	return { key, phase, n: phase === 'implement' && arg ? Number(arg) : null, arg: arg ?? null };
 }
 
 // Pure: null when the round-worker may end, else what it still owes. Its phase is the last brief's.
@@ -41,7 +42,12 @@ export function stopGap(s: Snapshot): string | null {
 		if (!row || s.files.blocked || rowDone(row, s)) return null;
 		return `commit ${last.n} is not made: its row's message, after \`wf check\` is green, or BLOCKED.md if you cannot`;
 	}
-	const file = ({ research: 'research', plan: 'plan', 'as-built': 'asBuilt', validate: 'validation' } as Partial<Record<string, keyof Snapshot['files']>>)[last.phase];
+	if (last.phase === 'standards') {
+		const c = (s.standards ?? []).find((x) => x.id === last.arg);
+		const gap = c && handoffGap('standards', c.text, s.briefs[last.key], handoffFile('standards', c.id));
+		return gap ? `${gap}. Your brief's Handoff section says what to write before you end.` : null;
+	}
+	const file = ({ research: 'research', plan: 'plan', 'as-built': 'asBuilt', validate: 'validation', critique: 'critique' } as Partial<Record<string, keyof Snapshot['files']>>)[last.phase];
 	if (!file) return null; // fix-review: its commit is counted by wf next
 	const gap = handoffGap(last.phase, s.files[file], s.briefs[last.key]);
 	return gap ? `${gap}. Your brief's Handoff section says what to write before you end.` : null;

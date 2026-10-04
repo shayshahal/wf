@@ -1,8 +1,9 @@
 # wf
 
 Shay's agent workflow: a ticket becomes a merged PR through fresh-context phases (research → plan
-→ one agent per commit → validate), deterministic checks (`wf check`), and two human gates (T1
-plan, T2 diff, both in plannotator). Runs in pi and in Claude Code, on Windows.
+→ one agent per commit → validate, and one per repository rule), deterministic checks (`wf
+check`), and two human gates (T1 plan, T2 diff, both in plannotator). Runs in pi and in Claude
+Code, on Windows.
 
 It lives outside every project's repo on purpose. A project's repo keeps only the round memory each
 round commits (for JewelryX, `bug-reports/<round>/`).
@@ -12,9 +13,12 @@ round commits (for JewelryX, `bug-reports/<round>/`).
 - `wf.mjs`: the kit's entry. The code is under `src/`, one module per command, each with a
   `*.selfcheck.ts` beside it:
   - `src/run.ts` is the dispatcher; `src/paths.ts` says where wf's own files are (`WF_ROOT`)
+  - `src/models.ts`: each phase's effort level (`low` for the read-only judges, `medium` for the
+    rest) and `wf models`, the model each level runs on here. Agent files say `effort:`, never a
+    model: Claude Code's aliases are the kit's, pi's patterns are Shay's (`env/models.ts`)
   - `src/seams.ts`: what differs between machines (worktrees, the database, review screen,
-    notifications) and the kit's defaults for it. An env's own entry plugs its pieces in:
-    `env/wf.mjs` is Shay's.
+    notifications, the model for each effort level) and the kit's defaults for it. An env's own
+    entry plugs its pieces in: `env/wf.mjs` is Shay's.
   - `src/project.ts` → `projects/<name>/`: everything project-specific. See *Projects* below.
   - `src/round/`: a round's state and its loop. `state.ts` is `.wf/state.json`; `next.ts` is
     `wf next`, the round's next action from its state and files (the orchestrator's whole loop);
@@ -22,7 +26,9 @@ round commits (for JewelryX, `bug-reports/<round>/`).
     hands the next; `step`, `ask`/`decide`, `prompt`, `status`, `notes`, and `handoff-hook.ts`
     (`wf handoff`, the Claude Code hooks)
   - `src/gates/`: what a round has to pass. `classify`, T1 (`design.ts`) and T2 (`review.ts`,
-    both written through `review-format.ts`), `wf check` (`check.ts`) and `wf deliver`
+    both written through `review-format.ts`), `wf check` (`check.ts`; `--repro`, research's three runs),
+    `wf standards` (`standards.ts`: the project's `.agents/checks/` rules that cover the diff), the
+    critic of a validation (`critique.ts`: CRITIQUE.md, and when validate answers it) and `wf deliver`
   - `src/worktrees/`: `worktree.ts` is the one interface to worktrees: list, ports and slugs
     (`ports.ts`), create (`wf new`), remove (`wf reap`). Where no env plugs its own in,
     `git-worktree.ts` makes them in `<repo>/.claude/worktrees/`, and `wf serve` (`serve.ts`) runs
@@ -40,7 +46,7 @@ round commits (for JewelryX, `bug-reports/<round>/`).
 - `prompts/`: one prompt per phase (`wf prompt <phase>` prints it without the handoff)
 - `.claude-plugin/` + `claude/`: the Claude Code plugin (manifest, marketplace, agents, hooks)
 - `agents/`: `round-worker` (every phase), `codebase-locator` and `codebase-analyzer` (research, pi only)
-- `process/`: lifecycle, classes, design session, review format, touchpoints
+- `process/`: lifecycle, classes, design session, review format, touchpoints, standards
 - `docs/plans/2026-09-17-workflow-v2.md`: the plan wf was built from (history; done)
 
 Text names wf's own files as `{{wf}}/…` (prompts, docs) or `${CLAUDE_PLUGIN_ROOT}/…` (the skills),
@@ -87,6 +93,9 @@ holds everything wf knows about it, and `index.ts` there is the only file the re
 - `setup` (the pre-start steps), `serve`, `teardown`
 - `checks`: the commands `wf check` runs for a diff
 - its round folder, base branch, round branches, people, contract-paths file, tracker note
+- `guidance`: the folder of its notes for agents, in its own repo. A note whose frontmatter has
+  `globs:` (Amp's AGENTS.md form, from the repo root) is put in the brief of each commit whose row
+  touches a matching file (`src/round/guidance.ts`); the rest are named by the phase prompts
 - `commands`: wf subcommands only this project has (JewelryX: `seed`, `show`, `stacks`)
 
 Next to it: `ROUND.md` (tracker, statuses, people, branches: read by the round skill),

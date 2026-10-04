@@ -4,11 +4,13 @@
 // env/wf.mjs calls autoUpdate() first on every run, so a push from SOURCE is live on the next
 // wf command, with one stderr line saying so. wf left the JewelryX repo the same day (Shay).
 import { execFileSync, spawnSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { anchorToolPaths } from '../src/plugin/anchor.ts';
+import { withModel } from '../src/models.ts';
+import { PI_MODELS } from './models.ts';
 
 export const LIVE = join(homedir(), '.local', 'share', 'wf');
 // The editing clone: a push from it moves origin/main here at once, so the check needs no network.
@@ -60,10 +62,11 @@ export function install(gitDir: string, rev: string) {
 		renameSync(fresh, LIVE);
 		rmSync(old, { recursive: true, force: true });
 		// Every wf agent into pi. Claude Code gets none: the plugin carries them, and a user-level
-		// agent outranks a plugin's of the same name (kit and env plan, step 6).
+		// agent outranks a plugin's of the same name (kit and env plan, step 6). An agent's effort
+		// level becomes pi's model for it (src/models.ts, env/models.ts).
 		const agents = join(LIVE, 'agents');
 		const pi = join(homedir(), '.pi', 'agent', 'agents');
-		if (existsSync(pi)) for (const f of readdirSync(agents)) copyFileSync(join(agents, f), join(pi, f));
+		if (existsSync(pi)) for (const f of readdirSync(agents)) writeFileSync(join(pi, f), withModel(readFileSync(join(agents, f), 'utf8'), PI_MODELS));
 		return rev;
 	});
 }

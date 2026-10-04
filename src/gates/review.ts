@@ -10,6 +10,8 @@ import { baseBranch } from '../project.ts';
 import { resolveWorktree } from '../worktrees/worktree.ts';
 import { appendDatedSection, asBuiltFile, beforeAfterPage, captionFor, devUrlsFor, foldFeedbackLine, lastField, proofPairs, readVerdict, renderHeader, renderSkeleton, specShaFor } from './review-format.ts';
 import { seams } from '../seams.ts';
+import { reportFile, roundChecks, summaryLines } from './standards.ts';
+import { CRITIQUE_FILE, critiqueLines } from './critique.ts';
 import { roundFile } from '../round/state.ts';
 import type { State } from '../round/state.ts';
 import { runStep } from '../round/step.ts';
@@ -72,6 +74,27 @@ function writeBeforeAfter(worktree: string, round: string) {
   return file;
 }
 
+// The header's standards lines: each rule that covers the diff and what its report says.
+function standardsFor(worktree: string): string[] {
+  const folder = readState(worktree).folder ?? '';
+  try {
+    return summaryLines(roundChecks(worktree).map((c) => {
+      const file = [folder, reportFile(c.id)].filter(Boolean).join('/');
+      return { id: c.id, file, text: existsSync(join(worktree, file)) ? readFileSync(join(worktree, file), 'utf8') : null };
+    }));
+  } catch {
+    return [];
+  }
+}
+
+// The header's critique line: a dispute between validate and its critic still open after the last
+// exchange (critique.ts); none when they settled.
+function critiqueFor(worktree: string): string[] {
+  const state = readState(worktree);
+  const file = [state.folder, CRITIQUE_FILE].filter(Boolean).join('/');
+  return critiqueLines(existsSync(join(worktree, file)) ? readFileSync(join(worktree, file), 'utf8') : null, file, state.briefs?.critique?.exchange ?? null);
+}
+
 export async function runReview(argv: string[]) {
   const round = argv.find((a) => !a.startsWith('-'));
   if (!round) usage();
@@ -95,9 +118,10 @@ export async function runReview(argv: string[]) {
     console.log(`before/after: ${beforeAfter}`);
     openFile(beforeAfter);
   }
-  const header = () => renderHeader({ round, klass, base, specSha: specShaFor(worktree), urls: devUrlsFor(worktree), files, beforeAfter });
+  const standards = [...critiqueFor(worktree), ...standardsFor(worktree)];
+  const header = () => renderHeader({ round, klass, base, specSha: specShaFor(worktree), urls: devUrlsFor(worktree), files, beforeAfter, standards });
   const file = roundFile(worktree, 'REVIEW.md');
-  if (!existsSync(file)) appendDatedSection(file, renderSkeleton({ round, klass, base, specSha: specShaFor(worktree), urls: devUrlsFor(worktree), files, beforeAfter }));
+  if (!existsSync(file)) appendDatedSection(file, renderSkeleton({ round, klass, base, specSha: specShaFor(worktree), urls: devUrlsFor(worktree), files, beforeAfter, standards }));
   // The machine's review screen when it has one (seams.reviewUI: plannotator on Shay's), else an editor.
   if (!seams.reviewUI?.available()) {
     if (!opensWindows()) {

@@ -34,13 +34,17 @@ check('Asks: "none", or no section, is none', planAsks('## Asks\n- none\n').leng
 const row = { n: 2, message: '`fix(x): two`' };
 check('a row is done with its commit and a green check', rowDone(row, { subjects: ['fix(x): two'], checks: [{ row: 2, result: 'green' }] }));
 check('not without the green check, not with another row\'s', !rowDone(row, { subjects: ['fix(x): two'], checks: [{ row: 1, result: 'green' }, { row: 2, result: 'red' }] }));
-check('brief keys: implement carries its row', briefKey('implement', 3) === 'implement 3' && briefKey('plan', '--revise') === 'plan');
+check('brief keys: implement carries its row, standards its rule', briefKey('implement', 3) === 'implement 3' && briefKey('standards', 'api/errors') === 'standards api/errors' && briefKey('plan', '--revise') === 'plan');
+check('a standards report is judged on its own file\'s sections', handoffGap('standards', 'Result: maybe\n<!-- brief: aa -->', { token: 'aa' }, 'standards/perf.md') === 'standards/perf.md has no `Result: pass | issues` line' && handoffGap('standards', null, null, 'standards/perf.md') === 'no standards/perf.md');
 
 check('a file phase is told the exact token line', handoffText({ phase: 'research', folder: 'bug-reports/r', token: 'abc123' }).includes('End `bug-reports/r/RESEARCH.md` with this line, exactly: `<!-- brief: abc123 -->`'));
+check('a critique is judged on its rows and verdict, and the validate --answer brief keys as validate', handoffGap('critique', '## Rows\n- AGREE · x\n<!-- brief: aa -->', { token: 'aa' })?.includes('no `Verdict: AGREE') === true && handoffGap('critique', null, null) === 'no CRITIQUE.md' && briefKey('validate', '--answer') === 'validate');
+check('a standards agent is told its own report file', handoffText({ phase: 'standards', folder: 'f', token: 'abc123', file: 'standards/api/errors.md' }).includes('End `f/standards/api/errors.md` with this line, exactly: `<!-- brief: abc123 -->`'));
 check('implement hands off its commit, no token', !handoffText({ phase: 'implement', folder: 'f', token: 'abc123' }).includes('abc123'));
 
 // ── a brief only for what wf next dispatches (brief.ts briefGap)
 const nextSays = "dispatch implement 1: run `node C:/wf/wf.mjs brief implement 1` in this worktree and do exactly what it prints";
+check("the brief wf next dispatches is given, with the model it names", briefGap(["implement", "1"], "dispatch implement 1 (model: opus): run x") === null && briefGap(["implement", "1"], "dispatch implement 10 (model: opus): run x") !== null);
 check("the brief wf next dispatches is given", briefGap(["implement", "1"], nextSays) === null && briefGap(["plan", "--revise"], "dispatch plan --revise: run x") === null);
 check("any other is refused, naming wf prompt for a preview", briefGap(["plan", "--revise"], nextSays)?.includes("wf prompt plan --revise") && briefGap(["implement", "2"], nextSays) !== null && briefGap(["implement", "1"], "wait user: q1 x")?.includes("it says: wait user: q1 x"));
 

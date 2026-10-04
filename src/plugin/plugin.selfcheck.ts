@@ -15,12 +15,13 @@ const check = (name: string, cond: unknown, detail = '') =>
 const root = WF_ROOT;
 
 // ── an agent's copy
-const pi = '---\r\nname: codebase-locator\r\ndescription: Finds WHERE code lives.\r\nmodel: anthropic/claude-sonnet-5\r\ntools: read, bash\r\nauto-exit: true\r\n---\r\n\r\nRead `{{wf}}/process/A.md`.\r\n';
+const pi = '---\r\nname: codebase-locator\r\ndescription: Finds WHERE code lives.\r\neffort: low\r\ntools: read, bash\r\nauto-exit: true\r\n---\r\n\r\nRead `{{wf}}/process/A.md`.\r\n';
 const cc = claudeAgent(pi, 'agents/codebase-locator.md');
-check('pi\'s model and tools become Claude Code\'s, with its search tools', cc.includes('model: sonnet') && cc.includes('tools: Read, Bash, Grep, Glob'), cc);
+check('the effort level becomes the kit\'s model, pi\'s tools Claude Code\'s with its search tools', cc.includes('model: sonnet') && cc.includes('tools: Read, Bash, Grep, Glob'), cc);
 check('pi\'s auto-exit is dropped, name and description kept', !cc.includes('auto-exit') && cc.includes('name: codebase-locator') && cc.includes('description: Finds WHERE code lives.'));
 check('wf\'s paths become the plugin root', cc.includes('`${CLAUDE_PLUGIN_ROOT}/process/A.md`'), cc);
 check('the copy says where it comes from', cc.includes('Written by plugin.ts from agents/codebase-locator.md'));
+check('an unknown effort level is refused, not dropped', (() => { try { claudeAgent('---\nname: w\neffort: max\n---\nx\n', 'w'); return false; } catch (e) { return (e as Error).message.includes('effort: max'); } })());
 check('an agent with no model or tools inherits them', !/^(model|tools):/m.test(claudeAgent('---\nname: w\ndescription: d\n---\nx\n', 'w')));
 
 // ── the committed plugin
@@ -49,6 +50,11 @@ check('ending with the handoff is allowed', stopGap(snap({ briefs: { research: {
 const plan = '## Commits\n| # | message | files | check |\n| 1 | fix(x): one | a.ts | repro |\n';
 check('implement ending with no commit is sent back', stopGap(snap({ briefs: { 'implement 1': { at: '1' } }, files: { plan } }))?.startsWith('commit 1 is not made'));
 check('implement ending with BLOCKED.md, or with its row done, is allowed', stopGap(snap({ briefs: { 'implement 1': { at: '1' } }, files: { plan, blocked: 'Question: x' } })) === null && stopGap(snap({ briefs: { 'implement 1': { at: '1' } }, files: { plan }, subjects: ['fix(x): one'], checks: [{ row: 1, result: 'green' }] })) === null);
+check('a standards brief\'s key keeps its rule id whole', lastBrief({ 'standards api/errors': { at: '1' } as Brief })?.arg === 'api/errors' && lastBrief({ 'standards api/errors': { at: '1' } as Brief })?.n === null);
+const critic = (critique: string | null) => snap({ briefs: { critique: { token: 'ee55', at: '1' } }, files: { critique } });
+check('a critic ending without CRITIQUE.md, or with a verdict its rows do not come to, is sent back', stopGap(critic(null))?.startsWith('no CRITIQUE.md') && stopGap(critic('## Rows\n- DISAGREE_CONCERN · x — y\n\nVerdict: AGREE\n<!-- brief: ee55 -->'))?.includes('its rows come to DISAGREE_CONCERN') && stopGap(critic('## Rows\n- AGREE · x\n\nVerdict: AGREE\n<!-- brief: ee55 -->')) === null);
+const rule = (text: string | null) => snap({ briefs: { 'standards perf': { token: 'dd44', at: '1' } }, standards: [{ id: 'perf', text, fixesAfter: 0 }] });
+check('a standards agent ending without its report is sent back, naming the file', stopGap(rule(null))?.startsWith('no standards/perf.md') && stopGap(rule('Result: pass\n## Issues\nnone\n<!-- brief: dd44 -->')) === null);
 check('a fork is refused, any other agent is not', forkGap({ tool_input: { subagent_type: 'fork' } })?.startsWith('no forks') && forkGap({ tool_input: { subagent_type: 'wf:round-worker' } }) === null);
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');

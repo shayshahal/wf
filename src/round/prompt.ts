@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// prompt.ts — wf prompt <research | plan [--revise] | implement N | fix-review>
+// prompt.ts — wf prompt <research | plan [--revise] | implement N | validate [--answer] | critique | fix-review>
 // Prints the composed prompt for a fresh round agent to stdout (skills/round/SKILL.md).
 // Substitutes {{round}} {{folder}} from .wf/state.json, and for `implement N` the row
 // N of PLAN.md `## Commits` verbatim ({{row}}), {{n}} and {{total}}.
@@ -7,16 +7,21 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { baseBranch, directUrls, name as projectName } from '../project.ts';
+import { baseBranch, directUrls, guidance, name as projectName } from '../project.ts';
 import { WF_HOME, WF_ROOT } from '../paths.ts';
 import { anchorToolPaths } from '../plugin/anchor.ts';
 import { seams } from '../seams.ts';
 import { basePortForBranch } from '../worktrees/worktree.ts';
+import { roundChecks } from '../gates/standards.ts';
 import { openQuestionGate, overruledAsks } from './ask.ts';
+import { briefKey } from './handoff.ts';
+import { guidanceSection, notesFor, readNotes } from './guidance.ts';
 import { readState, roundOf, toplevelOf, writeState } from './state.ts';
 
 const REVISE = '\nRead `{{folder}}/SPEC-REVIEW.md` (wf design writes it there); revise `{{folder}}/SPEC.md` and `{{folder}}/PLAN.md` to answer every annotation; change nothing it does not mention. `## For T1` is what binds (DESIGN-SESSION.md § 5): an answer that changes the design changes it there, and the Build in PLAN.md agrees with its Build.\n';
 // `plan --revise` after an Ask was answered against its default (ask.ts overruledAsks).
+// `validate --answer`: a critique disagreed with the last validation (gates/critique.ts).
+const ANSWER = '\n## This is an answer\n\n`{{folder}}/VALIDATION.md` exists, and a critic who did not write it audited it: `{{folder}}/CRITIQUE.md`. Read both fully, then write VALIDATION.md again, the whole file, from the diff and the files as above. For each CRITIQUE.md row:\n\n- `AGREE`: keep that line as it is.\n- `DISAGREE_EVIDENCE`: read the `<path>:<line>` it cites. Revise the line to what the code there shows, or keep it and say in it, in a few words, why that code does not change it.\n- `DISAGREE_CONCERN`: firm the line up with a `<path>:<line>` or a measurement, or drop it. A concern is a request for evidence, not a ruling: never drop a `not met`, `missing` or `differs` only because it was questioned.\n\nA line the critique does not name is judged again as any other. The critic may be wrong; the code decides, not who spoke last.\n';
 const REVISE_ASKS = '\n## This is a revision\n\n`{{folder}}/PLAN.md` exists, and the person answered some of its Asks against the default it was written for. Their answers:\n\n{{overruled}}\n\nRevise `{{folder}}/PLAN.md` to build each answer: its Approach, Commits, *Not doing* and *T2 walk*. Delete the answered Asks, keep `## Decisions` as it is, and change nothing an answer does not touch.\n';
 
 // A `## Commits` row is a table line whose first cell is the commit number; header and
@@ -55,15 +60,16 @@ export function ticketIntent(text: string) {
 	return body || null;
 }
 
-const INTENT_PHASES = ['research', 'plan', 'validate'];
+const INTENT_PHASES = ['research', 'plan', 'validate', 'critique'];
 
 // The {{…}} a prompt template substitutes; the project's direct URLs add one per app.
-type PromptVars = { round: string; folder: string | null; base: string; review: string; intent?: string | null; overruled?: string; n?: number; total?: number; row?: string; [app: string]: unknown };
+type PromptVars = { round: string; folder: string | null; base: string; review: string; intent?: string | null; overruled?: string; n?: number; total?: number; row?: string; check?: string; [app: string]: unknown };
 
-export const PHASES = ['research', 'plan', 'implement', 'as-built', 'validate', 'fix-review'];
-export const USAGE = 'research | plan [--revise] | implement N | as-built | validate | fix-review';
+export const PHASES = ['research', 'plan', 'implement', 'as-built', 'validate', 'critique', 'standards', 'fix-review'];
+export const USAGE = 'research | plan [--revise] | implement N | as-built | validate [--answer] | critique | standards <check> | fix-review';
 
-// The composed prompt for `argv` (`<phase> [N] [--revise]`), with `{ toplevel, state, folder, phase, n }`.
+// The composed prompt for `argv` (`<phase> [N | <check>] [--revise]`), with `{ toplevel, state, folder, phase, n, key }`,
+// key being what its brief is recorded under.
 // Throws with the reason it cannot be composed; `wf prompt` and `wf brief` (brief.ts) print it.
 // `implement N` records `commit: N` in state, which `wf check` fences on.
 export function composePrompt(argv: string[]) {
@@ -95,11 +101,14 @@ export function composePrompt(argv: string[]) {
 		Object.assign(vars, directUrls(base));
 	} catch { /* not in a round worktree */ }
 	let template = readFileSync(join(templatesDir, `${phase}.md`), 'utf8');
+	// implement N: the row's files, whose project notes (guidance.ts) end the prompt as they are.
+	let files: string[] = [];
 	if (phase === 'plan' && argv.includes('--revise')) {
 		const overruled = overruledAsks(state?.answered, state?.briefs?.plan?.token);
 		vars.overruled = overruled.map((q) => `- q${q.n}: ${q.text} (default: ${q.default ?? 'none'}) \u2192 ${q.answer}`).join('\n');
 		template += overruled.length ? REVISE_ASKS : REVISE;
 	}
+	if (phase === 'validate' && argv.includes('--answer')) template += ANSWER;
 	// The project's notes for this phase: what its repo, apps and tests look like (projects/<name>/prompts/).
 	const notes = join(WF_ROOT, 'projects', projectName, 'prompts', `${phase}.md`);
 	if (existsSync(notes)) template += `\n${readFileSync(notes, 'utf8')}`;
@@ -116,14 +125,23 @@ export function composePrompt(argv: string[]) {
 		if (!row) throw new Error(`implement ${argv[1] ?? ''}: ${folder}/PLAN.md has no commit row ${argv[1] ?? ''} (rows: ${rows.map((r) => r.n).join(', ') || 'none'})`);
 		Object.assign(vars, { n, total: rows.length, row: row.line });
 		writeState(toplevel, { commit: n });
+		files = rowFiles(row);
+	}
+	// standards <check>: the one rule, inline, and the changed files it covers (standards.ts).
+	if (phase === 'standards') {
+		const checks = roundChecks(toplevel);
+		const c = checks.find((x) => x.id === argv[1]);
+		if (!c) throw new Error(`standards ${argv[1] ?? ''}: no .agents/checks rule with that id covers this diff (${checks.map((x) => x.id).join(', ') || 'none does'})`);
+		Object.assign(vars, { check: c.id, name: c.name, path: c.path, scope: c.scope ? `${c.scope}/` : 'the whole repository', severity: c.severity, rule: c.rule, files: c.files.map((f) => `- \`${f}\``).join('\n') });
 	}
 	// A round's tree is cut from the base branch, whose own `wf` may predate these commands: point the
 	// agent at the wf that composed its prompt, not at whatever `wf` resolves to in its tree. The entry
 	// that is running (seams.entry), so an agent in Shay's round runs his env's wf, not the bare kit.
 	const wf = `node ${seams.entry.replace(/\\/g, '/')}`;
 	// Same for the docs a prompt cites: a round's worktree does not hold wf.
-	const text = anchorToolPaths(renderPrompt(template, vars).replace(/`wf /g, `\`${wf} `), WF_HOME, projectName);
-	return { text, toplevel, state, folder, phase, n: vars.n ?? null };
+	const text = anchorToolPaths(renderPrompt(template, vars).replace(/`wf /g, `\`${wf} `), WF_HOME, projectName)
+		+ guidanceSection(notesFor(readNotes(toplevel, guidance), files));
+	return { text, toplevel, state, folder, phase, n: vars.n ?? null, key: briefKey(phase, vars.n ?? vars.check) };
 }
 
 // wf prompt: the prompt as it is, for reading. A dispatch runs `wf brief`, which adds the handoff.
