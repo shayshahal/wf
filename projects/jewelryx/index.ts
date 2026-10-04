@@ -69,7 +69,7 @@ export function stackUrls({ slug, port }: Stack): Origins {
 // What JewelryX needs from the machine it runs on (seams.project). Shay's: env/projects/jewelryx.
 //   secretsFrom(worktree)         the folder holding the files .worktreeinclude names
 //   database.url({ slug, port })  the MongoDB URL the worktree's backend uses
-//   database.up({ slug, port })   start it (awaited before the seed)
+//   database.up({ worktree, slug, port }) start it (awaited before the seed)
 //   database.seedUrl({ slug, port }) where the seeder writes, when not database.url
 //   database.teardown({ slug, worktree }) the steps that remove it, run while the worktree exists
 //   names(slug)                   the browser origins { b2b, admin, api }, when the machine names them
@@ -79,7 +79,7 @@ export type Machine = {
 	secretsFrom: (worktree: string) => string;
 	database: {
 		url: (o: { slug: string; port?: Port }) => string;
-		up: (o: Stack) => Promise<void>;
+		up: (o: { worktree: string } & Stack) => Promise<void>;
 		seedUrl?: (o: Stack) => string;
 		teardown: (o: { slug: string; worktree: string }) => RemovalStep[];
 	};
@@ -99,21 +99,36 @@ const KIT: Machine = {
 	// Every worktree's database, jewelryx_<slug>, in the one MongoDB at MONGO_URL.
 	database: {
 		url: () => process.env.MONGO_URL ?? 'mongodb://127.0.0.1:27017',
-		up: ({ slug, port }) => mongoAnswers(KIT.database.url({ slug, port })),
+		// MONGO_URL set: that MongoDB is the person's, only checked. Unset and nothing on 27017: the repo's
+		// own is brought up (docker-compose.yml's `mongodb`, profile local-db, container jewelryx-mongodb),
+		// under the project name a clone folder named jeweleryx gives it, so a person's `docker compose up`
+		// and wf's are one container and one volume. Shay, 2026-10-04: "make wf bring it up"; before, a
+		// stopped one stopped `wf new` with "start one".
+		async up({ worktree, slug, port }) {
+			const url = KIT.database.url({ slug, port });
+			if (process.env.MONGO_URL || (await answers(url))) return mongoAnswers(url);
+			const r = spawnSync('docker', ['compose', '-p', 'jeweleryx', '--profile', 'local-db', 'up', '-d', '--wait', 'mongodb'], { cwd: worktree, stdio: 'inherit', windowsHide: true });
+			if (r.status !== 0) throw new Error(`no MongoDB answers at ${url}, and the repo's (docker compose --profile local-db up -d mongodb) did not start: exit ${r.status ?? r.error?.message}. Start one, or set MONGO_URL to yours`);
+			return mongoAnswers(url);
+		},
 		teardown: ({ slug, worktree }) => [{ label: 'drop database', run: () => dropDatabase({ worktree, database: worktreeDatabase(slug), mongoUrl: KIT.database.url({ slug }) }) }],
 	},
 	teardown: () => [],
 };
 
-// Resolves when the MongoDB at `url` takes a connection; else throws saying what to do, before the
-// seeder's own 30 s server-selection timeout.
-function mongoAnswers(url: string) {
+// Whether the MongoDB at `url` takes a connection within 3 s.
+function answers(url: string) {
 	const { hostname, port } = new URL(url);
-	return new Promise<void>((resolve, reject) => {
+	return new Promise<boolean>((resolve) => {
 		const sock = createConnection({ host: hostname, port: Number(port) || 27017, timeout: 3000 });
-		const fail = () => { sock.destroy(); reject(new Error(`no MongoDB answers at ${url}: start one, or set MONGO_URL to yours`)); };
-		sock.once('connect', () => { sock.end(); resolve(); }).once('error', fail).once('timeout', fail);
+		const no = () => { sock.destroy(); resolve(false); };
+		sock.once('connect', () => { sock.end(); resolve(true); }).once('error', no).once('timeout', no);
 	});
+}
+// Resolves when it answers; else throws saying what to do, before the seeder's own 30 s
+// server-selection timeout.
+async function mongoAnswers(url: string) {
+	if (!(await answers(url))) throw new Error(`no MongoDB answers at ${url}: start one, or set MONGO_URL to yours`);
 }
 function machine(): Machine {
 	return { ...KIT, ...(seams.project as Partial<Machine>) };
@@ -163,7 +178,7 @@ export const setup: Record<string, SetupStep> = {
 		// cwd: the kit runs this step from `wf new`, not from inside the worktree as wt does. --quiet:
 		// there the output is the agent's, and a fresh sync listed ~60 packages into it (2026-09-27).
 		sh('uv sync --quiet --dev --directory packages/backend', worktree);
-		await database.up({ slug, port });
+		await database.up({ worktree, slug, port });
 		seedDatabase({ worktree, database: worktreeDatabase(slug), mongoUrl: seedUrl({ slug, port }) });
 	},
 };

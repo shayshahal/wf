@@ -13,7 +13,7 @@ Setup (pre-start, in parallel): `env` copies the files `.worktreeinclude` names 
 `packages/backend/.env`: production credentials blanked, media storage local, the database
 the worktree's own. `node` installs and builds the shared packages, `verify` installs
 `verification/`, `tools` runs the project's `scripts/link-tools.mjs`, `db` syncs python, makes
-sure the shared mongo is up and seeds the worktree's database in it.
+sure the repo's mongo is up (bringing it up when it is not) and seeds the worktree's database in it.
 
 Servers, when a phase starts them (`wf serve`; nothing serves a worktree from its creation since
 2026-10-04): b2b, backend and admin on the hashed port P: b2b P, backend P+10000, admin P+20000
@@ -26,13 +26,15 @@ Server-side calls stay off the proxy: `INTERNAL_API_URL` is `http://127.0.0.1:<b
 `.localhost` name. `PORTLESS=0` skips the proxy and serves the hashed ports directly (fallback when
 the proxy is down); stale routes are cleared with `portless prune`.
 
-A database per worktree, in one mongo: `jewelryx_<slug>` in `jewelryx-mongo-dev` (`mongo.compose.yml`,
-on 40000+(P−10000) for dev's P; `index.ts` `sharedMongoUrl`), the permanent dev stack's until that
-went (2026-10-04). The `db` step fills it with the project's fixture set
+A database per worktree, in one mongo, as for the team (the kit's `projects/jewelryx/index.ts`):
+`jewelryx_<slug>` in the repo's own MongoDB on 27017, `jewelryx-mongodb` (`docker-compose.yml`'s
+`mongodb`, profile `local-db`, compose project `jeweleryx`). When nothing answers there, setup brings
+it up with `docker compose -p jeweleryx --profile local-db up -d --wait mongodb`. The `db` step fills it with the project's fixture set
 (`packages/backend/scripts/seed_fixtures.py`). The env step points `MONGODB_URL`/`DATABASE_NAME` at
 it, so no worktree shares dev's Atlas database or another round's data. `wf seed [--reset]` seeds it
 again; `--reset` drops only that database. Until 2026-10-04 each worktree had a container of its own
-(Shay: "too much"); reap still removes one from a worktree made before.
+(Shay: "too much"), then shared `jewelryx-mongo-dev` beside the repo's for a day; reap still removes
+a worktree's own from one made before.
 
 Teardown: the worktree's database is dropped (and a container of its own, when it has one), then
 `portless prune`.

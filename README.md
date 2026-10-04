@@ -69,7 +69,8 @@ The kit alone, as a Claude Code plugin: this repo is its marketplace (`.claude-p
   - two hooks: a phase agent is sent back once while its handoff is missing (`wf handoff
     check`), and no fork is started inside a round (`wf handoff no-fork`).
 - **Needs:** git, gh, node ≥ 22.18 (wf is TypeScript, which Node runs as is from 22.18), the project's own tools (JewelryX: pnpm, uv), and one MongoDB
-  (`MONGO_URL`, default `mongodb://127.0.0.1:27017`). The project's `.env` files sit in the
+  (`MONGO_URL`, default `mongodb://127.0.0.1:27017`; JewelryX: unset and down, wf brings up the repo's
+  own with Docker). The project's `.env` files sit in the
   person's clone, where they keep them to run the app; every round's worktree copies them.
 - **Try a change without installing:** `claude --plugin-dir <this clone>`.
 - **Updates:** turn on auto-update for the `wf` marketplace (`/plugin` → Marketplaces → wf →

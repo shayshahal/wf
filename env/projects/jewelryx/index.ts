@@ -3,9 +3,7 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { dropDatabase, worktreeDatabase } from '../../../projects/jewelryx/db.ts';
-import { basePortForBranch } from '../../../src/worktrees/worktree.ts';
-import { containerOf, mongoPortForBase, mongoTeardown, mongoUp } from './mongo.ts';
+import { containerOf, mongoTeardown } from './mongo.ts';
 import type { Machine, Origins, Wrap } from '../../../projects/jewelryx/index.ts';
 import type { RemovalStep } from '../../../src/seams.ts';
 
@@ -37,44 +35,29 @@ export function portlessServers(slug: string): { origins: Origins; wrap: Wrap } 
 	};
 }
 
-// Every worktree's database, jewelryx_<slug>, in one mongo, as the kit does with one MongoDB. Until
-// 2026-10-04 each worktree had a container, a volume and a network of its own; Shay: "too much". The
-// one mongo is jewelryx-mongo-dev, on dev's port: it was the permanent dev stack's (removed the same
-// day), and keeps its name, port and volume so no database had to move.
-const DEV_BASE = basePortForBranch('dev');
-export const sharedMongoUrl = (): string => `mongodb://127.0.0.1:${mongoPortForBase(DEV_BASE)}`;
+// The worktrees' databases are the kit's (projects/jewelryx/index.ts): jewelryx_<slug> in the repo's own
+// MongoDB on 27017, which wf brings up when it is down. Shay's machine had its own until 2026-10-04: a
+// container per worktree (Shay: "too much"), then one shared jewelryx-mongo-dev beside the repo's.
 
 // Pure: what removes a worktree's own container, when it has one. Worktrees made before 2026-10-04
-// do; once `docker ps -a --filter name=jewelryx-mongo-` shows only jewelryx-mongo-dev, this and
-// mongoTeardown go. The dev worktree's container is the shared one, never removed.
-export const oldContainerSteps = (slug: string, exists: boolean): RemovalStep[] => (exists && slug !== 'dev' ? mongoTeardown(slug) : []);
+// do; once `docker ps -a --filter name=jewelryx-mongo-` shows none, this, the reap step below and
+// mongo.ts go.
+export const oldContainerSteps = (slug: string, exists: boolean): RemovalStep[] => (exists ? mongoTeardown(slug) : []);
 
-// Pure: reap's database steps. The container is looked for when reap runs, not when the plan is made,
-// so the plan (and its selfchecks) runs no docker.
-export function databaseTeardown({ slug, worktree }: { slug: string; worktree: string }): RemovalStep[] {
-	return [
-		{ label: 'drop database', run: () => dropDatabase({ worktree, database: worktreeDatabase(slug), mongoUrl: sharedMongoUrl() }) },
-		{
-			label: 'its own mongo container, if any',
-			run: () => {
-				const exists = spawnSync('docker', ['inspect', containerOf(slug)], { stdio: 'ignore' }).status === 0;
-				for (const s of oldContainerSteps(slug, exists)) spawnSync(s.cmd!, s.args!, { stdio: 'inherit' });
-			},
-		},
-	];
-}
+// The container is looked for when reap runs, not when the plan is made, so the plan (and its
+// selfchecks) runs no docker.
+const oldContainer = (slug: string): RemovalStep => ({
+	label: 'its own mongo container, if any',
+	run: () => {
+		const exists = spawnSync('docker', ['inspect', containerOf(slug)], { stdio: 'ignore' }).status === 0;
+		for (const s of oldContainerSteps(slug, exists)) spawnSync(s.cmd!, s.args!, { stdio: 'inherit' });
+	},
+});
 
 export const pieces = {
 	secretsFrom: () => SECRETS,
-	database: {
-		url: sharedMongoUrl,
-		// compose up --wait on the running container changes nothing; after a reboot, Docker restarts it
-		// (restart: unless-stopped) or this does.
-		up: () => mongoUp({ slug: 'dev', base: DEV_BASE }),
-		teardown: databaseTeardown,
-	},
 	names: stackNames,
 	servers: portlessServers,
 	// portless prune drops the routes whose server died with the worktree; CI=1 keeps it from prompting.
-	teardown: () => [{ label: 'portless prune', cmd: 'portless', args: ['prune'], env: { CI: '1' } }],
+	teardown: ({ slug }) => [oldContainer(slug), { label: 'portless prune', cmd: 'portless', args: ['prune'], env: { CI: '1' } }],
 } satisfies Partial<Machine>;
