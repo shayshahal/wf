@@ -25,6 +25,9 @@ export const roundBranches: string[] = ['fix/*', 'feat/*'];
 export const roundsDir: string = 'bug-reports';
 // The project's contract paths (wf classify: a change under one is class B), in the round's worktree.
 export const contractPaths: string = 'docs/agents/contract-paths.txt';
+// The project's notes for agents, in the round's worktree: one with `globs:` reaches the brief of a
+// commit whose files it matches (guidance.ts).
+export const guidance: string = 'docs/agents';
 // Who a round waits on or asks, besides Shay: product (Einat) and QA (Saar).
 export const people: string[] = ['einat', 'saar'];
 // The seeded users (`wf seed` restores them); docs/agents/seed.md in the project is the source.
