@@ -17,8 +17,14 @@ const under = (dir: string): string[] => readdirSync(dir, { withFileTypes: true 
 // The kit (src/, projects/) and Shay's env (env/).
 const files = ['src', 'projects', 'env'].flatMap((d) => under(join(root, d)));
 
+// --no-wasm-dynamic-tiering: on Windows a selfcheck that calls process.exit right after loading its
+// .ts files died at exit with libuv's `!(handle->flags & UV_HANDLE_CLOSING)` assertion, its checks all
+// green: Node's type stripper is WebAssembly, V8 was still recompiling its hot functions in the
+// background, and process.exit closed the handle that task reports back on (nodejs/node#56645, fixed
+// by #61999, not in Node 26.2). Red runs and a refused push on 2026-10-04; measured one at a time,
+// env/update.selfcheck.ts crashed 10 of 30 runs without the flag, 0 of 30 with it.
 const run = (label: string, args: string[]) => new Promise<Result>((resolve) => {
-	const child = spawn(process.execPath, args, { cwd: root });
+	const child = spawn(process.execPath, ['--no-wasm-dynamic-tiering', ...args], { cwd: root });
 	let out = '';
 	child.stdout.on('data', (d) => { out += d; });
 	child.stderr.on('data', (d) => { out += d; });
