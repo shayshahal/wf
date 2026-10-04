@@ -5,7 +5,7 @@
   "devDependencies": {
     "@types/node": "26.6.3",
     "eslint": "10.12.0",
-    "lint-kit": "github:shayshahal/lint-kit#a9fbec38a940a179fcb1a1d51e6f619258444fba",
+    "lint-kit": "github:shayshahal/lint-kit#v0.3.0",
     "typescript": "7.0.2"
   }
 }
