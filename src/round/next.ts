@@ -4,7 +4,7 @@
 // reading of it enforced. The orchestrator's loop: run `wf next`, do what it prints, run it again.
 // wf next does the bookkeeping itself (the step, a question the round now waits on) and prints
 // one of:
-//   dispatch <phase>: <the line to send a fresh round-worker>
+//   dispatch <phase> (model: <m>): <the line to send a fresh round-worker, on that model>
 //   wait <person>: <what they owe>        tell them, verbatim; their answer → wf decide, then wf next
 //   design | deliver | review | merge: <what to run>   the orchestrator runs it, then wf next
 //   done
@@ -18,6 +18,8 @@ import { baseBranch } from '../project.ts';
 import { planCommitRows } from './prompt.ts';
 import { lastField, readVerdict, specShaFor } from '../gates/review-format.ts';
 import { seams } from '../seams.ts';
+import { modelFor } from '../models.ts';
+import type { Models } from '../models.ts';
 import { readState, toplevelOf, writeState } from './state.ts';
 import type { Brief, Question, RoundClass } from './state.ts';
 import { notifyAdapters, runStep } from './step.ts';
@@ -33,7 +35,8 @@ const MAX_BRIEFS = 2;
 //     fixesAfterValidate (fix(review) commits since the validate brief's head),
 //     note (the tracker note wf deliver wrote: its path and text, or null),
 //     standards (each .agents/checks rule that covers the diff: its id, its report's text or null,
-//     and the fix(review) commits since its brief) }
+//     and the fix(review) commits since its brief),
+//     models (the model each effort level runs on here: seams.models; none, no model is named) }
 // → { say, effects }, effects being { step: [args] } | { ask: { to, text, dflt, source } }.
 export type Snapshot = {
 	branch: string;
@@ -54,6 +57,7 @@ export type Snapshot = {
 	fixesAfterValidate: number;
 	note: { file: string; text: string | null } | null;
 	standards?: { id: string; text: string | null; fixesAfter: number }[];
+	models?: Models;
 };
 export type Effect = { step: string[]; ask?: undefined } | { ask: { to: string; text: string; dflt: string | null; source: string }; step?: undefined };
 
@@ -63,12 +67,14 @@ export function nextAction(s: Snapshot): { say: string; effects: Effect[] } {
 	const briefs = s.briefs ?? {};
 	const brief = (phase: string, n?: number | string | null): Brief | undefined => briefs[briefKey(phase, n)];
 	const wf = `node ${s.entry}`;
-	// The line a fresh round-worker gets: it runs wf brief itself, so its brief is wf's own text.
+	// The line a fresh round-worker gets: it runs wf brief itself, so its brief is wf's own text. The
+	// model is this machine's for the phase's effort level (models.ts), not the orchestrator's pick.
 	const dispatch = (phase: string, args: (number | string | null)[] = [], gap: string | null = null) => {
 		const b = brief(phase, args[0]);
 		const label = [phase, ...args].join(' ');
 		if (b && gap && (b.count ?? 1) >= MAX_BRIEFS) return act(`wait user: ${label} was briefed ${b.count} times and ${gap} — a harness gap (round skill, When a round goes wrong)`);
-		return act(`dispatch ${label}: run \`${wf} brief ${label}\` in this worktree and do exactly what it prints${b && gap ? ` (again: ${gap})` : ''}`);
+		const model = s.models ? ` (model: ${modelFor(phase, s.models)})` : '';
+		return act(`dispatch ${label}${model}: run \`${wf} brief ${label}\` in this worktree and do exactly what it prints${b && gap ? ` (again: ${gap})` : ''}`);
 	};
 	const asked = (source: string) => [...(s.questions ?? []), ...(s.answered ?? [])].some((q) => q.source === source);
 	const open = s.questions ?? [];
@@ -236,6 +242,7 @@ export function snapshotOf(toplevel: string): Snapshot {
 		subjects: git('log', '--format=%s', `${base}..HEAD`).split('\n').filter(Boolean),
 		fixesAfterValidate: fixesSince(git, state.briefs?.validate?.head),
 		note: state.note ? { file: state.note, text: read(join(toplevel, state.note)) } : null,
+		models: seams.models,
 		standards: roundChecks(toplevel, base).map((c) => ({ id: c.id, text: read(join(dir, reportFile(c.id))), fixesAfter: fixesSince(git, state.briefs?.[briefKey('standards', c.id)]?.head) })),
 		repro: Object.fromEntries((read(join(toplevel, '.wf', 'checks.log')) ?? '').split('\n').flatMap((l) => { try { const c = JSON.parse(l); return c.row === 'repro' && c.token ? [[c.token as string, c.result as string]] : []; } catch { return []; } })),
 		checks: (read(join(toplevel, '.wf', 'checks.log')) ?? '').split('\n').filter(Boolean).flatMap((l) => { try { return [JSON.parse(l) as { row: number | string | null; result: string }]; } catch { return []; } }).filter((c) => c.row !== 'repro').map((c) => ({ ...c, row: c.row == null ? null : Number(c.row) })),

@@ -33,13 +33,15 @@ export function createWorktree({ branch, base, log }: Parameters<NonNullable<Sea
 	return tree;
 }
 
-// Pure: the ordered steps. `rm` is done in-process (fs.rmSync), so it carries no cmd.
-export function removalPlan({ branch, path, slug, pid }: Parameters<NonNullable<Seams['removalPlan']>>[0]): RemovalStep[] {
+// Pure: the ordered steps. `rm` is done in-process (fs.rmSync), so it carries no cmd. `platform` picks
+// the straggler sweep, so the selfcheck can check Windows's plan on any machine (it read
+// process.platform, and was red everywhere but Windows, 2026-10-03).
+export function removalPlan({ branch, path, slug, pid }: Parameters<NonNullable<Seams['removalPlan']>>[0], platform: NodeJS.Platform = process.platform): RemovalStep[] {
 	// Stragglers go first: a live dev server holds the tree, and `wt remove` fails on Windows while
 	// it runs, leaving git without the worktree but the folder, container, volume, network and
 	// routes in place (measured 2026-09-24: 23 processes). The sweep is the kit's (serve.ts).
 	return [
-		stragglersStep(path, pid),
+		stragglersStep(path, pid, platform),
 		{ label: 'wt remove', cmd: 'wt', args: ['remove', branch, '--no-delete-branch', '--force', '--foreground', '-y'] },
 		{ label: 'rm -rf worktree', rm: path },
 		{ label: 'git worktree prune', cmd: 'git', args: ['worktree', 'prune'] },

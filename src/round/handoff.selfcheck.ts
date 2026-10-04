@@ -43,6 +43,7 @@ check('implement hands off its commit, no token', !handoffText({ phase: 'impleme
 
 // ── a brief only for what wf next dispatches (brief.ts briefGap)
 const nextSays = "dispatch implement 1: run `node C:/wf/wf.mjs brief implement 1` in this worktree and do exactly what it prints";
+check("the brief wf next dispatches is given, with the model it names", briefGap(["implement", "1"], "dispatch implement 1 (model: opus): run x") === null && briefGap(["implement", "1"], "dispatch implement 10 (model: opus): run x") !== null);
 check("the brief wf next dispatches is given", briefGap(["implement", "1"], nextSays) === null && briefGap(["plan", "--revise"], "dispatch plan --revise: run x") === null);
 check("any other is refused, naming wf prompt for a preview", briefGap(["plan", "--revise"], nextSays)?.includes("wf prompt plan --revise") && briefGap(["implement", "2"], nextSays) !== null && briefGap(["implement", "1"], "wait user: q1 x")?.includes("it says: wait user: q1 x"));
 
