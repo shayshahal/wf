@@ -1,6 +1,6 @@
 // projects/jewelryx/db.ts — a worktree's database: its name, and the seed.
 //   the database: jewelryx_<slug>, in whichever MongoDB the machine gives the worktree (index.ts
-//                 `machine().database`; on Shay's, jewelryx-mongo-dev, env/projects/jewelryx/index.ts)
+//                 `machine().database`; the repo's own on 27017 unless MONGO_URL names another)
 //   seed: the project's fixture set (packages/backend/scripts/seed_fixtures.py, docs/agents/seed.md),
 //         run straight into the target database. No snapshot: seeding an empty database took
 //         6-8 s, restoring a cached mongodump ~11 s (measured 2026-09-24), and a snapshot needs a
