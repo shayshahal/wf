@@ -143,6 +143,6 @@ After a push to `main`, the next `wf` command installs it by itself and prints
 
 ## Self-checks
 
-From this folder: `node selfcheck.ts` (every `*.selfcheck.ts`, wf's and the projects', and `tsc`, in
-parallel). Pure checks, no network; `review.selfcheck.ts` needs a git checkout (this one). The pre-push hook
+From this folder: `node src/selfcheck.ts` (every `*.selfcheck.ts`, wf's and the projects', `tsc`, and
+lint-kit's error-handling rules through `eslint`, in parallel; `npm ci` first). Pure checks, no network; `review.selfcheck.ts` needs a git checkout (this one). The pre-push hook
 runs it and refuses a red push.

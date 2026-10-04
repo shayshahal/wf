@@ -110,6 +110,7 @@ export function realReadState(path: string): State | null {
   try {
     return JSON.parse(readFileSync(f, 'utf8')) as State;
   } catch {
+    // One round's broken state.json lists it without a state, not stops `wf status` for every round.
     return null;
   }
 }

@@ -41,7 +41,7 @@ export function agentsPerPhase(briefs: Record<string, { count?: number }> | unde
 }
 
 const jsonLines = <T,>(text: string): T[] => (text ?? '').split('\n').filter((l) => l.trim()).flatMap((l) => {
-	try { return [JSON.parse(l) as T]; } catch { return []; }
+	try { return [JSON.parse(l) as T]; } catch { /* a line cut off mid-write: skipped, the rest still read */ return []; }
 });
 
 // Pure: the round's line. checksLog / eventsLog are .wf/checks.log and .wf/events.log, reviewText the

@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-// selfcheck.ts — node src/selfcheck.ts: every *.selfcheck.ts in wf and its projects, and tsc over all of
-// wf, in parallel. One line on green; on red the failing files' output, exit 1. The pre-push hook
+// selfcheck.ts — node src/selfcheck.ts: every *.selfcheck.ts in wf and its projects, tsc over all of
+// wf, and eslint (lint-kit's error-handling set, eslint.config.js), in parallel. One line on green; on red the failing files' output, exit 1. The pre-push hook
 // runs it (.githooks/pre-push): a push to main is live on the next wf command, with no CI in between
 // (AGENTS.md). Run from the editing clone: review.selfcheck.ts needs a git checkout, and tsc needs
-// `npm ci` (wf runs on Node alone; typescript and @types/node are only for this check).
+// `npm ci` (wf runs on Node alone; its dev dependencies are only for this check).
 import { spawn } from 'node:child_process';
 import { existsSync, readdirSync } from 'node:fs';
 import { join, relative } from 'node:path';
@@ -30,10 +30,15 @@ const TSC = join(root, 'node_modules', 'typescript', 'bin', 'tsc');
 const typecheck = existsSync(TSC)
 	? run('tsc', [TSC, '-p', root])
 	: Promise.resolve({ file: 'tsc', code: 1, out: 'no node_modules/typescript: run `npm ci` in this clone' });
+// lint-kit's error-handling set (eslint.config.js): a catch that drops the error says why, or is fixed.
+const ESLINT = join(root, 'node_modules', 'eslint', 'bin', 'eslint.js');
+const lint = existsSync(ESLINT)
+	? run('eslint', ['--disable-warning=ExperimentalWarning', ESLINT, root])
+	: Promise.resolve({ file: 'eslint', code: 1, out: 'no node_modules/eslint: run `npm ci` in this clone' });
 
 const t0 = Date.now();
-const results = await Promise.all([...files.map((f) => run(relative(root, f).replace(/\\/g, '/'), [f])), typecheck]);
+const results = await Promise.all([...files.map((f) => run(relative(root, f).replace(/\\/g, '/'), [f])), typecheck, lint]);
 const red = results.filter((r) => r.code !== 0);
 for (const r of red) console.error(`\n── FAIL ${r.file}\n${r.out.split('\n').filter((l) => !l.startsWith('  ok ')).join('\n').trimEnd()}`);
-console.log(`${red.length ? `${red.length} of ${results.length} selfchecks red` : `${results.length} selfchecks green`} (tsc included) in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+console.log(`${red.length ? `${red.length} of ${results.length} selfchecks red` : `${results.length} selfchecks green`} (tsc and eslint included) in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
 process.exit(red.length ? 1 : 0);

@@ -26,7 +26,7 @@ async function logRefusals(argv: string[]) {
 		try {
 			const dir = join(toplevelOf(), '.wf');
 			if (existsSync(join(dir, 'state.json'))) appendFileSync(join(dir, 'events.log'), `${line}\n`);
-		} catch {} // not in a git tree
+		} catch { /* not in a git tree: no round to log for */ }
 	});
 }
 
@@ -41,7 +41,7 @@ export async function run(argv: string[], pieces: Partial<Seams> = {}) {
 	if (!['handoff', 'hook', 'update'].includes(cmd)) {
 		const { entryGap, readState, toplevelOf } = await import('./round/state.ts');
 		let gap = null;
-		try { gap = entryGap(readState(toplevelOf()), seams.madeBy); } catch {} // not in a git tree
+		try { gap = entryGap(readState(toplevelOf()), seams.madeBy); } catch { /* not in a git tree: no round to check the entry of */ }
 		if (gap) {
 			console.error(`wf: ${gap}`);
 			process.exit(1);

@@ -29,19 +29,20 @@ const inWorktree = async (worktree: string, round: string, step: string) => {
     process.chdir(prev);
   }
 };
+// No state.json is a worktree wf did not make, and T2 goes on without it. One that does not parse is
+// a broken round: it used to read as {}, and the header went out with no base and no round folder.
 const readState = (worktree: string): State => {
-  try {
-    return JSON.parse(readFileSync(join(worktree, '.wf', 'state.json'), 'utf8'));
-  } catch {
-    return {};
-  }
+  const file = join(worktree, '.wf', 'state.json');
+  return existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : {};
 };
 const persistedBase = (worktree: string) => readState(worktree).base ?? null;
+// A diff git cannot take stops T2: it used to read as no files, and the header listed nothing to review.
 const changedFiles = (worktree: string, base: string): string[] => {
   try {
     return execFileSync('git', ['-C', worktree, 'diff', '--name-only', `${base}...HEAD`], { encoding: 'utf8' }).split('\n').map((s) => s.trim()).filter(Boolean);
-  } catch {
-    return [];
+  } catch (e) {
+    console.error(`wf review: git diff ${base}...HEAD failed in ${worktree}: ${e instanceof Error ? e.message : String(e)}`);
+    process.exit(1);
   }
 };
 const classify = (worktree: string, base: string): string => {
@@ -82,8 +83,9 @@ function standardsFor(worktree: string): string[] {
       const file = [folder, reportFile(c.id)].filter(Boolean).join('/');
       return { id: c.id, file, text: existsSync(join(worktree, file)) ? readFileSync(join(worktree, file), 'utf8') : null };
     }));
-  } catch {
-    return [];
+  } catch (e) {
+    // The header says the reports could not be read, rather than showing no standards at all.
+    return [`standards: could not be read: ${e instanceof Error ? e.message.split('\n')[0] : String(e)}`];
   }
 }
 

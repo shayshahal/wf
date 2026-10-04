@@ -18,7 +18,7 @@ const SOURCE = join(homedir(), 'work', 'wf', '.git');
 const REF = 'refs/remotes/origin/main';
 
 const git = (gitDir: string, args: string[]) => execFileSync('git', [`--git-dir=${gitDir}`, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
-const installedRevision = () => { try { return readFileSync(join(LIVE, 'REVISION'), 'utf8').trim(); } catch { return null; } };
+const installedRevision = () => { try { return readFileSync(join(LIVE, 'REVISION'), 'utf8').trim(); } catch { /* no REVISION: a copy made by hand, which never updates itself */ return null; } };
 
 const markdownUnder = (dir: string): string[] => readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
 	e.isDirectory() ? markdownUnder(join(dir, e.name)) : e.name.endsWith('.md') ? [join(dir, e.name)] : []);
@@ -32,7 +32,7 @@ export function shouldUpdate({ runningFromLive, installed, published }: { runnin
 function withLock<T>(fn: () => T): T | null {
 	const lock = `${LIVE}.lock`;
 	try { if (Date.now() - statSync(lock).mtimeMs > 120_000) rmSync(lock, { recursive: true, force: true }); } catch { /* no lock */ }
-	try { mkdirSync(lock); } catch { return null; }
+	try { mkdirSync(lock); } catch { /* another wf holds the lock and is updating: this one skips */ return null; }
 	try { return fn(); } finally { rmSync(lock, { recursive: true, force: true }); }
 }
 
