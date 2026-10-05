@@ -51,6 +51,7 @@ round commits (for JewelryX, `bug-reports/<round>/`).
 - `agents/`: `round-worker` (every phase), `codebase-locator` and `codebase-analyzer` (research, pi only)
 - `process/`: lifecycle, classes, design session, review format, touchpoints, standards
 - `docs/plans/2026-09-17-workflow-v2.md`: the plan wf was built from (history; done)
+- `docs/research/papers-and-first-principles.md`: what wf is for, and the five papers read after it was built
 
 Text names wf's own files as `{{wf}}/…` (prompts, docs) or `${CLAUDE_PLUGIN_ROOT}/…` (the skills),
 and the project's folder as `{{project}}/…`: `wf prompt`, Claude Code (for the plugin) and the
