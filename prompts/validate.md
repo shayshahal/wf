@@ -35,6 +35,10 @@ Verdict: matches plan | deviates
 ## Commits
 <for each row: sha · files match row (yes | extra: <file> | missing: <file>) · check named in row was run — ONLY from `.wf/checks.log`: a `"result":"green"` line for that row whose `tasks` include its check (yes | no | red: <task>). A commit message saying it ran does not count >
 
+## Suites
+<from `.wf/checks.log`'s last line with `"row":"suites"`, whose `head` is `git rev-parse HEAD`:
+ `green: <head>` | one `- red: <the task's label> — <each failing test its output names>` per red task | `not run: <why>`>
+
 ## Not doing
 <anything in the diff that PLAN.md ## Not doing said to leave alone — "none" is the normal case>
 
@@ -67,7 +71,10 @@ logged under the round's last row. checks.log times are UTC (`Z`); `git log` pri
 its offset: compare in UTC. (TJEW-670.11: a green run at 12:28:37Z was read as older than a
 commit at 15:28:42+03:00, five seconds after it, and the tree was called unchecked.)
 
-`deviates` when any row, hop or Not-doing line fails, or any Intent line is `not met`.
+`deviates` when any row, hop or Not-doing line fails, any Intent line is `not met`, or a suite is `red`.
+The suites are the project's whole tests on this HEAD (`wf check --suites`, run before you): a red
+one is a test this round broke or one already broken on the base, and the person rules which by
+fixing or accepting it. Name what failed; do not judge whose it is.
 
 ## Rules
 

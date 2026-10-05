@@ -26,7 +26,7 @@ round commits (for JewelryX, `bug-reports/<round>/`).
     hands the next; `step`, `ask`/`decide`, `prompt`, `status`, `notes`, and `handoff-hook.ts`
     (`wf handoff`, the Claude Code hooks)
   - `src/gates/`: what a round has to pass. `classify`, T1 (`design.ts`) and T2 (`review.ts`,
-    both written through `review-format.ts`), `wf check` (`check.ts`; `--repro`, research's three runs),
+    both written through `review-format.ts`), `wf check` (`check.ts`; `--repro`, research's three runs; `--suites`, the project's whole test suites before validate),
     `wf standards` (`standards.ts`: the project's `.agents/checks/` rules that cover the diff), the
     critic of a validation (`critique.ts`: CRITIQUE.md, and when validate answers it) and `wf deliver`
   - `src/worktrees/`: `worktree.ts` is the one interface to worktrees: list, ports and slugs

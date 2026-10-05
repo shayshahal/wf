@@ -1,7 +1,7 @@
 // next.selfcheck.ts — node next.selfcheck.ts → exit 0 when green.
 // Pure arms: wf next's action for each row of what was the round skill's *On each result* table
 // (next.ts nextAction), from a fixture round. Nothing is run.
-import { nextAction, unpostedSections } from './next.ts';
+import { lastSuites, nextAction, unpostedSections } from './next.ts';
 import type { Snapshot } from './next.ts';
 import type { Brief, Question } from './state.ts';
 
@@ -85,6 +85,24 @@ check('committed but never green is not done', say(impl({ briefs: { ...base().br
 check('BLOCKED: its Question recorded for the user, the round waits', asks(impl({ files: { blocked: 'Question: which table?' } }))[0]?.source === 'BLOCKED.md' && say(impl({ files: { blocked: 'Question: which table?' } })) === 'wait user: blocked at commit 1 — which table?');
 check('BLOCKED answered → the same row again, fresh agent', say(impl({ files: { blocked: 'Question: which table?\n\n## Answer\n2026-09-27 orders' } })).startsWith('dispatch implement 1:'));
 check('last commit, class A → validate', say(impl({ ...done2, files: {} })).startsWith('dispatch validate:'));
+// wf check --suites (2026-10-05): a project that names suites runs them on this HEAD before validate.
+const suiteRun = { ts: '2026-10-05T12:00:00.000Z', head: 'h2', result: 'green' as const };
+const suited = (suites: Snapshot['suites'], patch: Fixture = {}) => impl({ ...done2, files: {}, head: 'h2', suites, ...patch });
+check('suites named, never run → run them before validate', say(suited(null)) === 'suites: `node C:/wf/wf.mjs check --suites` (the project\'s whole test suites on this HEAD, a few minutes), then `node C:/wf/wf.mjs next`');
+check('suites run on an older HEAD (a fix since) → run them again', say(suited({ ...suiteRun, head: 'h1' })).startsWith('suites: '));
+check('suites run on this HEAD, green or red → validate, which reads the line', say(suited(suiteRun)).startsWith('dispatch validate:') && say(suited({ ...suiteRun, result: 'red' })).startsWith('dispatch validate:'));
+check('a fix asked for comes before the suites', say(suited(null, { files: { validation: VALID('deviates') }, answered: [{ n: 3, source: 'VALIDATION.md#ccc333', answer: 'fix' }] })).startsWith('dispatch fix-review'));
+const validatedSuite = (at: string, result: 'green' | 'red' = 'green', validation = VALID()) => suited({ ...suiteRun, result }, { files: { validation }, briefs: { ...base().briefs, validate: { ...base().briefs.validate, at } } });
+check('resumed or rerun: suites newer than validation → validate again', say(validatedSuite('2026-10-05T11:00:00.000Z')).startsWith('dispatch validate:') && say(validatedSuite('2026-10-05T11:00:00.000Z', 'red')).startsWith('dispatch validate:'));
+check('validation after suites → T2 without another run', say(validatedSuite('2026-10-05T13:00:00.000Z')).startsWith('review: T2'));
+check('red suite reported by validation → fix-or-accept question names it', asks(validatedSuite('2026-10-05T13:00:00.000Z', 'red', VALID('deviates') + '\n## Suites\n- red: suite one — failing.test.ts\n'))[0]?.text.includes('red: suite one — failing.test.ts') === true);
+check('checks.log: the last suites line, past others and a cut-off one', JSON.stringify(lastSuites('{"ts":"t","row":"suites","head":"h1","result":"red"}\n{"row":1,"result":"green"}\n{"ts":"t","row":"suites","head":"h2","result":"green"}\n{"row":"sui')) === '{"ts":"t","head":"h2","result":"green"}' && lastSuites('') === null);
+check('checks.log: malformed suites entries and JSON primitives are ignored', lastSuites('null\n42\n{"row":"suites","head":1,"result":"green"}\n{"row":"suites","ts":"t","head":"h","result":"maybe"}') === null);
+const suiteFix = { ...validatedSuite('2026-10-05T13:00:00.000Z', 'red', VALID('deviates')), answered: [{ n: 1, to: 'user', text: 'fix or accept', asked: 't', source: 'VALIDATION.md#ccc333', answer: 'fix' }] };
+check('red suite ruled fix → fix-review from validation', say(suiteFix).includes('brief fix-review --from VALIDATION.md'));
+const suiteFixed = { ...suiteFix, head: 'h3', subjects: [...done2.subjects, 'fix(review): the suite failure'], fixesAfterValidate: 1 };
+check('suite fix committed → rerun suites on the new HEAD', say(suiteFixed).startsWith('suites: '));
+check('suites rerun after the fix → validate again', say({ ...suiteFixed, suites: { ...suiteRun, ts: '2026-10-05T14:00:00.000Z', head: 'h3' } }).startsWith('dispatch validate:'));
 check('last commit, class B → as-built first', say(impl({ ...done2, klass: 'B', files: {} })).startsWith('dispatch as-built:'));
 check('validation matches plan → T2, local, before any PR', say(impl({ ...done2, files: { validation: VALID() } })).startsWith('review: T2'));
 const deviates = impl({ ...done2, files: { validation: VALID('deviates') } });

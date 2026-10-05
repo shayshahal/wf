@@ -38,6 +38,8 @@ const reviewText = "verdict: changes-requested\n\n## 2026-09-28\nverdict: approv
 const line = frictionLine({ state, checksLog, eventsLog, reviewText, end: '2026-09-28T09:30:00.000Z' });
 const withRepro = frictionLine({ state, checksLog: `${checksLog}\n${JSON.stringify({ row: 'repro', result: 'unstable' })}\n${JSON.stringify({ row: 'repro', result: 'stable' })}`, eventsLog, reviewText, end: '2026-09-28T09:30:00.000Z' });
 check('wf check --repro lines are not commit checks: counted apart, unstable ones named', withRepro.includes('checks 3 (1 red), repro unstable 1 |'), withRepro);
+const withSuites = frictionLine({ state, checksLog: `${checksLog}\n${JSON.stringify({ row: 'suites', result: 'red' })}\n${JSON.stringify({ row: 'suites', result: 'green' })}`, eventsLog, reviewText, end: '2026-09-28T09:30:00.000Z' });
+check('whole suites are not commit checks', withSuites === line, withSuites);
 check('the line: total time, time per step, agents, checks, refusals, questions, T2s', line === "- 2026-09-28 TJEW-670.11 (class B, merged): 1h30m | research 30m, implement 40m, review 20m | agents: research 1 | checks 3 (1 red) | wf refused 2: review cr/x: wf review: class B round without proof/CALL-STACK-AS-BUILT.md — … | questions 2 | T2 3 (1 changes-requested), push refused 1", line);
 
 const old = frictionLine({ state: { round: 'fix/y', class: 'A', step: 'merged' }, checksLog: '', eventsLog: '', reviewText: '', end: '2026-09-28T09:30:00.000Z' });

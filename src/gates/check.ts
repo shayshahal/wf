@@ -9,16 +9,21 @@
 //             edits the repro runs it too, and it must be red: that run is the round's before-the-fix
 //             measurement, its output kept in checks.log (TJEW-670: the repro was fixed in a row
 //             checked `—`, and two of four subitems never had a red run)
+// `wf check --suites` (before validate, wf next): the project's whole test suites side by side, on a
+// committed HEAD; one checks.log line (row `suites`, the head it measured, each red task's output
+// tail) that validate reads and wf next keys on. Not a commit gate: it measures what the round has
+// done to tests no row touched (2026-10-05: a change broke tests outside its commit checks, unseen
+// until the next day's full-suite run).
 // `wf check --repro` (research, prompts/research.md): RESEARCH.md's repro, three times; stable only when
 // all three are red at the same place. Its line in checks.log (row `repro`, result stable|unstable)
 // carries the research brief's token, which `wf next` requires before plan.
 // Every run appends one JSON line to .wf/checks.log (row, the row's check, each task's exit,
 // green|red). The validate agent reads that, never the commit message: "the check was run"
 // is then observed, not claimed (llm-as-a-verifier: trust observed output, not narration).
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync } from 'node:fs';
 import { basename, join } from 'node:path';
-import { checks } from '../project.ts';
+import { checks, suites } from '../project.ts';
 import { planCommitRows, rowFiles } from '../round/prompt.ts';
 import type { PlanRow } from '../round/prompt.ts';
 import { readState, roundOf, toplevelOf } from '../round/state.ts';
@@ -35,8 +40,8 @@ process.noDeprecation = true;
 // `stack`: the command drives the running app, so the worktree's stack is started (and answering)
 // before it runs: nothing serves a worktree from its creation (2026-10-04, serve.ts).
 export type CheckTask =
-	| { label: string; cmd: string; args: string[]; cwd: string; expectRed?: boolean; stack?: boolean; missing?: never }
-	| { label: string; missing: string; cmd?: never; args?: never; cwd?: never; expectRed?: never; stack?: never };
+	| { label: string; cmd: string; args: string[]; cwd: string; env?: Record<string, string>; expectRed?: boolean; stack?: boolean; missing?: never }
+	| { label: string; missing: string; cmd?: never; args?: never; cwd?: never; env?: never; expectRed?: never; stack?: never };
 // One task's run, as checks.log records it.
 export type CheckRun = { label: string; exit: number | null; missing?: string; expect?: 'red'; output?: string };
 
@@ -247,6 +252,58 @@ export function resolvedBlockedName(n: number, taken: string[]) {
 		const name = `BLOCKED-commit${n}${i === 1 ? '' : `-${i}`}.md`;
 		if (!taken.includes(name)) return name;
 	}
+}
+
+/** Record whole test suites for one HEAD: green only when every suite exited 0; keep red output tails. */
+export function suitesLine({ ts, head, runs }: { ts: string; head: string; runs: { label: string; exit: number | null; output: string }[] }) {
+	const tasks: CheckRun[] = runs.map((r) => (r.exit === 0 ? { label: r.label, exit: 0 } : { label: r.label, exit: r.exit, output: tail(r.output) }));
+	return JSON.stringify({ ts, row: 'suites', head, tasks, result: tasks.every((t) => t.exit === 0) ? 'green' : 'red' });
+}
+
+const tail = (output: string) => output.split('\n').slice(-TAIL).join('\n').trimEnd();
+
+/** Run whole test suites on a committed HEAD; record green or red evidence for validate. */
+export async function runSuites() {
+	const toplevel = toplevelOf();
+	if (!suites.length) return console.log('check --suites: this project names no suites');
+	const git = (...args: string[]) => execFileSync('git', ['-C', toplevel, ...args], { encoding: 'utf8' }).trim();
+	// The line says which commit it measured: product files must be committed, but round reports
+	// may be dirty after a validate or critique (a refused push has already tracked those reports).
+	const { folder } = roundOf(readState(toplevel), toplevel);
+	const dirty = [...git('diff', '--name-only', 'HEAD').split('\n'), ...git('ls-files', '--others', '--exclude-standard').split('\n')].filter((f) => f && !isRoundPaperwork(f, folder));
+	if (dirty.length) {
+		console.error(`check --suites: commit first, the suites measure HEAD:\n${dirty.join('\n')}`);
+		process.exit(1);
+	}
+	const head = git('rev-parse', 'HEAD');
+	const start = Date.now();
+	const step = (task: CheckTask) => new Promise<{ label: string; exit: number | null; output: string }>((resolve) => {
+		if (task.cmd === undefined) return resolve({ label: task.label, exit: null, output: task.missing });
+		const child = spawn(task.cmd, task.args, { cwd: join(toplevel, task.cwd), env: { ...process.env, ...task.env }, shell: process.platform === 'win32', windowsHide: true });
+		let output = '';
+		child.stdout.on('data', (d) => { output += d; });
+		child.stderr.on('data', (d) => { output += d; });
+		child.on('error', (e) => resolve({ label: task.label, exit: null, output: `${output}${e.message}` }));
+		child.on('close', (exit) => resolve({ label: task.label, exit, output }));
+	});
+	// A suite's steps in order, stopping at the first red one, which then names the suite's result.
+	const runs = await Promise.all(suites.map(async (steps) => {
+		let last: { label: string; exit: number | null; output: string } = { label: '', exit: 0, output: '' };
+		for (const task of steps) {
+			last = await step(task);
+			if (last.exit !== 0) break;
+		}
+		return last;
+	}));
+	const line = suitesLine({ ts: new Date().toISOString(), head, runs });
+	mkdirSync(join(toplevel, '.wf'), { recursive: true });
+	appendFileSync(join(toplevel, '.wf', 'checks.log'), `${line}\n`);
+	const took = `${Math.round((Date.now() - start) / 1000)}s`;
+	const red = runs.filter((r) => r.exit !== 0);
+	if (!red.length) return console.log(`suites green at ${head.slice(0, 9)} in ${took}: ${runs.map((r) => r.label).join(', ')}`);
+	for (const r of red) console.error(`FAILED: ${r.label}\n${tail(r.output)}\n`);
+	console.error(`suites red at ${head.slice(0, 9)} in ${took}: ${red.map((r) => r.label).join(', ')}. validate reads it from checks.log.`);
+	process.exitCode = 1;
 }
 
 // basename, not endsWith: `deliver.selfcheck.ts` ends with `check.ts` too.

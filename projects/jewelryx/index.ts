@@ -218,6 +218,26 @@ export function checks({ toplevel, changed, test }: { toplevel: string; changed:
 	return checkTasks({ changed, test, pkgFor: realPkgFor(toplevel), pushHook: existsSync(join(toplevel, 'lefthook.yml')), onDisk: (f) => existsSync(join(toplevel, f)) });
 }
 
+// `wf check --suites`: the whole suites on each committed HEAD before validate; each suite its steps in
+// order, the suites side by side. wf check runs only the tests a commit changed and PR checks leave
+// the suites to the qa gate, after the merge, which billing kept from starting 2026-09-16 to 10-05:
+// SvelteKit 3 (04bb5a70a) broke two backend cells on dev, found the next day. The backend on 8
+// workers, pytest-xdist added for the run only (not in uv.lock): 2m22s against 10m12s serial, 3,201
+// green; each worker its own database (tests/support/database.py). The two variables are CI's
+// (ci.yml): a worktree's .env has only the first. vitest after check:prep, as CI: a fresh worktree
+// has no compiled paraglide, and 33 of admin's 73 test files failed to load without it.
+const vitest = (app: string, pkg: string): CheckTask[] => [
+	{ label: `${app} check:prep`, cmd: 'pnpm', args: ['--filter', pkg, 'run', 'check:prep'], cwd: '.' },
+	{ label: `${app} vitest`, cmd: 'pnpm', args: ['--filter', pkg, 'exec', 'vitest', 'run'], cwd: '.' },
+];
+/** Whole test suites: each sequence stops at its first red step; sequences run side by side. */
+export const suites: CheckTask[][] = [
+	[{ label: 'backend pytest', cmd: 'uv', args: ['run', '--frozen', '--with', 'pytest-xdist', 'pytest', '-q', '-p', 'no:cacheprovider', '-n', '8'], cwd: 'packages/backend',
+		env: { JWT_SECRET_KEY: 'ci-test-only-not-a-real-secret', B2B_PUBLIC_URL: 'https://storefront.example.test/b2b' } }],
+	vitest('admin', 'jewelryx-admin-dashboard'),
+	vitest('b2b', 'jewelryx-frontend'),
+];
+
 // ── delivery ─────────────────────────────────────────────────────────────────
 
 // The note wf deliver leaves in the round folder, one section per ticket id (a round on subitems has
