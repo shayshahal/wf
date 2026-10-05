@@ -57,3 +57,8 @@ agents do the repetitive execution, machines give hard feedback, Shay stays resp
 - Not now: ADR/PDR machinery, a law registry, an evidence graph, a pluggable verification framework.
 - Next step as written then: take 2–3 recent rounds, turn what agents kept rediscovering into
   project commands, add 1–2 structural checks, leave wf mostly alone, and see whether rounds get simpler.
+
+## Second reading (2026-10-05)
+
+Five papers on what happens to agent code after it merges, each read in full, against wf:
+`show-me-maintainability-papers.html`, with notes per paper in `papers/`.

@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>What happens to agent code after it merges: five papers, read for wf</title>
+<style>
+*{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:64px}
+body{margin:0;background:#faf9f7;color:#2d2d2d;font:15px/1.6 Arial,Helvetica,sans-serif}
+header{background:#272727;color:#fff;padding:44px max(24px,calc((100vw - 1100px)/2))}
+.eyebrow{color:#ccac6f;letter-spacing:.14em;font-size:12px;font-weight:bold;text-transform:uppercase}
+header h1{font-size:34px;line-height:1.15;letter-spacing:-.8px;margin:10px 0 12px;max-width:860px}
+header p{color:#d6d6d6;max-width:820px;margin:6px 0}
+nav{position:sticky;top:0;z-index:2;background:#fffefbf5;border-bottom:1px solid #e2e4e5;display:flex;gap:20px;padding:12px max(24px,calc((100vw - 1100px)/2));overflow-x:auto;white-space:nowrap;font-size:13.5px}
+nav a{color:#5a5c5f;text-decoration:none}nav a:hover{color:#76591f}
+main{max-width:1148px;margin:auto;padding:0 24px 60px}section{padding-top:44px}
+h2{font-size:27px;line-height:1.2;letter-spacing:-.6px;margin:8px 0 12px}h3{font-size:17px;margin:4px 0 8px}
+.lede{font-size:16.5px;max-width:860px}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.box{background:#fff;border:1px solid #e2e4e5;border-radius:8px;padding:18px 20px}
+.callout{background:#f3ecdf;border-left:4px solid #ccac6f;border-radius:8px;padding:14px 18px;margin:14px 0}
+.warn{background:#fbeeee;border-left:4px solid #b4544a}
+.big{font-size:34px;font-weight:bold;letter-spacing:-1px;color:#76591f;line-height:1.1}
+.small{font-size:13px;color:#5a5c5f}
+.tag{display:inline-block;border-radius:5px;background:#f3ecdf;padding:2px 8px;font-size:11px;font-weight:bold;color:#76591f;margin-right:6px}
+.tag.green{background:#e3f0e3;color:#2f6b2f}.tag.red{background:#f6e0de;color:#9a3b32}.tag.grey{background:#ececec;color:#555}
+.tablewrap{overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:13.5px;background:#fff}
+th{text-align:left;background:#f3ecdf}td,th{padding:9px 12px;border-bottom:1px solid #e2e4e5;vertical-align:top}
+.task{background:#fff;border:1px solid #e2e4e5;border-left:4px solid #ccac6f;border-radius:8px;padding:14px 18px;margin:12px 0}
+.task h4{font-size:15.5px;margin:0 0 6px}.task.no{border-left-color:#b4544a}.task.show{border-left-color:#7a8ca0}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;font:12.5px/1.7 Consolas,monospace;background:#272727;color:#eee;padding:14px 16px;border-radius:8px;margin:8px 0}
+code{font:13px Consolas,monospace;background:#f1efeb;padding:1px 5px;border-radius:4px}
+ul{padding-left:20px}li{margin:4px 0}
+footer{border-top:1px solid #e2e4e5;padding-top:20px;margin-top:36px;color:#5a5c5f;font-size:13px}
+@media(max-width:820px){.grid,.grid3{grid-template-columns:1fr}header{padding:32px 24px}header h1{font-size:27px}h2{font-size:23px}}
+</style></head><body>
+
+<header>
+  <div class="eyebrow">wf · research · 2026-10-05</div>
+  <h1>What happens to agent code after it merges</h1>
+  <p>Five papers from March to September 2026, each read in full by its own agent. The question they share is the one wf
+  lives with: every round builds on code an earlier agent wrote. Does that code hold up, and does wf catch the ways it doesn't?</p>
+  <p class="small" style="color:#bdbdbd">Per-paper notes: <code style="background:#3a3a3a;color:#eee">docs/research/papers/&lt;id&gt;.md</code>.
+  The papers' findings are in the notes with section and table numbers. Everything about wf on this page is inference.</p>
+</header>
+
+<nav>
+  <a href="#answer">The answer</a><a href="#papers">The five papers</a><a href="#agree">Where they agree</a>
+  <a href="#disagree">Where they disagree</a><a href="#wf">Against wf today</a><a href="#do">What to do</a>
+  <a href="#trust">How far to trust it</a><a href="#ask">Questions</a>
+</nav>
+
+<main>
+
+<section id="answer">
+  <h2>The short answer</h2>
+  <p class="lede">Agent code passes its tests and still gets worse to build on. The decay shows up in edge behaviour
+  and in structure, not in the tests. Telling the agent to write better code doesn't stop it. wf already does the
+  things the papers point to: small, bounded steps, a check after every commit, and behaviour verified before and
+  after. Two gaps remain. <b>A round never runs JewelryX's full test suites</b>, and <b>nothing measures what happens
+  to a round's code after it merges.</b></p>
+  <div class="grid3">
+    <div class="box"><div class="big">−13.1 pts</div><div>The largest drop in a follow-on task's success when it builds on agent code instead of human code. Agent code was worse in 12 of 16 model × benchmark cells.</div><div class="small">CodeThread, 2606.21804, Table 2</div></div>
+    <div class="box"><div class="big">86%</div><div>How often an agent's quiet change to input checks or error handling survives the next PR. The next agent copies it.</div><div class="small">CodeThread, §5.3</div></div>
+    <div class="box"><div class="big">1.3 pts / step</div><div>How fast quality declines, with or without an "anti-slop" prompt. The prompt only lowers the starting point.</div><div class="small">SlopCodeBench, 2603.24755, §3.4</div></div>
+  </div>
+</section>
+
+<section id="papers">
+  <h2>The five papers</h2>
+  <div class="tablewrap"><table>
+    <tr><th>Paper</th><th>Setup</th><th>Headline</th><th>Evidence</th></tr>
+    <tr><td><b>Is Agent Code Less Maintainable Than Human Code?</b> (CodeThread)<br><span class="small">2606.21804, Jun 2026</span></td>
+      <td>Two-step chains. PR1 is written by a human or an agent, then an agent does PR2 on top. 4 models × 4 SWE-Bench-style benchmarks.</td>
+      <td>PR2 succeeds less often on agent code: −4 pts on bug fixes, −8 on refactors. Complexity metrics explain none of it (OR ≈ 1.0). Contract changes to input validation and error handling do (OR 1.83, p = .011).</td>
+      <td><span class="tag">single runs</span>no significance tests on the gaps; R² 0.069</td></tr>
+    <tr><td><b>SlopCodeBench</b><br><span class="small">2603.24755, Mar 2026</span></td>
+      <td>36 problems, 196 checkpoints. 15 agents keep extending their own Python programs.</td>
+      <td>Erosion rises in 77% of runs, verbosity in 75.5%. Agent code is 2.3× more verbose and 2.0× more eroded than 473 human repos. Error-handling tests decay first (80% → 62%).</td>
+      <td><span class="tag">single runs</span>no tests or review for the agents; erosion doesn't predict the next pass (−0.018)</td></tr>
+    <tr><td><b>SWE-CI</b><br><span class="small">2603.03823, Mar 2026</span></td>
+      <td>100 real repo histories averaging 233 days and 71 commits, replayed through a CI loop. 20 models.</td>
+      <td>Regressions dominate. Most models finish without breaking a passing test in fewer than 25% of tasks; the best manages 76%. 15 of 20 models beat humans on Pylint, but all 20 lose on the Maintainability Index.</td>
+      <td><span class="tag">single runs</span>agents could not run tests; numbers read off plots</td></tr>
+    <tr><td><b>RoadmapBench</b><br><span class="small">2605.15846, May 2026</span></td>
+      <td>115 real version upgrades (median 3,714 lines across 51 files). 13 models.</td>
+      <td>The best model solves 39.1%. Strong models fail by writing code that <i>builds but is subtly wrong</i> (55–58% of failures). One broken shared import accounts for 15.8% of all failures. Fixing the task specs took one model from 19.1% to 30.4%.</td>
+      <td><span class="tag">single runs</span>QC done by models that are also scored</td></tr>
+    <tr><td><b>Not All Agents Are Equal</b><br><span class="small">2609.17598, Sep 2026</span></td>
+      <td>37,623 real PRs from 5 agent products, with a human baseline in the same repos. What happens within 90 days of merge.</td>
+      <td>Agent products differ more from each other than from humans: reverts are 6.1% for Codex, 11.5% for humans and 14.5% for Devin. Claude Code's PRs are about 8× larger (median 495 lines) and wait longest for review.</td>
+      <td><span class="tag">observational</span>2024–25 data, no model versions; security checks are regexes</td></tr>
+  </table></div>
+</section>
+
+<section id="agree">
+  <h2>Where they agree</h2>
+  <div class="grid">
+    <div class="box"><span class="tag green">all five</span><h3>Green tests don't mean healthy code</h3>
+      <ul>
+        <li><b>CodeThread:</b> every drifted PR passed every existing test.</li>
+        <li><b>SlopCodeBench:</b> functionality pass rates barely moved (63% → 58%) while erosion climbed.</li>
+        <li><b>SWE-CI:</b> lint ranks agents above humans, the Maintainability Index ranks them below.</li>
+        <li><b>RoadmapBench:</b> strong models fail by writing code that builds but is wrong.</li>
+      </ul></div>
+    <div class="box"><span class="tag green">CodeThread · SlopCodeBench</span><h3>The next agent copies what it finds</h3>
+      <ul>
+        <li><b>Contract drift</b> survives the next PR in 86% of cases. In one TypeScript example, the next agent copied a wrong <code>disabled</code> guard onto a new option.</li>
+        <li><b>Duplicated code</b> grew 96%, while new rule violations grew 0.3%.</li>
+      </ul>
+      That's measured evidence for your principle that "the codebase teaches the next change".</div>
+    <div class="box"><span class="tag">CodeThread · SlopCodeBench</span><h3>Edge behaviour breaks first</h3>
+      <ul>
+        <li><b>CodeThread:</b> the only code-level cause found was a changed guard, default, or exception.</li>
+        <li><b>SlopCodeBench:</b> error-handling tests fell fastest (80% → 62%), while functionality held.</li>
+      </ul>
+      <span class="small">Neither paper cites the other; linking them is my synthesis.</span></div>
+    <div class="box"><span class="tag green">CodeThread · SlopCodeBench</span><h3>Instructions don't hold the line</h3>
+      <ul>
+        <li><b>SlopCodeBench:</b> the anti-slop prompt kept the slope the same, lost 2.4 pts of correctness and cost 12% more.</li>
+        <li><b>CodeThread:</b> PR1's prompt spelled out the exceptions and edge cases, and agents drifted on exactly those.</li>
+      </ul>
+      That backs "verification beats instruction".</div>
+    <div class="box"><span class="tag green">four of five</span><h3>Size is the risk</h3>
+      <ul>
+        <li><b>RoadmapBench:</b> success falls with each extra target, down to 15% at seven or more.</li>
+        <li><b>CodeThread:</b> extra lines in the follow-on PR go with failure (OR 1.88).</li>
+        <li><b>SlopCodeBench:</b> plain line count predicts the next step better than the paper's own erosion score.</li>
+        <li><b>2609.17598:</b> the largest PRs come with the worst signals.</li>
+      </ul></div>
+    <div class="box"><span class="tag">SWE-CI · RoadmapBench</span><h3>Breakage spreads unless checked at each step</h3>
+      <ul>
+        <li><b>SWE-CI:</b> regressions are common, and become more frequent in later iterations for 12 of 20 models.</li>
+        <li><b>RoadmapBench:</b> one broken import takes down everything built on it.</li>
+      </ul></div>
+  </div>
+</section>
+
+<section id="disagree">
+  <h2>Where they disagree: measure complexity or not?</h2>
+  <div class="grid">
+    <div class="box"><h3>For measuring it</h3>SlopCodeBench and SWE-CI both show agent code is structurally worse than human code: 2.0× more erosion, and 0 of 20 models beat humans on the Maintainability Index. Their readers suggested a complexity ratchet in <code>wf check</code>.</div>
+    <div class="box"><h3>Against gating on it</h3>In CodeThread, complexity, Halstead volume and line count at PR1 predict nothing about the next agent's success (OR ≈ 1.0, p ≥ .78). SlopCodeBench's own data agrees: its erosion score doesn't predict the next checkpoint passing (−0.018).</div>
+  </div>
+  <div class="callout"><b>How I'd settle it:</b> complexity rises, but nobody has shown it causes the next failure. Contract drift has been shown to, and it survives. So a <b>contract change gets a check</b>, and complexity gets <b>a number shown at T2, not a gate</b>. That keeps wf from growing machinery the evidence doesn't pay for.</div>
+</section>
+
+<section id="wf">
+  <h2>The papers against wf today</h2>
+  <p>I checked each row against wf's code and JewelryX's hooks and CI, not against what the docs say.</p>
+  <div class="tablewrap"><table>
+    <tr><th>wf mechanism</th><th>What the papers say</th><th>Verdict</th></tr>
+    <tr><td>One agent per commit, <code>wf check</code> after each</td><td>RoadmapBench: a broken import spreads to everything built on it, and success falls with size. 2609.17598: small bounded tasks hold up best.</td><td><span class="tag green">supported</span></td></tr>
+    <tr><td>Repro red → green, validate's before/after</td><td>RoadmapBench: strong models fail by building wrong code, which only a behaviour check catches.</td><td><span class="tag green">supported</span></td></tr>
+    <tr><td>T1, you approve the plan</td><td>RoadmapBench: spec defects cost one model 11 points. CodeThread: the gap is widest on refactors and features.</td><td><span class="tag green">supported</span> spend T1 attention on change requests that add components</td></tr>
+    <tr><td><code>wf check</code>'s tests</td><td>SWE-CI: regressions are the main failure over time. wf runs <b>only the tests a commit changed</b> (<code>projects/jewelryx/checks.ts</code>). JewelryX's pre-push runs the pushed tests, and PR checks leave the suites out on purpose. The full backend and vitest suites run only at the <code>qa</code> gate (<code>ci.yml</code>), after the round has merged into <code>dev</code>.</td><td><span class="tag red">gap</span></td></tr>
+    <tr><td>Lint, typecheck, <code>wf standards</code> rules</td><td>SWE-CI: lint scores reward code that's structurally worse. They check surface conventions, not maintainability.</td><td><span class="tag grey">covers style only</span></td></tr>
+    <tr><td>Prompt rules (e.g. "touch only what you must")</td><td>SlopCodeBench: instructions shift the starting level, not the slope. Its decay mechanism is patching new branches into existing functions, which "touch only what you must" encourages.</td><td><span class="tag">tension</span></td></tr>
+    <tr><td>T2, you read the diff</td><td>The only gate in wf that sees structure and contracts. CodeThread: a silent <code>?? default</code> is easy to miss in a skim. 2609.17598: human review is the bottleneck.</td><td><span class="tag">holding it all</span> needs pointers</td></tr>
+    <tr><td>After merge</td><td>2609.17598's method: count follow-up fixes and reverts on the touched files. wf measures nothing after delivery; <code>ROUNDS.md</code> is empty.</td><td><span class="tag red">gap</span></td></tr>
+    <tr><td>Fresh agent per phase</td><td>Not tested by any paper. SlopCodeBench's agents also lacked memory, and their decay came from missing feedback, not from fresh context.</td><td><span class="tag grey">no evidence either way</span></td></tr>
+  </table></div>
+</section>
+
+<section id="do">
+  <h2>What to do, cheapest first</h2>
+  <p>Your pay-as-you-go rule still applies: these papers are other people's rounds. So the first step measures whether any of this shows up in yours.</p>
+
+  <div class="task"><h4>1 · Count rework on the rounds already merged <span class="tag green">measure</span></h4>
+    JewelryX already has 78 round folders in <code>bug-reports/</code>. For each merged round, count the follow-up <code>fix</code> commits and reverts that touch its files within 30 and 90 days. Compare that with your own commits from before wf, in the same repo. This is 2609.17598's method on your data. It also answers "is wf paying off", which we found earlier has no answer today.
+    <div class="small">Cost: one script, run on demand, never a gate. Match each round to its merge commit, not by message (the paper's own weak spot).</div></div>
+
+  <div class="task"><h4>2 · Run the full suites before T2 <span class="tag green">gate</span></h4>
+    Once validate is done, run the backend pytest suite and both vitest suites against the worktree. Fail if any test that passed at the round's base now fails, or has been deleted or skipped. That's SWE-CI's "compare against the base" step. Today a regression in a test the round didn't touch is first caught at the <code>qa</code> gate, after merge, when it's no longer the round's to fix.
+    <div class="small">Cost: about 35–45 s per vitest suite plus the Mongo-backed backend suite, once per round rather than per commit. It belongs in <code>projects/jewelryx/checks.ts</code>.</div></div>
+
+  <div class="task"><h4>3 · A contract-change list at T2 <span class="tag">rule</span></h4>
+    One <code>wf standards</code> rule, written as a <code>.agents/checks/</code> file in JewelryX (the project owns it, not wf). For each touched function it lists added or removed guards, silent defaults (<code>.get(k, default)</code>, <code>?? x</code>, Pydantic defaults), changed exceptions or HTTP statuses, and a changed return shape. Each line reads "X now rejects / accepts / defaults Y". It goes next to the diff at T2. An intended change needs a test that pins it; an unintended one is reverted before T2. If the same pattern is flagged twice, it becomes a lint rule.
+    <div class="small">Evidence: CodeThread's strongest effect, and SlopCodeBench's fastest-decaying tests. Cost: a markdown file, no wf code.</div></div>
+
+  <div class="task show"><h4>4 · Two numbers on the T2 page <span class="tag grey">show, don't gate</span></h4>
+    The lines changed per commit and per round, and complexity before and after for the touched functions (<code>ruff C901</code> / ESLint <code>complexity</code>). Shown, not enforced, and dropped if they never change a T2 decision.</div>
+
+  <div class="task no"><h4>Not to do</h4><ul>
+    <li><b>Complexity or Maintainability Index gates.</b> They predicted nothing in CodeThread, and SlopCodeBench's own score didn't predict failure either.</li>
+    <li><b>More prompt rules about clean code.</b> SlopCodeBench shows the slope doesn't move, and correctness drops.</li>
+    <li><b>Choosing models from these rankings.</b> They're snapshots that change within months, and in 2609.17598 the product, its users and the tasks are mixed together. Measure a model change on your own rounds.</li>
+  </ul></div>
+
+  <div class="callout"><b>One rule to revisit:</b> "touch only what you must" is right for the diff's reach, but SlopCodeBench's failure mode is a minimal diff that adds a fourth branch to an already complex function. A plan line at T1 saying where new logic goes ("extends <code>X</code>" or "new function, because…") would surface the choice while it's still cheap to change.</div>
+</section>
+
+<section id="trust">
+  <h2>How far to trust it</h2>
+  <div class="callout warn">
+    <ul>
+      <li><b>None of the setups had a human gate.</b> No plan approval, no diff review, and in two papers the agents couldn't even run tests. wf has all of these, so the effect sizes are upper bounds for wf, and the directions are what carry over.</li>
+      <li><b>Almost everything is a single run,</b> with few or no significance tests. Several papers' numbers disagree between sections; the notes list them.</li>
+      <li><b>They're mostly about Python libraries.</b> Nothing covers SvelteKit UIs, MongoDB state, or screenshots.</li>
+      <li><b>Their task sizes differ from wf's.</b> RoadmapBench's tasks are about 3,700 lines and SlopCodeBench's steps are whole features. wf's rounds are mostly small fixes, the easiest class in both papers that split by task type (CodeThread −4 pts on bug fixes; RoadmapBench 64% vs 36% for new components).</li>
+      <li><b>Compounding over many rounds is untested.</b> CodeThread's chains have only 2 steps, and wf's real exposure is dozens of rounds on top of each other. Its 86% persistence suggests things get worse over that, but no paper measures it. Step 1 above would.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="ask">
+  <h2>Questions for you</h2>
+  <ul>
+    <li>Should step 1 run now, on the 78 rounds? It's the only step that tells us whether any of this happens in JewelryX.</li>
+    <li>Is a few minutes per round worth a full-suite run before T2, or should it run only on rounds that touch the backend or a shared package?</li>
+    <li>Does the contract-change list belong at T2, or earlier, as something the commit agent has to justify?</li>
+  </ul>
+  <footer>Five readers, one per paper, each with the brief in <code>docs/research/papers/BRIEF.md</code>. I checked their notes' titles and headline numbers against the arXiv abstracts. Facts about wf were checked in the code: <code>projects/jewelryx/checks.ts</code>, and JewelryX's <code>lefthook.yml</code>, <code>pr-checks.yml</code> and <code>ci.yml</code> on <code>dev</code>. Companion page: <code>papers-and-first-principles.md</code>.</footer>
+</section>
+</main>
+</body></html>
