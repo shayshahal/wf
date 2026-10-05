@@ -45,6 +45,8 @@ round commits (for JewelryX, `bug-reports/<round>/`).
   (`env/projects/`).
   `env/projects/jewelryx/plan-eval.ts` measures a change to the plan prompt: wf revisions as arms,
   on delivered JewelryX rounds, each plan graded against what the round shipped
+  `env/projects/jewelryx/rework.ts` measures how much of each change's code is changed again within N days, and by
+  what (a fix, a revert, a sweep, other work): wf rounds against other ticket work and other PRs
 - `skills/round/SKILL.md`: the orchestrator skill ("start 662", "resume 662"); `skills/design-session/` for T1
 - `prompts/`: one prompt per phase (`wf prompt <phase>` prints it without the handoff)
 - `.claude-plugin/` + `claude/`: the Claude Code plugin (manifest, marketplace, agents, hooks)
