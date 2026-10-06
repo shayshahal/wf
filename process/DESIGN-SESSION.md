@@ -72,7 +72,9 @@ the same fix with different names. Per candidate, in this order:
           → tests to write → one-line tradeoff
 
 The call-stack block is the point of the whole section: `CALL-STACK-FORMAT.md`. Every `✗` arm
-says where it **lands**. Every new function gets a signature block. "No diff" is a legitimate
+says where it **lands**. Every new function gets a signature block. A shape that is not a call
+path — a data structure, a table, a contract, a file tree, a branch a stack flattens — is a
+`SHOW-ME.md` view beside it, in the same grammar. "No diff" is a legitimate
 call stack — BJEW-585's operational candidate changed zero lines of application code and said so.
 
 **Falsifiers**, named out loud and counted against the candidate that carries them: an `Any` or
@@ -116,7 +118,9 @@ ASKs. `wf step design` refuses a SPEC without it.
 
 **`## For T1` is what binds.** It is all `wf design` shows the user, so it is all T1 approves, and
 the round is built and checked against it: PLAN.md's Build agrees with its Build, and as-built
-diffs against it. The sections below are the working notes that reached it; nothing in them
+diffs against it. `wf design` also renders it as a page (`.wf/SPEC-T1.html`) with its views drawn,
+beside the markdown the user annotates. The sections below are the working notes that reached it;
+nothing in them
 binds unless `## For T1` says it. Measured over five T1s (2026-09-20 to 09-28): every comment was
 on an as-is excerpt, an ASK or the pick; none on `## Input coverage` or a candidate's detail; the
 last two were approved in chat within two minutes of a short summary. A long document approved
@@ -133,9 +137,6 @@ When the user says **"shared"**: write `SPEC.md` in the round folder (the `folde
 round on the user), and **stop**. The worker implements exactly the frozen `## For T1`; a needed
 signature change is stop-and-report, not a decision.
 
-Optional `## Slices` — vertical cuts in the order the user wants to look at them (contract with mock
-data → screen → wire → store), never stack order; the worker runs `wf step review` after each.
-
 The worker's side is `proof/CALL-STACK-AS-BUILT.md`: the as-built stack diffed row by row against
 `## For T1`'s Build, every addition and deviation named with its reason (BJEW-586's is the model
 — three additions, no deviations). `wf review` refuses a B/C round without it.
@@ -149,6 +150,7 @@ it does not come here.
 
 ---
 
-*Credits: pstack's `/architect`; HumanLayer, "Why Software Factories Fail" § program design;
+*Credits: pstack's `/architect`; HumanLayer, "Why Software Factories Fail" § program design, and
+`/show-me` + `create-structure-outline` for the views (`SHOW-ME.md`);
 jsmastery-pro/skills `architect` / `develop` (the input-coverage test). Worked examples: BJEW-585's
 SPEC (B, in its bug folder) and BJEW-586's rev-2 SPEC (C).*

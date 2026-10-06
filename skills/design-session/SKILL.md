@@ -7,5 +7,6 @@ user-invocable: false
 # Design session
 
 Read `${CLAUDE_PLUGIN_ROOT}/process/DESIGN-SESSION.md` — it is the whole process, and it wins over
-this file. Its two formats: `SPEC-TEMPLATE.md` (section order) and `CALL-STACK-FORMAT.md`
-(diff-syntax stacks); what comes back is `REVIEW-FORMAT.md`.
+this file. Its formats: `SPEC-TEMPLATE.md` (section order), `CALL-STACK-FORMAT.md`
+(diff-syntax stacks) and `SHOW-ME.md` (the views that carry a shape a stack cannot);
+what comes back is `REVIEW-FORMAT.md`.

@@ -2,7 +2,7 @@
 // Pure arms only (no git, no runners): the fence, the repro line, and what buildTasks makes of a
 // plan row's check cell. The project's own commands: projects/<name>/checks.selfcheck.ts.
 import { failedInRepro, failureFrame, failureSignature, reproVerdict } from './check.ts';
-import { checkRunLine, buildTasks, fenceViolations, isReproOnly, isRoundPaperwork, reproCommand, resolvedBlockedName, suitesLine, tokenize } from './check.ts';
+import { checkRunLine, buildTasks, fenceViolations, isReproOnly, isRoundPaperwork, manualCheck, reproCommand, resolvedBlockedName, suitesLine, tokenize } from './check.ts';
 import type { CheckTask } from './check.ts';
 
 let failures = 0;
@@ -38,6 +38,8 @@ check('the command is the first code span; the path is its last word', at('`vite
 check('— means fence only: the project gets no test', at('—') === null && at('— (svelte-check runs on its own). Also run `repro --grep x`') === null && at('  — fence') === null);
 check('a cell starting with s is not fence only', at('ssss— x') === 'x');
 check('no row → the project runs the diff with no test', at(undefined) === null);
+check('a manual: cell is fence only: the project gets no test, and its last word is not a path', at('manual: open /admin/listings, the badge shows 3') === null, String(at('manual: open /admin/listings, the badge shows 3')));
+check('manualCheck reads the text; no text, another cell, or none is null', manualCheck('manual: the badge shows 3') === 'the badge shows 3' && manualCheck('Manual: x') === 'x' && manualCheck('manual:') === null && manualCheck('—') === null && manualCheck('packages/backend/tests/test_auth.py') === null, String(manualCheck('manual: the badge shows 3')));
 const repro = buildTasks({ row: { check: 'repro' }, projectTasks, repro: 'node scripts/repro.mjs' });
 check('check: repro runs the project tasks, then the RESEARCH.md command', JSON.stringify(labels(repro)) === '["project -","node scripts/repro.mjs"]' && repro[1].cmd === 'node' && repro[1].args.join(' ') === 'scripts/repro.mjs', JSON.stringify(repro));
 // Nothing serves a worktree from its creation (2026-10-04): the repro drives the app, so wf check starts the stack for it.
