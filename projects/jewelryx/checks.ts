@@ -69,7 +69,15 @@ export function checkTasks({ changed, test, pkgFor, pushHook = false, onDisk = (
 	// What the push will run, run before the commit: TJEW-670 (2026-09-28) was approved at T2, then
 	// its push was refused by fallow-audit, and the fix commit after the approval needed a second T2.
 	// fallow audit sees uncommitted and untracked files (measured on a bench round, the same day).
-	return [...preCommit, ...tasks, { label: 'lefthook pre-push', cmd: 'pnpm', args: ['exec', 'lefthook', 'run', 'pre-push', ...changed.flatMap((f) => ['--file', f])], cwd: '.' }];
+	// Deleted files are left out here too, as the push leaves them out: JewelryX's pre-push `files:` is
+	// `git diff --name-only --diff-filter=ACMR origin/dev...HEAD`, because prettier and vitest cannot be
+	// handed a path that no longer exists. TJEW-670 row 2 (2026-10-06) deleted two routes, got
+	// `prettier --check` exit 2 ("No files matching the pattern were found") from frontend-format, and
+	// `wf check` went red twice on a row whose only fault was deleting files. A row that only deletes
+	// passes no `--file`: lefthook then reads its own `files:` (the committed ACMR diff, the earlier rows),
+	// as the real push would once this row is committed; oracle-guard (no glob) and fallow-audit (reads
+	// the working tree, so it still sees the deletion) run either way.
+	return [...preCommit, ...tasks, { label: 'lefthook pre-push', cmd: 'pnpm', args: ['exec', 'lefthook', 'run', 'pre-push', ...present.flatMap((f) => ['--file', f])], cwd: '.' }];
 }
 
 function rowTasks({ changed, test, pkgFor, pushHook, stackEnv }: { changed: string[]; test: string | null; pkgFor: PkgFor; pushHook: boolean; stackEnv: Record<string, string> }): CheckTask[] {
