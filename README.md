@@ -47,11 +47,11 @@ round commits (for JewelryX, `bug-reports/<round>/`).
   on delivered JewelryX rounds, each plan graded against what the round shipped
   `env/projects/jewelryx/rework.ts` measures how much of each change's code is changed again within N days, and by
   what (a fix, a revert, a sweep, other work): wf rounds against other ticket work and other PRs
-- `skills/round/SKILL.md`: the orchestrator skill ("start 662", "resume 662"); `skills/design-session/` for T1
+- `skills/round/SKILL.md`: the orchestrator skill ("start 662", "resume 662"); `skills/design-session/` for T1; `skills/show-me/` for a view
 - `prompts/`: one prompt per phase (`wf prompt <phase>` prints it without the handoff)
 - `.claude-plugin/` + `claude/`: the Claude Code plugin (manifest, marketplace, agents, hooks)
 - `agents/`: `round-worker` (every phase), `codebase-locator` and `codebase-analyzer` (research, pi only)
-- `process/`: lifecycle, classes, design session, review format, touchpoints, standards
+- `process/`: lifecycle, classes, design session, the views a plan carries (`SHOW-ME.md`), review format, touchpoints, standards
 - `docs/plans/2026-09-17-workflow-v2.md`: the plan wf was built from (history; done)
 - `docs/research/papers-and-first-principles.md`: what wf is for, and the five papers read after it was built
 - `docs/research/show-me-maintainability-papers.html`: five papers on what happens to agent code after it merges, against wf (notes per paper in `docs/research/papers/`)
@@ -67,7 +67,7 @@ The kit alone, as a Claude Code plugin: this repo is its marketplace (`.claude-p
 - **Install:** in Claude Code Desktop, add the marketplace `shayshahal/wf` and install `wf`; or
   `claude plugin marketplace add shayshahal/wf` then `claude plugin install wf@wf`.
 - **It carries:**
-  - the skills `wf:round` and `wf:design-session`;
+  - the skills `wf:round`, `wf:design-session` and `wf:show-me`;
   - the agents `wf:round-worker`, `wf:codebase-locator` and `wf:codebase-analyzer` (generated
     from `agents/` by `node plugin.ts`);
   - two hooks: a phase agent is sent back once while its handoff is missing (`wf handoff
@@ -126,8 +126,8 @@ Claude Code, plus what the project's `setup` runs (JewelryX: pnpm, uv, docker, p
 3. Put `wf` on the PATH through Shay's entry: `~/bin/wf` is
    `exec node "$HOME/.local/share/wf/env/wf.mjs" "$@"`, and `~/bin/wf.cmd` is
    `@node "%USERPROFILE%\.local\share\wf\env\wf.mjs" %*`.
-4. Skills: add `~/.local/share/wf/skills/round` and `~/.local/share/wf/skills/design-session` to
-   pi's `settings.json` `skills`.
+4. Skills: add `~/.local/share/wf/skills/round`, `~/.local/share/wf/skills/design-session` and
+   `~/.local/share/wf/skills/show-me` to pi's `settings.json` `skills`.
 5. `wf hook install`: worktrunk's user config gets the project's hooks, calling the installed copy's
    `env/wf.mjs`.
 6. The project's clone: a bare repo, and a worktree for its base branch (JewelryX):

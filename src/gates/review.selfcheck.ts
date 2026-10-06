@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { reviewFiles } from './review.ts';
 import { beforeAfterPage, captionFor, proofPairs } from './review-format.ts';
-import { asBuiltFile, foldFeedbackLine, lastField, renderHeader, renderSkeleton, readVerdict, specShaFor } from './review-format.ts';
+import { asBuiltFile, foldFeedbackLine, lastField, planBody, planPage, renderHeader, renderSkeleton, readVerdict, roundArtifacts, specShaFor } from './review-format.ts';
 import { appendDecision, STEPS, t1Gap } from '../round/step.ts';
 import { forT1Section } from './design.ts';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
@@ -98,6 +98,35 @@ const page = beforeAfterPage({ round: 'TJEW-1', pairs, captions: { 'before-1.png
 check('the page shows each side from the proof folder, escaped, and says when a side is missing', page.includes('src="../bug-reports/TJEW-1/proof/before-1.png"') && page.includes('a &lt;b&gt;') && page.includes('class="none"'), page);
 const withPage = renderHeader({ round: 'r', files: [], beforeAfter: '/w/.wf/before-after.html' });
 check('the T2 header points at the before/after page', withPage.includes('look at: /w/.wf/before-after.html'), withPage);
+check('the T2 header carries a manual row as a `manual:` line (prompts/plan.md)', renderHeader({ round: 'r', manual: ['manual: row 2 — the badge shows 3'] }).includes('manual: row 2 — the badge shows 3'));
+
+// The plan page: SHOW-ME.md's views rendered for T1 (.wf/SPEC-T1.html) and T2 (.wf/PLAN.html).
+const body = planBody('# T\n\n## Build\n\n```diff\n a\n+b\n-c\n~d\n```\n\n- one\n- two\n\n> **ASK-1 (user) — which?**\n');
+check('a plan heading becomes h2, the diff markers keep their class', body.includes('<h2>Build</h2>') && body.includes('class="add">+b') && body.includes('class="del">-c') && body.includes('class="chg">~d'), body);
+check('a bullet run becomes one list', body.includes('<ul>\n<li>one</li>\n<li>two</li>\n</ul>'), body);
+check('an ASK is a blockquote with a copy button', body.includes('<blockquote class="ask">') && body.includes('<button class="copy"'), body);
+const bare = planBody('```\n+x\n y\n```');
+check('a bare fence is coloured like a diff: the call stacks live there', bare.includes('class="add">+x') && bare.includes('class="ctx"> y'), bare);
+const indented = planBody('```\n  entry\n    run\n  +    handle\n    ~ changed\n    - gone\n```');
+check('an indented hop keeps its marker: a stack indents, so the marker is not at column 0', indented.includes('class="add">  +    handle') && indented.includes('class="chg">    ~ changed') && indented.includes('class="del">    - gone') && indented.includes('class="ctx">  entry'), indented);
+check('a table is kept as text', planBody('| a | b |\n|---|---|\n').includes('<pre class="table">'), planBody('| a | b |\n|---|---|\n'));
+const withMermaid = planPage({ title: 'P', meta: ['m'], section: '```mermaid\nA->>B: x\n```' });
+check('mermaid: the block is drawn by the CDN script', withMermaid.includes('<pre class="mermaid">A-&gt;&gt;B: x</pre>') && withMermaid.includes('cdn.jsdelivr.net/npm/mermaid'), withMermaid);
+check('mermaid follows the page scheme: default writes dark text, unreadable on the dark page', withMermaid.includes('theme:matchMedia("(prefers-color-scheme: dark)").matches?"dark":"default"'), withMermaid);
+check('the diff markers get a dark-scheme colour too, or they are dim on it', withMermaid.includes('@media (prefers-color-scheme:dark){pre.diff .add{color:#4ade80}'));
+check('no mermaid script on a page with no mermaid block', !planPage({ title: 'P', meta: [], section: '- a' }).includes('cdn.jsdelivr.net'));
+const pageHtml = planPage({ title: '<b>', meta: ['x <y>'], section: '## <i>', artifacts: [{ title: 'v.html', src: '../r/v.html' }] });
+check('the page escapes the title, meta and artifact, and embeds it', pageHtml.includes('<title>&lt;b&gt;</title>') && pageHtml.includes('x &lt;y&gt;') && pageHtml.includes('src="../r/v.html"'), pageHtml);
+const artDir = mkdtempSync(pjoin(tmpdir(), 'wf-art-'));
+writeFileSync(pjoin(artDir, 'b.html'), 'x');
+writeFileSync(pjoin(artDir, 'a.html'), 'x');
+writeFileSync(pjoin(artDir, 'note.md'), 'x');
+const from = mkdtempSync(pjoin(tmpdir(), 'wf-from-'));
+const arts = roundArtifacts(artDir, from);
+check('round artifacts are the round folder\'s HTML files, in order, relative to the page', arts.length === 2 && arts[0].title === 'a.html' && arts[0].src.endsWith('/a.html') && arts[0].src.startsWith('../'), JSON.stringify(arts));
+check('no round folder, no artifacts', roundArtifacts(pjoin(artDir, 'gone'), from).length === 0);
+rmSync(artDir, { recursive: true });
+rmSync(from, { recursive: true });
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');
 process.exit(failures ? 1 : 0);

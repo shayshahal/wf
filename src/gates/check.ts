@@ -77,6 +77,16 @@ export function tokenize(line: string) {
 	return [...line.matchAll(/"([^"]*)"|(\S+)/g)].map((m) => m[1] ?? m[2]);
 }
 
+// Pure: a row's manual proof, when its `check` cell is `manual: <what to look at>` (prompts/plan.md),
+// else null. A row whose only proof is a person looking is **fence only** at `wf check` — the fence and
+// the project's checks still gate its commit — and this text is what T2 reads, as a `manual:` line
+// beside the diff (`review-format.ts` renderHeader, review.ts). Case-insensitive on purpose: a cell
+// read as a command would take its last word as a test path and run the wrong test.
+export function manualCheck(cell: string | null | undefined): string | null {
+	const m = /^\s*manual:[ \t]*(.+?)\s*$/i.exec(cell ?? '');
+	return m && m[1] ? m[1] : null;
+}
+
 // Pure: the commands to run, in order. `projectTasks(test)` is the project's commands for the diff
 // plus `test` (the row's test path, or null); `repro` is the RESEARCH.md command line (or null).
 export function buildTasks({ row, projectTasks, repro, reproOnly = false }: { row: { check?: string } | null | undefined; projectTasks: (test: string | null) => CheckTask[]; repro: string | null; reproOnly?: boolean }): CheckTask[] {
@@ -84,8 +94,9 @@ export function buildTasks({ row, projectTasks, repro, reproOnly = false }: { ro
 	// (TJEW-700 row 6: "`vitest run …ts` (fixture carries …)" took `number)` as the path).
 	const cell = row?.check ?? '';
 	// A cell that starts with — (or -) is fence only, whatever note follows it (TJEW-682 rows 1 and 5
-	// carried a code span in the note, which was then read as the command).
-	const check = /^\s*[—-]/.test(cell) ? '' : (/`([^`]+)`/.exec(cell)?.[1] ?? cell).trim();
+	// carried a code span in the note, which was then read as the command). So is a `manual:` cell: a
+	// proof only a person can make has no command, and its last word is not a test path.
+	const check = /^\s*[—-]/.test(cell) || manualCheck(cell) ? '' : (/`([^`]+)`/.exec(cell)?.[1] ?? cell).trim();
 	// The cell is a command (`pytest packages/backend/tests/x.py`, `vitest run …/x.test.ts`):
 	// the path is its last word (TJEW-700: the whole cell was sliced as a path → `ackend/tests/…`).
 	const checkPath = check.split(/\s+/).pop() ?? '';

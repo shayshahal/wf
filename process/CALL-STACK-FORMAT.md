@@ -4,6 +4,10 @@ How a call stack is written in `SPEC.md` (`## As-is`, and one per candidate) and
 worker's `proof/CALL-STACK-AS-BUILT.md`. **A stack is written in diff syntax, because the
 interesting part is what changes** — an unchanged hop is context, not content.
 
+A change that is not a call path — a data structure, a SQL table, an API contract, a file tree, a
+branch a stack flattens — is one of `SHOW-ME.md`'s views, in the same `+ ~ -` grammar, beside the
+stack. The stack is the default, not the only view.
+
 ## Grammar
 
 ```
