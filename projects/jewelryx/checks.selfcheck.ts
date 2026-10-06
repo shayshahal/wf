@@ -2,7 +2,7 @@
 // Pure: JewelryX's commands for a diff and a plan row, through core's buildTasks (the row's check
 // cell, the repro) with this project's checkTasks, as `wf check` runs them. No git, no runners.
 import { buildTasks as coreBuildTasks } from '../../src/gates/check.ts';
-import { checkTasks, parseStackEnv } from './checks.ts';
+import { checkTasks, parseStackEnv, suitesTouched } from './checks.ts';
 import type { PkgFor } from './checks.ts';
 
 let failures = 0;
@@ -75,6 +75,16 @@ const withCommit = checkTasks({ changed: mixed, test: null, pkgFor, pushHook: tr
 check('pre-commit first, before ruff', labels(withCommit)[0] === 'lefthook pre-commit' && labels(withCommit)[1].startsWith('ruff check'), JSON.stringify(labels(withCommit)));
 check('pre-commit leaves a deleted file out; pre-push keeps it', withCommit[0].args!.join(' ') === 'exec lefthook run pre-commit --file packages/backend/app/a.py --file packages/frontend/b2b/src/routes/x/+page.svelte' && withCommit.at(-1)!.args!.includes('packages/frontend/b2b/src/gone.ts'), withCommit[0].args!.join(' '));
 check('only deletions: no pre-commit run, pre-push still runs', JSON.stringify(labels(checkTasks({ changed: ['packages/frontend/b2b/src/gone.ts'], test: null, pkgFor, pushHook: true, onDisk: () => false }))) === '["lefthook pre-push"]');
+
+// The whole suites a round's diff reaches (index.ts suites).
+const touched = (changed: string[]) => suitesTouched(changed).join();
+check('BJEW-461: an admin change and its round folder run only the admin suite', touched(['bug-reports/fix-bjew-461-cancel-order-reopen/MEASURED.md', 'packages/frontend/admin/src/lib/components/order/OrderDetailsDrawer.svelte']) === 'admin');
+check('a backend change runs only the backend suite', touched(['packages/backend/app/routers/orders.py']) === 'backend');
+check('a shared frontend package runs both apps, not the backend', touched(['packages/frontend/shared/ui/src/dialog.svelte']) === 'admin,b2b');
+check('the root JS config and the lockfile run both apps', touched(['pnpm-lock.yaml']) === 'admin,b2b' && touched(['tsconfig.json']) === 'admin,b2b');
+check('a package nobody named runs every suite', touched(['packages/worker/main.py']) === 'backend,admin,b2b');
+check('docs, verification/ and a round folder run none', touched(['docs/agents/testing.md', 'verification/tests/a.spec.ts', 'bug-reports/x/PLAN.md', 'AGENTS.md']) === '');
+check('in a fixed order, once each', touched(['packages/frontend/b2b/a.ts', 'packages/backend/b.py', 'packages/frontend/b2b/c.ts']) === 'backend,b2b');
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');
 process.exit(failures ? 1 : 0);

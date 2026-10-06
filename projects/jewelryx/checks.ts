@@ -77,6 +77,26 @@ function rowTasks({ changed, test, pkgFor, pushHook, stackEnv }: { changed: stri
 	return tasks;
 }
 
+export type Suite = 'backend' | 'admin' | 'b2b';
+
+// Pure: the whole suites (index.ts suites) whose tests can load what the round's diff changed: a
+// package's own files, and for the two apps also the shared packages both depend on
+// (packages/frontend/shared: @jewelryx/data, filters, types, ui) and the root's JS config. The
+// backend depends on none of those. Docs, round folders and verification/ load into no suite.
+export function suitesTouched(changed: string[]): Suite[] {
+	const touched = new Set<Suite>();
+	const apps = () => { touched.add('admin'); touched.add('b2b'); };
+	for (const f of changed) {
+		if (f.startsWith('packages/backend/')) touched.add('backend');
+		else if (f.startsWith('packages/frontend/admin/')) touched.add('admin');
+		else if (f.startsWith('packages/frontend/b2b/')) touched.add('b2b');
+		else if (f.startsWith('packages/frontend/') || ROOT_JS.test(f)) apps();
+		else if (f.startsWith('packages/')) { apps(); touched.add('backend'); }
+	}
+	return (['backend', 'admin', 'b2b'] as const).filter((s) => touched.has(s));
+}
+const ROOT_JS = /^(package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|tsconfig[^/]*\.json|openapi\.json|openapi-ts\.config\.ts)$/;
+
 // Pure: the KEY=value lines of a .verify-stack.env (round.ts verifyStackEnv), comments skipped.
 export function parseStackEnv(text: string): Record<string, string> {
 	const env: Record<string, string> = {};

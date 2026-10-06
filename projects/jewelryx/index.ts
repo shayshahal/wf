@@ -6,7 +6,8 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { createConnection } from 'node:net';
 import { join } from 'node:path';
-import { checkTasks, parseStackEnv, realPkgFor } from './checks.ts';
+import { checkTasks, parseStackEnv, realPkgFor, suitesTouched } from './checks.ts';
+import type { Suite } from './checks.ts';
 import type { CheckTask } from '../../src/gates/check.ts';
 import { dropDatabase, worktreeDatabase } from './db.ts';
 import { seams } from '../../src/seams.ts';
@@ -220,8 +221,11 @@ export function checks({ toplevel, changed, test }: { toplevel: string; changed:
 	return checkTasks({ changed, test, pkgFor: realPkgFor(toplevel), pushHook: existsSync(join(toplevel, 'lefthook.yml')), onDisk: (f) => existsSync(join(toplevel, f)), stackEnv });
 }
 
-// `wf check --suites`: the whole suites on each committed HEAD before validate; each suite its steps in
-// order, the suites side by side. wf check runs only the tests a commit changed and PR checks leave
+// `wf check --suites`: before validate, on each committed HEAD, the whole suite of each package the
+// round's diff reaches (checks.ts suitesTouched); each suite its steps in order, the suites side by
+// side. Only the reached ones: BJEW-461 (2026-10-06) changed only the admin and ran all three twice,
+// 193 s and 214 s, and both runs came back red on backend pytest, which it never touched; validate
+// then had a red suite to report from a package outside the round. wf check runs only the tests a commit changed and PR checks leave
 // the suites to the qa gate, after the merge, which billing kept from starting 2026-09-16 to 10-05:
 // SvelteKit 3 (04bb5a70a) broke two backend cells on dev, found the next day. The backend on 8
 // workers, pytest-xdist added for the run only (not in uv.lock): 2m22s against 10m12s serial, 3,201
@@ -232,13 +236,14 @@ const vitest = (app: string, pkg: string): CheckTask[] => [
 	{ label: `${app} check:prep`, cmd: 'pnpm', args: ['--filter', pkg, 'run', 'check:prep'], cwd: '.' },
 	{ label: `${app} vitest`, cmd: 'pnpm', args: ['--filter', pkg, 'exec', 'vitest', 'run'], cwd: '.' },
 ];
-/** Whole test suites: each sequence stops at its first red step; sequences run side by side. */
-export const suites: CheckTask[][] = [
-	[{ label: 'backend pytest', cmd: 'uv', args: ['run', '--frozen', '--with', 'pytest-xdist', 'pytest', '-q', '-p', 'no:cacheprovider', '-n', '8'], cwd: 'packages/backend',
+const SUITES: Record<Suite, CheckTask[]> = {
+	backend: [{ label: 'backend pytest', cmd: 'uv', args: ['run', '--frozen', '--with', 'pytest-xdist', 'pytest', '-q', '-p', 'no:cacheprovider', '-n', '8'], cwd: 'packages/backend',
 		env: { JWT_SECRET_KEY: 'ci-test-only-not-a-real-secret', B2B_PUBLIC_URL: 'https://storefront.example.test/b2b' } }],
-	vitest('admin', 'jewelryx-admin-dashboard'),
-	vitest('b2b', 'jewelryx-frontend'),
-];
+	admin: vitest('admin', 'jewelryx-admin-dashboard'),
+	b2b: vitest('b2b', 'jewelryx-frontend'),
+};
+/** The whole suites the round's changed files reach: each sequence stops at its first red step; sequences run side by side. */
+export const suites = (changed: string[]): CheckTask[][] => suitesTouched(changed).map((s) => SUITES[s]);
 
 // ── delivery ─────────────────────────────────────────────────────────────────
 
