@@ -62,7 +62,8 @@ function critiqueFields(phase: string, argv: string[], state: State | null, topl
 // nothing serves a worktree from its creation (2026-10-04, serve.ts).
 export const USES_STACK = new Set(['research', 'validate']);
 
-export async function runBrief(argv: string[]): Promise<void> {
+// `stack` is ensureServers; the self-check plugs in a stack that never answers.
+export async function runBrief(argv: string[], { stack = ensureServers }: { stack?: typeof ensureServers } = {}): Promise<void> {
 	const phase = argv[0];
 	let composed: ReturnType<typeof composePrompt>;
 	try {
@@ -74,8 +75,18 @@ export async function runBrief(argv: string[]): Promise<void> {
 		console.error(`wf brief ${(e as Error).message}`);
 		process.exit(2);
 	}
-	const token = newToken();
 	const { toplevel, folder, key } = composed;
+	// The stack comes first, and the brief is recorded only once it is about to go out. The wait runs up
+	// to 3 minutes, and a stack that does not answer holds the brief back for all of it: BJEW-461
+	// (2026-10-06), the validate agent's piped `wf brief validate` hung on a dev server busy with a
+	// backlog of reloads, its caller gave up and ran it again, and the record, written before the wait,
+	// counted two agents for one; `wf next` then refused to dispatch validate. A brief that never got
+	// out is not an agent. On stderr, so the brief on stdout stays the prompt alone. A stack that will
+	// not start does not stop the brief: a backend-only round's research still has work to do without it.
+	if (USES_STACK.has(phase)) {
+		try { console.error(await stack(toplevel, { wait: true })); } catch (e) { /* the brief still goes out: research can start without the app */ console.error((e as Error).message); }
+	}
+	const token = newToken();
 	const state = readState(toplevel);
 	// count: how many agents this phase has had; wf next stops at two without a handoff.
 	// A critique of a new validation is that validation's first, not the round's next.
@@ -85,11 +96,6 @@ export async function runBrief(argv: string[]): Promise<void> {
 	// after it (TJEW-670: the PR shipped a validation of the tree before its review fix).
 	const head = execFileSync('git', ['-C', toplevel, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
 	writeState(toplevel, { briefs: { ...briefsAfter(phase, argv, state?.briefs), [key]: { token, at: new Date().toISOString(), count, head, ...critiqueFields(phase, argv, state, toplevel, folder) } } });
-	// On stderr, so the brief on stdout stays the prompt alone. A stack that will not start does not
-	// stop the brief: a backend-only round's research still has work to do without it.
-	if (USES_STACK.has(phase)) {
-		try { console.error(await ensureServers(toplevel, { wait: true })); } catch (e) { /* the brief still goes out: research can start without the app */ console.error((e as Error).message); }
-	}
 	process.stdout.write(`${composed.text.trimEnd()}\n${handoffText({ phase, folder, token, file: handoffFile(phase, argv[1]) })}`);
 }
 
