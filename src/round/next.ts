@@ -164,7 +164,18 @@ export function nextAction(s: Snapshot): { say: string; effects: Effect[] } {
 	if (step === 'implement') {
 		const rows = planCommitRows(s.files.plan ?? '');
 		if (s.files.blocked) {
-			if (/^## Answer[ \t]*$/m.test(s.files.blocked.replace(/\r\n/g, '\n'))) return dispatch('implement', [s.commit], null);
+			if (/^## Answer[ \t]*$/m.test(s.files.blocked.replace(/\r\n/g, '\n'))) {
+				// The agent briefed after the last answer came back with the row still blocked: that answer
+				// did not unblock it, and another agent would only block again. The user answers anew, holds
+				// or ends the round (BJEW-461, 2026-10-06: "stop and ask QA" was answered, and wf next went
+				// on dispatching implement 1).
+				const b = brief('implement', s.commit);
+				const last = (s.answered ?? []).filter((q) => q.source?.startsWith('BLOCKED.md') && q.answered).map((q) => q.answered!).sort().at(-1);
+				if (!b || !last || b.at < last) return dispatch('implement', [s.commit], null);
+				const q = `commit ${s.commit} is still blocked after the answer: ${blockedQuestion(s.files.blocked) ?? 'BLOCKED.md says why'} Answer anew, or hold the round (\`${wf} step held\`) or end it (\`WF_FORCE_REAP=1 ${wf} reap ${s.branch}\`)`;
+				effects.push({ ask: { to: 'user', text: q, dflt: null, source: `BLOCKED.md#${b.token}` } });
+				return act(`wait user: ${q}`);
+			}
 			const q = blockedQuestion(s.files.blocked);
 			if (!q) return act(`wait user: BLOCKED.md at commit ${s.commit} has no Question: line — read it`);
 			effects.push({ ask: { to: 'user', text: q, dflt: null, source: 'BLOCKED.md' } });
