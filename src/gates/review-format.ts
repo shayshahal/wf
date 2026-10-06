@@ -15,19 +15,39 @@ export const VERDICTS = ['approved', 'changes-requested', 'dismissed'];
 // it folded as changes-requested and sent an approved T1 back to revise (TJEW-700).
 export const verdictOf = (d: string | undefined) => (d === 'approved' || d === 'lgtm' || d === 'approved-with-notes' ? 'approved' : d === 'dismissed' ? 'dismissed' : 'changes-requested');
 
-// One annotation, as Plannotator logs it on submit.
-export type Annotation = { text?: string; file?: string; lineStart?: number; lineEnd?: number; blockId?: string };
+// One annotation, as Plannotator logs it on submit. The `element*` fields and `originalText` are what the
+// annotate surface reports when its document is a raw-rendered page (planPage): no file and no blockId,
+// but the element the comment landed on and the selector/path back to it.
+export type Annotation = { text?: string; file?: string; lineStart?: number; lineEnd?: number; blockId?: string; originalText?: string; elementSelector?: string; elementPath?: string };
 // The line a review UI returns (seams.reviewUI), or the JSON text of one. `target` is the file on
 // Plannotator's annotate surface, and what was diffed on its review surface.
 export type ReviewFeedback = { decision?: string; feedback?: string; message?: string; annotations?: Annotation[]; target?: string | { review?: { base?: string; changedFiles?: number } } };
 
+// Pure: the source line a comment on a rendered page points at. planBody tags every block `wf-src-<line>`;
+// Plannotator hands that tag back in elementSelector and elementPath (measured on 0.28.5, 2026-10-06: an
+// element's first class is dropped from elementPath when it has more than one — the selector keeps them
+// all — and an id survives both, while the attributes never arrive at all). The last match is the block
+// that was clicked: a comment on a `<b>` inside an ASK reports the ASK's tag too (`… > blockquote… > b`).
+export function pageLine(a: Annotation) {
+  const ref = `${a.elementSelector ?? ''} > ${a.elementPath ?? ''}`;
+  return [...ref.matchAll(/wf-src-(\d+)/g)].map((m) => Number(m[1])).at(-1) ?? null;
+}
+
+// Pure: what the comment was made on, for whoever reads the review file. Plannotator's `originalText` is
+// the clicked element's own text, so a `<b>` gives the few bolded words and the block is not always in it.
+// One line — a newline would break REVIEW-FORMAT.md's one-line-per-comment — and clipped.
+const clip = (s: string, n = 96) => { const t = s.replace(/\s+/g, ' ').trim(); return t.length > n ? `${t.slice(0, n - 1)}…` : t; };
+
 export function commentLine(a: Annotation = {}) {
   const text = (a.text ?? '').trim();
+  const on = a.originalText ? ` (on: ${clip(a.originalText)})` : '';
   if (a.file) {
     const range = a.lineStart ? `:${a.lineStart}${a.lineEnd && a.lineEnd !== a.lineStart ? `-${a.lineEnd}` : ''}` : '';
-    return `${a.file}${range} — ${text}`;
+    return `${a.file}${range} — ${text}${on}`;
   }
-  return `SPEC.md:${a.blockId ?? a.lineStart ?? '?'} — ${text}`;
+  // A comment with no file is a SPEC comment: the page's own line when it came from the rendered page,
+  // Plannotator's blockId on the markdown surface, `?` when neither says where it was.
+  return `SPEC.md:${pageLine(a) ?? a.blockId ?? a.lineStart ?? '?'} — ${text}${on}`;
 }
 
 // Pure: one `path:line[-end] — text` line per annotation, then the verdict line.
@@ -146,11 +166,13 @@ ${rows}
 
 // ── the plan page ────────────────────────────────────────────────────────────
 // The same design, rendered: SPEC.md § For T1 at T1 (.wf/SPEC-T1.html, design.ts) and PLAN.md at T2
-// (.wf/PLAN.html, review.ts). The markdown stays the file of record and what the person annotates;
-// the page is where SHOW-ME.md's views read as views — diff blocks coloured, a mermaid block drawn,
-// the Asks copyable, the round's own HTML artifacts embedded. Mermaid comes from a CDN and its
-// source stays readable when there is none: the page is opened on the person's machine, never
-// fetched by wf (and under Claude Code nothing opens at all, editor.ts).
+// (.wf/PLAN.html, review.ts). The markdown stays the file of record. At T1 the page is what the person
+// annotates, so the page has to say which SPEC.md line each block is: planBody tags them `wf-src-<line>`
+// and pageLine reads the tag back out of what Plannotator reports. The page is also where SHOW-ME.md's
+// views read as views — diff blocks coloured, a mermaid block drawn, the Asks copyable, the round's own
+// HTML artifacts embedded. Mermaid comes from a CDN and its source stays readable when there is none:
+// the page is opened on the person's machine, never fetched by wf (and under Claude Code the screen that
+// shows it is the review UI, editor.ts).
 export type PlanArtifact = { title: string; src: string };
 
 // Pure: the round folder's own HTML files (SHOW-ME.md artifacts), as the page embeds them. `from` is
@@ -174,10 +196,16 @@ const diffRow = (line: string) => {
 // Pure: a plan document's markdown → the small part of it wf writes. Fenced blocks keep their shape:
 // a `diff` block and a bare one (where the call stacks live) are coloured by marker, `mermaid` is left
 // for the script `planPage` adds, and a table is shown as it is because a plan's tables are read as text.
-export function planBody(md: string): string {
+export function planBody(md: string, base = 0): string {
 	const out: string[] = [];
 	const lines = md.replace(/\r\n/g, '\n').split('\n');
 	const inline = (s: string) => escapeHtml(s).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>').replace(/`([^`]+)`/g, '<code>$1</code>');
+	// Each block opens tagged with its markdown line: `wf-src-<line>`, `base` lines into the document the
+	// section was cut from. The tag goes in as the first class *and* as the id: the two fields Plannotator
+	// reports it in serialize differently (measured 2026-10-06, 0.28.5 — a click on the ASK's `<strong>`
+	// came back `#wf-src-50 > strong`, `body > blockquote#wf-src-50 > strong`), and picking one rule of a
+	// third-party's string builder is how a fold silently stops finding lines. The styling class follows.
+	const openTag = (name: string, i: number, cls = '') => `<${name} class="${[`wf-src-${base + i + 1}`, cls].filter(Boolean).join(' ')}" id="wf-src-${base + i + 1}">`;
 	let list = false;
 	let table = false;
 	const close = () => { if (list) { out.push('</ul>'); list = false; } if (table) { out.push('</pre>'); table = false; } };
@@ -186,33 +214,35 @@ export function planBody(md: string): string {
 		const fence = /^```(\w*)\s*$/.exec(line);
 		if (fence) {
 			close();
+			const start = i;
 			const body: string[] = [];
 			for (i++; i < lines.length && !/^```\s*$/.test(lines[i]); i++) body.push(lines[i]);
-			out.push(fence[1] === 'mermaid' ? `<pre class="mermaid">${escapeHtml(body.join('\n'))}</pre>`
-				: fence[1] === 'diff' || fence[1] === '' ? `<pre class="diff">${body.map(diffRow).join('\n')}</pre>`
-					: `<pre class="lang">${escapeHtml(body.join('\n'))}</pre>`);
+			out.push(fence[1] === 'mermaid' ? `${openTag('pre', start, 'mermaid')}${escapeHtml(body.join('\n'))}</pre>`
+				: fence[1] === 'diff' || fence[1] === '' ? `${openTag('pre', start, 'diff')}${body.map(diffRow).join('\n')}</pre>`
+					: `${openTag('pre', start, 'lang')}${escapeHtml(body.join('\n'))}</pre>`);
 			continue;
 		}
 		if (/^\|/.test(line)) {
-			if (!table) { close(); out.push('<pre class="table">'); table = true; }
+			if (!table) { close(); out.push(openTag('pre', i, 'table')); table = true; }
 			out.push(escapeHtml(line));
 			continue;
 		}
 		if (table) close();
 		const head = /^(#{1,3})\s+(.*)$/.exec(line);
-		if (head) { close(); out.push(`<h${head[1].length}>${inline(head[2])}</h${head[1].length}>`); continue; }
+		if (head) { close(); out.push(`${openTag(`h${head[1].length}`, i)}${inline(head[2])}</h${head[1].length}>`); continue; }
 		const item = /^[-*]\s+(.*)$/.exec(line);
-		if (item) { if (!list) { out.push('<ul>'); list = true; } out.push(`<li>${inline(item[1])}</li>`); continue; }
+		if (item) { if (!list) { out.push('<ul>'); list = true; } out.push(`${openTag('li', i)}${inline(item[1])}</li>`); continue; }
 		if (/^>/.test(line)) {
 			close();
+			const start = i;
 			const quote = [line.replace(/^>\s?/, '')];
 			while (i + 1 < lines.length && /^>/.test(lines[i + 1])) quote.push(lines[++i].replace(/^>\s?/, ''));
-			out.push(`<blockquote class="ask">${quote.map(inline).join('<br>')}<button class="copy" type="button">copy</button></blockquote>`);
+			out.push(`${openTag('blockquote', start, 'ask')}${quote.map(inline).join('<br>')}<button class="copy" type="button">copy</button></blockquote>`);
 			continue;
 		}
 		if (!line.trim()) continue;
 		close();
-		out.push(`<p>${inline(line)}</p>`);
+		out.push(`${openTag('p', i)}${inline(line)}</p>`);
 	}
 	close();
 	return out.join('\n');
@@ -222,11 +252,17 @@ export function planBody(md: string): string {
 // unreadable on the dark page the browser paints for `color-scheme: light dark` (seen in the demo,
 // 2026-10-06 — the sequence diagram came out dark-on-dark). Offline the block keeps its source.
 const MERMAID = '<script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";mermaid.initialize({startOnLoad:false,theme:matchMedia("(prefers-color-scheme: dark)").matches?"dark":"default"});await mermaid.run({querySelector:".mermaid"});</script>';
-const COPY_ASK = '<script>document.addEventListener("click",(e)=>{const b=e.target.closest("button.copy");if(!b)return;navigator.clipboard.writeText(b.parentElement.innerText.replace(/copy$/,"").trim());b.textContent="copied";});</script>';
+// The copy button on an ASK. Plannotator hosts this page in an `<iframe sandbox="allow-scripts">` with no
+// allow-same-origin (its 0.28.5 binary, 2026-10-06): the script runs, but the frame's origin is opaque and
+// the clipboard API can refuse there, where a plain browser tab does not. The textarea path is the old
+// fallback, so the button does something rather than nothing when the API says no.
+const COPY_ASK = '<script>const wfCopy=(t)=>{const a=document.createElement("textarea");a.value=t;document.body.appendChild(a);a.select();let ok=false;try{ok=document.execCommand("copy")}catch(e){ok=false /* no clipboard in this frame: the person copies by hand */}a.remove();return ok};document.addEventListener("click",(e)=>{const b=e.target.closest("button.copy");if(!b)return;const t=b.parentElement.innerText.replace(/copy$/,"").trim();const done=()=>{b.textContent="copied"};if(navigator.clipboard)navigator.clipboard.writeText(t).then(done,()=>{wfCopy(t);done()});else{wfCopy(t);done()}});</script>';
 
-// Pure: the standalone page for a section of a plan document.
-export function planPage({ title, meta, section, artifacts = [] }: { title: string; meta: string[]; section: string; artifacts?: PlanArtifact[] }) {
-	const body = planBody(section);
+// Pure: the standalone page for a section of a plan document. `base` is the line the section starts at in
+// the document it was cut from: with it each block's tag is a line of that document (design.ts).
+export function planPage({ title, meta, section, artifacts = [], base = 0 }: { title: string; meta: string[]; section: string; artifacts?: PlanArtifact[]; base?: number }) {
+	const body = planBody(section, base);
+	const hasClass = (cls: string) => new RegExp(`class="[^"]*\\b${cls}\\b`).test(body);
 	return `<!doctype html>
 <meta charset="utf-8"><title>${escapeHtml(title)}</title>
 <style>
@@ -255,8 +291,8 @@ footer{color:#888;font-size:12px;margin-top:40px;border-top:1px solid #8883;padd
 ${body}
 ${artifacts.length ? `<h2>Views</h2>\n${artifacts.map((a) => `<figure><figcaption><a href="${escapeHtml(a.src)}">${escapeHtml(a.title)}</a></figcaption><iframe src="${escapeHtml(a.src)}" loading="lazy"></iframe></figure>`).join('\n')}` : ''}
 <footer>The markdown is the file of record; this page is it rendered, with the views drawn. Generated by wf.</footer>
-${body.includes('class="mermaid"') ? MERMAID : ''}
-${body.includes('class="copy"') ? COPY_ASK : ''}
+${hasClass('mermaid') ? MERMAID : ''}
+${hasClass('copy') ? COPY_ASK : ''}
 `;
 }
 
