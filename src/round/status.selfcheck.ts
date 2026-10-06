@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { plug } from '../seams.ts';
-import { allLines, collectRows, formatRow, liveRounds, prLabel, formatAgeSince, realDetailFor } from './status.ts';
+import { allLines, collectRows, formatRow, liveRounds, prLabel, formatAgeSince, processesIn, realDetailFor } from './status.ts';
 import type { Question, State } from './state.ts';
 
 let failures = 0;
@@ -90,6 +90,12 @@ writeFileSync(join(old, 'bug-reports', 'BJEW-1', 'PLAN.md'), '# p\n\n## Commits\
 check('real detail for implement counts the PLAN.md rows', realDetailFor(old, readAll(old)!) === 'commit 2 of 2', realDetailFor(old, readAll(old)!));
 check('real detail for plan counts PLAN.md lines', realDetailFor(old, { ...readAll(old), step: 'plan' }) === 'PLAN.md 6 lines', realDetailFor(old, { ...readAll(old), step: 'plan' }));
 
+// What still runs in a worktree (seams.processCwds): its own folder and below, nothing beside it.
+const cwds = ['C:\\Users\\S\\wt\\fix-a\\', 'C:\\Users\\S\\wt\\fix-a\\packages\\backend\\', 'C:\\Users\\S\\wt\\fix-ab\\', 'C:\\Users\\S\\'];
+check('procs: the worktree and below, from a process block, with backslashes and a trailing one', processesIn('C:/Users/S/wt/fix-a', cwds, true) === 2);
+check('procs: a sibling whose name starts the same is not inside', processesIn('C:/Users/S/wt/fix-ab', cwds, true) === 1);
+check('procs: case-blind on Windows only', processesIn('c:/users/s/wt/fix-a', cwds, true) === 2 && processesIn('c:/users/s/wt/fix-a', cwds, false) === 0);
+check('procs: shown in the row when counted, absent when not', formatRow({ path: 'p', state: null, pr: '-', stack: null, processes: 3 }).endsWith(' · 3 procs') && !formatRow({ path: 'p', state: null, pr: '-', stack: null }).includes('procs'));
 rmSync(root, { recursive: true, force: true });
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');
 process.exit(failures ? 1 : 0);

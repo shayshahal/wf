@@ -28,6 +28,8 @@ export type State = {
 	ids?: string[];
 	folder?: string;
 	made_by?: string;
+	// Who opened the worktree (seams.opener, at `wf new`), so a tool beside wf can show which agent it belongs to.
+	opened_by?: Record<string, string>;
 	entry?: string;
 	check?: boolean;
 	commit?: number;

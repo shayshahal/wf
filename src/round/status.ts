@@ -7,12 +7,13 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { questionLines } from './ask.ts';
+import { seams } from '../seams.ts';
 import { stackUrls } from '../project.ts';
 import { basePortForBranch, listWorktrees, portsAndSlugsForBranches, slugForBranch } from '../worktrees/worktree.ts';
 import type { State } from './state.ts';
 
 export type PullRequest = { headRefName: string; number: number; isDraft: boolean; reviewDecision: string | null; statusCheckRollup: { conclusion?: string; state?: string; status?: string }[] | null };
-export type StatusRow = { path: string; state: State | null; pr: string; stack: { port: number; up: boolean; name: string | null } | null };
+export type StatusRow = { path: string; state: State | null; pr: string; stack: { port: number; up: boolean; name: string | null } | null; processes?: number };
 type ReadState = (path: string) => State | null;
 type DetailFor = (path: string, state: State) => string | null | undefined;
 type BasePortFor = (branch: string) => number | Promise<number>;
@@ -71,6 +72,15 @@ export async function collectRows({ paths, readState, pullRequests = [], now = D
   });
 }
 
+// Pure: how many of the processes' working folders (seams.processCwds) are the worktree or inside it.
+// Folders compare with forward slashes and no trailing one, case-blind on Windows: git lists
+// C:/Users/..., a process block holds C:\Users\...\.
+export function processesIn(path: string, cwds: string[], caseBlind = process.platform === 'win32'): number {
+  const norm = (p: string) => { const s = p.replace(/\\/g, '/').replace(/\/+$/, ''); return caseBlind ? s.toLowerCase() : s; };
+  const root = norm(path);
+  return cwds.filter((c) => { const n = norm(c); return n === root || n.startsWith(`${root}/`); }).length;
+}
+
 // Branch name = last path segment is wrong for detached worktrees; read the real one lazily.
 const branches = new Map<string, string | null>();
 function branchOf(path: string): string | null | undefined {
@@ -117,7 +127,7 @@ export function realReadState(path: string): State | null {
 
 export function formatRow(r: StatusRow, now = Date.now()): string {
   const s = r.state;
-  const stack = r.stack ? ` · stack ${r.stack.name ?? `:${r.stack.port}`} ${r.stack.up ? '✓' : '✗'}` : '';
+  const stack = `${r.stack ? ` · stack ${r.stack.name ?? `:${r.stack.port}`} ${r.stack.up ? '✓' : '✗'}` : ''}${r.processes === undefined ? '' : ` · ${r.processes} procs`}`;
   if (!s) return `${r.path}  —${stack}`;
   const you = s.waiting_on === 'user' ? ` ${WF_YOU_MARKER}` : '';
   return `${s.round} · ${s.class ?? '—'} · ${s.step} · ${s.waiting_on ?? '—'} · ${formatAgeSince(s.since, now)} · ${r.pr}${stack}${you}`;
@@ -175,7 +185,7 @@ export function realDetailFor(path: string, state: State): string {
   return '';
 }
 
-export async function runStatus(argv: string[], inject: { paths?: string[]; readState?: ReadState; detailFor?: DetailFor; now?: number; pullRequests?: PullRequest[]; basePortFor?: BasePortFor; probeStack?: ProbeStack; slugFor?: SlugFor } = {}): Promise<void> {
+export async function runStatus(argv: string[], inject: { paths?: string[]; readState?: ReadState; detailFor?: DetailFor; now?: number; pullRequests?: PullRequest[]; basePortFor?: BasePortFor; probeStack?: ProbeStack; slugFor?: SlugFor; cwds?: string[] | null } = {}): Promise<void> {
   const paths = inject.paths ?? realWorktrees();
   if (argv.includes('--all')) {
     const lines = allLines({ paths, readState: inject.readState ?? realReadState, detailFor: inject.detailFor ?? realDetailFor, now: inject.now ?? Date.now() });
@@ -188,12 +198,15 @@ export async function runStatus(argv: string[], inject: { paths?: string[]; read
   const rows = await collectRows({
     paths,
     readState,
-    pullRequests: inject.pullRequests ?? realPrs(),
+    // --no-pr: no `gh` call, for a caller that polls (a sidebar every few seconds).
+    pullRequests: inject.pullRequests ?? (argv.includes('--no-pr') ? [] : realPrs()),
     now: inject.now ?? Date.now(),
     basePortFor: inject.basePortFor ?? ((b: string) => known.get(b)?.port ?? basePortForBranch(b)),
     probeStack: inject.probeStack ?? realProbeStack,
     slugFor: inject.slugFor ?? ((b: string) => known.get(b)?.slug ?? slugForBranch(b)),
   });
+  const cwds = inject.cwds !== undefined ? inject.cwds : seams.processCwds?.() ?? null;
+  if (cwds) for (const r of rows) r.processes = processesIn(r.path, cwds);
   if (argv.includes('--json')) console.log(JSON.stringify(rows, null, 2));
   else for (const r of rows) console.log(formatRow(r, inject.now));
 }
