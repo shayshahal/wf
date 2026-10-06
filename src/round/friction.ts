@@ -49,9 +49,9 @@ const jsonLines = <T,>(text: string): T[] => (text ?? '').split('\n').filter((l)
 export function frictionLine({ state, checksLog, eventsLog, reviewText, end }: { state: State | null; checksLog: string; eventsLog: string; reviewText: string; end: string }): string {
 	const history = state?.history ?? [];
 	const start = history[0]?.at ?? Object.values(state?.briefs ?? {}).map((b) => b.at).sort()[0] ?? null;
-	// `wf check --repro` lines are research's, not a commit's check: counted apart.
+	// Repro and whole suites are measurements, not a commit's check.
 	const all = jsonLines<{ row?: unknown; result: string }>(checksLog);
-	const checks = all.filter((c) => c.row !== 'repro');
+	const checks = all.filter((c) => c.row !== 'repro' && c.row !== 'suites');
 	const unstable = all.filter((c) => c.row === 'repro' && c.result === 'unstable').length;
 	const refusals = jsonLines<{ cmd: string; msg: string }>(eventsLog);
 	const verdicts = [...(reviewText ?? '').matchAll(/^verdict:\s*(\S+)\s*$/gm)].map((m) => m[1]).filter((v) => v !== 'pending');

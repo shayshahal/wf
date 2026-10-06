@@ -2,7 +2,7 @@
 // Pure arms only (no git, no runners): the fence, the repro line, and what buildTasks makes of a
 // plan row's check cell. The project's own commands: projects/<name>/checks.selfcheck.ts.
 import { failureSignature, reproVerdict } from './check.ts';
-import { checkRunLine, buildTasks, fenceViolations, isReproOnly, isRoundPaperwork, reproCommand, resolvedBlockedName, tokenize } from './check.ts';
+import { checkRunLine, buildTasks, fenceViolations, isReproOnly, isRoundPaperwork, reproCommand, resolvedBlockedName, suitesLine, tokenize } from './check.ts';
 import type { CheckTask } from './check.ts';
 
 let failures = 0;
@@ -66,6 +66,12 @@ check('green on every run: green, the ticket does not reproduce here', reproVerd
 check('one green run: not stable, and which one', (({ result, say }) => result === 'unstable' && say.startsWith('run 2 of 3 was green'))(reproVerdict([{ exit: 1, output: defect }, { exit: 0, output: '' }, { exit: 1, output: defect }])));
 check('red twice at the defect, once at its precondition: not stable, with each run', (({ result, say }) => result === 'unstable' && say.includes('run 3: Error: precondition: sheet never opened @ outside-tap.spec.ts:18'))(reproVerdict([{ exit: 1, output: defect }, { exit: 1, output: defect }, { exit: 1, output: precondition }])));
 check('the checks.log line carries the research token when it has one', JSON.parse(checkRunLine({ ts: 't', row: 'repro', rowCheck: null, tasks: [], result: 'stable', token: 'abc' })).token === 'abc' && !('token' in JSON.parse(checkRunLine({ ts: 't', row: 1, rowCheck: null, tasks: [], result: 'green' }))));
+
+// wf check --suites: one line, the head it measured, a red suite's output tail.
+const sl = JSON.parse(suitesLine({ ts: 't', head: 'abc', runs: [{ label: 'suite one', exit: 0, output: 'x\n3201 passed' }, { label: 'suite two', exit: 1, output: `${'line\n'.repeat(60)}FAIL src/x.test.ts` }] }));
+check('suites line: row suites, its head, red when any suite is', sl.row === 'suites' && sl.head === 'abc' && sl.result === 'red');
+check('suites line: a green suite keeps no output, a red one its last 40 lines', sl.tasks[0].output === undefined && sl.tasks[1].output.split('\n').length === 40 && sl.tasks[1].output.endsWith('FAIL src/x.test.ts'));
+check('suites line: green when every suite exits 0', JSON.parse(suitesLine({ ts: 't', head: 'abc', runs: [{ label: 'a', exit: 0, output: '' }] })).result === 'green');
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');
 process.exit(failures ? 1 : 0);

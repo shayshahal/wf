@@ -6,7 +6,7 @@
 // one of:
 //   dispatch <phase> (model: <m>): <the line to send a fresh round-worker, on that model>
 //   wait <person>: <what they owe>        tell them, verbatim; their answer → wf decide, then wf next
-//   design | deliver | review | merge: <what to run>   the orchestrator runs it, then wf next
+//   design | deliver | review | merge | suites: <what to run>   the orchestrator runs it, then wf next
 //   done
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
@@ -15,7 +15,7 @@ import { addQuestion, blockedQuestion, overruledAsks } from './ask.ts';
 import { briefKey, handoffFile, handoffGap, HANDOFF_FILES, planAsks, planClass, rowDone, tokenOf, validationVerdict } from './handoff.ts';
 import { critiqueVerdict, MAX_EXCHANGES } from '../gates/critique.ts';
 import { reportFile, roundChecks } from '../gates/standards.ts';
-import { baseBranch } from '../project.ts';
+import { baseBranch, suites } from '../project.ts';
 import { planCommitRows } from './prompt.ts';
 import { lastField, readVerdict, specShaFor } from '../gates/review-format.ts';
 import { seams } from '../seams.ts';
@@ -37,7 +37,9 @@ const MAX_BRIEFS = 2;
 //     note (the tracker note wf deliver wrote: its path and text, or null),
 //     standards (each .agents/checks rule that covers the diff: its id, its report's text or null,
 //     and the fix(review) commits since its brief),
-//     models (the model each effort level runs on here: seams.models; none, no model is named) }
+//     models (the model each effort level runs on here: seams.models; none, no model is named),
+//     head (HEAD's sha), suites (the last `wf check --suites` line: the head it measured and its
+//     result, or null; absent when the project names no suites) }
 // → { say, effects }, effects being { step: [args] } | { ask: { to, text, dflt, source } }.
 export type Snapshot = {
 	branch: string;
@@ -59,6 +61,8 @@ export type Snapshot = {
 	note: { file: string; text: string | null } | null;
 	standards?: { id: string; text: string | null; fixesAfter: number }[];
 	models?: Models;
+	head?: string;
+	suites?: { ts: string; head: string; result: 'green' | 'red' } | null;
 };
 export type Effect = { step: string[]; ask?: undefined } | { ask: { to: string; text: string; dflt: string | null; source: string }; step?: undefined };
 
@@ -174,12 +178,20 @@ export function nextAction(s: Snapshot): { say: string; effects: Effect[] } {
 		const t2Fixes = [...(s.files.review ?? '').matchAll(/^verdict:\s*changes-requested\s*$/gm)].length;
 		const fixed = s.subjects.filter((x) => x.startsWith('fix(review):')).length;
 		if (fixed < t2Fixes + rulings.length) return dispatch('fix-review', fixed < t2Fixes ? [] : ['--from', 'VALIDATION.md'], null);
+		// The project's whole suites on this HEAD before validate judges it, and again after any commit
+		// (a fix moves HEAD): validate reads the line, and a red one is a deviation like any other.
+		// 2026-10-05: the changed tests passed, while tests no row touched had broken.
+		if (s.suites !== undefined && s.suites?.head !== s.head) return act(`suites: \`${wf} check --suites\` (the project's whole test suites on this HEAD, a few minutes), then \`${wf} next\``);
 		const vGap = handoffGap('validate', s.files.validation, brief('validate'));
 		const vToken = brief('validate')?.token ?? 'validate';
 		// A validation whose deviations were fixed is judged again, and so is one a T2 fix came after: it
 		// is what the PR carries (TJEW-670, 2026-09-28: its review fix merged under the older validation).
 		// A validation answering a critique that did not hand off is briefed again as an answer.
 		if (vGap || rulings.some((q) => q.source === `VALIDATION.md#${vToken}`)) return dispatch('validate', vGap && brief('validate')?.answers ? ['--answer'] : [], vGap);
+		// A resumed round may already have validation from before the first suites run; a rerun on
+		// the same HEAD can also change the evidence. That older judge never saw this result.
+		const validationAt = brief('validate')?.at;
+		if (s.suites && (!validationAt || s.suites.ts > validationAt)) return dispatch('validate', [], null);
 		// No gap passed: the last validation did hand off, and a gap would count toward MAX_BRIEFS.
 		if (s.fixesAfterValidate > 0) return dispatch('validate', [], null);
 		// The critic, before the person sees the validation (gates/critique.ts): a fresh agent audits
@@ -212,6 +224,18 @@ export function nextAction(s: Snapshot): { say: string; effects: Effect[] } {
 		return act(t2);
 	}
 	return act(`wait user: step "${step}" has no next action`);
+}
+
+/** Read the latest whole-suite measurement; ignore malformed or incomplete log entries. */
+export function lastSuites(checksLog: string): NonNullable<Snapshot['suites']> | null {
+	let last: NonNullable<Snapshot['suites']> | null = null;
+	for (const l of checksLog.split('\n')) {
+		try {
+			const c: unknown = JSON.parse(l);
+			if (typeof c === 'object' && c !== null && 'row' in c && c.row === 'suites' && 'head' in c && typeof c.head === 'string' && c.head && 'ts' in c && typeof c.ts === 'string' && 'result' in c && (c.result === 'green' || c.result === 'red')) last = { ts: c.ts, head: c.head, result: c.result };
+		} catch { /* a line cut off mid-write, or the blank last line: skipped */ }
+	}
+	return last;
 }
 
 // ── the shell ────────────────────────────────────────────────────────────────
@@ -247,6 +271,8 @@ export function snapshotOf(toplevel: string): Snapshot {
 		answered: state.answered ?? [],
 		briefs: state.briefs ?? {},
 		commit: state.commit ?? null,
+		head: git('rev-parse', 'HEAD'),
+		suites: suites.length ? lastSuites(read(join(toplevel, '.wf', 'checks.log')) ?? '') : undefined,
 		files: Object.fromEntries([['research', 'RESEARCH.md'], ['plan', 'PLAN.md'], ['blocked', 'BLOCKED.md'], ['asBuilt', HANDOFF_FILES['as-built']], ['validation', 'VALIDATION.md'], ['critique', HANDOFF_FILES.critique], ['review', 'REVIEW.md']].map(([k, f]) => [k, read(join(dir, f))])) as Snapshot['files'],
 		t1: { spec: specShaFor(toplevel), reviewed: lastField(specReview, 'spec-sha'), verdict: readVerdict(specReview) },
 		subjects: git('log', '--format=%s', `${base}..HEAD`).split('\n').filter(Boolean),
@@ -255,7 +281,7 @@ export function snapshotOf(toplevel: string): Snapshot {
 		models: seams.models,
 		standards: roundChecks(toplevel, base).map((c) => ({ id: c.id, text: read(join(dir, reportFile(c.id))), fixesAfter: fixesSince(git, state.briefs?.[briefKey('standards', c.id)]?.head) })),
 		repro: Object.fromEntries((read(join(toplevel, '.wf', 'checks.log')) ?? '').split('\n').flatMap((l) => { try { const c = JSON.parse(l); return c.row === 'repro' && c.token ? [[c.token as string, c.result as string]] : []; } catch { /* a line cut off mid-write: skipped, the rest still read */ return []; } })),
-		checks: (read(join(toplevel, '.wf', 'checks.log')) ?? '').split('\n').filter(Boolean).flatMap((l) => { try { return [JSON.parse(l) as { row: number | string | null; result: string }]; } catch { /* a line cut off mid-write: skipped, the rest still read */ return []; } }).filter((c) => c.row !== 'repro').map((c) => ({ ...c, row: c.row == null ? null : Number(c.row) })),
+		checks: (read(join(toplevel, '.wf', 'checks.log')) ?? '').split('\n').filter(Boolean).flatMap((l) => { try { return [JSON.parse(l) as { row: number | string | null; result: string }]; } catch { /* a line cut off mid-write: skipped, the rest still read */ return []; } }).filter((c) => c.row !== 'repro' && c.row !== 'suites').map((c) => ({ ...c, row: c.row == null ? null : Number(c.row) })),
 	};
 }
 
