@@ -11,7 +11,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { addQuestion, blockedQuestion, overruledAsks, pendingRevisions } from './ask.ts';
+import { addQuestion, blockedQuestion, overruledAsks, pendingRevisions, reviseState } from './ask.ts';
 import { briefKey, handoffFile, handoffGap, HANDOFF_FILES, planAsks, planClass, rowDone, tokenOf, validationVerdict } from './handoff.ts';
 import { critiqueVerdict, MAX_EXCHANGES } from '../gates/critique.ts';
 import { reportFile, roundChecks } from '../gates/standards.ts';
@@ -68,7 +68,7 @@ export type Snapshot = {
 	head?: string;
 	suites?: { ts: string; head: string; result: 'green' | 'red' } | null;
 };
-export type Effect = { step: string[]; ask?: undefined } | { ask: { to: string; text: string; dflt: string | null; source: string }; step?: undefined };
+export type Effect = { step: string[]; ask?: undefined; revise?: undefined } | { ask: { to: string; text: string; dflt: string | null; source: string }; step?: undefined; revise?: undefined } | { revise: string; step?: undefined; ask?: undefined };
 
 export function nextAction(s: Snapshot): { say: string; effects: Effect[] } {
 	const effects: Effect[] = [];
@@ -162,9 +162,22 @@ export function nextAction(s: Snapshot): { say: string; effects: Effect[] } {
 			klass = planned;
 		}
 		if (klass === 'B' || klass === 'C') {
-			if (!s.t1.spec || step !== 'design') return act('design: start the design session (round skill, Dispatch in this harness); it writes SPEC.md with the user and runs `wf step design`');
-			if (s.t1.reviewed === s.t1.spec && s.t1.verdict === 'changes-requested') return dispatch('plan', ['--revise'], null);
-			if (s.t1.reviewed !== s.t1.spec || s.t1.verdict !== 'approved') return act(`wait user: T1 on SPEC.md — \`${wf} design ${s.branch}\``);
+			// An approved SPEC.md that has not changed since stands, whatever step the round is at: `wf decide
+			// --revise` sets the step back to plan, and that is no reason for a second design session or T1.
+			const approved = s.t1.spec !== null && s.t1.reviewed === s.t1.spec && s.t1.verdict === 'approved';
+			if (!approved) {
+				if (!s.t1.spec || step !== 'design') return act('design: start the design session (round skill, Dispatch in this harness); it writes SPEC.md with the user and runs `wf step design`');
+				if (s.t1.reviewed === s.t1.spec && s.t1.verdict === 'changes-requested') return dispatch('plan', ['--revise'], null);
+				return act(`wait user: T1 on SPEC.md — \`${wf} design ${s.branch}\``);
+			}
+			// A plan briefed before any SPEC.md existed was written without the design T1 approved: it is revised
+			// to it before a row is built (BJEW-669, 2026-10-06: the approved SPEC replaced PLAN.md's commit 1 with
+			// a migration, and `wf next` dispatched implement 1 of the old plan until the orchestrator ran
+			// `wf decide --revise` by hand). A plan briefed after (its brief holds a SPEC sha) was written with it.
+			if (brief('plan')?.spec === null) {
+				effects.push({ revise: `T1 approved SPEC.md (${s.t1.spec!.slice(0, 15)}…), which PLAN.md was written before. Rewrite PLAN.md's commits to the design SPEC.md says: its rows, files and checks as its Build says. A row the design replaces is dropped or replaced by a new row, not kept; change nothing in PLAN.md that SPEC.md does not touch.` });
+				return dispatch('plan', ['--revise'], null);
+			}
 		}
 		effects.push({ step: ['implement'] });
 		step = 'implement';
@@ -320,6 +333,7 @@ export async function runNext() {
 	let { say, effects } = nextAction(snapshotOf(toplevel));
 	for (const e of effects) {
 		if (e.step) await runStep(e.step, { quiet: true });
+		else if (e.revise !== undefined) writeState(toplevel, reviseState(readState(toplevel)!, e.revise));
 		else writeState(toplevel, addQuestion(readState(toplevel)!, e.ask));
 	}
 	// A question just recorded is printed as an open one, with the q<n> that `wf decide --q` takes.
