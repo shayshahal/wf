@@ -87,6 +87,14 @@ check('commit 1 committed with a green check → dispatch implement 2', say(impl
 check('committed but never green is not done', say(impl({ briefs: { ...base().briefs, 'implement 1': { token: 'x', count: 1 } }, subjects: ['fix(x): one'], checks: [{ row: 1, result: 'red' }] })).startsWith('dispatch implement 1:'));
 check('BLOCKED: its Question recorded for the user, the round waits', asks(impl({ files: { blocked: 'Question: which table?' } }))[0]?.source === 'BLOCKED.md' && say(impl({ files: { blocked: 'Question: which table?' } })) === 'wait user: blocked at commit 1 — which table?');
 check('BLOCKED answered → the same row again, fresh agent', say(impl({ files: { blocked: 'Question: which table?\n\n## Answer\n2026-09-27 orders' } })).startsWith('dispatch implement 1:'));
+// BJEW-461 (2026-10-06): the agent briefed after the answer blocked again, and wf next dispatched it again.
+const answeredBlock = { files: { blocked: 'Question: stop and ask QA?\n\n## Answer\n2026-10-06 default' }, answered: [{ n: 3, to: 'user', text: 'stop and ask QA?', source: 'BLOCKED.md', asked: '2026-10-06T09:04:46Z', answer: 'default', answered: '2026-10-06T09:05:21Z' }] };
+const before = impl({ ...answeredBlock, briefs: { ...base().briefs, 'implement 1': { token: 'aaa', at: '2026-10-06T09:00:00Z', count: 1 } } });
+check('BLOCKED answered after its agent was briefed → that row again, to follow the answer', say(before).startsWith('dispatch implement 1:'));
+const again = impl({ ...answeredBlock, briefs: { ...base().briefs, 'implement 1': { token: '8aba1d', at: '2026-10-06T09:05:34Z', count: 2 } } });
+check('blocked again by the agent that had the answer → no dispatch: the user answers anew, holds or ends the round', say(again).startsWith('wait user: commit 1 is still blocked after the answer: stop and ask QA?') && say(again).includes('step held') && say(again).includes('reap') && asks(again)[0]?.source === 'BLOCKED.md#8aba1d', say(again));
+const reanswered = impl({ ...answeredBlock, answered: [...answeredBlock.answered, { n: 4, to: 'user', text: 'still blocked', source: 'BLOCKED.md#8aba1d', asked: '2026-10-06T09:20:00Z', answer: 'use QA commit abc', answered: '2026-10-06T09:21:00Z' }], briefs: { ...base().briefs, 'implement 1': { token: '8aba1d', at: '2026-10-06T09:05:34Z', count: 2 } } });
+check('a new answer after that → the row again', say(reanswered).startsWith('dispatch implement 1:'), say(reanswered));
 check('last commit, class A → validate', say(impl({ ...done2, files: {} })).startsWith('dispatch validate:'));
 // wf check --suites (2026-10-05): a project that names suites runs them on this HEAD before validate.
 const suiteRun = { ts: '2026-10-05T12:00:00.000Z', head: 'h2', result: 'green' as const };
