@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { createConnection } from 'node:net';
 import { join } from 'node:path';
-import { checkTasks, parseStackEnv, realPkgFor, suitesTouched } from './checks.ts';
+import { checkTasks, parseStackEnv, seedActorsEnv, realPkgFor, suitesTouched } from './checks.ts';
 import type { Suite } from './checks.ts';
 import type { CheckTask } from '../../src/gates/check.ts';
 import { dropDatabase, worktreeDatabase } from './db.ts';
@@ -217,7 +217,7 @@ export function newRound({ worktree, folder, port }: { worktree: string; folder:
 // { label, cmd, args, cwd } (cwd repo-relative), or { label, missing } when `test` is not runnable.
 export function checks({ toplevel, changed, test }: { toplevel: string; changed: string[]; test: string | null }): CheckTask[] {
 	const stackFile = join(toplevel, '.verify-stack.env');
-	const stackEnv = existsSync(stackFile) ? parseStackEnv(readFileSync(stackFile, 'utf8')) : {};
+	const stackEnv = { ...seedActorsEnv(logins), ...(existsSync(stackFile) ? parseStackEnv(readFileSync(stackFile, 'utf8')) : {}) };
 	return checkTasks({ changed, test, pkgFor: realPkgFor(toplevel), pushHook: existsSync(join(toplevel, 'lefthook.yml')), onDisk: (f) => existsSync(join(toplevel, f)), stackEnv });
 }
 
