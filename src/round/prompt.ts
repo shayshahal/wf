@@ -24,6 +24,10 @@ const REVISE = '\nRead `{{folder}}/SPEC-REVIEW.md` (wf design writes it there); 
 const ANSWER = '\n## This is an answer\n\n`{{folder}}/VALIDATION.md` exists, and a critic who did not write it audited it: `{{folder}}/CRITIQUE.md`. Read both fully, then write VALIDATION.md again, the whole file, from the diff and the files as above. For each CRITIQUE.md row:\n\n- `AGREE`: keep that line as it is.\n- `DISAGREE_EVIDENCE`: read the `<path>:<line>` it cites. Revise the line to what the code there shows, or keep it and say in it, in a few words, why that code does not change it.\n- `DISAGREE_CONCERN`: firm the line up with a `<path>:<line>` or a measurement, or drop it. A concern is a request for evidence, not a ruling: never drop a `not met`, `missing` or `differs` only because it was questioned.\n\nA line the critique does not name is judged again as any other. The critic may be wrong; the code decides, not who spoke last.\n';
 const REVISE_ASKS = '\n## This is a revision\n\n`{{folder}}/PLAN.md` exists, and the person answered some of its Asks against the default it was written for, or said the plan must change. Their answers:\n\n{{overruled}}\n\nRevise `{{folder}}/PLAN.md` to build each answer: its Approach, Commits, *Not doing* and *T2 walk*. Delete the answered Asks, keep `## Decisions` as it is, and change nothing an answer does not touch.\n\nCommits already made stand: `git log --format=%s {{base}}..HEAD` lists them. A committed row that still holds stays as it is, with its number and message (wf counts a row done by its message). A committed row an answer says to redo is not edited: replace it with a new row, a new number and a new message. A row not yet committed is rewritten as the answers need.\n';
 
+// `research` after the user said what it must now measure (`wf decide --research`, ask.ts): the
+// first research was green, and the facts that came after it are in TICKET.md.
+const RESEARCH_AGAIN = '\n## This is a second research\n\nThe first research of this round did not reproduce the ticket, and the person then brought evidence it did not have; `{{folder}}/TICKET.md` carries it (the facts under `## Checked on QA` or the like). They asked research to measure:\n\n{{requests}}\n\nResearch again from the start, as the method says, and measure that. `{{folder}}/RESEARCH.md` and `{{folder}}/repro/` are from the first run, on other data: read them only for where things live, never for what they found, and rewrite RESEARCH.md whole. A green repro is a finding only if it measured what is asked above.\n';
+
 // A `## Commits` row is a table line whose first cell is the commit number; header and
 // `|---|` separator rows are not. `line` is verbatim (that is what the prompt shows).
 export type PlanRow = { n: number; line: string; message: string; files: string; check: string };
@@ -108,6 +112,10 @@ export function composePrompt(argv: string[]) {
 		const revisions = pendingRevisions(state?.revisions, state?.briefs?.plan?.at);
 		vars.overruled = [...overruled.map((q) => `- q${q.n}: ${q.text} (default: ${q.default ?? 'none'}) \u2192 ${q.answer}`), ...revisions.map((r) => `- ${r.text}`)].join('\n');
 		template += overruled.length || revisions.length ? REVISE_ASKS : REVISE;
+	}
+	if (phase === 'research' && state?.researchRequests?.length) {
+		vars.requests = state.researchRequests.map((r) => `- ${r.text}`).join('\n');
+		template += RESEARCH_AGAIN;
 	}
 	if (phase === 'validate' && argv.includes('--answer')) template += ANSWER;
 	// The project's notes for this phase: what its repo, apps and tests look like (projects/<name>/prompts/).

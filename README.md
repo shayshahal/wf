@@ -23,7 +23,7 @@ round commits (for JewelryX, `bug-reports/<round>/`).
   - `src/round/`: a round's state and its loop. `state.ts` is `.wf/state.json`; `next.ts` is
     `wf next`, the round's next action from its state and files (the orchestrator's whole loop);
     `brief.ts` + `handoff.ts` are `wf brief <phase>`, what a phase agent runs first and what it
-    hands the next; `step`, `ask`/`decide`, `prompt`, `status`, `notes`, and `handoff-hook.ts`
+    hands the next; `step`, `ask`/`decide` (`decide --revise` sends a round back to plan, `decide --research` to a fresh research, when new evidence comes in), `prompt`, `status`, `notes`, and `handoff-hook.ts`
     (`wf handoff`, the Claude Code hooks)
   - `src/gates/`: what a round has to pass. `classify`, T1 (`design.ts`) and T2 (`review.ts`,
     both written through `review-format.ts`), `wf check` (`check.ts`; `--repro`, research's three runs; `--suites`, the whole suites of the packages the round changed, before validate),

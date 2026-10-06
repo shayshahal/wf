@@ -9,6 +9,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { pendingRevisions } from './ask.ts';
 import { briefsAfter, handoffFile, handoffGap, HANDOFF_FILES, newToken, tokenLine, tokenOf } from './handoff.ts';
 import { nextAction, snapshotOf } from './next.ts';
 import { composePrompt } from './prompt.ts';
@@ -91,7 +92,9 @@ export async function runBrief(argv: string[], { stack = ensureServers }: { stac
 	// count: how many agents this phase has had; wf next stops at two without a handoff.
 	// A critique of a new validation is that validation's first, not the round's next.
 	const fresh = phase === 'critique' && state?.briefs?.critique?.of !== tokenOf(readIf(join(toplevel, folder ?? '', HANDOFF_FILES.validate)));
-	const count = fresh ? 1 : (state?.briefs?.[key]?.count ?? 0) + 1;
+	// A research asked for again (`wf decide --research`) is a new first: MAX_BRIEFS counts the agents of one ask.
+	const again = phase === 'research' && pendingRevisions(state?.researchRequests, state?.briefs?.research?.at).length > 0;
+	const count = fresh || again ? 1 : (state?.briefs?.[key]?.count ?? 0) + 1;
 	// head: the commit a phase was briefed on. wf next re-runs validate once a fix(review) commit lands
 	// after it (TJEW-670: the PR shipped a validation of the tree before its review fix).
 	const head = execFileSync('git', ['-C', toplevel, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();

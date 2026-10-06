@@ -46,6 +46,14 @@ try {
 
 	await runBrief(['research'], { stack: () => Promise.reject(new Error('wf serve: the stack did not answer within 180 s')) });
 	check('a stack that gave up does not stop the brief, which then counts as the second agent', briefs()?.count === 2, JSON.stringify(briefs()));
+
+	// wf decide --research: the next research is a new first agent, and its prompt carries the request.
+	const stateFile = join(dir, '.wf', 'state.json');
+	const saved = JSON.parse(readFileSync(stateFile, 'utf8'));
+	writeFileSync(stateFile, JSON.stringify({ ...saved, researchRequests: [{ text: 'the three duplicate wishlist rows on QA', at: new Date(Date.now() + 1000).toISOString() }] }));
+	out = '';
+	await runBrief(['research'], { stack: () => Promise.resolve('wf serve: the stack answers') });
+	check('a research asked for again is the first agent of its ask, and its prompt says what to measure', briefs()?.count === 1 && out.includes('## This is a second research') && out.includes('- the three duplicate wishlist rows on QA'), `${JSON.stringify(briefs())} ${out.slice(-600)}`);
 } finally {
 	process.stdout.write = write;
 	console.error = error;

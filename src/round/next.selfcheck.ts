@@ -3,7 +3,7 @@
 // (next.ts nextAction), from a fixture round. Nothing is run.
 import { lastSuites, nextAction, unpostedSections } from './next.ts';
 import type { Snapshot } from './next.ts';
-import { reviseState } from './ask.ts';
+import { researchState, reviseState } from './ask.ts';
 import { briefsAfter } from './handoff.ts';
 import type { Brief, Question } from './state.ts';
 
@@ -50,6 +50,14 @@ check('research in, its repro never found stable for this brief: research again,
 check('a stable repro from an earlier brief does not count', say(base({ files: { research: RESEARCH }, repro: { old999: 'stable' } })).startsWith('dispatch research:'));
 const notReproduced = base({ files: { research: RESEARCH }, repro: { aaa111: 'green' } });
 check('green on every run: wait on the user, no second research', say(notReproduced).startsWith('wait user: it does not reproduce — `node C:/wf/wf.mjs check --repro` was green on every run') && steps(notReproduced).join() === 'research --waiting-on user', say(notReproduced));
+check('green on every run: the line names the way back to research, beside go on and stop', say(notReproduced).includes('Go on anyway: `node C:/wf/wf.mjs step plan`; new evidence to measure: `node C:/wf/wf.mjs decide --research "<what research must now measure>"`; stop: `WF_FORCE_REAP=1 node C:/wf/wf.mjs reap fix/r`'), say(notReproduced));
+// BJEW-669 (2026-10-06): green on seeded data, then the cause found in QA's database; the repro verdict is keyed by the brief, which new evidence does not change.
+const askedAgain = researchState({ step: 'research', briefs: { research: { token: 'aaa111', count: 1, at: '2026-10-06T10:00:00.000Z' } } }, '  the three duplicate wishlist rows on QA ', '2026-10-06T11:00:00.000Z');
+const evidenced = { ...notReproduced, researchRequests: askedAgain.researchRequests, briefs: { ...notReproduced.briefs, research: { token: 'aaa111', count: 1, at: '2026-10-06T10:00:00.000Z' } } } as Snapshot;
+check('decide --research: a fresh research, though the repro of the old brief is green', say(evidenced) === 'dispatch research: run `node C:/wf/wf.mjs brief research` in this worktree and do exactly what it prints' && !steps(evidenced).length && askedAgain.researchRequests?.[0].text === 'the three duplicate wishlist rows on QA' && askedAgain.step === 'research', say(evidenced));
+const briefedAgain = { ...evidenced, briefs: { ...evidenced.briefs, research: { token: 'ddd444', count: 1, at: '2026-10-06T11:05:00.000Z' } }, files: { ...evidenced.files, research: RESEARCH.replace('aaa111', 'ddd444') }, repro: { aaa111: 'green' } } as Snapshot;
+check('the new research briefed: the old token\'s green does not count, the new brief\'s own verdict does', say(briefedAgain).startsWith('dispatch research:') && steps({ ...briefedAgain, repro: { ddd444: 'stable' } }).join() === 'plan' && steps({ ...briefedAgain, repro: { ddd444: 'green' } }).join() === 'research --waiting-on user' && say({ ...briefedAgain, repro: { ddd444: 'green' } }).startsWith('wait user: it does not reproduce'), say(briefedAgain));
+check('a request already answered by a research brief is not sent again', !say({ ...notReproduced, researchRequests: [{ text: 'x', at: '2026-10-06T09:00:00.000Z' }], briefs: { research: { token: 'aaa111', count: 1, at: '2026-10-06T10:00:00.000Z' } } } as Snapshot).startsWith('dispatch'));
 check('unstable for this brief: research again', say(base({ files: { research: RESEARCH }, repro: { aaa111: 'unstable' } })).startsWith('dispatch research:'));
 // BJEW-461 (2026-10-06): red three times in the shared setup's login, and plan was dispatched.
 const outside = say(base({ files: { research: RESEARCH }, repro: { aaa111: 'outside' } }));
