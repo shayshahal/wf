@@ -54,8 +54,15 @@ export function commentLine(a: Annotation = {}) {
 export function foldFeedbackLine(input: ReviewFeedback | string) {
   const line: ReviewFeedback = typeof input === 'string' ? JSON.parse(input) : input;
   const out = [];
-  const fb = (line.feedback ?? line.message ?? '').trim();
-  if (fb) out.push(`note — ${fb}`);
+  // `message` is the review UI's own line (the adapter: stdout carries only {decision,message}). `feedback`
+  // is not the same thing and is deliberately not folded: Plannotator generates it as a digest, one section
+  // per annotation, quoting the element's HTML and its box coordinates — folding it put a 20-line restatement
+  // of every comment into the review file (a real round's SPEC-REVIEW.md, measured 2026-10-06; the same on
+  // 0.27.16, the 2026-09-27 wf record, so not a 0.28.5 change). Every line the person is quoted on in it is
+  // already an annotation: over the 7 records on this machine, 31 quoted lines, none missing from
+  // annotations[]. Their overall words arrive as an annotation with no block, so they fold as `SPEC.md:? — …`.
+  const msg = (line.message ?? '').trim();
+  if (msg) out.push(`note — ${msg}`);
   for (const a of line.annotations ?? []) out.push(commentLine(a));
   // What the adapter actually showed: --done compares it with the round's base (BJEW-586 T2
   // approved 124 files against dev when the round's 8 were against tools/wf-runtime).

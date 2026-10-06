@@ -37,7 +37,7 @@ const reviewLine = JSON.stringify({
 const folded = foldFeedbackLine(reviewLine);
 check('range folds to path:start-end', folded.includes('a/b.ts:10-14 — rename this'), folded);
 check('single line folds without range', folded.includes('c.ts:3 — nit'), folded);
-check('feedback becomes a note line', folded.includes('note — overall good'), folded);
+check('a review UI digest is not folded: it restates the annotations, section by section', !folded.includes('note —') && !folded.includes('overall good'), folded);
 check('annotated maps to changes-requested', folded.endsWith('verdict: changes-requested'), folded);
 
 const annotate = {
@@ -51,6 +51,11 @@ const annotateLine = JSON.stringify(annotate);
 const folded2 = foldFeedbackLine(annotateLine);
 check('blockId-only comment targets SPEC.md', folded2.includes('SPEC.md:usage-table — add a row'), folded2);
 check('approved maps to approved', folded2.endsWith('verdict: approved'), folded2);
+check('the review UI\'s own message is the note line (stdout carries only {decision,message})', foldFeedbackLine({ ...annotate, message: 'shown in chat, not in a browser' }).includes('note — shown in chat, not in a browser'), foldFeedbackLine({ ...annotate, message: 'shown in chat, not in a browser' }));
+// The shape a real record has: a digest with a section per annotation, a quoted person line, and — the part
+// that reached a round's SPEC-REVIEW.md, 2026-10-06 — the element's HTML and box coordinates.
+const realDigest = { ...annotate, feedback: '# File Feedback\n\nI\'ve reviewed this file and have 1 pieces of feedback:\n\n## 1. General feedback about the file\n> this is still information overload\n\n- **selector** `#wf-src-50 > strong`\n- **box** 298,315 492×20 (viewport 1680×901)\n\n---\n\n## Label Summary\n' };
+check('a real digest folds to its comment lines only — no digest headers, no selectors, no box coordinates', foldFeedbackLine(realDigest) === 'SPEC.md:usage-table — add a row\nverdict: approved', foldFeedbackLine(realDigest));
 const lgtm = foldFeedbackLine({ ...annotate, decision: 'lgtm' });
 check('review-surface lgtm maps to approved (plannotator 0.27.16)', lgtm.endsWith('verdict: approved') && lgtm.includes('SPEC.md:usage-table — add a row'), lgtm);
 const withNotes = foldFeedbackLine({ ...annotate, decision: 'approved-with-notes' });
