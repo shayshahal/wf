@@ -30,9 +30,23 @@ async function logRefusals(argv: string[]) {
 	});
 }
 
+// Pure: whether argv asks for help. No command reads --help, so each took it as one more argument
+// and ran: `wf serve --help` started a worktree's stack (2026-10-06, an agent looking for usage).
+export const wantsHelp = (argv: string[]) => argv[0] === 'help' || argv.some((a) => a === '--help' || a === '-h');
+
+async function usage() {
+	const { commands } = await import('./project.ts');
+	const own = Object.keys({ ...commands, ...seams.commands });
+	return `usage: wf <new|serve|next|brief|notes|handoff|step|prompt|check|standards|models|deliver|ask|decide|status|reap|classify|design|review${own.map((c) => `|${c}`).join('')}> [...]`;
+}
+
 export async function run(argv: string[], pieces: Partial<Seams> = {}) {
 	plug(pieces);
 	const [cmd, ...rest] = argv;
+	if (wantsHelp(argv)) {
+		console.log(`${await usage()}\nNo command has help of its own: README.md, *Where things are*, says what each one does.`);
+		return;
+	}
 	// Windows .cmd shims (portless, pnpm) need shell: true, and Node then prints DEP0190 on every spawn
 	// that passes args (reap printed it on every run). Every argv wf spawns is one it built itself.
 	process.noDeprecation = true;
@@ -115,7 +129,7 @@ export async function run(argv: string[], pieces: Partial<Seams> = {}) {
 		const all: Record<string, Command> = { ...commands, ...seams.commands };
 		if (Object.hasOwn(all, cmd)) await all[cmd](rest);
 		else {
-			console.log(`usage: wf <new|serve|next|brief|notes|handoff|step|prompt|check|standards|models|deliver|ask|decide|status|reap|classify|design|review|${Object.keys(all).join('|')}> [...]`);
+			console.log(await usage());
 			process.exit(2);
 		}
 	}
