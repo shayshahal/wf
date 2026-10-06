@@ -15,9 +15,13 @@ export const SECRETS: string = join(homedir(), '.config', 'wf', 'jewelryx');
 // A stack's names behind portless, http://<slug>.<app>.jewelryx.localhost, for a browser. <slug> is
 // passed in full: portless's own worktree prefix is the branch's last segment only (measured
 // 2026-09-22: branch tools/workflow-v2 gave workflow-v2, not tools-workflow-v2). B2B first: wf status
-// probes the first app, which answers on P.
+// probes the first app, which answers on P. The host is lowercased: URL lowercases a hostname, and
+// SvelteKit refuses a `paths.origin` that differs from `new URL(origin).origin` (2026-10-06:
+// fix/TJEW-670-11-countdown-reopen, both dev servers exited with config_origin_has_path). Only the
+// host: the slug keyed to databases and folders is unchanged. portless's app name and every printed
+// URL come from these origins, so they agree.
 export function stackNames(slug: string): Origins {
-	const name = (app: string) => `http://${slug}.${app}.jewelryx.localhost`;
+	const name = (app: string) => `http://${slug.toLowerCase()}.${app}.jewelryx.localhost`;
 	return { b2b: name('b2b'), admin: name('admin'), api: name('api') };
 }
 
