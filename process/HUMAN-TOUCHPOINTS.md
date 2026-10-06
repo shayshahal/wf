@@ -48,7 +48,7 @@ Software Factories Fail*.)
 
 **Slices, opt-in.** A SPEC may carry a `## Slices` section — vertical cuts in the
 order the user wants to touch them (contract with mock data → screen in the browser →
-wire → store), never stack order. When present, the worker runs `wf step review`
+wire → store), never stack order. When present, the implementer runs `wf step review`
 after each slice and the user reviews 100–200 lines at a time. Absent, one T2 at the end.
 
 **Asking.** Every question an agent might put to the user or the product owner is sorted first:

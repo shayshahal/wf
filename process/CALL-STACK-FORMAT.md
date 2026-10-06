@@ -1,7 +1,7 @@
 # Call-stack format
 
 How a call stack is written in `SPEC.md` (`## As-is`, and one per candidate) and in the
-worker's `proof/CALL-STACK-AS-BUILT.md`. **A stack is written in diff syntax, because the
+implementer's `proof/CALL-STACK-AS-BUILT.md`. **A stack is written in diff syntax, because the
 interesting part is what changes** — an unchanged hop is context, not content.
 
 ## Grammar

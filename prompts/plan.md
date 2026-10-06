@@ -7,7 +7,7 @@ write product code.
 
 **Budget: 12 tool calls** — to confirm signatures and find the tests that already cover the
 touched files. If you need to see how something similar is done elsewhere in this repo, spawn
-`codebase-locator` once with the `subagent` tool (Claude Code: the Agent tool, `wf:codebase-locator`), and wait for its report before you write PLAN.md. Do not re-do the research; if you doubt one
+`codebase-locator` once with the `subagent` tool, `agent: "codebase-locator"` (Claude Code: the Agent tool, `wf:codebase-locator`), never another agent, and wait for its report before you write PLAN.md. Do not re-do the research; if you doubt one
 thing in it, name it under Asks.
 
 ## Write `{{folder}}/PLAN.md` (≤45 lines)

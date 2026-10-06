@@ -130,13 +130,13 @@ were given in chat; their review files kept the words ("B, revise plan", "approv
 not the summary they answered.
 
 When the user says **"shared"**: write `SPEC.md` in the round folder (the `folder` in `.wf/state.json`), take its sha256, `wf step design` (it parks the
-round on the user), and **stop**. The worker implements exactly the frozen `## For T1`; a needed
+round on the user), and **stop**. The implementer implements exactly the frozen `## For T1`; a needed
 signature change is stop-and-report, not a decision.
 
 Optional `## Slices` — vertical cuts in the order the user wants to look at them (contract with mock
-data → screen → wire → store), never stack order; the worker runs `wf step review` after each.
+data → screen → wire → store), never stack order; the implementer runs `wf step review` after each.
 
-The worker's side is `proof/CALL-STACK-AS-BUILT.md`: the as-built stack diffed row by row against
+The implementer's side is `proof/CALL-STACK-AS-BUILT.md`: the as-built stack diffed row by row against
 `## For T1`'s Build, every addition and deviation named with its reason (BJEW-586's is the model
 — three additions, no deviations). `wf review` refuses a B/C round without it.
 
