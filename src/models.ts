@@ -4,7 +4,9 @@
 // (Amp's dial, 2026-10-03: "the meaning of each position stays the same" while the routing changes).
 // Model ids had been in the agent files in pi's form, which Claude Code does not read
 // (portability audit, 2026-09-27), and in the round skill's dispatch table for each harness.
-//   low     a well-defined job against a written rubric: the read-only judges and research's searchers
+//   low     a well-defined job against a written rubric: the read-only judges and research's searchers;
+//           and the harness-fixer, whose task comes with its evidence and a red-then-green proof (Shay,
+//           2026-10-06: sonnet for it)
 //   medium  work where the agent fills in steps: research, plan, a commit, a fix
 // Which models a machine has is the harness's to know: each level names an alias or a pattern
 // the harness resolves to the newest model of that family it can use (`wf models` shows it).

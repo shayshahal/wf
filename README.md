@@ -50,7 +50,7 @@ round commits (for JewelryX, `bug-reports/<round>/`).
 - `skills/round/SKILL.md`: the orchestrator skill ("start 662", "resume 662"); `skills/design-session/` for T1
 - `prompts/`: one prompt per phase (`wf prompt <phase>` prints it without the handoff)
 - `.claude-plugin/` + `claude/`: the Claude Code plugin (manifest, marketplace, agents, hooks)
-- `agents/`: `round-worker` (every phase), `codebase-locator` and `codebase-analyzer` (research, pi only)
+- `agents/`: `round-worker` (every phase), `codebase-locator` and `codebase-analyzer` (research, pi only), `harness-fixer` (harness trouble, outside the round)
 - `process/`: lifecycle, classes, design session, review format, touchpoints, standards
 - `docs/plans/2026-09-17-workflow-v2.md`: the plan wf was built from (history; done)
 - `docs/research/papers-and-first-principles.md`: what wf is for, and the five papers read after it was built
@@ -68,7 +68,7 @@ The kit alone, as a Claude Code plugin: this repo is its marketplace (`.claude-p
   `claude plugin marketplace add shayshahal/wf` then `claude plugin install wf@wf`.
 - **It carries:**
   - the skills `wf:round` and `wf:design-session`;
-  - the agents `wf:round-worker`, `wf:codebase-locator` and `wf:codebase-analyzer` (generated
+  - the agents `wf:round-worker`, `wf:codebase-locator`, `wf:codebase-analyzer` and `wf:harness-fixer` (generated
     from `agents/` by `node plugin.ts`);
   - two hooks: a phase agent is sent back once while its handoff is missing (`wf handoff
     check`), and no fork is started inside a round (`wf handoff no-fork`).
