@@ -5,7 +5,7 @@
 import { worktreeDatabase } from './db.ts';
 import { devCommands } from './dev.ts';
 import { includedFiles, sanitizeEnv } from './env.ts';
-import { directUrls, pageOf, setup, stackUrls, teardown, trackerNote } from './index.ts';
+import { checks, directUrls, pageOf, setup, stackUrls, teardown, trackerNote } from './index.ts';
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -78,6 +78,14 @@ writeFileSync(join(tree, REPRO_CONFIG), '');
 writeReproConfig({ worktree: tree, folder: 'bug-reports/new', direct });
 check('a base with it: an empty repro/ for the specs, no config', existsSync(join(tree, 'bug-reports/new/repro')) && !existsSync(join(tree, 'bug-reports/new/repro/playwright.config.ts')));
 rmSync(tree, { recursive: true, force: true });
+
+// ── wf check's env for a verification/ spec: the stack's URLs and the round seed's actors
+const stackTree = mkdtempSync(join(tmpdir(), 'wf-checks-'));
+writeFileSync(join(stackTree, '.verify-stack.env'), verifyStackEnv(direct, 'dev.log'));
+const [spec] = checks({ toplevel: stackTree, changed: [], test: 'verification/specs/login-relogin.spec.ts' }).filter((t) => t.stack);
+check('a verification spec runs as the seeded owner and supplier, who are in the round database (not verification-owner@)', spec?.env?.B2B_OWNER_EMAIL === 'buyer@seed.jewelryx' && spec.env.B2B_OWNER_PASSWORD === 'seed1234' && spec.env.B2B_SUPPLIER_EMAIL === 'seller@seed.jewelryx' && spec.env.B2B_SUPPLIER_PASSWORD === 'seed1234', JSON.stringify(spec?.env));
+check('and still against the round stack', spec?.env?.B2B_URL === direct.b2b && spec.env.API_URL === direct.api, JSON.stringify(spec?.env));
+rmSync(stackTree, { recursive: true, force: true });
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');
 process.exit(failures ? 1 : 0);

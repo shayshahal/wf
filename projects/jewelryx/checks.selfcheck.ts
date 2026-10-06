@@ -2,7 +2,7 @@
 // Pure: JewelryX's commands for a diff and a plan row, through core's buildTasks (the row's check
 // cell, the repro) with this project's checkTasks, as `wf check` runs them. No git, no runners.
 import { buildTasks as coreBuildTasks } from '../../src/gates/check.ts';
-import { checkTasks, parseStackEnv, suitesTouched } from './checks.ts';
+import { checkTasks, parseStackEnv, seedActorsEnv, suitesTouched } from './checks.ts';
 import type { PkgFor } from './checks.ts';
 
 let failures = 0;
@@ -11,6 +11,7 @@ const check = (name: string, cond: unknown, detail = '') =>
 
 const stackEnv = parseStackEnv(['# a worktree', 'B2B_URL=http://localhost:12345', '', 'ADMIN_URL = http://localhost:12346 ', 'API_URL=http://localhost:12347', ''].join('\n'));
 const allowed = ['packages/backend/app/api/auth.py', 'packages/backend/tests/test_auth.py'];
+const actors = seedActorsEnv({ buyer: ['buyer@seed.jewelryx', 'seed1234'], seller: ['seller@seed.jewelryx', 'seed1234'] });
 const buildTasks = ({ changed, row, pkgFor, repro }: { changed: string[]; row: { check: string } | null; pkgFor: PkgFor; repro: string | null }) => coreBuildTasks({ row, repro, projectTasks: (test: string | null) => checkTasks({ changed, test, pkgFor, stackEnv }) });
 
 const pkgFor: PkgFor = (f) => (f.startsWith('packages/frontend/b2b/')
@@ -36,6 +37,7 @@ const pw = buildTasks({ changed: [], row: { check: 'verification/specs/login.spe
 // BJEW-617 row 1 (2026-10-06): from the repo root, `pnpm exec playwright` found no playwright (it is installed in verification/ only).
 check('a verification/ .ts check runs playwright from verification/, as the repro does', pw[0].cmd === 'pnpm' && pw[0].args!.join(' ') === '--dir verification exec playwright test verification/specs/login.spec.ts' && pw[0].cwd === '.', JSON.stringify(pw[0]));
 check('it runs against the round stack, not the config default localhost:3000/:3001', pw[0].env?.B2B_URL === 'http://localhost:12345' && pw[0].env?.ADMIN_URL === 'http://localhost:12346' && pw[0].env?.API_URL === 'http://localhost:12347', JSON.stringify(pw[0].env));
+check('the env gives a verification spec the seeded owner (store owner) and supplier, which the round database has', actors.B2B_OWNER_EMAIL === 'buyer@seed.jewelryx' && actors.B2B_OWNER_PASSWORD === 'seed1234' && actors.B2B_SUPPLIER_EMAIL === 'seller@seed.jewelryx' && actors.B2B_SUPPLIER_PASSWORD === 'seed1234', JSON.stringify(actors));
 check('parseStackEnv skips comments and blank lines, trims spaces', JSON.stringify(Object.keys(stackEnv)) === '["B2B_URL","ADMIN_URL","API_URL"]' && stackEnv.ADMIN_URL === 'http://localhost:12346' && Object.keys(parseStackEnv('')).length === 0);
 check('playwright drives the running app: wf check starts the stack first', pw[0].stack === true && !buildTasks({ changed: [], row: { check: 'packages/frontend/b2b/src/x.spec.ts' }, pkgFor, repro: null }).some((t) => t.stack), JSON.stringify(pw[0]));
 const vt = buildTasks({ changed: [], row: { check: 'packages/frontend/b2b/src/x.spec.ts' }, pkgFor, repro: null });

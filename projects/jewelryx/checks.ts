@@ -116,6 +116,15 @@ export function parseStackEnv(text: string): Record<string, string> {
 	return env;
 }
 
+// Pure: the env that points a verification/ spec's actors at the round's seeded users. The spec
+// defaults (verification/tests/support/env.ts) are verification-owner@ / verification-supplier@, made
+// by hand with a script and absent from a round's database, so every owner login was a 401 (BJEW-617
+// row 1, 2026-10-06; JewelryX #306 had set them by hand). Owner = the seed's store owner (buyer),
+// supplier = its supplier-role user (seller); the admin default already is the seed's admin.
+export function seedActorsEnv(logins: { buyer: [string, string]; seller: [string, string] }): Record<string, string> {
+	return { B2B_OWNER_EMAIL: logins.buyer[0], B2B_OWNER_PASSWORD: logins.buyer[1], B2B_SUPPLIER_EMAIL: logins.seller[0], B2B_SUPPLIER_PASSWORD: logins.seller[1] };
+}
+
 // Nearest package.json above a frontend file; svelte-check only where a svelte.config lives.
 // `dir` comes back repo-relative, because checkTasks makes test paths relative to it.
 export function realPkgFor(toplevel: string): PkgFor {
