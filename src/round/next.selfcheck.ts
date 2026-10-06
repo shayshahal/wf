@@ -3,6 +3,8 @@
 // (next.ts nextAction), from a fixture round. Nothing is run.
 import { lastSuites, nextAction, unpostedSections } from './next.ts';
 import type { Snapshot } from './next.ts';
+import { reviseState } from './ask.ts';
+import { briefsAfter } from './handoff.ts';
 import type { Brief, Question } from './state.ts';
 
 type Fixture = Partial<Omit<Snapshot, 'files' | 'briefs' | 'questions' | 'answered'>> & { files?: Partial<Snapshot['files']>; briefs?: Record<string, Partial<Brief>>; questions?: Partial<Question>[]; answered?: Partial<Question>[] };
@@ -95,6 +97,19 @@ const again = impl({ ...answeredBlock, briefs: { ...base().briefs, 'implement 1'
 check('blocked again by the agent that had the answer → no dispatch: the user answers anew, holds or ends the round', say(again).startsWith('wait user: commit 1 is still blocked after the answer: stop and ask QA?') && say(again).includes('step held') && say(again).includes('reap') && asks(again)[0]?.source === 'BLOCKED.md#8aba1d', say(again));
 const reanswered = impl({ ...answeredBlock, answered: [...answeredBlock.answered, { n: 4, to: 'user', text: 'still blocked', source: 'BLOCKED.md#8aba1d', asked: '2026-10-06T09:20:00Z', answer: 'use QA commit abc', answered: '2026-10-06T09:21:00Z' }], briefs: { ...base().briefs, 'implement 1': { token: '8aba1d', at: '2026-10-06T09:05:34Z', count: 2 } } });
 check('a new answer after that → the row again', say(reanswered).startsWith('dispatch implement 1:'), say(reanswered));
+// BJEW-461 (2026-10-06): commit 1 (the repro) was red and committed; the user's measurement said the
+// planned fix (commit 2) was the wrong one, and from implement nothing led back to plan.
+const bjew = { subjects: ['fix(x): one'], checks: [green(1)], briefs: { ...base().briefs, plan: { token: 'bbb222', at: '2026-10-06T08:56:27Z', count: 1 }, 'implement 1': { token: 'i1', at: '2026-10-06T09:14:48Z', count: 3 }, 'implement 2': { token: 'i2', at: '2026-10-06T09:17:35Z', count: 1 } } };
+check('implement, commit 1 done: row 2 again, whatever was said about the plan', say(impl(bjew)).startsWith('dispatch implement 2'), say(impl(bjew)));
+const revisedState = reviseState({ step: 'implement', briefs: bjew.briefs, history: [] }, 'the confirm opens behind the order modal (stacking): plan that fix', '2026-10-06T09:30:00Z');
+const toPlan = base({ ...bjew, step: revisedState.step!, revisions: revisedState.revisions, files: { research: RESEARCH, plan: plan() } });
+check('an answer that revises the plan → dispatch plan --revise, nothing built', say(toPlan).startsWith('dispatch plan --revise: run `node C:/wf/wf.mjs brief plan --revise`') && !steps(toPlan).includes('implement'), say(toPlan));
+check('a revision without its answer in the state is no revision (the old plan stands)', steps(base({ ...bjew, step: 'plan', files: { research: RESEARCH, plan: plan() } })).join() === 'implement');
+const briefedPlan = { ...briefsAfter('plan', ['--revise'], bjew.briefs), plan: { token: 'bbb222', at: '2026-10-06T09:31:00Z', count: 2 } };
+check('the revision voids the implement briefs, not the plan, research or validate ones', Object.keys(briefsAfter('plan', ['--revise'], bjew.briefs)).sort().join() === 'critique,plan,research,validate' && briefsAfter('plan', [], bjew.briefs) === bjew.briefs && briefsAfter('implement', ['2'], bjew.briefs) === bjew.briefs);
+const revisedPlan = base({ ...bjew, briefs: briefedPlan, step: 'plan', revisions: revisedState.revisions, files: { research: RESEARCH, plan: plan() } });
+check('plan briefed after the answer and handed off → implement; the committed row stands, the other is fresh (no "again")', steps(revisedPlan).join() === 'implement' && say(revisedPlan) === 'dispatch implement 2: run `node C:/wf/wf.mjs brief implement 2` in this worktree and do exactly what it prints', say(revisedPlan));
+check('plan briefed after the answer but not handed off → plan again, saying why', say(base({ ...revisedPlan, files: { research: RESEARCH, plan: plan({ token: 'old000' }) } })).includes('not the answer to the last brief'));
 check('last commit, class A → validate', say(impl({ ...done2, files: {} })).startsWith('dispatch validate:'));
 // wf check --suites (2026-10-05): a project that names suites runs them on this HEAD before validate.
 const suiteRun = { ts: '2026-10-05T12:00:00.000Z', head: 'h2', result: 'green' as const };

@@ -11,7 +11,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { addQuestion, blockedQuestion, overruledAsks } from './ask.ts';
+import { addQuestion, blockedQuestion, overruledAsks, pendingRevisions } from './ask.ts';
 import { briefKey, handoffFile, handoffGap, HANDOFF_FILES, planAsks, planClass, rowDone, tokenOf, validationVerdict } from './handoff.ts';
 import { critiqueVerdict, MAX_EXCHANGES } from '../gates/critique.ts';
 import { reportFile, roundChecks } from '../gates/standards.ts';
@@ -38,6 +38,7 @@ const MAX_BRIEFS = 2;
 //     standards (each .agents/checks rule that covers the diff: its id, its report's text or null,
 //     and the fix(review) commits since its brief),
 //     models (the model each effort level runs on here: seams.models; none, no model is named),
+//     revisions (the answers that say the plan must change: `wf decide --revise`),
 //     head (HEAD's sha), suites (the last `wf check --suites` line: the head it measured and its
 //     result, or null; absent when the project names no suites) }
 // → { say, effects }, effects being { step: [args] } | { ask: { to, text, dflt, source } }.
@@ -61,6 +62,7 @@ export type Snapshot = {
 	note: { file: string; text: string | null } | null;
 	standards?: { id: string; text: string | null; fixesAfter: number }[];
 	models?: Models;
+	revisions?: { text: string; at: string }[];
 	head?: string;
 	suites?: { ts: string; head: string; result: 'green' | 'red' } | null;
 };
@@ -138,6 +140,8 @@ export function nextAction(s: Snapshot): { say: string; effects: Effect[] } {
 	if (step === 'plan' || step === 'design') {
 		const gap = handoffGap('plan', s.files.plan, brief('plan'));
 		if (gap) return dispatch('plan', [], gap);
+		// An answer said the plan must change (`wf decide --revise`): revised before anything else is built.
+		if (pendingRevisions(s.revisions, brief('plan')?.at).length) return dispatch('plan', ['--revise'], null);
 		const token = brief('plan')?.token ?? 'plan';
 		const asks = planAsks(s.files.plan).map((a, i) => ({ ...a, source: `PLAN.md#${token}:${i + 1}` })).filter((a) => !asked(a.source));
 		if (asks.length) {
@@ -283,6 +287,7 @@ export function snapshotOf(toplevel: string): Snapshot {
 		check: state.check ?? false,
 		questions: state.questions ?? [],
 		answered: state.answered ?? [],
+		revisions: state.revisions ?? [],
 		briefs: state.briefs ?? {},
 		commit: state.commit ?? null,
 		head: git('rev-parse', 'HEAD'),
