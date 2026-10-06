@@ -55,7 +55,7 @@ Software Factories Fail*.)
 
 **Slices do not exist.** A round has no mid-round review: it is built and machine-checked commit
 by commit (`wf check`, one `check` per row) and the person looks once, at T2. A `## Slices` section
-was documented here and in `SPEC-TEMPLATE.md` until 2026-10-06; nothing read it, and a worker that
+was documented here and in `SPEC-TEMPLATE.md` until 2026-10-06; nothing read it, and an implementer that
 followed it would run `wf step review` mid-round, where an approved verdict sets `step pr` and the
 round delivers unfinished. The capability, if it is wanted, is a feature (a slice boundary in git, a
 review scoped to it, a step machine that returns to implement) — not a paragraph.

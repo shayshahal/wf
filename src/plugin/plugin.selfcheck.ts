@@ -1,7 +1,7 @@
 // plugin.selfcheck.ts — node plugin.selfcheck.ts → exit 0 when green.
 // Pure arms: the Claude Code copy of an agent (plugin.ts), the plugin's hooks (handoff-hook.ts),
 // and that the committed plugin files are what plugin.ts writes and name files that exist.
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { WF_ROOT } from '../paths.ts';
 import { forkGap, lastBrief, stopGap } from '../round/handoff-hook.ts';
@@ -31,6 +31,7 @@ for (const [path, text] of pluginFiles()) {
 }
 const manifest: { name: string; agents: string[]; hooks: string } = JSON.parse(readFileSync(join(root, '.claude-plugin', 'plugin.json'), 'utf8'));
 check('plugin.json names agent files that exist', manifest.agents.every((a) => existsSync(join(root, a))), manifest.agents.join());
+check('plugin.json names every agent', pluginFiles().every(([path]) => manifest.agents.includes(`./${path.replace(/\\/g, '/')}`)), manifest.agents.join());
 check('its hooks file exists and calls this repo\'s wf.mjs', readFileSync(join(root, manifest.hooks), 'utf8').includes('${CLAUDE_PLUGIN_ROOT}/wf.mjs'));
 // A matcher of letters and hyphens only is an exact match, and a plugin's agent type is
 // <plugin>:<name>: `round-worker` never fired (measured 2026-09-27, Claude Code 2.1.280).
@@ -41,6 +42,15 @@ const handback = JSON.parse(readFileSync(join(root, manifest.hooks), 'utf8')).ho
 check('a hand-back is checked too, before it reaches the orchestrator', handback?.hooks[0].args.slice(1).join(' ') === 'handoff check');
 const skills = ['round', 'design-session'].map((s) => readFileSync(join(root, 'skills', s, 'SKILL.md'), 'utf8'));
 check('the skills name wf\'s files as ${CLAUDE_PLUGIN_ROOT}, no {{wf}} or {{project}} left', skills.every((t) => !t.includes('{{wf}}') && !t.includes('{{project}}')));
+// BJEW-461 (2026-10-06): the round skill sent harness trouble to a `scout`, a pi agent of Shay's on another model.
+// Every text an agent of wf's reads: the skills, the prompts, the process docs, the agents themselves.
+const texts = ['skills', 'prompts', 'process', 'agents', 'projects'].flatMap((d) => readdirSync(join(root, d), { recursive: true, encoding: 'utf8' })
+	.filter((f) => f.endsWith('.md')).map((f) => ({ file: `${d}/${f.replace(/\\/g, '/')}`, text: readFileSync(join(root, d, f), 'utf8') })));
+const dispatched = texts.flatMap(({ text }) => [...text.matchAll(/agent: "([\w-]+)"|subagent_type: "wf:([\w-]+)"/g)].map((m) => m[1] ?? m[2]));
+check('wf\'s texts dispatch only wf\'s own agents', dispatched.length > 0 && dispatched.every((a) => existsSync(join(root, 'agents', `${a}.md`))), dispatched.join());
+// pi's general agents (scout, planner, worker, reviewer): a text that names one sends an agent to it.
+const general = texts.filter(({ text }) => /\bscout\b|`(planner|worker|reviewer)`/i.test(text)).map(({ file }) => file);
+check('wf\'s texts name none of pi\'s general agents', general.length === 0, general.join());
 
 // ── the hooks
 check('the last brief is the most recent one', lastBrief({ research: { at: '2026-09-27T10:00' } as Brief, 'implement 2': { at: '2026-09-27T11:00' } as Brief })?.key === 'implement 2' && lastBrief({ 'implement 2': { at: 'x' } as Brief })!.n === 2);

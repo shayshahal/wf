@@ -21,7 +21,7 @@ every claim in `REPORT.md`. A statement about the product with no artifact
 behind it is an opinion, and an inherited measurement is not evidence:
 re-run it or mark it inherited.
 
-**One subagent per task.** Dispatch one worker per round and let it own
+**One subagent per task.** Dispatch one of wf's own agents (`agents/`) per task and let it own
 its stack. While it runs, do not re-do its work or read its transcript —
 wait for the return, then verify its artifacts exist on disk before
 calling anything done. Parallel rounds run in parallel worktrees, never
