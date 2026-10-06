@@ -34,7 +34,7 @@ export function startGap(phase: string, toplevel: string, state: State | null): 
 	const from = STARTS_FROM[phase];
 	if (!from) return null;
 	const file = join(toplevel, state?.folder ?? '', HANDOFF_FILES[from]);
-	return handoffGap(from, existsSync(file) ? readFileSync(file, 'utf8') : null, state?.briefs?.[from]);
+	return handoffGap(from, existsSync(file) ? readFileSync(file, 'utf8') : null, state?.briefs?.[from], undefined, state?.round ?? null);
 }
 
 // Pure: null when `wf next` (its printed `say`) dispatches exactly this brief, else why not. A

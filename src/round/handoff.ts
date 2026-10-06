@@ -6,10 +6,11 @@
 // the agent read wf's own text: a brief once went out as the literal `$(cat /tmp/r1.txt)`
 // (2026-09-27). Implement and fix-review hand off a commit (its row's message, a green `wf check`).
 import { randomBytes } from 'node:crypto';
+import { planGap } from '../project.ts';
 import { reproCommand } from '../gates/check.ts';
 import { critiqueGap, CRITIQUE_FILE } from '../gates/critique.ts';
 import { reportFile, reportGap } from '../gates/standards.ts';
-import { planCommitRows } from './prompt.ts';
+import { planCommitRows, rowFiles } from './prompt.ts';
 import type { Brief } from './state.ts';
 
 export const newToken = () => randomBytes(3).toString('hex');
@@ -43,13 +44,14 @@ export function validationVerdict(text: string | null | undefined): string | nul
 
 // Pure: null when `text` is the phase's current handoff, else why not. `brief` is the recorded
 // brief ({ token }) or undefined: a round begun before briefs (or a file a person wrote on
-// purpose, with no brief) is judged on its sections alone.
-export function handoffGap(phase: string, text: string | null | undefined, brief: { token: string } | null | undefined, file = HANDOFF_FILES[phase]): string | null {
+// purpose, with no brief) is judged on its sections alone. `branch`: the round's, for the rules the
+// project puts on its plan's rows (project.ts planGap).
+export function handoffGap(phase: string, text: string | null | undefined, brief: { token: string } | null | undefined, file = HANDOFF_FILES[phase], branch: string | null = null): string | null {
 	if (text == null) return `no ${file}`;
 	const token = tokenOf(text);
 	if (brief && token !== brief.token) return `${file} is not the answer to the last brief (it carries ${token ?? 'no token'}, the brief was ${brief.token})`;
 	if (phase === 'research' && !reproCommand(text)) return 'RESEARCH.md ## Repro has no `command:` line';
-	if (phase === 'plan' && !planCommitRows(text).length) return 'PLAN.md ## Commits has no rows';
+	if (phase === 'plan') return planCommitRows(text).length ? planGap({ branch, rows: planCommitRows(text).map((r) => ({ n: r.n, message: r.message, files: rowFiles(r) })) }) : 'PLAN.md ## Commits has no rows';
 	if (phase === 'validate' && !validationVerdict(text)) return 'VALIDATION.md has no `Verdict: matches plan | deviates` line';
 	if (phase === 'validate') return intentGap(text);
 	if (phase === 'standards') return reportGap(text, file);

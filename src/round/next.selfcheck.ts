@@ -63,6 +63,9 @@ check('a check the user said go to: the plan, as a round', say({ ...checked, ste
 // plan finished, class A
 const planned = base({ step: 'plan', files: { research: RESEARCH, plan: plan() } });
 check('plan, class A → wf step implement, dispatch implement 1', steps(planned).join() === 'implement' && say(planned).startsWith('dispatch implement 1:'), say(planned));
+// The project's rule on the plan's rows (BJEW-617, 2026-10-06): a fix/ plan listing a verification/ file goes back to the plan agent, not on to implement.
+const oraclePlan = base({ step: 'plan', files: { research: RESEARCH, plan: plan().replace('| a.ts |', '| verification/tests/x.spec.ts |') } });
+check('plan: a fix/ row listing a verification/ file is redispatched with the rule of the guard, not built', say(oraclePlan).startsWith('dispatch plan') && say(oraclePlan).includes('oracle-guard') && steps(oraclePlan).length === 0, say(oraclePlan));
 
 // plan, Asks non-empty
 const withAsk = base({ step: 'plan', files: { research: RESEARCH, plan: plan({ asks: 'round to 2 places? — default: 2' }) } });
