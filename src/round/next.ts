@@ -11,7 +11,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { addQuestion, blockedQuestion, overruledAsks, pendingRevisions, reviseState } from './ask.ts';
+import { addQuestion, blockedQuestion, overruledAsks, pendingRevisions, reviseState, wentThroughPlan } from './ask.ts';
 import { briefKey, handoffFile, handoffGap, HANDOFF_FILES, planAsks, planClass, rowDone, tokenOf, validationVerdict } from './handoff.ts';
 import { critiqueVerdict, MAX_EXCHANGES } from '../gates/critique.ts';
 import { reportFile, roundChecks } from '../gates/standards.ts';
@@ -214,7 +214,12 @@ export function nextAction(s: Snapshot): { say: string; effects: Effect[] } {
 		const rulings = (s.answered ?? []).filter((q) => q.source?.startsWith('VALIDATION.md#') && /^\s*fix\b/i.test(q.answer ?? ''));
 		const t2Fixes = [...(s.files.review ?? '').matchAll(/^verdict:\s*changes-requested\s*$/gm)].length;
 		const fixed = s.subjects.filter((x) => x.startsWith('fix(review):')).length;
-		if (fixed < t2Fixes + rulings.length) return dispatch('fix-review', fixed < t2Fixes ? [] : ['--from', 'VALIDATION.md'], null);
+		// A ruling `wf decide --revise --q` sent back to plan is built by the plan's own row, under the row's
+		// message, which need not start with fix(review): — it is not counted here (TJEW-670, 2026-10-06: q6 was
+		// built by row 4 `fix(admin): …`, and `wf next` dispatched fix-review again and again; the agent found
+		// nothing to fix). The rows being done is what satisfies it; validate still judges it again below.
+		const owed = rulings.filter((q) => !wentThroughPlan(q, s.revisions)).length;
+		if (fixed < t2Fixes + owed) return dispatch('fix-review', fixed < t2Fixes ? [] : ['--from', 'VALIDATION.md'], null);
 		// The suites the round's diff reaches, on this HEAD, before validate judges it, and again after any commit
 		// (a fix moves HEAD): validate reads the line, and a red one is a deviation like any other.
 		// 2026-10-05: the changed tests passed, while tests no row touched had broken.
