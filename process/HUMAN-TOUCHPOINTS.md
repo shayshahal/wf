@@ -7,11 +7,12 @@ command writes the skeleton and opens `$VISUAL` / `$EDITOR` / `code`, and the us
 the `path:line — text` lines by hand. Either way the same files land.
 
 **T1 — `wf design <round>`** writes `<round folder>/SPEC-REVIEW.md`. It requires SPEC.md,
-marks `step design --waiting-on user`, opens the SPEC's `## For T1` for annotation (Plannotator
-`annotate --gate`), and folds the result into the REVIEW-FORMAT.md shape: one comment
-line each plus a final `verdict:` line. It also writes `.wf/SPEC-T1.html` — the same section
-rendered, its SHOW-ME.md views drawn (diffs coloured, mermaid drawn, Asks copyable) and the round
-folder's own HTML artifacts embedded — and opens it outside Claude Code, printing `page: <file>`.
+marks `step design --waiting-on user`, renders the SPEC's `## For T1` as `.wf/SPEC-T1.html` — its
+SHOW-ME.md views drawn (diffs coloured, mermaid drawn, Asks copyable), the round folder's own HTML
+artifacts embedded — and annotates that page (Plannotator `annotate --gate`), folding the result into
+the REVIEW-FORMAT.md shape: one comment line each plus a final `verdict:` line, each addressed to the
+SPEC.md line of the block it was made on. Without a review UI it writes `.wf/SPEC-T1.md` (the same
+section as text), opens that in an editor and the page in a browser, printing `page: <file>`.
 `## For T1` is what T1 approves and what binds the build;
 a T1 given in chat records what the user was shown (DESIGN-SESSION.md § 5).
 

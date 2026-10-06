@@ -118,8 +118,9 @@ ASKs. `wf step design` refuses a SPEC without it.
 
 **`## For T1` is what binds.** It is all `wf design` shows the user, so it is all T1 approves, and
 the round is built and checked against it: PLAN.md's Build agrees with its Build, and as-built
-diffs against it. `wf design` also renders it as a page (`.wf/SPEC-T1.html`) with its views drawn,
-beside the markdown the user annotates. The sections below are the working notes that reached it;
+diffs against it. `wf design` renders it as a page (`.wf/SPEC-T1.html`) with its views drawn, and
+that page is what the user annotates: every block carries its SPEC.md line, so a comment comes back
+addressed to the line it was made on. The sections below are the working notes that reached it;
 nothing in them
 binds unless `## For T1` says it. Measured over five T1s (2026-09-20 to 09-28): every comment was
 on an as-is excerpt, an ASK or the pick; none on `## Input coverage` or a candidate's detail; the
