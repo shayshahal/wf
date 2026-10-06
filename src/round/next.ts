@@ -55,7 +55,7 @@ export type Snapshot = {
 	t1: { spec: string | null; reviewed: string | null; verdict: string | null };
 	subjects: string[];
 	checks: { row: number | null; result: string }[];
-	// The last `wf check --repro` result per research token: stable | unstable | green (checks.log, row `repro`).
+	// The last `wf check --repro` result per research token: stable | unstable | green | outside (checks.log, row `repro`).
 	repro: Record<string, string>;
 	fixesAfterValidate: number;
 	note: { file: string; text: string | null } | null;
@@ -125,6 +125,9 @@ export function nextAction(s: Snapshot): { say: string; effects: Effect[] } {
 			if (step !== 'research') effects.push({ step: ['research', '--waiting-on', 'user'] });
 			return act(`wait user: it does not reproduce — \`${wf} check --repro\` was green on every run (RESEARCH.md says what was measured). Go on anyway: \`${wf} step plan\`; stop: \`WF_FORCE_REAP=1 ${wf} reap ${s.branch}\``);
 		}
+		// Red outside the repro's files is a precondition that failed (BJEW-461, 2026-10-06: the shared
+		// setup's login), and research again meets it again unless it is fixed first.
+		if (repro === 'outside') return dispatch('research', [], `\`${wf} check --repro\` was red outside the repro on every run, a precondition (login, setup, data) and not the defect: RESEARCH.md says what failed, and it is fixed before research runs again`);
 		if (repro !== 'stable') return dispatch('research', [], `\`${wf} check --repro\` has not found its repro red at one place on every run`);
 		effects.push({ step: ['plan'] });
 		step = 'plan';

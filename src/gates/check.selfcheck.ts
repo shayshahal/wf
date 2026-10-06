@@ -1,7 +1,7 @@
 // check.selfcheck.ts — node check.selfcheck.ts → exit 0 when green.
 // Pure arms only (no git, no runners): the fence, the repro line, and what buildTasks makes of a
 // plan row's check cell. The project's own commands: projects/<name>/checks.selfcheck.ts.
-import { failureSignature, reproVerdict } from './check.ts';
+import { failedInRepro, failureFrame, failureSignature, reproVerdict } from './check.ts';
 import { checkRunLine, buildTasks, fenceViolations, isReproOnly, isRoundPaperwork, reproCommand, resolvedBlockedName, suitesLine, tokenize } from './check.ts';
 import type { CheckTask } from './check.ts';
 
@@ -61,10 +61,16 @@ const precondition = "  1) [chromium] › repro/outside-tap.spec.ts:12:5 › clo
 check('the signature: the error line and the first frame outside node_modules, no durations', failureSignature(defect) === 'Error: sheet still open after a tap outside it @ outside-tap.spec.ts:29', failureSignature(defect));
 check('the same failure in another run, timings aside, has the same signature', failureSignature(defect.replace('(5.2s)', '(7.9s)')) === failureSignature(defect));
 check('no error line or frame: the last line stands for the run', failureSignature('a\nexit code 1\n\n') === 'exit code 1');
-check('three reds at one place: stable', reproVerdict([0, 1, 2].map(() => ({ exit: 1, output: defect }))).result === 'stable');
-check('green on every run: green, the ticket does not reproduce here', reproVerdict([0, 1, 2].map(() => ({ exit: 0, output: '' }))).result === 'green');
-check('one green run: not stable, and which one', (({ result, say }) => result === 'unstable' && say.startsWith('run 2 of 3 was green'))(reproVerdict([{ exit: 1, output: defect }, { exit: 0, output: '' }, { exit: 1, output: defect }])));
-check('red twice at the defect, once at its precondition: not stable, with each run', (({ result, say }) => result === 'unstable' && say.includes('run 3: Error: precondition: sheet never opened @ outside-tap.spec.ts:18'))(reproVerdict([{ exit: 1, output: defect }, { exit: 1, output: defect }, { exit: 1, output: precondition }])));
+check('three reds at one place: stable', reproVerdict([0, 1, 2].map(() => ({ exit: 1, output: defect })), 'bug-reports/r').result === 'stable');
+check('green on every run: green, the ticket does not reproduce here', reproVerdict([0, 1, 2].map(() => ({ exit: 0, output: '' })), 'bug-reports/r').result === 'green');
+check('one green run: not stable, and which one', (({ result, say }) => result === 'unstable' && say.startsWith('run 2 of 3 was green'))(reproVerdict([{ exit: 1, output: defect }, { exit: 0, output: '' }, { exit: 1, output: defect }], 'bug-reports/r')));
+check('red twice at the defect, once at its precondition: not stable, with each run', (({ result, say }) => result === 'unstable' && say.includes('run 3: Error: precondition: sheet never opened @ outside-tap.spec.ts:18'))(reproVerdict([{ exit: 1, output: defect }, { exit: 1, output: defect }, { exit: 1, output: precondition }], 'bug-reports/r')));
+// BJEW-461 (2026-10-06): the shared global setup's login failed before any spec ran, three times at one place.
+const setup = "Error: control-jewelryx auth buyer: page.waitForSelector: Timeout 30000ms exceeded.\n  - waiting for locator('input[name=\"email\"]')\n\n   at ..\\docs\\agents\\verify-jewelryx\\repro-global-setup.ts:13\n\n> 13 | \t\t\te ? fail(new Error(`control-jewelryx auth ${role}: ${err || e.message}`)) : done(),\n    at C:\\wt\\x\\docs\\agents\\verify-jewelryx\\repro-global-setup.ts:13:13\n";
+check('the first own frame, in parentheses or bare, slashes forward', failureFrame('    at fn (C:\\wt\\x\\a.ts:3:9)\n')?.file === 'C:/wt/x/a.ts' && failureFrame(setup)?.file === 'C:/wt/x/docs/agents/verify-jewelryx/repro-global-setup.ts' && failureFrame('exit code 1') === null);
+check('a frame in the round\'s repro is in it; a shared setup, another round\'s repro or no frame is not', failedInRepro(defect, 'bug-reports/r') && !failedInRepro(setup, 'bug-reports/r') && !failedInRepro(defect, 'bug-reports/r2') && !failedInRepro('exit code 1', 'bug-reports/r'));
+check('three reds at one place in the shared setup: outside, not stable', (({ result, say }) => result === 'outside' && say.includes('repro-global-setup.ts:13'))(reproVerdict([0, 1, 2].map(() => ({ exit: 1, output: setup })), 'bug-reports/r')));
+check('red at the defect once, in the setup twice: not stable', reproVerdict([{ exit: 1, output: defect }, { exit: 1, output: setup }, { exit: 1, output: setup }], 'bug-reports/r').result === 'unstable');
 check('the checks.log line carries the research token when it has one', JSON.parse(checkRunLine({ ts: 't', row: 'repro', rowCheck: null, tasks: [], result: 'stable', token: 'abc' })).token === 'abc' && !('token' in JSON.parse(checkRunLine({ ts: 't', row: 1, rowCheck: null, tasks: [], result: 'green' }))));
 
 // wf check --suites: one line, the head it measured, a red suite's output tail.

@@ -49,6 +49,9 @@ check('a stable repro from an earlier brief does not count', say(base({ files: {
 const notReproduced = base({ files: { research: RESEARCH }, repro: { aaa111: 'green' } });
 check('green on every run: wait on the user, no second research', say(notReproduced).startsWith('wait user: it does not reproduce — `node C:/wf/wf.mjs check --repro` was green on every run') && steps(notReproduced).join() === 'research --waiting-on user', say(notReproduced));
 check('unstable for this brief: research again', say(base({ files: { research: RESEARCH }, repro: { aaa111: 'unstable' } })).startsWith('dispatch research:'));
+// BJEW-461 (2026-10-06): red three times in the shared setup's login, and plan was dispatched.
+const outside = say(base({ files: { research: RESEARCH }, repro: { aaa111: 'outside' } }));
+check('red outside the repro for this brief: no plan; research again once the precondition is fixed', outside.startsWith('dispatch research:') && outside.includes('a precondition (login, setup, data) and not the defect'), outside);
 check('a check round needs no stable repro: green is its answer', say(base({ check: true, files: { research: RESEARCH }, repro: {} })).startsWith('wait user: check'));
 const checked = base({ check: true, files: { research: RESEARCH } });
 check('a check, research in: it waits on the user, no plan', steps(checked).join() === 'research --waiting-on user' && say(checked).startsWith('wait user: check') && say(checked).includes('`node C:/wf/wf.mjs step plan`') && say(checked).includes('WF_FORCE_REAP=1 node C:/wf/wf.mjs reap fix/r'), say(checked));

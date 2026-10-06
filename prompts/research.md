@@ -34,7 +34,9 @@ reply without a tool call: never announce a next step — take it, or write `RES
 6. Once its `## Repro` has the `command:` line, run `wf check --repro`. It runs the repro three
    times and passes only when every run is red at the same place: a repro that races the page
    (taps before it is ready, reads before the data loads) fails differently or passes once.
-   NOT STABLE: make the repro wait for what it needs, and run it again. Its last run is the
+   NOT STABLE: make the repro wait for what it needs, and run it again. NOT THE DEFECT: every run
+   failed outside `{{folder}}/repro/` (a login, a shared setup, missing data); fix it if it is in your
+   repro, else write what failed under `Could not find` and stop. Its last run is the
    `red output`. Green on all three runs, once you have measured what the ticket describes, is the
    finding that it does not reproduce: write that under `Diverges at`, and wf asks the user.
 
