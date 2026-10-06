@@ -23,46 +23,46 @@ footer{color:#888;font-size:12px;margin-top:40px;border-top:1px solid #8883;padd
 </style>
 <h1>PLAN — DEMO-1</h1>
 <div class="meta"><div>class B · base dev</div><div>the plan the diff is judged against — the markdown is the file of record</div></div>
-<h1>DEMO-1 — plan</h1>
-<p>Class: B     &lt;the delete command changes a <code>*.remote.ts</code> contract and the stats payload — CLASSES.md&gt;</p>
-<p>Cause: <code>listings.remote.ts:31</code> invalidates <code>listings</code>, and the badge reads <code>stats</code> (RESEARCH.md &quot;Diverges at&quot;)</p>
-<p>Approach: invalidate both keys in the delete command and let the badge read the count the payload already</p>
-<p>carries — one call site, no new client state, and the guarantee stays where the count is produced.</p>
-<h2>Build</h2>
-<p>&lt;what changes, as views: the call stack against RESEARCH.md As-is, and the shapes a stack cannot carry&gt;</p>
-<pre class="diff"><span class="ctx">  /admin/listings +page.svelte</span>
+<h1 class="wf-src-1" id="wf-src-1">DEMO-1 — plan</h1>
+<p class="wf-src-2" id="wf-src-2">Class: B     &lt;the delete command changes a <code>*.remote.ts</code> contract and the stats payload — CLASSES.md&gt;</p>
+<p class="wf-src-3" id="wf-src-3">Cause: <code>listings.remote.ts:31</code> invalidates <code>listings</code>, and the badge reads <code>stats</code> (RESEARCH.md &quot;Diverges at&quot;)</p>
+<p class="wf-src-4" id="wf-src-4">Approach: invalidate both keys in the delete command and let the badge read the count the payload already</p>
+<p class="wf-src-5" id="wf-src-5">carries — one call site, no new client state, and the guarantee stays where the count is produced.</p>
+<h2 class="wf-src-7" id="wf-src-7">Build</h2>
+<p class="wf-src-8" id="wf-src-8">&lt;what changes, as views: the call stack against RESEARCH.md As-is, and the shapes a stack cannot carry&gt;</p>
+<pre class="wf-src-10 diff" id="wf-src-10"><span class="ctx">  /admin/listings +page.svelte</span>
 <span class="ctx">    deleteListing                    ← id → void</span>
 <span class="chg">      ~ listings.remote.ts:31        invalidate('listings', 'stats')   one call, both keys</span>
 <span class="ctx">      ✗ the API refuses the delete   → lands: +page.svelte:52 deleteError (unchanged)</span>
 <span class="add">    + ListingBadge.svelte:12         reads stats.filtered ?? stats.total</span>
 <span class="ctx">    ✓ no screen reads a stale total   there is no path that reads `stats` without the delete invalidating it</span></pre>
-<pre class="diff"><span class="ctx"> type ListingStats</span>
+<pre class="wf-src-19 diff" id="wf-src-19"><span class="ctx"> type ListingStats</span>
 <span class="ctx">   total: number</span>
 <span class="add">+  filtered: number        ~ the badge reads this when a filter chip is on</span></pre>
-<pre class="diff"><span class="ctx"> GET /listings</span>
+<pre class="wf-src-25 diff" id="wf-src-25"><span class="ctx"> GET /listings</span>
 <span class="ctx"> response</span>
 <span class="ctx">   stats</span>
 <span class="ctx">     total: number</span>
 <span class="add">+    filtered: number      ~ counted in the same request, no extra round trip</span></pre>
-<h2>Commits</h2>
-<pre class="table">
+<h2 class="wf-src-33" id="wf-src-33">Commits</h2>
+<pre class="wf-src-34 table" id="wf-src-34">
 | # | message | files | check |
 | 1 | `fix(admin): invalidate the stats key with the list on delete` | packages/admin/src/lib/listings.remote.ts | `pnpm --filter admin vitest run src/lib/listings.remote.test.ts` |
 | 2 | `fix(admin): the badge reads the count the payload carries` | packages/admin/src/routes/admin/listings/ListingBadge.svelte | manual: open /admin/listings, delete a row, the badge above the table drops by one without a reload |
 | 3 | `test(admin): delete, then the count` | packages/admin/src/routes/admin/listings/listings.test.ts | repro |
 </pre>
-<h2>Not doing</h2>
+<h2 class="wf-src-39" id="wf-src-39">Not doing</h2>
 <ul>
-<li>the bulk delete path (<code>deleteMany</code>, <code>listings.remote.ts:64</code>) — it does not invalidate anything today; RESEARCH.md names it and the ticket does not</li>
-<li>the filter chip's own count — it reads <code>listings.length</code> and is right</li>
-<li>a <code>COUNT</code> round trip for <code>filtered</code> — it rides the payload the list already returns</li>
+<li class="wf-src-40" id="wf-src-40">the bulk delete path (<code>deleteMany</code>, <code>listings.remote.ts:64</code>) — it does not invalidate anything today; RESEARCH.md names it and the ticket does not</li>
+<li class="wf-src-41" id="wf-src-41">the filter chip's own count — it reads <code>listings.length</code> and is right</li>
+<li class="wf-src-42" id="wf-src-42">a <code>COUNT</code> round trip for <code>filtered</code> — it rides the payload the list already returns</li>
 </ul>
-<h2>T2 walk</h2>
-<p>open: /admin/listings on this worktree's admin app</p>
-<p>setup: <code>wf seed</code> when the table is empty, so there is a row to delete</p>
-<p>Delete the first row: the badge above the table drops by one, and no reload is needed.</p>
-<h2>Asks</h2>
-<p>none</p>
+<h2 class="wf-src-44" id="wf-src-44">T2 walk</h2>
+<p class="wf-src-45" id="wf-src-45">open: /admin/listings on this worktree's admin app</p>
+<p class="wf-src-46" id="wf-src-46">setup: <code>wf seed</code> when the table is empty, so there is a row to delete</p>
+<p class="wf-src-47" id="wf-src-47">Delete the first row: the badge above the table drops by one, and no reload is needed.</p>
+<h2 class="wf-src-49" id="wf-src-49">Asks</h2>
+<p class="wf-src-50" id="wf-src-50">none</p>
 <h2>Views</h2>
 <figure><figcaption><a href="../bug-reports/DEMO-1/option-a.html">option-a.html</a></figcaption><iframe src="../bug-reports/DEMO-1/option-a.html" loading="lazy"></iframe></figure>
 <footer>The markdown is the file of record; this page is it rendered, with the views drawn. Generated by wf.</footer>

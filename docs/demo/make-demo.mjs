@@ -17,7 +17,7 @@ const WF = process.env.WF_ROOT ?? join(here, '..', '..');
 const load = (rel) => import(pathToFileURL(join(WF, rel)).href);
 
 const { planPage, renderSkeleton, roundArtifacts } = await load('src/gates/review-format.ts');
-const { forT1Section } = await load('src/gates/design.ts');
+const { forT1Offset, forT1Section } = await load('src/gates/design.ts');
 const { planCommitRows } = await load('src/round/prompt.ts');
 const { manualCheck } = await load('src/gates/check.ts');
 
@@ -31,8 +31,11 @@ mkdirSync(wfDir, { recursive: true });
 const spec = readFileSync(join(folder, 'SPEC.md'), 'utf8');
 writeFileSync(join(wfDir, 'SPEC-T1.html'), planPage({
   title: `SPEC — ${round} · For T1`,
-  meta: ['spec-sha: sha256:demo', 'the design this round is built against — annotate the markdown'],
+  meta: ['spec-sha: sha256:demo', 'the design this round is built against'],
   section: forT1Section(spec) ?? '',
+  // The section's own line in SPEC.md: a block of the page has to carry its SPEC.md line, because that is
+  // the line a comment on the page folds onto (design.ts passes the same offset).
+  base: forT1Offset(spec),
   artifacts: roundArtifacts(folder, wfDir),
 }));
 

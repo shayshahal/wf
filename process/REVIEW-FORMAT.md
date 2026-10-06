@@ -31,11 +31,16 @@ verdict: <approved | changes-requested | dismissed>
 ```
 
 Comment lines: `path:lineStart[-lineEnd] — text` (em-dash). A range folds to
-`a/b.ts:10-14 — rename this`; a single line to `c.ts:3 — nit`. Annotate comments
-with no file are SPEC comments: `SPEC.md:<blockId or line> — text`, e.g.
-`SPEC.md:usage-table — add a row`. A non-empty overall feedback becomes a leading
-`note — <feedback>` line. Verdict mapping: `approved → approved`,
-`annotated → changes-requested`, anything dismissed stays `dismissed`.
+`a/b.ts:10-14 — rename this`; a single line to `c.ts:3 — nit`. A comment made on the page T1
+shows (design.ts) is a SPEC comment too, folded onto the line of the block it was made on —
+`SPEC.md:22 — one invalidate call, not two` — because the page tags every block with its
+SPEC.md line (`planBody`'s `wf-src-<line>`) and `pageLine` reads that tag back out of what the
+review UI reports. A `blockId` (annotating markdown directly) folds the same way:
+`SPEC.md:usage-table — add a row`; one that says nothing about where it was is
+`SPEC.md:? — text`. Each comment line also carries what it was made on, clipped to one line:
+`SPEC.md:22 — one call, not two (on: invalidate('listings', 'stats')     one call, both keys)`.
+A non-empty overall feedback becomes a leading `note — <feedback>` line. Verdict mapping:
+`approved → approved`, `annotated → changes-requested`, anything dismissed stays `dismissed`.
 
 Rules: the verdict line is always last; the **last** `verdict: <v>` line in the file
 wins (runs append dated `## YYYY-MM-DD` sections, never overwrite). A skeleton's

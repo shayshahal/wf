@@ -21,7 +21,7 @@ generated files are committed, and they drift until someone re-runs it.
 
 | file | a round writes it from | what to look at |
 |---|---|---|
-| `.wf/SPEC-T1.html` | `wf design` (prints `page: …`) | the design: diff-coloured stacks, the ASK with a copy button, the mermaid flow drawn, `option-a.html` embedded |
+| `.wf/SPEC-T1.html` | `wf design` (it annotates this page) | the design: diff-coloured stacks, the ASK with a copy button, the mermaid flow drawn, `option-a.html` embedded, and each block's `wf-src-<line>` — the SPEC.md line a comment on it folds onto |
 | `.wf/PLAN.html` | `wf review` (prints `plan: …`) | the plan T2 reads: the Build views (call stack, shape diff, contract diff), the Commits table kept as text |
 | `.wf/REVIEW.md` | `wf review` (the header) | `manual: row 2 — …`, the step only a person can make, beside the diff |
 

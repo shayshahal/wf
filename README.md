@@ -55,7 +55,7 @@ round commits (for JewelryX, `bug-reports/<round>/`).
 - `docs/plans/2026-09-17-workflow-v2.md`: the plan wf was built from (history; done)
 - `docs/research/papers-and-first-principles.md`: what wf is for, and the five papers read after it was built
 - `docs/research/show-me-maintainability-papers.html`: five papers on what happens to agent code after it merges, against wf (notes per paper in `docs/research/papers/`)
-- `docs/demo/`: the plan pages rendered (`process/SHOW-ME.md`, `planPage`, the `manual:` cell) — `node docs/demo/make-demo.mjs`, then open `.wf/SPEC-T1.html` (T1) and `.wf/PLAN.html` (T2)
+- `docs/demo/`: the plan pages rendered (`process/SHOW-ME.md`, `planPage`, the `manual:` cell) — `node docs/demo/make-demo.mjs`, then open `.wf/SPEC-T1.html` (T1, the page `wf design` annotates) and `.wf/PLAN.html` (T2)
 
 Text names wf's own files as `{{wf}}/…` (prompts, docs) or `${CLAUDE_PLUGIN_ROOT}/…` (the skills),
 and the project's folder as `{{project}}/…`: `wf prompt`, Claude Code (for the plugin) and the
