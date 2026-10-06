@@ -7,6 +7,7 @@
 //   wf ask --blocked [--to …]                                            → the Question line of BLOCKED.md
 //   wf decide [--q <n>] "<answer, their words>"                          → closes q<n>
 //   wf decide --revise [--q <n>] "<what the plan must now do>"            → the same, and the round goes back to `plan --revise`
+//   wf decide --research [--q <n>] "<what research must now measure>"    → the same, and `wf next` dispatches a fresh research with it
 // `wf prompt` and `wf deliver` refuse while a question is open (openQuestionGate).
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { appendDecision, notifyAdapters, planPath } from './step.ts';
@@ -130,19 +131,30 @@ export async function runAsk(argv: string[]): Promise<void> {
 }
 
 export async function runDecide(argv: string[]): Promise<void> {
-	const a = parse('decide', argv, ['q'], ['revise']);
+	const a = parse('decide', argv, ['q'], ['revise', 'research']);
 	const answer = a.positionals.join(' ').trim();
 	if (!answer) {
-		console.error('usage: wf decide [--revise] [--q <n>] "<the answer, in their words>"');
+		console.error('usage: wf decide [--revise | --research] [--q <n>] "<the answer, in their words>"');
 		process.exit(2);
 	}
 	const { toplevel, state } = roundState('decide');
+	const refusal = a.revise && a.research ? '--revise and --research are two ways on: name one' : a.research ? researchGap(state) : null;
+	if (refusal) {
+		console.error(`wf decide: ${refusal}`);
+		process.exit(2);
+	}
 	const plan = planPath(toplevel, state);
 	if (!(state.questions ?? []).length) {
 		if (a.revise) {
 			// Nothing was asked and nothing is recorded in PLAN.md: the revised plan carries the answer.
 			const next = writeState(toplevel, reviseState(state, answer));
 			console.log('the round is back at plan: `wf next` dispatches plan --revise with this answer');
+			await notifyAdapters(next);
+			return;
+		}
+		if (a.research) {
+			const next = writeState(toplevel, researchState(state, answer));
+			console.log(RESEARCH_SAID);
 			await notifyAdapters(next);
 			return;
 		}
@@ -178,8 +190,9 @@ export async function runDecide(argv: string[]): Promise<void> {
 		console.log(`q${question.n} closed · recorded in ${plan} § Decisions`);
 	}
 	const said = `${question.text}${question.default ? ` (default: ${question.default})` : ''} → ${answer}`;
-	const next = writeState(toplevel, a.revise ? reviseState(closed.state, said) : closed.state);
+	const next = writeState(toplevel, a.revise ? reviseState(closed.state, said) : a.research ? researchState(closed.state, said) : closed.state);
 	if (a.revise) console.log('the round is back at plan: `wf next` dispatches plan --revise with this answer');
+	if (a.research) console.log(RESEARCH_SAID);
 	await notifyAdapters(next);
 }
 
@@ -190,6 +203,25 @@ export async function runDecide(argv: string[]): Promise<void> {
 // from the implement step nothing led back to plan.
 export function reviseState(state: State, text: string, now = new Date().toISOString()): State {
 	return { ...state, step: 'plan', waiting_on: state.questions?.[0]?.to ?? null, since: now, history: stepHistory(state.history, 'plan', now), revisions: [...(state.revisions ?? []), { text: text.trim(), at: now }] };
+}
+
+const RESEARCH_SAID = 'the round is back at research: `wf next` dispatches a fresh research with this answer';
+
+// Pure: null, or why the round cannot go back to research: once it has gone to plan, the plan and
+// the briefs after it were built on the research that is now doubted, and nothing here voids them.
+export function researchGap(state: State | null): string | null {
+	const step = state?.step;
+	if (!step || step === 'classify' || step === 'research') return null;
+	return `the round is at ${step}, past research: research again is for a round that has not gone to plan (a plan that must change: \`wf decide --revise\`)`;
+}
+
+// Pure: the state sent back to research with `text`, what research must now measure. `wf next`
+// answers it with a fresh research until a research brief is newer than the request. BJEW-669,
+// 2026-10-06: research was green on seeded data, the orchestrator then found the cause in QA's
+// database, and `wf next` still offered only plan or reap: the repro verdict is keyed by the research
+// brief's token, which TICKET.md's new facts do not change.
+export function researchState(state: State, text: string, now = new Date().toISOString()): State {
+	return { ...state, step: 'research', waiting_on: state.questions?.[0]?.to ?? null, since: now, history: stepHistory(state.history, 'research', now), researchRequests: [...(state.researchRequests ?? []), { text: text.trim(), at: now }] };
 }
 
 // Pure: the revisions no plan brief has answered yet.

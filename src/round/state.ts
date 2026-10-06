@@ -36,6 +36,9 @@ export type State = {
 	// Answers that say the plan must change (`wf decide --revise`, ask.ts): `wf next` sends the round
 	// to `plan --revise` until a plan brief is newer than the answer.
 	revisions?: { text: string; at: string }[];
+	// What research must now measure (`wf decide --research`, ask.ts): `wf next` dispatches a fresh
+	// research until a research brief is newer than the request, and its prompt carries them all.
+	researchRequests?: { text: string; at: string }[];
 	last_question?: number;
 	briefs?: Record<string, Brief>;
 	// The validation token whose T2 setup `wf show` already ran (projects/jewelryx/show.ts).

@@ -39,6 +39,7 @@ const MAX_BRIEFS = 2;
 //     and the fix(review) commits since its brief),
 //     models (the model each effort level runs on here: seams.models; none, no model is named),
 //     revisions (the answers that say the plan must change: `wf decide --revise`),
+//     researchRequests (the answers that say research must measure more: `wf decide --research`),
 //     head (HEAD's sha), suites (the last `wf check --suites` line: the head it measured and its
 //     result, or null before the first run) }
 // → { say, effects }, effects being { step: [args] } | { ask: { to, text, dflt, source } }.
@@ -63,6 +64,7 @@ export type Snapshot = {
 	standards?: { id: string; text: string | null; fixesAfter: number }[];
 	models?: Models;
 	revisions?: { text: string; at: string }[];
+	researchRequests?: { text: string; at: string }[];
 	head?: string;
 	suites?: { ts: string; head: string; result: 'green' | 'red' } | null;
 };
@@ -109,6 +111,10 @@ export function nextAction(s: Snapshot): { say: string; effects: Effect[] } {
 	// research → plan
 	let step = s.step;
 	if (!step || step === 'classify' || step === 'research') {
+		// New evidence came in (`wf decide --research`): a fresh research, whatever RESEARCH.md says. Its
+		// brief is newer than the request, so this is asked once, and the old token's repro verdict no
+		// longer counts. Never on its own: only the user's answer sends it.
+		if (pendingRevisions(s.researchRequests, brief('research')?.at).length) return dispatch('research', [], null);
 		const gap = handoffGap('research', s.files.research, brief('research'));
 		if (gap) return dispatch('research', [], gap);
 		// A check (wf new --check) stops here: whether the ticket reproduces is the answer asked for,
@@ -125,7 +131,7 @@ export function nextAction(s: Snapshot): { say: string; effects: Effect[] } {
 		const repro = token ? (s.repro ?? {})[token] : 'stable';
 		if (repro === 'green') {
 			if (step !== 'research') effects.push({ step: ['research', '--waiting-on', 'user'] });
-			return act(`wait user: it does not reproduce — \`${wf} check --repro\` was green on every run (RESEARCH.md says what was measured). Go on anyway: \`${wf} step plan\`; stop: \`WF_FORCE_REAP=1 ${wf} reap ${s.branch}\``);
+			return act(`wait user: it does not reproduce — \`${wf} check --repro\` was green on every run (RESEARCH.md says what was measured). Go on anyway: \`${wf} step plan\`; new evidence to measure: \`${wf} decide --research "<what research must now measure>"\`; stop: \`WF_FORCE_REAP=1 ${wf} reap ${s.branch}\``);
 		}
 		// Red outside the repro's files is a precondition that failed (BJEW-461, 2026-10-06: the shared
 		// setup's login), and research again meets it again unless it is fixed first.
@@ -288,6 +294,7 @@ export function snapshotOf(toplevel: string): Snapshot {
 		questions: state.questions ?? [],
 		answered: state.answered ?? [],
 		revisions: state.revisions ?? [],
+		researchRequests: state.researchRequests ?? [],
 		briefs: state.briefs ?? {},
 		commit: state.commit ?? null,
 		head: git('rev-parse', 'HEAD'),
