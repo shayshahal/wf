@@ -3,7 +3,8 @@
 // herdr, and self-update from shayshahal/wf. ~/bin/wf and worktrunk's hooks run it
 // through env/wf.mjs; the team's plugin runs the kit's own ../wf.mjs (kit and env plan, 2026-09-27).
 import { run } from '../src/run.ts';
-import { isHerdrPresent, reportStepToHerdr } from './adapters/herdr.ts';
+import { herdrOpener } from './adapters/herdr.ts';
+import { processCwds } from './adapters/processes.ts';
 import { annotateFile, isPlannotatorPresent, reviewDiff } from './adapters/plannotator.ts';
 import { PI_MODELS, resolvePi } from './models.ts';
 import * as jewelryx from './projects/jewelryx/index.ts';
@@ -25,7 +26,8 @@ export async function runEnvWf(entry: string, argv: string[]) {
 		createWorktree,
 		removalPlan,
 		reviewUI: { available: isPlannotatorPresent, annotate: annotateFile, reviewDiff },
-		notify: [(state) => (isHerdrPresent() ? reportStepToHerdr(state) : undefined)],
+		opener: herdrOpener,
+		processCwds,
 		commands: {
 			hook: async (a) => (await import('./hook.ts')).runHook(a),
 			update: async () => (await import('./update.ts')).runUpdate(),

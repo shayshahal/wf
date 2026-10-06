@@ -34,6 +34,8 @@ export type Seams = {
 	commands: Record<string, Command>;
 	models: Models;
 	resolveModel: ((model: string) => string | null) | null;
+	opener: (() => Record<string, string> | null) | null;
+	processCwds: (() => string[]) | null;
 	// Typed by the project that reads it (projects/<name>/index.ts).
 	project: object;
 };
@@ -62,6 +64,12 @@ export const seams: Seams = {
 	// (model) → the model the harness resolves it to, or null when it has none; `wf models` prints it.
 	// null: the harness cannot be asked (Claude Code resolves its aliases inside the session).
 	resolveModel: null,
+	// () → who is opening a worktree, recorded in its state as `opened_by` by `wf new`: the env's own
+	// keys (Shay's: the pane and the agent session). null: nobody is recorded.
+	opener: null,
+	// () → the working folder of every running process, for `wf status`'s count of what still runs in
+	// each worktree. null: no count.
+	processCwds: null,
 	// The project's machine pieces; the project's own folder says which it reads (projects/<name>/index.ts).
 	project: {},
 };
