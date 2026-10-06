@@ -260,7 +260,7 @@ export async function runCheck() {
 				process.exit(1);
 			}
 		}
-		const run = spawnSync(task.cmd!, task.args!, { cwd: join(toplevel, task.cwd!), encoding: 'utf8', shell: process.platform === 'win32' });
+		const run = spawnSync(task.cmd!, task.args!, { cwd: join(toplevel, task.cwd!), env: { ...process.env, ...task.env }, encoding: 'utf8', shell: process.platform === 'win32' });
 		const output = `${run.stdout ?? ''}${run.stderr ?? ''}`;
 		if (task.expectRed) {
 			ran.push({ label: task.label, exit: run.status, expect: 'red', output: output.split('\n').slice(-15).join('\n').trimEnd() });

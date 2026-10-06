@@ -19,8 +19,8 @@ const isJsTest = (f: string) => /\.(test|spec)\.[cm]?[jt]s$/.test(f);
 // Pure: the commands to run, in order. `pkgFor(file)` returns { name, dir, svelte } for a frontend
 // file or null; `test` is the plan row's test path or null; `pushHook`: the repo has a lefthook.yml;
 // `onDisk(file)`: the file is still there (not deleted by the diff).
-export function checkTasks({ changed, test, pkgFor, pushHook = false, onDisk = () => true }: { changed: string[]; test: string | null; pkgFor: PkgFor; pushHook?: boolean; onDisk?: (file: string) => boolean }): CheckTask[] {
-	const tasks = rowTasks({ changed, test, pkgFor, pushHook });
+export function checkTasks({ changed, test, pkgFor, pushHook = false, onDisk = () => true, stackEnv = {} }: { changed: string[]; test: string | null; pkgFor: PkgFor; pushHook?: boolean; onDisk?: (file: string) => boolean; stackEnv?: Record<string, string> }): CheckTask[] {
+	const tasks = rowTasks({ changed, test, pkgFor, pushHook, stackEnv });
 	if (!pushHook || !changed.length || tasks.some((t) => t.missing)) return tasks;
 	// What the commit will run, run first: ESLint (lint-kit's Svelte rules, @shadcn/lint) runs only in
 	// pre-commit, so an implementer met it at `git commit`, after wf check had said green (2026-10-04).
@@ -35,7 +35,7 @@ export function checkTasks({ changed, test, pkgFor, pushHook = false, onDisk = (
 	return [...preCommit, ...tasks, { label: 'lefthook pre-push', cmd: 'pnpm', args: ['exec', 'lefthook', 'run', 'pre-push', ...changed.flatMap((f) => ['--file', f])], cwd: '.' }];
 }
 
-function rowTasks({ changed, test, pkgFor, pushHook }: { changed: string[]; test: string | null; pkgFor: PkgFor; pushHook: boolean }): CheckTask[] {
+function rowTasks({ changed, test, pkgFor, pushHook, stackEnv }: { changed: string[]; test: string | null; pkgFor: PkgFor; pushHook: boolean; stackEnv: Record<string, string> }): CheckTask[] {
 	const tasks: CheckTask[] = [];
 	const add = (t: CheckTask) => { if (!tasks.some((x) => x.label === t.label)) tasks.push(t); };
 	const backend = changed.filter((f) => f.startsWith('packages/backend/') && f.endsWith('.py'));
@@ -63,7 +63,11 @@ function rowTasks({ changed, test, pkgFor, pushHook }: { changed: string[]; test
 	if (!test || test.endsWith('.py')) return tasks;
 	if (!test.endsWith('.ts')) return [...tasks, { label: 'check', missing: `PLAN.md row check "${test}" is not runnable — use \`repro\`, one repo-rooted test path, or — (fence only)` }];
 	// verification/ drives the running app: wf check starts the stack first (stack: true, check.ts).
-	if (test.startsWith('verification/')) add({ label: `playwright ${test}`, cmd: 'pnpm', args: ['exec', 'playwright', 'test', test], cwd: '.', stack: true });
+	// Playwright is installed only in verification/node_modules, so the root has no `playwright` (BJEW-617
+	// row 1, 2026-10-06: `Command "playwright" not found`): `pnpm --dir verification exec`, as the repro
+	// runs. That config's defaults are localhost:3000/:3001, not this round's stack (its pre-flight then
+	// refuses), so the stack's own URLs (.verify-stack.env, as the repro config reads them) go in the env.
+	if (test.startsWith('verification/')) add({ label: `playwright ${test}`, cmd: 'pnpm', args: ['--dir', 'verification', 'exec', 'playwright', 'test', test], cwd: '.', env: stackEnv, stack: true });
 	else {
 		// vitest lives in the package, not at the root (TJEW-700 row 3: `Command "vitest" not found`).
 		const pkg = test.startsWith('packages/frontend/') ? pkgFor(test) : null;
@@ -71,6 +75,16 @@ function rowTasks({ changed, test, pkgFor, pushHook }: { changed: string[]; test
 		else add({ label: `vitest ${test}`, cmd: 'pnpm', args: ['exec', 'vitest', 'run', test], cwd: '.' });
 	}
 	return tasks;
+}
+
+// Pure: the KEY=value lines of a .verify-stack.env (round.ts verifyStackEnv), comments skipped.
+export function parseStackEnv(text: string): Record<string, string> {
+	const env: Record<string, string> = {};
+	for (const line of text.split('\n')) {
+		const m = /^\s*([A-Z_][A-Z0-9_]*)\s*=\s*(.*?)\s*$/.exec(line);
+		if (m && !line.trim().startsWith('#')) env[m[1]] = m[2];
+	}
+	return env;
 }
 
 // Nearest package.json above a frontend file; svelte-check only where a svelte.config lives.
