@@ -114,7 +114,7 @@ check('last commit, class A → validate', say(impl({ ...done2, files: {} })).st
 // wf check --suites (2026-10-05): a project that names suites runs them on this HEAD before validate.
 const suiteRun = { ts: '2026-10-05T12:00:00.000Z', head: 'h2', result: 'green' as const };
 const suited = (suites: Snapshot['suites'], patch: Fixture = {}) => impl({ ...done2, files: {}, head: 'h2', suites, ...patch });
-check('suites named, never run → run them before validate', say(suited(null)) === 'suites: `node C:/wf/wf.mjs check --suites` (the project\'s whole test suites on this HEAD, a few minutes), then `node C:/wf/wf.mjs next`');
+check('suites named, never run → run them before validate', say(suited(null)) === 'suites: `node C:/wf/wf.mjs check --suites` (the whole suites of what this round changed, on this HEAD), then `node C:/wf/wf.mjs next`');
 check('suites run on an older HEAD (a fix since) → run them again', say(suited({ ...suiteRun, head: 'h1' })).startsWith('suites: '));
 check('suites run on this HEAD, green or red → validate, which reads the line', say(suited(suiteRun)).startsWith('dispatch validate:') && say(suited({ ...suiteRun, result: 'red' })).startsWith('dispatch validate:'));
 check('a fix asked for comes before the suites', say(suited(null, { files: { validation: VALID('deviates') }, answered: [{ n: 3, source: 'VALIDATION.md#ccc333', answer: 'fix' }] })).startsWith('dispatch fix-review'));

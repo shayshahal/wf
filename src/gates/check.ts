@@ -9,11 +9,12 @@
 //             edits the repro runs it too, and it must be red: that run is the round's before-the-fix
 //             measurement, its output kept in checks.log (TJEW-670: the repro was fixed in a row
 //             checked `—`, and two of four subitems never had a red run)
-// `wf check --suites` (before validate, wf next): the project's whole test suites side by side, on a
-// committed HEAD; one checks.log line (row `suites`, the head it measured, each red task's output
-// tail) that validate reads and wf next keys on. Not a commit gate: it measures what the round has
-// done to tests no row touched (2026-10-05: a change broke tests outside its commit checks, unseen
-// until the next day's full-suite run).
+// `wf check --suites` (before validate, wf next): the project's whole suites for what the round's diff
+// reaches (project.ts suites), side by side, on a committed HEAD; one checks.log line (row `suites`,
+// the head it measured, each red task's output tail; no tasks when the diff reaches no suite) that
+// validate reads and wf next keys on. Not a commit gate: it measures what the round has done to tests
+// no row touched (2026-10-05: a change broke tests outside its commit checks, unseen until the next
+// day's full-suite run).
 // `wf check --repro` (research, prompts/research.md): RESEARCH.md's repro, three times; stable only when
 // all three are red at the same place, in the round's repro files. Its line in checks.log (row
 // `repro`, result stable|unstable|green|outside) carries the research brief's token, which `wf next`
@@ -24,7 +25,7 @@
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync } from 'node:fs';
 import { basename, join } from 'node:path';
-import { checks, suites } from '../project.ts';
+import { baseBranch, checks, suites } from '../project.ts';
 import { planCommitRows, rowFiles } from '../round/prompt.ts';
 import type { PlanRow } from '../round/prompt.ts';
 import { readState, roundOf, toplevelOf } from '../round/state.ts';
@@ -298,20 +299,23 @@ export function suitesLine({ ts, head, runs }: { ts: string; head: string; runs:
 
 const tail = (output: string) => output.split('\n').slice(-TAIL).join('\n').trimEnd();
 
-/** Run whole test suites on a committed HEAD; record green or red evidence for validate. */
+/** Run the whole suites the round's diff reaches on a committed HEAD; record green or red evidence for validate. */
 export async function runSuites() {
 	const toplevel = toplevelOf();
-	if (!suites.length) return console.log('check --suites: this project names no suites');
 	const git = (...args: string[]) => execFileSync('git', ['-C', toplevel, ...args], { encoding: 'utf8' }).trim();
 	// The line says which commit it measured: product files must be committed, but round reports
 	// may be dirty after a validate or critique (a refused push has already tracked those reports).
-	const { folder } = roundOf(readState(toplevel), toplevel);
+	const state = readState(toplevel);
+	const { folder } = roundOf(state, toplevel);
 	const dirty = [...git('diff', '--name-only', 'HEAD').split('\n'), ...git('ls-files', '--others', '--exclude-standard').split('\n')].filter((f) => f && !isRoundPaperwork(f, folder));
 	if (dirty.length) {
 		console.error(`check --suites: commit first, the suites measure HEAD:\n${dirty.join('\n')}`);
 		process.exit(1);
 	}
 	const head = git('rev-parse', 'HEAD');
+	// The round's diff as wf next takes it, from where the round left its base.
+	const base = git('merge-base', state?.base ?? `origin/${baseBranch}`, 'HEAD');
+	const picked = suites(git('diff', '--name-only', base, 'HEAD').split('\n').filter(Boolean));
 	const start = Date.now();
 	const step = (task: CheckTask) => new Promise<{ label: string; exit: number | null; output: string }>((resolve) => {
 		if (task.cmd === undefined) return resolve({ label: task.label, exit: null, output: task.missing });
@@ -323,7 +327,7 @@ export async function runSuites() {
 		child.on('close', (exit) => resolve({ label: task.label, exit, output }));
 	});
 	// A suite's steps in order, stopping at the first red one, which then names the suite's result.
-	const runs = await Promise.all(suites.map(async (steps) => {
+	const runs = await Promise.all(picked.map(async (steps) => {
 		let last: { label: string; exit: number | null; output: string } = { label: '', exit: 0, output: '' };
 		for (const task of steps) {
 			last = await step(task);
@@ -334,6 +338,7 @@ export async function runSuites() {
 	const line = suitesLine({ ts: new Date().toISOString(), head, runs });
 	mkdirSync(join(toplevel, '.wf'), { recursive: true });
 	appendFileSync(join(toplevel, '.wf', 'checks.log'), `${line}\n`);
+	if (!runs.length) return console.log(`suites: none at ${head.slice(0, 9)}, the round's diff reaches no suite. validate reads it from checks.log.`);
 	const took = `${Math.round((Date.now() - start) / 1000)}s`;
 	const red = runs.filter((r) => r.exit !== 0);
 	if (!red.length) return console.log(`suites green at ${head.slice(0, 9)} in ${took}: ${runs.map((r) => r.label).join(', ')}`);

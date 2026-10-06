@@ -15,7 +15,7 @@ import { addQuestion, blockedQuestion, overruledAsks, pendingRevisions } from '.
 import { briefKey, handoffFile, handoffGap, HANDOFF_FILES, planAsks, planClass, rowDone, tokenOf, validationVerdict } from './handoff.ts';
 import { critiqueVerdict, MAX_EXCHANGES } from '../gates/critique.ts';
 import { reportFile, roundChecks } from '../gates/standards.ts';
-import { baseBranch, suites } from '../project.ts';
+import { baseBranch } from '../project.ts';
 import { planCommitRows } from './prompt.ts';
 import { lastField, readVerdict, specShaFor } from '../gates/review-format.ts';
 import { seams } from '../seams.ts';
@@ -40,7 +40,7 @@ const MAX_BRIEFS = 2;
 //     models (the model each effort level runs on here: seams.models; none, no model is named),
 //     revisions (the answers that say the plan must change: `wf decide --revise`),
 //     head (HEAD's sha), suites (the last `wf check --suites` line: the head it measured and its
-//     result, or null; absent when the project names no suites) }
+//     result, or null before the first run) }
 // → { say, effects }, effects being { step: [args] } | { ask: { to, text, dflt, source } }.
 export type Snapshot = {
 	branch: string;
@@ -196,10 +196,10 @@ export function nextAction(s: Snapshot): { say: string; effects: Effect[] } {
 		const t2Fixes = [...(s.files.review ?? '').matchAll(/^verdict:\s*changes-requested\s*$/gm)].length;
 		const fixed = s.subjects.filter((x) => x.startsWith('fix(review):')).length;
 		if (fixed < t2Fixes + rulings.length) return dispatch('fix-review', fixed < t2Fixes ? [] : ['--from', 'VALIDATION.md'], null);
-		// The project's whole suites on this HEAD before validate judges it, and again after any commit
+		// The suites the round's diff reaches, on this HEAD, before validate judges it, and again after any commit
 		// (a fix moves HEAD): validate reads the line, and a red one is a deviation like any other.
 		// 2026-10-05: the changed tests passed, while tests no row touched had broken.
-		if (s.suites !== undefined && s.suites?.head !== s.head) return act(`suites: \`${wf} check --suites\` (the project's whole test suites on this HEAD, a few minutes), then \`${wf} next\``);
+		if (s.suites !== undefined && s.suites?.head !== s.head) return act(`suites: \`${wf} check --suites\` (the whole suites of what this round changed, on this HEAD), then \`${wf} next\``);
 		const vGap = handoffGap('validate', s.files.validation, brief('validate'));
 		const vToken = brief('validate')?.token ?? 'validate';
 		// A validation whose deviations were fixed is judged again, and so is one a T2 fix came after: it
@@ -291,7 +291,7 @@ export function snapshotOf(toplevel: string): Snapshot {
 		briefs: state.briefs ?? {},
 		commit: state.commit ?? null,
 		head: git('rev-parse', 'HEAD'),
-		suites: suites.length ? lastSuites(read(join(toplevel, '.wf', 'checks.log')) ?? '') : undefined,
+		suites: lastSuites(read(join(toplevel, '.wf', 'checks.log')) ?? ''),
 		files: Object.fromEntries([['research', 'RESEARCH.md'], ['plan', 'PLAN.md'], ['blocked', 'BLOCKED.md'], ['asBuilt', HANDOFF_FILES['as-built']], ['validation', 'VALIDATION.md'], ['critique', HANDOFF_FILES.critique], ['review', 'REVIEW.md']].map(([k, f]) => [k, read(join(dir, f))])) as Snapshot['files'],
 		t1: { spec: specShaFor(toplevel), reviewed: lastField(specReview, 'spec-sha'), verdict: readVerdict(specReview) },
 		subjects: git('log', '--format=%s', `${base}..HEAD`).split('\n').filter(Boolean),
