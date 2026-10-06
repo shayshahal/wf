@@ -33,7 +33,7 @@ Verdict: matches plan | deviates
 <for each + or ~ hop in PLAN.md ## Build: `built` | `missing` | `differs: <one line how>` | `changed at T2: <the REVIEW.md comment>`>
 
 ## Commits
-<for each row: sha · files match row (yes | extra: <file> | missing: <file>) · check named in row was run — ONLY from `.wf/checks.log`: a `"result":"green"` line for that row whose `tasks` include its check (yes | no | red: <task>). A commit message saying it ran does not count >
+<for each row: sha · files match row (yes | extra: <file> | missing: <file>) · check named in row was run — ONLY from `.wf/checks.log`: a `"result":"green"` line for that row whose `tasks` include its check (yes | no | red: <task>). A row checked `manual: …` has no task to look for: its green line is the run, and the step it asked a person to make is T2's, not yours — `yes (manual: T2)`. A commit message saying it ran does not count >
 
 ## Suites
 <from `.wf/checks.log`'s last line with `"row":"suites"`, whose `head` is `git rev-parse HEAD`:

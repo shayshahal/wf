@@ -1,0 +1,48 @@
+<!doctype html>
+<!-- The round folder's one HTML artifact (process/SHOW-ME.md): the view a static block cannot carry.
+     Two options for the badge, side by side. wf design / wf review embed it in the plan page. -->
+<meta charset="utf-8">
+<title>DEMO-1 · badge options</title>
+<style>
+  :root{color-scheme:light dark}
+  body{font:14px/1.5 system-ui,sans-serif;margin:16px}
+  h1{font-size:16px;margin:0 0 4px}
+  p.lede{color:#777;margin:0 0 16px}
+  .row{display:flex;gap:16px;flex-wrap:wrap}
+  .opt{flex:1 1 260px;border:1px solid #8884;border-radius:8px;padding:12px}
+  .opt.chosen{border-color:#4a7;box-shadow:0 0 0 1px #4a7}
+  .tag{font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:#777}
+  .chosen .tag{color:#2e7d32}
+  .table{margin-top:10px;border:1px solid #8883;border-radius:6px;overflow:hidden}
+  .hd,.tr{display:grid;grid-template-columns:1fr 64px;gap:8px;padding:6px 10px}
+  .hd{background:#8881;font-size:12px;color:#666}
+  .tr+.tr{border-top:1px solid #8882}
+  .badge{font-variant-numeric:tabular-nums;text-align:right}
+  .stale{color:#a32323;text-decoration:line-through}
+  .fresh{color:#187a3c;font-weight:600}
+  .note{color:#777;font-size:12px;margin-top:10px}
+</style>
+<h1>DEMO-1 · the badge after a delete: two options</h1>
+<p class="lede">Left: today, the count the delete never invalidates. Right: the count the payload carries.</p>
+<div class="row">
+  <section class="opt">
+    <div class="tag">today</div>
+    <div class="table">
+      <div class="hd"><span>listings</span><span class="badge">count</span></div>
+      <div class="tr"><span>Gold ring · SG-0001</span><span class="badge">6</span></div>
+      <div class="tr"><span>Silver chain · SG-0002</span><span class="badge"></span></div>
+      <div class="tr"><span>Pearl set · SG-0003</span><span class="badge"></span></div>
+    </div>
+    <p class="note">The row is gone, the badge still says <span class="stale">6</span> — it reads <code>stats</code>, and the delete invalidated <code>listings</code>.</p>
+  </section>
+  <section class="opt chosen">
+    <div class="tag">candidate A · chosen</div>
+    <div class="table">
+      <div class="hd"><span>listings</span><span class="badge">count</span></div>
+      <div class="tr"><span>Silver chain · SG-0002</span><span class="badge">5</span></div>
+      <div class="tr"><span>Pearl set · SG-0003</span><span class="badge"></span></div>
+      <div class="tr"><span>Opal ring · SG-0004</span><span class="badge"></span></div>
+    </div>
+    <p class="note">One <code>invalidate('listings', 'stats')</code> in the delete command; the badge reads <span class="fresh">5</span> from the payload it already has.</p>
+  </section>
+</div>

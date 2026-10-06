@@ -9,7 +9,10 @@ the `path:line — text` lines by hand. Either way the same files land.
 **T1 — `wf design <round>`** writes `<round folder>/SPEC-REVIEW.md`. It requires SPEC.md,
 marks `step design --waiting-on user`, opens the SPEC's `## For T1` for annotation (Plannotator
 `annotate --gate`), and folds the result into the REVIEW-FORMAT.md shape: one comment
-line each plus a final `verdict:` line. `## For T1` is what T1 approves and what binds the build;
+line each plus a final `verdict:` line. It also writes `.wf/SPEC-T1.html` — the same section
+rendered, its SHOW-ME.md views drawn (diffs coloured, mermaid drawn, Asks copyable) and the round
+folder's own HTML artifacts embedded — and opens it outside Claude Code, printing `page: <file>`.
+`## For T1` is what T1 approves and what binds the build;
 a T1 given in chat records what the user was shown (DESIGN-SESSION.md § 5).
 
 **T2 — `wf review <round> [--base <ref>]`** writes `<round folder>/REVIEW.md`, then commits and pushes it to the PR branch so the
@@ -20,8 +23,12 @@ vs base, class, spec sha), opens the branch-vs-base diff (Plannotator `review
 When the round folder's `proof/` has `before-<n>.png` (research, on the base) or `after-<n>.png`
 (validate, the same view on the fix), it writes `.wf/before-after.html` with each pair side by side,
 opens it (outside Claude Code) and lists it under `look at:`.
+It also writes `.wf/PLAN.html` — PLAN.md rendered, its Build views drawn — and opens it the same way,
+printing `plan: <file>`: the plan is what the diff is judged against.
 Each repository rule that covered the diff gets a `standards:` line: `pass`, or its issues by
 severity and the report to read beside the diff (STANDARDS.md).
+A row whose PLAN.md `check` cell is `manual: …` (a proof only a person can make) reaches the header
+as `manual: row N — …`: T2 makes that check, since `wf check` cannot.
 When validate and its critic still disagree after the last exchange, a `critique:` line names
 CRITIQUE.md to read beside VALIDATION.md (`src/gates/critique.ts`); when they settled, there is none.
 `wf review <round> --done` reads the verdict line: approved → `step pr`,
@@ -46,10 +53,12 @@ nothing else catches design rot — models are rewarded for passing tests, never
 penalised for a lazy cast or a try/catch around everything. (HumanLayer, *Why
 Software Factories Fail*.)
 
-**Slices, opt-in.** A SPEC may carry a `## Slices` section — vertical cuts in the
-order the user wants to touch them (contract with mock data → screen in the browser →
-wire → store), never stack order. When present, the implementer runs `wf step review`
-after each slice and the user reviews 100–200 lines at a time. Absent, one T2 at the end.
+**Slices do not exist.** A round has no mid-round review: it is built and machine-checked commit
+by commit (`wf check`, one `check` per row) and the person looks once, at T2. A `## Slices` section
+was documented here and in `SPEC-TEMPLATE.md` until 2026-10-06; nothing read it, and an implementer that
+followed it would run `wf step review` mid-round, where an approved verdict sets `step pr` and the
+round delivers unfinished. The capability, if it is wanted, is a feature (a slice boundary in git, a
+review scoped to it, a step machine that returns to implement) — not a paragraph.
 
 **Asking.** Every question an agent might put to the user or the product owner is sorted first:
 INFER what the code or the ticket already reveals — never ask it; ASK only what

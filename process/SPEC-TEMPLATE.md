@@ -22,7 +22,8 @@ section says it.>
 
 **As-is** — one diff-free call stack per touched path, `file:line`, ≤ 6 lines each, and the lines
 where the truth dies, quoted from the code with `:line` and a `⚠`, not described. The one or two measured facts that change what a reader expects.
-**Build** — the chosen candidate's call stack in diff syntax (`CALL-STACK-FORMAT.md`), and the
+**Build** — the chosen candidate's build views in diff syntax: the call stack (`CALL-STACK-FORMAT.md`)
+and any `SHOW-ME.md` view that carries a shape the stack cannot, and the
 one line that says why not the runner-up.
 **Asks** — every ASK, verbatim, with addressee. Nothing else: no INFER, no RECOMMEND here.
 
@@ -53,7 +54,8 @@ prose account of what the code does.>
 
 **Usage.** <what a caller / the user does; "unchanged" is an answer>
 **Types / signatures.** <a code block per new or changed signature; bodies may throw>
-**Call stack.** <diff-syntax block — CALL-STACK-FORMAT.md; "no diff" is legitimate>
+**Build views.** <the call stack in diff syntax — CALL-STACK-FORMAT.md — plus any SHOW-ME.md view
+that carries a shape a stack cannot; "no diff" is legitimate>
 **Tests to write.** <named tests, or the operational artifact that stands in for them>
 **Tradeoff.** <one line for, one line against. Name any falsifier it carries.>
 
@@ -75,11 +77,6 @@ prose account of what the code does.>
 ## Recommendation
 
 <One candidate, one paragraph: why it, why not the others, and what still gates the merge.>
-
-## Slices   ← optional
-
-<Vertical cuts in the order the user wants to look at them (contract + mock → screen → wire →
-store), never stack order. Each slice ends in `wf step review`.>
 ```
 
 Rules the skeleton does not show:
@@ -94,6 +91,8 @@ Rules the skeleton does not show:
 - `## As-is` and `## Input coverage` are written **before** any candidate exists.
 - ≥ 2 candidates, structurally different. One candidate is a plan, not a design session.
 - Every `✗` arm in a call stack says where it lands. Every new function has a signature block.
+- A view is the smallest shape that makes its point, one per point, with a line between them
+  (`SHOW-ME.md`); an HTML artifact is one file in the round folder, named in the Build it belongs to.
 - Nothing here is a menu: every open item is an ASK with an addressee or an INFER with a source.
 - `wf step design` requires this file; the round then freezes on its sha256, and a revision is a
   new sha and a new T1.

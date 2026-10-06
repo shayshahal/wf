@@ -2,7 +2,8 @@
 // and T2 (REVIEW.md): foldFeedbackLine(jsonLine) + renderHeader/renderSkeleton (pure),
 // plus worktree IO helpers (specShaFor, devUrlsFor, appendDatedSection).
 import { createHash } from 'node:crypto';
-import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { relative } from 'node:path';
 import { pageOf, stackUrls } from '../project.ts';
 import { basePortForBranch, listWorktrees, slugForBranch, urlLines } from '../worktrees/worktree.ts';
 import { roundFile } from '../round/state.ts';
@@ -66,8 +67,8 @@ export function lookAtLines(urls: string | null, files: string[], pageFor: (file
 }
 // `standards`: one line per rule's report (standards.ts summaryLines), beside the diff and never
 // folded into VALIDATION.md: one axis must not mask the other (PRACTICES.md, Second-model review).
-export type ReviewHeader = { round: string; klass?: string; base?: string | null; specSha?: string | null; date?: string; urls?: string | null; files?: string[]; beforeAfter?: string | null; standards?: string[] };
-export function renderHeader({ round, klass = '—', base = null, specSha = null, date = today(), urls = null, files = [], beforeAfter = null, standards = [] }: ReviewHeader) {
+export type ReviewHeader = { round: string; klass?: string; base?: string | null; specSha?: string | null; date?: string; urls?: string | null; files?: string[]; beforeAfter?: string | null; standards?: string[]; manual?: string[] };
+export function renderHeader({ round, klass = '—', base = null, specSha = null, date = today(), urls = null, files = [], beforeAfter = null, standards = [], manual = [] }: ReviewHeader) {
   return [
     `# Review — ${round}`,
     ``,
@@ -81,6 +82,7 @@ export function renderHeader({ round, klass = '—', base = null, specSha = null
     ...(beforeAfter ? [`look at: ${beforeAfter}  ← screenshots: before (the base) and after (this round)`] : []),
     ...lookAtLines(urls, files),
     ...standards,
+    ...manual,
     ``,
     `files changed (${files.length}):`,
     ...(files.length ? files.map((f) => `- ${f}`) : [`(none)`]),
@@ -139,6 +141,122 @@ export function beforeAfterPage({ round, pairs, captions, src }: { round: string
 <table><tr><th></th><th>before (the base)</th><th>after (this round)</th></tr>
 ${rows}
 </table>
+`;
+}
+
+// ── the plan page ────────────────────────────────────────────────────────────
+// The same design, rendered: SPEC.md § For T1 at T1 (.wf/SPEC-T1.html, design.ts) and PLAN.md at T2
+// (.wf/PLAN.html, review.ts). The markdown stays the file of record and what the person annotates;
+// the page is where SHOW-ME.md's views read as views — diff blocks coloured, a mermaid block drawn,
+// the Asks copyable, the round's own HTML artifacts embedded. Mermaid comes from a CDN and its
+// source stays readable when there is none: the page is opened on the person's machine, never
+// fetched by wf (and under Claude Code nothing opens at all, editor.ts).
+export type PlanArtifact = { title: string; src: string };
+
+// Pure: the round folder's own HTML files (SHOW-ME.md artifacts), as the page embeds them. `from` is
+// the folder the page is written in (.wf), so each src is relative to it.
+export function roundArtifacts(roundDir: string, from: string): PlanArtifact[] {
+	if (!existsSync(roundDir)) return [];
+	const base = relative(from, roundDir).replace(/\\/g, '/');
+	return readdirSync(roundDir).filter((f) => f.endsWith('.html')).sort()
+		.map((f) => ({ title: f, src: `${base === '.' ? '' : `${base}/`}${f}` }));
+}
+
+// Pure: one diff line as a coloured span. The markers are the call stack's own (`CALL-STACK-FORMAT.md`):
+// `+` added, `-` removed, `~` changed, no marker unchanged — and a hop is indented, so the marker is
+// the first non-space character, not the first (a `+` under two spaces of indent is still an addition).
+const MARKERS = { '+': 'add', '-': 'del', '~': 'chg' } as const;
+const diffRow = (line: string) => {
+	const marker = /^\s*([+\-~])/.exec(line)?.[1] as keyof typeof MARKERS | undefined;
+	return `<span class="${marker ? MARKERS[marker] : 'ctx'}">${escapeHtml(line) || ' '}</span>`;
+};
+
+// Pure: a plan document's markdown → the small part of it wf writes. Fenced blocks keep their shape:
+// a `diff` block and a bare one (where the call stacks live) are coloured by marker, `mermaid` is left
+// for the script `planPage` adds, and a table is shown as it is because a plan's tables are read as text.
+export function planBody(md: string): string {
+	const out: string[] = [];
+	const lines = md.replace(/\r\n/g, '\n').split('\n');
+	const inline = (s: string) => escapeHtml(s).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>').replace(/`([^`]+)`/g, '<code>$1</code>');
+	let list = false;
+	let table = false;
+	const close = () => { if (list) { out.push('</ul>'); list = false; } if (table) { out.push('</pre>'); table = false; } };
+	for (let i = 0; i < lines.length; i++) {
+		const line = lines[i];
+		const fence = /^```(\w*)\s*$/.exec(line);
+		if (fence) {
+			close();
+			const body: string[] = [];
+			for (i++; i < lines.length && !/^```\s*$/.test(lines[i]); i++) body.push(lines[i]);
+			out.push(fence[1] === 'mermaid' ? `<pre class="mermaid">${escapeHtml(body.join('\n'))}</pre>`
+				: fence[1] === 'diff' || fence[1] === '' ? `<pre class="diff">${body.map(diffRow).join('\n')}</pre>`
+					: `<pre class="lang">${escapeHtml(body.join('\n'))}</pre>`);
+			continue;
+		}
+		if (/^\|/.test(line)) {
+			if (!table) { close(); out.push('<pre class="table">'); table = true; }
+			out.push(escapeHtml(line));
+			continue;
+		}
+		if (table) close();
+		const head = /^(#{1,3})\s+(.*)$/.exec(line);
+		if (head) { close(); out.push(`<h${head[1].length}>${inline(head[2])}</h${head[1].length}>`); continue; }
+		const item = /^[-*]\s+(.*)$/.exec(line);
+		if (item) { if (!list) { out.push('<ul>'); list = true; } out.push(`<li>${inline(item[1])}</li>`); continue; }
+		if (/^>/.test(line)) {
+			close();
+			const quote = [line.replace(/^>\s?/, '')];
+			while (i + 1 < lines.length && /^>/.test(lines[i + 1])) quote.push(lines[++i].replace(/^>\s?/, ''));
+			out.push(`<blockquote class="ask">${quote.map(inline).join('<br>')}<button class="copy" type="button">copy</button></blockquote>`);
+			continue;
+		}
+		if (!line.trim()) continue;
+		close();
+		out.push(`<p>${inline(line)}</p>`);
+	}
+	close();
+	return out.join('\n');
+}
+
+// `theme` follows the page's own scheme: mermaid's default theme writes dark text, which is
+// unreadable on the dark page the browser paints for `color-scheme: light dark` (seen in the demo,
+// 2026-10-06 — the sequence diagram came out dark-on-dark). Offline the block keeps its source.
+const MERMAID = '<script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";mermaid.initialize({startOnLoad:false,theme:matchMedia("(prefers-color-scheme: dark)").matches?"dark":"default"});await mermaid.run({querySelector:".mermaid"});</script>';
+const COPY_ASK = '<script>document.addEventListener("click",(e)=>{const b=e.target.closest("button.copy");if(!b)return;navigator.clipboard.writeText(b.parentElement.innerText.replace(/copy$/,"").trim());b.textContent="copied";});</script>';
+
+// Pure: the standalone page for a section of a plan document.
+export function planPage({ title, meta, section, artifacts = [] }: { title: string; meta: string[]; section: string; artifacts?: PlanArtifact[] }) {
+	const body = planBody(section);
+	return `<!doctype html>
+<meta charset="utf-8"><title>${escapeHtml(title)}</title>
+<style>
+:root{color-scheme:light dark}
+body{font:15px/1.55 system-ui,sans-serif;margin:0 auto;padding:24px;max-width:1100px}
+h1{font-size:20px;margin:0 0 4px}
+h2{font-size:17px;margin:28px 0 8px;border-bottom:1px solid #8884;padding-bottom:4px}
+h3{font-size:15px;margin:20px 0 6px}
+.meta{color:#777;font-size:13px;margin-bottom:20px}
+pre{background:#8881;border:1px solid #8883;border-radius:6px;padding:10px 12px;overflow:auto;font:13px/1.45 ui-monospace,Consolas,monospace}
+pre.diff span{display:block;white-space:pre}
+pre.diff .add{color:#187a3c;background:#2e7d3218}
+pre.diff .del{color:#a32323;background:#c6282818}
+pre.diff .chg{color:#8a6d00;background:#f9a82518}
+@media (prefers-color-scheme:dark){pre.diff .add{color:#4ade80}pre.diff .del{color:#f87171}pre.diff .chg{color:#fbbf24}.meta,figcaption{color:#aaa}footer{color:#999}}
+code{background:#8882;border-radius:3px;padding:1px 4px;font-size:.92em}
+blockquote.ask{margin:10px 0;padding:8px 12px;border-left:3px solid #4a7;background:#4a71}
+button.copy{float:right;font:11px system-ui;cursor:pointer;border:1px solid #8886;background:transparent;border-radius:4px;padding:2px 8px;color:inherit}
+figure{margin:16px 0}
+figcaption{color:#777;font-size:12px;margin-bottom:4px}
+iframe{width:100%;height:520px;border:1px solid #8884;border-radius:6px;background:#fff}
+footer{color:#888;font-size:12px;margin-top:40px;border-top:1px solid #8883;padding-top:8px}
+</style>
+<h1>${escapeHtml(title)}</h1>
+<div class="meta">${meta.map((m) => `<div>${escapeHtml(m)}</div>`).join('')}</div>
+${body}
+${artifacts.length ? `<h2>Views</h2>\n${artifacts.map((a) => `<figure><figcaption><a href="${escapeHtml(a.src)}">${escapeHtml(a.title)}</a></figcaption><iframe src="${escapeHtml(a.src)}" loading="lazy"></iframe></figure>`).join('\n')}` : ''}
+<footer>The markdown is the file of record; this page is it rendered, with the views drawn. Generated by wf.</footer>
+${body.includes('class="mermaid"') ? MERMAID : ''}
+${body.includes('class="copy"') ? COPY_ASK : ''}
 `;
 }
 

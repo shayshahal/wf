@@ -10,7 +10,7 @@ touched files. If you need to see how something similar is done elsewhere in thi
 `codebase-locator` once with the `subagent` tool, `agent: "codebase-locator"` (Claude Code: the Agent tool, `wf:codebase-locator`), never another agent, and wait for its report before you write PLAN.md. Do not re-do the research; if you doubt one
 thing in it, name it under Asks.
 
-## Write `{{folder}}/PLAN.md` (≤45 lines)
+## Write `{{folder}}/PLAN.md` (≤45 lines; a B/C round may go over — its design is `SPEC.md`, and Build agrees with `## For T1`'s Build)
 
 ```
 # {{round}} — plan
@@ -19,12 +19,14 @@ Cause: <one line: the hop in RESEARCH.md "Diverges at" and what it does wrong>
 Approach: <one line: what changes, and why here and not elsewhere>
 
 ## Build
-<call stack in diff syntax against RESEARCH.md As-is — CALL-STACK-FORMAT.md.
+<what changes, as views: the call stack in diff syntax against RESEARCH.md As-is — CALL-STACK-FORMAT.md —
+ and any SHOW-ME.md view that carries a shape a stack cannot (a data structure, a SQL table, an API
+ contract, a file tree). One view per point, a line of prose between them.
  Signature block under every + or ~ hop whose signature is new or changed>
 
 ## Commits
 | # | message | files | check |
-| 1 | <conventional commit line> | <every file this commit touches, repo-relative — the fence matches them verbatim> | <the exact command that proves it: one test path, or `repro`> |
+| 1 | <conventional commit line> | <every file this commit touches, repo-relative — the fence matches them verbatim> | <the exact command that proves it: one test path, or `repro`; `manual: <what a person looks at>` when no command can prove it> |
 
 ## Not doing
 <adjacent things a reader might expect, and that this round leaves alone — one line each>
@@ -46,6 +48,9 @@ setup: <only when that screen needs data the seed lacks: one call that makes it,
 ## Rules
 
 - **One approach.** No alternatives, no "option B". The Approach line says why.
+- **A view is not a section.** It replaces the prose it would have taken; `{{wf}}/process/SHOW-ME.md`
+  has the view set and its rules. One HTML artifact in the round folder only when no static view
+  carries the point, named in the Build line it belongs to.
 - `TICKET.md ## Intent` is what was asked, verbatim; validation checks the diff against it. Every
   Intent line is built by a row or named under `## Not doing` with why. Never reword it.
 - The repro in RESEARCH.md is green after the last commit; that commit's check is `repro`.
@@ -58,9 +63,13 @@ setup: <only when that screen needs data the seed lacks: one call that makes it,
 - A repro research could not make red (a failed login, selector or missing data is not red) is fixed
   in commit 1, with only repro files in its row: `wf check` runs the repro on that row and requires
   it red, whatever its check cell says.
-- `wf check` reads a check cell as exactly `repro` or one repo-rooted test path (never `--dir` +
-  a package path): `repro --grep …` runs nothing, and a check expected red fails the commit. A measuring commit's check is `—`
-  (fence only).
+- `wf check` reads a check cell as exactly `repro`, one repo-rooted test path, or `manual: <what to
+  look at>` (never `--dir` + a package path): `repro --grep …` runs nothing, and a check expected red
+  fails the commit.
+- A measuring commit's check is `—` (fence only). A row whose only proof is a person looking gets
+  `manual: <what they look at>` — the instruction you would give them, and no `|`. It is fence only
+  too (`wf check` still gates the commit: the fence and the project's checks), and the step reaches
+  T2 as a `manual:` line beside the diff, so it is not lost inside the plan.
 - Do not run suites, do not start servers, do not commit anything.
 - CRLF: write through a script or the `edit` tool, never a heredoc.
 - Reply when done with ≤6 lines: class, commit count, the Asks (or "none").

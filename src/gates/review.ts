@@ -9,8 +9,10 @@ import { openFile, openInEditor, opensWindows } from '../worktrees/editor.ts';
 import { baseBranch } from '../project.ts';
 import { ensureServers } from '../worktrees/serve.ts';
 import { resolveWorktree } from '../worktrees/worktree.ts';
-import { appendDatedSection, asBuiltFile, beforeAfterPage, captionFor, devUrlsFor, foldFeedbackLine, lastField, proofPairs, readVerdict, renderHeader, renderSkeleton, specShaFor } from './review-format.ts';
+import { appendDatedSection, asBuiltFile, beforeAfterPage, captionFor, devUrlsFor, foldFeedbackLine, lastField, planPage, proofPairs, readVerdict, renderHeader, renderSkeleton, roundArtifacts, specShaFor } from './review-format.ts';
 import { seams } from '../seams.ts';
+import { manualCheck } from './check.ts';
+import { planCommitRows } from '../round/prompt.ts';
 import { reportFile, roundChecks, summaryLines } from './standards.ts';
 import { CRITIQUE_FILE, critiqueLines } from './critique.ts';
 import { roundFile } from '../round/state.ts';
@@ -76,6 +78,25 @@ function writeBeforeAfter(worktree: string, round: string) {
   return file;
 }
 
+// The plan as a page (.wf/PLAN.html): what the diff is judged against, with its Build views drawn
+// (SHOW-ME.md, review-format.ts planPage). Null when the round has no PLAN.md.
+function writePlan(worktree: string, round: string) {
+  const state = readState(worktree);
+  const folder = state.folder;
+  if (!folder) return null;
+  const plan = join(worktree, folder, 'PLAN.md');
+  if (!existsSync(plan)) return null;
+  const file = join(worktree, '.wf', 'PLAN.html');
+  mkdirSync(dirname(file), { recursive: true });
+  writeFileSync(file, planPage({
+    title: `PLAN — ${round}`,
+    meta: [`class ${state.class ?? '—'} · base ${state.base ?? baseBranch}`, 'the plan the diff is judged against — the markdown is the file of record'],
+    section: readFileSync(plan, 'utf8'),
+    artifacts: roundArtifacts(join(worktree, folder), join(worktree, '.wf')),
+  }));
+  return file;
+}
+
 // The header's standards lines: each rule that covers the diff and what its report says.
 function standardsFor(worktree: string): string[] {
   const folder = readState(worktree).folder ?? '';
@@ -96,6 +117,19 @@ function critiqueFor(worktree: string): string[] {
   const state = readState(worktree);
   const file = [state.folder, CRITIQUE_FILE].filter(Boolean).join('/');
   return critiqueLines(existsSync(join(worktree, file)) ? readFileSync(join(worktree, file), 'utf8') : null, file, state.briefs?.critique?.exchange ?? null);
+}
+
+// The rows whose proof is a person looking (check cell `manual: …`, prompts/plan.md): T2 reads each
+// as a `manual:` line beside the diff, so a commit whose only proof is a screen is not left to the one
+// T2-walk screen. `wf check` gated the commit itself (the fence and the project's checks).
+function manualFor(worktree: string): string[] {
+  const folder = readState(worktree).folder;
+  const plan = folder && join(worktree, folder, 'PLAN.md');
+  if (!plan || !existsSync(plan)) return [];
+  return planCommitRows(readFileSync(plan, 'utf8')).flatMap((r) => {
+    const text = manualCheck(r.check);
+    return text ? [`manual: row ${r.n} — ${text}`] : [];
+  });
 }
 
 export async function runReview(argv: string[]) {
@@ -124,10 +158,16 @@ export async function runReview(argv: string[]) {
     console.log(`before/after: ${beforeAfter}`);
     openFile(beforeAfter);
   }
+  const planHtml = writePlan(worktree, round);
+  if (planHtml) {
+    console.log(`plan: ${planHtml}`);
+    openFile(planHtml);
+  }
   const standards = [...critiqueFor(worktree), ...standardsFor(worktree)];
-  const header = () => renderHeader({ round, klass, base, specSha: specShaFor(worktree), urls: devUrlsFor(worktree), files, beforeAfter, standards });
+  const manual = manualFor(worktree);
+  const header = () => renderHeader({ round, klass, base, specSha: specShaFor(worktree), urls: devUrlsFor(worktree), files, beforeAfter, standards, manual });
   const file = roundFile(worktree, 'REVIEW.md');
-  if (!existsSync(file)) appendDatedSection(file, renderSkeleton({ round, klass, base, specSha: specShaFor(worktree), urls: devUrlsFor(worktree), files, beforeAfter, standards }));
+  if (!existsSync(file)) appendDatedSection(file, renderSkeleton({ round, klass, base, specSha: specShaFor(worktree), urls: devUrlsFor(worktree), files, beforeAfter, standards, manual }));
   // The machine's review screen when it has one (seams.reviewUI: plannotator on Shay's), else an editor.
   if (!seams.reviewUI?.available()) {
     if (!opensWindows()) {

@@ -4,10 +4,10 @@
 // that file is what opens. The sha in SPEC-REVIEW.md is still the whole SPEC.md's.
 // BJEW-454 rev 1 (312 lines) came back «information overload, i cannot follow this».
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { openInEditor, opensWindows } from '../worktrees/editor.ts';
+import { dirname, join } from 'node:path';
+import { openFile, openInEditor, opensWindows } from '../worktrees/editor.ts';
 import { resolveWorktree } from '../worktrees/worktree.ts';
-import { appendDatedSection, devUrlsFor, foldFeedbackLine, renderHeader, renderSkeleton, specShaFor } from './review-format.ts';
+import { appendDatedSection, devUrlsFor, foldFeedbackLine, planPage, renderHeader, renderSkeleton, roundArtifacts, specShaFor } from './review-format.ts';
 import { seams } from '../seams.ts';
 import { roundFile } from '../round/state.ts';
 import { runStep } from '../round/step.ts';
@@ -40,8 +40,21 @@ export async function runDesign(argv: string[]) {
   const header = () => renderHeader({ round, specSha: specShaFor(worktree), urls: devUrlsFor(worktree) });
   const file = roundFile(worktree, 'SPEC-REVIEW.md');
   mkdirSync(join(worktree, '.wf'), { recursive: true });
+  const section = forT1Section(readFileSync(spec, 'utf8')) ?? '';
   const toAnnotate = join(worktree, '.wf', 'SPEC-T1.md');
-  writeFileSync(toAnnotate, `${forT1Section(readFileSync(spec, 'utf8'))}\n<!-- extracted from SPEC.md § For T1: the design this round is built against; the rest of SPEC.md is working notes. Annotate here -->\n`);
+  writeFileSync(toAnnotate, `${section}\n<!-- extracted from SPEC.md § For T1: the design this round is built against; the rest of SPEC.md is working notes. Annotate here -->\n`);
+  // The same section as a page, its views drawn (review-format.ts planPage): the markdown above is
+  // what gets annotated, the page is what reads as a design. Opened before the review UI, which opens
+  // a tab of its own (and under Claude Code wf opens nothing at all, editor.ts).
+  const pageFile = join(worktree, '.wf', 'SPEC-T1.html');
+  writeFileSync(pageFile, planPage({
+    title: `SPEC — ${round} · For T1`,
+    meta: [`spec-sha: ${specShaFor(worktree) ?? 'n/a'}`, 'the design this round is built against — annotate the markdown'],
+    section,
+    artifacts: roundArtifacts(dirname(spec), join(worktree, '.wf')),
+  }));
+  console.log(`page: ${pageFile}`);
+  openFile(pageFile);
   // The machine's review screen when it has one (seams.reviewUI: plannotator on Shay's), else an editor.
   if (seams.reviewUI?.available()) {
     const line = seams.reviewUI.annotate({ worktree, file: toAnnotate, since: new Date().toISOString() });
