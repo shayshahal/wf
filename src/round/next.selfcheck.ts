@@ -3,7 +3,7 @@
 // (next.ts nextAction), from a fixture round. Nothing is run.
 import { lastSuites, nextAction, unpostedSections } from './next.ts';
 import type { Snapshot } from './next.ts';
-import { researchState, reviseState } from './ask.ts';
+import { researchState, revisionText, reviseState } from './ask.ts';
 import { briefsAfter } from './handoff.ts';
 import type { Brief, Question } from './state.ts';
 
@@ -165,6 +165,13 @@ const ruled = (answer: string) => impl({ ...done2, files: { validation: VALID('d
 check('ruled accept → T2', say(ruled('accept, the label is fine')).startsWith('review: T2'));
 check('ruled fix → fix-review from VALIDATION.md', say(ruled('fix it')).startsWith('dispatch fix-review --from VALIDATION.md: run `node C:/wf/wf.mjs brief fix-review --from VALIDATION.md`'));
 check('the fix committed → validate again', say(impl({ ...done2, subjects: [...done2.subjects, 'fix(review): the label'], files: { validation: VALID('deviates') }, answered: [{ n: 3, source: 'VALIDATION.md#ccc333', answer: 'fix' }] })).startsWith('dispatch validate:'));
+// TJEW-670 (2026-10-06): a fix ruling recorded with `wf decide --revise --q` is built by a plan row whose subject is not fix(review):.
+const viaPlan: Partial<Question> = { n: 6, to: 'user', text: 'fix or accept: x differs', source: 'VALIDATION.md#ccc333', answer: 'fix, differently: single-flight' };
+const viaPlanRevisions = [{ text: revisionText(viaPlan as Question, viaPlan.answer!), at: '2026-10-06T19:38:53.305Z' }];
+const viaPlanRound = (patch: Fixture = {}) => impl({ ...done2, subjects: [...done2.subjects, 'fix(admin): update the cached formula'], files: { validation: VALID('deviates') }, answered: [viaPlan], revisions: viaPlanRevisions, ...patch });
+check('fix ruling built by a plan row (decide --revise --q) → no fix-review, on to validate', !say(viaPlanRound()).includes('fix-review') && say(viaPlanRound()).startsWith('dispatch validate:'), say(viaPlanRound()));
+check('the same ruling, not revised through plan → still a fix(review) owed', say(viaPlanRound({ revisions: [] })).startsWith('dispatch fix-review --from VALIDATION.md'));
+check('a revise through plan does not excuse another ruling', say(viaPlanRound({ answered: [viaPlan, { n: 7, source: 'VALIDATION.md#ccc333', answer: 'fix' }] })).startsWith('dispatch fix-review --from VALIDATION.md'));
 
 const onModels = (s: Snapshot) => say({ ...s, models: { low: 'sonnet', medium: 'opus' } });
 // the critic: a fresh agent audits the validation before the person sees it (gates/critique.ts)

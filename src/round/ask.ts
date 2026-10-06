@@ -189,12 +189,19 @@ export async function runDecide(argv: string[]): Promise<void> {
 		writeFileSync(plan, appendDecision(readFileSync(plan, 'utf8'), `${question.text} → ${question.to}: ${answer}`));
 		console.log(`q${question.n} closed · recorded in ${plan} § Decisions`);
 	}
-	const said = `${question.text}${question.default ? ` (default: ${question.default})` : ''} → ${answer}`;
+	const said = revisionText(question, answer);
 	const next = writeState(toplevel, a.revise ? reviseState(closed.state, said) : a.research ? researchState(closed.state, said) : closed.state);
 	if (a.revise) console.log('the round is back at plan: `wf next` dispatches plan --revise with this answer');
 	if (a.research) console.log(RESEARCH_SAID);
 	await notifyAdapters(next);
 }
+
+// Pure: the text `wf decide --revise --q` records in state.revisions for an answered question.
+export const revisionText = (question: Pick<Question, 'text' | 'default'>, answer: string) => `${question.text}${question.default ? ` (default: ${question.default})` : ''} → ${answer}`.trim();
+
+// Pure: whether `wf decide --revise --q` sent this answered question back to plan. Nothing else links
+// a revision to its question, and the text is built from both (revisionText).
+export const wentThroughPlan = (question: Question, revisions: { text: string }[] = []) => revisions.some((r) => r.text === revisionText(question, (question.answer ?? '').trim()));
 
 // Pure: the state sent back to plan with `text`, an answer saying the plan must change. `wf next`
 // answers it with `plan --revise` until a plan brief is newer than the answer (pendingRevisions).
