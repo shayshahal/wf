@@ -5,7 +5,9 @@
 import { worktreeDatabase } from './db.ts';
 import { devCommands } from './dev.ts';
 import { includedFiles, sanitizeEnv } from './env.ts';
-import { checks, directUrls, pageOf, setup, stackUrls, teardown, trackerNote } from './index.ts';
+import { handoffGap } from '../../src/round/handoff.ts';
+import { checks, directUrls, pageOf, planGap, setup, stackUrls, teardown, trackerNote } from './index.ts';
+import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -86,6 +88,38 @@ const [spec] = checks({ toplevel: stackTree, changed: [], test: 'verification/sp
 check('a verification spec runs as the seeded owner and supplier, who are in the round database (not verification-owner@)', spec?.env?.B2B_OWNER_EMAIL === 'buyer@seed.jewelryx' && spec.env.B2B_OWNER_PASSWORD === 'seed1234' && spec.env.B2B_SUPPLIER_EMAIL === 'seller@seed.jewelryx' && spec.env.B2B_SUPPLIER_PASSWORD === 'seed1234', JSON.stringify(spec?.env));
 check('and still against the round stack', spec?.env?.B2B_URL === direct.b2b && spec.env.API_URL === direct.api, JSON.stringify(spec?.env));
 rmSync(stackTree, { recursive: true, force: true });
+
+// ── the oracle guard, where wf meets it: the plan's hand-off, and a row's check on a real branch
+const planWith = (files: string) => ['# plan', '## Commits', '| # | message | files | check |', '|---|---|---|---|', `| 1 | test(verification): x | ${files} | verification/tests/x.spec.ts |`, '<!-- brief: aa -->'].join('\n');
+const brief = { token: 'aa' };
+check('handoff: a fix/ plan row with a verification/ file is not a handoff, wherever wf asks (next, the stop hook, the implement brief)', handoffGap('plan', planWith('verification/tests/x.spec.ts'), brief, undefined, 'fix/bjew-617-x')?.includes('oracle-guard') === true);
+check('handoff: the same plan on a verification/ branch, or with no branch known, is one', handoffGap('plan', planWith('verification/tests/x.spec.ts'), brief, undefined, 'verification/x') === null && handoffGap('plan', planWith('verification/tests/x.spec.ts'), brief) === null);
+check('handoff: a fix/ plan that stays in the product is one', handoffGap('plan', planWith('packages/backend/app/x.py'), brief, undefined, 'fix/x') === null);
+check('planGap is what handoff asks', planGap({ branch: 'feat/x', rows: [{ n: 1, message: 'm', files: ['verification/a.ts'] }] }) !== null);
+{
+  const repo = mkdtempSync(join(tmpdir(), 'wf-oracle-'));
+  const git = (...args: string[]) => execFileSync('git', ['-C', repo, '-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+  const guard = () => checks({ toplevel: repo, changed: [], test: null }).find((t) => t.label === 'oracle-guard')?.missing;
+  git('init', '-q', '-b', 'dev');
+  mkdirSync(join(repo, 'verification'));
+  writeFileSync(join(repo, 'verification', 'a.spec.ts'), 'a\n');
+  git('add', '.');
+  git('commit', '-q', '-m', 'base');
+  check('row check: on dev, nothing is guarded', guard() === undefined);
+  git('checkout', '-q', '-b', 'fix/x');
+  check('row check: a fix/ branch with a clean tree is not refused', guard() === undefined);
+  writeFileSync(join(repo, 'verification', 'a.spec.ts'), 'b\n');
+  check('row check: BJEW-617 row 1, the edit uncommitted (where lefthook pre-push cannot see it), is refused naming the file', guard()?.includes('verification/a.spec.ts') === true, String(guard()));
+  git('commit', '-q', '-am', 'row 1');
+  check('row check: and committed, as row 2 met it', guard()?.includes('verification/a.spec.ts') === true);
+  git('checkout', '-q', 'dev', '--', 'verification/a.spec.ts');
+  check('row check: the revert row, the tree back at the base, is not refused', guard() === undefined, String(guard()));
+  writeFileSync(join(repo, 'verification', 'new.spec.ts'), 'n\n');
+  check('row check: an untracked new oracle file is refused', guard()?.includes('verification/new.spec.ts') === true);
+  git('checkout', '-q', '-b', 'verification/y');
+  check('row check: a verification/ branch may edit it', guard() === undefined);
+  rmSync(repo, { recursive: true, force: true });
+}
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');
 process.exit(failures ? 1 : 0);

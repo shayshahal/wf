@@ -2,7 +2,7 @@
 // Pure: JewelryX's commands for a diff and a plan row, through core's buildTasks (the row's check
 // cell, the repro) with this project's checkTasks, as `wf check` runs them. No git, no runners.
 import { buildTasks as coreBuildTasks } from '../../src/gates/check.ts';
-import { checkTasks, parseStackEnv, seedActorsEnv, suitesTouched } from './checks.ts';
+import { checkTasks, oracleGuardTask, parseStackEnv, planOracleGap, seedActorsEnv, suitesTouched } from './checks.ts';
 import type { PkgFor } from './checks.ts';
 
 let failures = 0;
@@ -90,6 +90,22 @@ check('the root JS config and the lockfile run both apps', touched(['pnpm-lock.y
 check('a package nobody named runs every suite', touched(['packages/worker/main.py']) === 'backend,admin,b2b');
 check('docs, verification/ and a round folder run none', touched(['docs/agents/testing.md', 'verification/tests/a.spec.ts', 'bug-reports/x/PLAN.md', 'AGENTS.md']) === '');
 check('in a fixed order, once each', touched(['packages/frontend/b2b/a.ts', 'packages/frontend/admin/Dockerfile', 'packages/frontend/b2b/c.ts']) === 'backend,admin,b2b' && touched(['packages/frontend/b2b/a.ts', 'packages/frontend/b2b/c.ts']) === 'b2b');
+
+// ── the oracle guard (scripts/oracle-guard.mjs in JewelryX): BJEW-617, 2026-10-06
+const row = (n: number, message: string, files: string) => ({ n, message, files: files.split(/[\s,`]+/).filter(Boolean) });
+const bjew617 = [row(1, 'test(verification): log out via the settings sidebar in login-relogin', '`verification/tests/login-relogin.spec.ts`'), row(2, 'fix(b2b): drop contact and logout from the desktop dropdown', 'packages/frontend/b2b/src/lib/components/layout/Header.svelte, verification/tests/m1-desktop-guard-b2b.spec.ts')];
+const gap = planOracleGap({ branch: 'fix/bjew-617-account-menu-logout', rows: bjew617 });
+check('a fix/ plan whose rows list verification/ files is refused, each row and file named', gap?.includes('row 1: verification/tests/login-relogin.spec.ts') && gap.includes('row 2: verification/tests/m1-desktop-guard-b2b.spec.ts'), String(gap));
+check('the refusal says the guard\'s rule and where coverage goes', gap?.includes('oracle-guard') && gap.includes('fix/* or feat/*') && gap.includes('bugs-to-tests / cr-to-tests') && gap.includes('verification/* branch'), String(gap));
+check('a feat/ plan listing JewelryX-Tools/ is refused too', planOracleGap({ branch: 'feat/tjew-700-x', rows: [row(1, 'chore: tool', 'JewelryX-Tools/Doc-to-Tests/gate/x.py')] })?.includes('row 1: JewelryX-Tools/Doc-to-Tests/gate/x.py') === true);
+check('a verification/* branch may plan verification/ rows', planOracleGap({ branch: 'verification/sveltekit3-form-names', rows: bjew617 }) === null);
+check('a plan with no oracle file in its rows passes, a path that only mentions verification does not count', planOracleGap({ branch: 'fix/x', rows: [row(1, 'fix: x', 'packages/backend/app/x.py, docs/verification/notes.md')] }) === null);
+check('a revert row is let through: on a branch that carries the edit it is how the guard goes green', planOracleGap({ branch: 'fix/x', rows: [row(2, 'revert: "test(verification): log out via the settings sidebar in login-relogin"', 'verification/tests/login-relogin.spec.ts'), row(3, 'fix(b2b): x', 'packages/frontend/b2b/src/a.svelte')] }) === null);
+check('no branch known: nothing to judge', planOracleGap({ branch: null, rows: bjew617 }) === null);
+check('no oracle file differing: no guard task', oracleGuardTask([]) === null);
+const guardRow = checkTasks({ changed: ['verification/tests/login-relogin.spec.ts'], test: 'verification/tests/login-relogin.spec.ts', pkgFor, pushHook: true, oracleTouched: ['verification/tests/login-relogin.spec.ts'] });
+check('row 1 of BJEW-617: an oracle edit in the diff makes the row check red at once, before lefthook, with the rule', guardRow.length === 1 && guardRow[0].label === 'oracle-guard' && guardRow[0].missing?.includes('verification/tests/login-relogin.spec.ts') === true && guardRow[0].missing.includes('bugs-to-tests / cr-to-tests'), JSON.stringify(guardRow));
+check('and the same row with no oracle diff runs as before', labels(checkTasks({ changed: ['verification/tests/login-relogin.spec.ts'], test: 'verification/tests/login-relogin.spec.ts', pkgFor, pushHook: true })).join() === 'lefthook pre-commit,playwright verification/tests/login-relogin.spec.ts,lefthook pre-push');
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');
 process.exit(failures ? 1 : 0);

@@ -4,11 +4,44 @@
 //   test     — the plan row's test path: pytest, vitest in its package, or playwright under verification/
 //   pre-commit — the repo's own lefthook pre-commit hook on the changed files, first, when it has one
 //              (prettier, eslint and oxlint with --fix, ruff --fix: it rewrites and stages what it fixes)
+//   oracle-guard — refused outright when the round's diff against the base touches the oracle (below)
 //   pre-push — the repo's own lefthook pre-push hook on the changed files, when it has one (it runs
 //              the stricter svelte-check, so the --tsgo one above is dropped then)
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import type { CheckTask } from '../../src/gates/check.ts';
+
+// ── the oracle guard ─────────────────────────────────────────────────────────
+
+// JewelryX's lefthook `oracle-guard` (scripts/oracle-guard.mjs, a pre-push command with no glob)
+// fails any fix/* or feat/* branch whose COMMITTED diff against origin/dev touches verification/ or
+// JewelryX-Tools/: "product branches never edit the oracle; coverage lands via cr-to-tests /
+// bugs-to-tests on a verification/* branch". BJEW-617 (2026-10-06): the plan's row 1 edited
+// verification/tests/login-relogin.spec.ts, and nothing said no until row 2's `wf check`. Row 1's own
+// check had run `lefthook pre-push` green, because the guard reads base...HEAD and row 1's edit was
+// not committed yet; at row 2 it was, and the guard named row 1. Two places say it earlier: the plan
+// (planOracleGap, before any row is built) and each row's check (oracleGuardTask, on the working tree).
+export const PRODUCT_BRANCH = /^(fix|feat)\//;
+const ORACLE_PATH = /^(verification|JewelryX-Tools)\//;
+export const oracleEdits = (files: string[]): string[] => files.filter((f) => ORACLE_PATH.test(f));
+const ORACLE_RULE = "JewelryX's lefthook oracle-guard (scripts/oracle-guard.mjs) fails any fix/* or feat/* branch whose diff against origin/dev touches verification/ or JewelryX-Tools/ (product branches never edit the oracle)";
+const ORACLE_WAY = 'coverage for them lands via bugs-to-tests / cr-to-tests on a verification/* branch: take them out of the rows and list them under Not doing';
+
+// Pure: null, or why the plan's rows cannot pass the oracle guard. A row that reverts is let through:
+// on a branch that already carries an oracle edit, undoing it is how the guard goes green (BJEW-617's
+// revised plan has exactly that row).
+export function planOracleGap({ branch, rows }: { branch: string | null; rows: { n: number; message: string; files: string[] }[] }): string | null {
+	if (!branch || !PRODUCT_BRANCH.test(branch)) return null;
+	const bad = rows.filter((r) => !/^`?revert(?![a-z])/i.test(r.message)).flatMap((r) => oracleEdits(r.files).map((f) => `row ${r.n}: ${f}`));
+	return bad.length ? `PLAN.md lists oracle files on ${branch}: ${bad.join(', ')}. ${ORACLE_RULE}; ${ORACLE_WAY}` : null;
+}
+
+// Pure: the refusal `wf check` makes when the working tree's diff against the base (`touched`, the
+// oracle files of it) would fail the guard at the next push, or null. The guard itself, run by the
+// pre-push hook in checkTasks, only sees commits.
+export function oracleGuardTask(touched: string[]): CheckTask | null {
+	return touched.length ? { label: 'oracle-guard', missing: `${touched.join(', ')} differ from the base. ${ORACLE_RULE}. Leave them out of this commit (git checkout origin/dev -- <file>) and BLOCKED.md the plan gap: coverage for them lands via bugs-to-tests / cr-to-tests on a verification/* branch` } : null;
+}
 
 export type Pkg = { name: string; dir: string; svelte: boolean };
 export type PkgFor = (file: string) => Pkg | null;
@@ -19,7 +52,11 @@ const isJsTest = (f: string) => /\.(test|spec)\.[cm]?[jt]s$/.test(f);
 // Pure: the commands to run, in order. `pkgFor(file)` returns { name, dir, svelte } for a frontend
 // file or null; `test` is the plan row's test path or null; `pushHook`: the repo has a lefthook.yml;
 // `onDisk(file)`: the file is still there (not deleted by the diff).
-export function checkTasks({ changed, test, pkgFor, pushHook = false, onDisk = () => true, stackEnv = {} }: { changed: string[]; test: string | null; pkgFor: PkgFor; pushHook?: boolean; onDisk?: (file: string) => boolean; stackEnv?: Record<string, string> }): CheckTask[] {
+// `oracleTouched`: the oracle files the working tree differs from the base in, on a fix/ or feat/
+// branch (index.ts), else empty.
+export function checkTasks({ changed, test, pkgFor, pushHook = false, onDisk = () => true, stackEnv = {}, oracleTouched = [] }: { changed: string[]; test: string | null; pkgFor: PkgFor; pushHook?: boolean; onDisk?: (file: string) => boolean; stackEnv?: Record<string, string>; oracleTouched?: string[] }): CheckTask[] {
+	const oracle = oracleGuardTask(oracleTouched);
+	if (oracle) return [oracle];
 	const tasks = rowTasks({ changed, test, pkgFor, pushHook, stackEnv });
 	if (!pushHook || !changed.length || tasks.some((t) => t.missing)) return tasks;
 	// What the commit will run, run first: ESLint (lint-kit's Svelte rules, @shadcn/lint) runs only in

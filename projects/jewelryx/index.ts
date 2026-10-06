@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { createConnection } from 'node:net';
 import { join } from 'node:path';
-import { checkTasks, parseStackEnv, seedActorsEnv, realPkgFor, suitesTouched } from './checks.ts';
+import { checkTasks, oracleEdits, parseStackEnv, planOracleGap, PRODUCT_BRANCH, seedActorsEnv, realPkgFor, suitesTouched } from './checks.ts';
 import type { Suite } from './checks.ts';
 import type { CheckTask } from '../../src/gates/check.ts';
 import { dropDatabase, worktreeDatabase } from './db.ts';
@@ -213,12 +213,33 @@ export function newRound({ worktree, folder, port }: { worktree: string; folder:
 
 // ── checks ───────────────────────────────────────────────────────────────────
 
+// The plan's rows against the project's rules, when the plan is handed off (handoff.ts handoffGap):
+// null, or why the rows cannot be built. `branch` is the round's.
+export function planGap({ branch, rows }: { branch: string | null; rows: { n: number; message: string; files: string[] }[] }): string | null {
+	return planOracleGap({ branch, rows });
+}
+
+// The oracle files the worktree differs from the base in (checks.ts, the oracle guard): committed, staged,
+// unstaged and untracked, where the guard itself reads only commits. Empty off a fix/ or feat/ branch.
+// The base as the guard reads it: origin/<base> when there is one, else the local branch.
+function oracleTouched(toplevel: string): string[] {
+	const git = (args: string[]) => spawnSync('git', ['-C', toplevel, ...args], { encoding: 'utf8', windowsHide: true });
+	const branch = git(['branch', '--show-current']).stdout.trim();
+	if (!PRODUCT_BRANCH.test(branch)) return [];
+	const base = git(['rev-parse', '--verify', '--quiet', `origin/${baseBranch}`]).status === 0 ? `origin/${baseBranch}` : baseBranch;
+	const mergeBase = git(['merge-base', base, 'HEAD']).stdout.trim();
+	if (!mergeBase) return [];
+	const lines = (r: { stdout: string }) => r.stdout.split('\n').map((l) => l.trim()).filter(Boolean);
+	const paths = ['--', 'verification/', 'JewelryX-Tools/'];
+	return oracleEdits([...new Set([...lines(git(['diff', '--name-only', mergeBase, ...paths])), ...lines(git(['ls-files', '--others', '--exclude-standard', ...paths]))])]).sort();
+}
+
 // wf check's commands for the changed files, plus `test` (the plan row's test path, or null). Each is
 // { label, cmd, args, cwd } (cwd repo-relative), or { label, missing } when `test` is not runnable.
 export function checks({ toplevel, changed, test }: { toplevel: string; changed: string[]; test: string | null }): CheckTask[] {
 	const stackFile = join(toplevel, '.verify-stack.env');
 	const stackEnv = { ...seedActorsEnv(logins), ...(existsSync(stackFile) ? parseStackEnv(readFileSync(stackFile, 'utf8')) : {}) };
-	return checkTasks({ changed, test, pkgFor: realPkgFor(toplevel), pushHook: existsSync(join(toplevel, 'lefthook.yml')), onDisk: (f) => existsSync(join(toplevel, f)), stackEnv });
+	return checkTasks({ changed, test, pkgFor: realPkgFor(toplevel), pushHook: existsSync(join(toplevel, 'lefthook.yml')), onDisk: (f) => existsSync(join(toplevel, f)), stackEnv, oracleTouched: oracleTouched(toplevel) });
 }
 
 // `wf check --suites`: before validate, on each committed HEAD, the whole suite of each package the

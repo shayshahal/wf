@@ -138,7 +138,7 @@ export function nextAction(s: Snapshot): { say: string; effects: Effect[] } {
 	// plan → its Asks, T1 (class B/C) or implement
 	let klass = s.klass ?? 'A';
 	if (step === 'plan' || step === 'design') {
-		const gap = handoffGap('plan', s.files.plan, brief('plan'));
+		const gap = handoffGap('plan', s.files.plan, brief('plan'), undefined, s.branch);
 		if (gap) return dispatch('plan', [], gap);
 		// An answer said the plan must change (`wf decide --revise`): revised before anything else is built.
 		if (pendingRevisions(s.revisions, brief('plan')?.at).length) return dispatch('plan', ['--revise'], null);
