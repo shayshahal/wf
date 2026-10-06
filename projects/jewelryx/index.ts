@@ -3,10 +3,10 @@
 // A second project gets a folder like this one. What the two then share is the interface; until
 // then this file's exports are simply what JewelryX needed (Shay, 2026-09-24).
 import { spawnSync } from 'node:child_process';
-import { existsSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { createConnection } from 'node:net';
 import { join } from 'node:path';
-import { checkTasks, realPkgFor } from './checks.ts';
+import { checkTasks, parseStackEnv, realPkgFor } from './checks.ts';
 import type { CheckTask } from '../../src/gates/check.ts';
 import { dropDatabase, worktreeDatabase } from './db.ts';
 import { seams } from '../../src/seams.ts';
@@ -215,7 +215,9 @@ export function newRound({ worktree, folder, port }: { worktree: string; folder:
 // wf check's commands for the changed files, plus `test` (the plan row's test path, or null). Each is
 // { label, cmd, args, cwd } (cwd repo-relative), or { label, missing } when `test` is not runnable.
 export function checks({ toplevel, changed, test }: { toplevel: string; changed: string[]; test: string | null }): CheckTask[] {
-	return checkTasks({ changed, test, pkgFor: realPkgFor(toplevel), pushHook: existsSync(join(toplevel, 'lefthook.yml')), onDisk: (f) => existsSync(join(toplevel, f)) });
+	const stackFile = join(toplevel, '.verify-stack.env');
+	const stackEnv = existsSync(stackFile) ? parseStackEnv(readFileSync(stackFile, 'utf8')) : {};
+	return checkTasks({ changed, test, pkgFor: realPkgFor(toplevel), pushHook: existsSync(join(toplevel, 'lefthook.yml')), onDisk: (f) => existsSync(join(toplevel, f)), stackEnv });
 }
 
 // `wf check --suites`: the whole suites on each committed HEAD before validate; each suite its steps in
