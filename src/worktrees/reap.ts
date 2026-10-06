@@ -111,15 +111,18 @@ export async function runReap(argv: string[]) {
 			continue;
 		}
 		if (step.rm) {
+			let failed: string | null = null;
 			try {
 				// A dev server just killed holds its folder for a few seconds (EBUSY on Windows):
 				// rmSync retries EBUSY/EPERM itself. BJEW-603 left the folder behind twice without this.
 				rmSync(step.rm, { recursive: true, force: true, maxRetries: 10, retryDelay: 1000 });
-				console.log(`${step.label}: ok`);
 			} catch (e) {
 				// Each step tolerates what is already gone; the next steps still run, and the line says which failed.
-				console.log(`${step.label}: ${(e as NodeJS.ErrnoException).code ?? 'failed'} (already gone?)`);
+				failed = (e as NodeJS.ErrnoException).code ?? 'failed';
 			}
+			// Judged by the folder, not the error: a process still running in it keeps it (2026-10-06: a
+			// proxy started from BJEW-461's stack kept its folder, EBUSY), and that is not "already gone".
+			console.log(!existsSync(step.rm) ? `${step.label}: ok` : `${step.label}: ${failed ?? 'failed'}, ${step.rm} is still there: a process still runs in it or holds a file in it`);
 			continue;
 		}
 		// A step done in-process: its arguments never pass through the shell (the database drop's
