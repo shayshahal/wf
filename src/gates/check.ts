@@ -15,8 +15,9 @@
 // done to tests no row touched (2026-10-05: a change broke tests outside its commit checks, unseen
 // until the next day's full-suite run).
 // `wf check --repro` (research, prompts/research.md): RESEARCH.md's repro, three times; stable only when
-// all three are red at the same place. Its line in checks.log (row `repro`, result stable|unstable)
-// carries the research brief's token, which `wf next` requires before plan.
+// all three are red at the same place, in the round's repro files. Its line in checks.log (row
+// `repro`, result stable|unstable|green|outside) carries the research brief's token, which `wf next`
+// requires before plan.
 // Every run appends one JSON line to .wf/checks.log (row, the row's check, each task's exit,
 // green|red). The validate agent reads that, never the commit message: "the check was run"
 // is then observed, not claimed (llm-as-a-verifier: trust observed output, not narration).
@@ -98,8 +99,9 @@ export function buildTasks({ row, projectTasks, repro, reproOnly = false }: { ro
 
 // Pure: whether every file of a plan row is in the round's repro folder (a row that fixes the repro
 // before the product fix).
+const reproDir = (folder: string | null) => `${(folder ?? '').replace(/\\/g, '/').replace(/\/?$/, '/')}repro/`;
 export function isReproOnly(files: string[], folder: string | null) {
-	const dir = `${(folder ?? '').replace(/\\/g, '/').replace(/\/?$/, '/')}repro/`;
+	const dir = reproDir(folder);
 	return Boolean(folder) && files.length > 0 && files.every((f) => f.startsWith(dir));
 }
 
@@ -118,19 +120,38 @@ export const REPRO_RUNS = 3;
 export function failureSignature(output: string): string {
 	const lines = output.replace(/\x1b\[[0-9;]*m/g, '').split(/\r?\n/);
 	const error = lines.find((l) => /^\s*(\w*Error|AssertionError)\b/.test(l))?.trim();
-	const frame = lines.map((l) => /^\s*at .*?([^\s()\\/]+:\d+):\d+\)?\s*$/.exec(l)).find((m) => m && !m[0].includes('node_modules'))?.[1];
+	const own = failureFrame(output);
+	const frame = own && `${own.file.split('/').pop()}:${own.line}`;
 	const signature = [error, frame].filter(Boolean).join(' @ ') || lines.filter((l) => l.trim()).at(-1)?.trim() || '';
 	return signature.replace(/\s*\(\d+(\.\d+)?m?s\)/g, '');
 }
 
+// Pure: a failing run's first stack frame outside node_modules: its file (slashes forward) and line.
+export function failureFrame(output: string): { file: string; line: string } | null {
+	const m = output.replace(/\x1b\[[0-9;]*m/g, '').split(/\r?\n/).map((l) => /^\s*at (?:.*?\()?([^()]+?):(\d+):\d+\)?\s*$/.exec(l)).find((x) => x && !x[0].includes('node_modules'));
+	return m ? { file: m[1].trim().replace(/\\/g, '/'), line: m[2] } : null;
+}
+
+// Pure: whether a run failed in the round's own repro files. BJEW-461 (2026-10-06): the shared global
+// setup's login failed before any spec ran, three times at one place, and was counted stable; the
+// plan would have had no failing test that the fix turns green.
+export function failedInRepro(output: string, folder: string | null) {
+	const file = failureFrame(output)?.file;
+	const dir = reproDir(folder);
+	return Boolean(file) && (file!.startsWith(dir) || file!.includes(`/${dir}`));
+}
+
 // Pure: whether the repro's runs make it a measurement: `stable`, every run red at one place;
-// `green`, every run green (the ticket does not reproduce here, a finding); else `unstable`.
-export type ReproResult = 'stable' | 'unstable' | 'green';
-export function reproVerdict(runs: { exit: number | null; output: string }[]): { result: ReproResult; say: string } {
+// `green`, every run green (the ticket does not reproduce here, a finding); `outside`, every run red
+// outside the repro's own files (a precondition: login, setup, data), never at the defect; else
+// `unstable`.
+export type ReproResult = 'stable' | 'unstable' | 'green' | 'outside';
+export function reproVerdict(runs: { exit: number | null; output: string }[], folder: string | null): { result: ReproResult; say: string } {
 	if (runs.every((r) => r.exit === 0)) return { result: 'green', say: `green on all ${runs.length} runs: the defect does not show on this checkout` };
 	const green = runs.findIndex((r) => r.exit === 0);
 	if (green >= 0) return { result: 'unstable', say: `run ${green + 1} of ${runs.length} was green: the repro passes on this checkout some of the time` };
 	const signatures = runs.map((r) => failureSignature(r.output));
+	if (runs.every((r) => !failedInRepro(r.output, folder))) return { result: 'outside', say: `every run was red before the repro's own code failed, outside ${reproDir(folder)}:\n${signatures.map((s, i) => `  run ${i + 1}: ${s}`).join('\n')}` };
 	if (new Set(signatures).size > 1) return { result: 'unstable', say: `the runs failed in different places:\n${signatures.map((s, i) => `  run ${i + 1}: ${s}`).join('\n')}` };
 	return { result: 'stable', say: `red ${runs.length} times, each at: ${signatures[0]}` };
 }
@@ -165,11 +186,15 @@ export async function runRepro() {
 		runs.push({ exit: run.status, output });
 		console.log(`run ${i}: ${run.status === 0 ? 'green' : `red at ${failureSignature(output)}`}`);
 	}
-	const verdict = reproVerdict(runs);
+	const verdict = reproVerdict(runs, folder);
 	mkdirSync(join(toplevel, '.wf'), { recursive: true });
 	const tasks = runs.map((r) => ({ label: repro, exit: r.exit, output: r.output.split('\n').slice(-15).join('\n').trimEnd() }));
 	appendFileSync(join(toplevel, '.wf', 'checks.log'), `${checkRunLine({ ts: new Date().toISOString(), row: 'repro', rowCheck: null, tasks, result: verdict.result, token: state?.briefs?.research?.token })}\n`);
-	console.log(`\n${verdict.result === 'unstable' ? 'NOT STABLE' : verdict.result}: ${verdict.say}`);
+	console.log(`\n${verdict.result === 'unstable' ? 'NOT STABLE' : verdict.result === 'outside' ? 'NOT THE DEFECT' : verdict.result}: ${verdict.say}`);
+	if (verdict.result === 'outside') {
+		console.log('A precondition failed (login, setup, data), so the repro never measured the defect. Fix it if it is in your repro, then run `wf check --repro` again; if it is not, write what failed under `Could not find` and stop: wf next takes it on.');
+		process.exit(1);
+	}
 	if (verdict.result === 'unstable') {
 		console.log('Fix the repro so it waits for what it needs (the page, the data), then run `wf check --repro` again.');
 		process.exit(1);
