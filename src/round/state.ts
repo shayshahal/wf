@@ -13,7 +13,9 @@ export type Question = { n: number; to: string; text: string; default?: string; 
 // What `wf brief` recorded for a phase (handoff.ts): the token its handoff file must end with.
 // of: the validation token a critique judged; exchange: which critique of that validation's chain it is;
 // answers: the exchange a `validate --answer` answered (gates/critique.ts).
-export type Brief = { token: string; at: string; count: number; head?: string; sent_back?: boolean; of?: string | null; exchange?: number; answers?: number };
+export type Brief = { token: string; at: string; count: number; head?: string; sent_back?: boolean; of?: string | null; exchange?: number; answers?: number;
+// plan only: SPEC.md's sha when the brief went out, null when there was none yet (a plan written before the design session).
+spec?: string | null };
 // .wf/state.json. Every field is optional: each command writes only its own (writeState merges),
 // and a hand-cut worktree has only what `wf step` wrote.
 export type State = {

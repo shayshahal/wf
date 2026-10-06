@@ -93,6 +93,23 @@ check('T1 not reviewed yet: wait on the user with wf design', say(design({ spec:
 check('T1 approved the current SPEC.md → wf step implement, implement 1', steps(design({ spec: 's1', reviewed: 's1', verdict: 'approved' })).join() === 'implement' && say(design({ spec: 's1', reviewed: 's1', verdict: 'approved' })).startsWith('dispatch implement 1:'));
 check('T1 annotated → dispatch plan --revise', say(design({ spec: 's1', reviewed: 's1', verdict: 'changes-requested' })).startsWith('dispatch plan --revise: run `node C:/wf/wf.mjs brief plan --revise`'));
 check('SPEC.md revised after its review: T1 again', say(design({ spec: 's2', reviewed: 's1', verdict: 'changes-requested' })).startsWith('wait user: T1'));
+// BJEW-669 (2026-10-06): T1 approved a SPEC whose design replaced the plan's commit 1, and `wf next` still dispatched implement 1.
+const approvedB = { spec: 's1', reviewed: 's1', verdict: 'approved' };
+const planBefore = (spec: string | null) => ({ ...base().briefs, plan: { token: 'bbb222', count: 1, at: '2026-10-06T14:14:42.202Z', spec } });
+const designBriefed = (spec: string | null, t1: Snapshot['t1'] = approvedB, step = 'design') => base({ step, klass: 'B', files: { research: RESEARCH, plan: plan({ klass: 'B' }) }, briefs: planBefore(spec), t1 });
+const stale = designBriefed(null);
+const revise = (s: Snapshot) => nextAction(s).effects.find((e) => e.revise)?.revise;
+check('T1 approved a SPEC the plan was written before: plan --revise first, naming the SPEC, no implement', say(stale).startsWith('dispatch plan --revise: run `node C:/wf/wf.mjs brief plan --revise`') && !steps(stale).includes('implement') && revise(stale)?.includes('T1 approved SPEC.md (s1') === true, say(stale));
+const staleState = reviseState({ step: 'design', briefs: planBefore(null), history: [] }, revise(stale) ?? '', '2026-10-06T14:30:51.805Z');
+check('the revision is pending until a plan brief is newer: plan --revise again, no second revision recorded', say({ ...stale, step: 'plan', revisions: staleState.revisions } as Snapshot).startsWith('dispatch plan --revise:') && !revise({ ...stale, step: 'plan', revisions: staleState.revisions } as Snapshot));
+check('a plan briefed with the SPEC sha (what plan --revise records) goes on to implement, no second revise', say(designBriefed('s1')).startsWith('dispatch implement 1:') && !revise(designBriefed('s1')));
+check('a plan briefed before wf recorded the SPEC sha (no field) is not sent back', say(designBriefed(undefined as unknown as null)).startsWith('dispatch implement 1:'));
+check('a plan revised after T1 annotated it (its brief held a SPEC sha) is not revised again when the new SPEC is approved', say(designBriefed('s1', { spec: 's2', reviewed: 's2', verdict: 'approved' })).startsWith('dispatch implement 1:'));
+// wf decide --revise on a round whose T1 approved the current SPEC: the step is plan, the SPEC has not moved.
+check('plan --revise done on a round whose T1 approved the current SPEC.md: implement, no second design session or T1', steps(designBriefed('s1', approvedB, 'plan')).join() === 'implement' && say(designBriefed('s1', approvedB, 'plan')).startsWith('dispatch implement 1:'), say(designBriefed('s1', approvedB, 'plan')));
+check('a SPEC.md changed since its approval, at step plan: the design session', say(designBriefed('s1', { spec: 's2', reviewed: 's1', verdict: 'approved' }, 'plan')).startsWith('design: start the design session'));
+check('no SPEC.md at step plan: the design session', say(designBriefed('s1', { spec: null, reviewed: null, verdict: null }, 'plan')).startsWith('design: start the design session'));
+check('changes-requested on the current SPEC.md at step plan: still the design session', say(designBriefed('s1', { spec: 's1', reviewed: 's1', verdict: 'changes-requested' }, 'plan')).startsWith('design: start the design session'));
 
 // implement
 const impl = (patch: Fixture) => base({ step: 'implement', commit: 1, files: { research: RESEARCH, plan: plan(), ...(patch.files ?? {}) }, ...patch, ...(patch.files ? { files: { research: RESEARCH, plan: plan(), ...patch.files } } : {}) });
