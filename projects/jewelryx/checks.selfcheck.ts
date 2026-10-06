@@ -79,12 +79,15 @@ check('only deletions: no pre-commit run, pre-push still runs', JSON.stringify(l
 // The whole suites a round's diff reaches (index.ts suites).
 const touched = (changed: string[]) => suitesTouched(changed).join();
 check('BJEW-461: an admin change and its round folder run only the admin suite', touched(['bug-reports/fix-bjew-461-cancel-order-reopen/MEASURED.md', 'packages/frontend/admin/src/lib/components/order/OrderDetailsDrawer.svelte']) === 'admin');
-check('a backend change runs only the backend suite', touched(['packages/backend/app/routers/orders.py']) === 'backend');
+check('a backend change runs the apps too: their contract tests read backend models', touched(['packages/backend/app/models/audit_log.py']) === 'backend,admin,b2b');
+check('an app Dockerfile runs that app and the backend, whose tests read it', touched(['packages/frontend/admin/Dockerfile']) === 'backend,admin' && touched(['packages/frontend/b2b/Dockerfile']) === 'backend,b2b');
+check('terraform runs the backend, whose tests read its tfvars', touched(['terraform/env-qa.tfvars']) === 'backend');
+check('an app file that is not its Dockerfile runs only that app', touched(['packages/frontend/admin/src/Dockerfile.md']) === 'admin');
 check('a shared frontend package runs both apps, not the backend', touched(['packages/frontend/shared/ui/src/dialog.svelte']) === 'admin,b2b');
 check('the root JS config and the lockfile run both apps', touched(['pnpm-lock.yaml']) === 'admin,b2b' && touched(['tsconfig.json']) === 'admin,b2b');
 check('a package nobody named runs every suite', touched(['packages/worker/main.py']) === 'backend,admin,b2b');
 check('docs, verification/ and a round folder run none', touched(['docs/agents/testing.md', 'verification/tests/a.spec.ts', 'bug-reports/x/PLAN.md', 'AGENTS.md']) === '');
-check('in a fixed order, once each', touched(['packages/frontend/b2b/a.ts', 'packages/backend/b.py', 'packages/frontend/b2b/c.ts']) === 'backend,b2b');
+check('in a fixed order, once each', touched(['packages/frontend/b2b/a.ts', 'packages/frontend/admin/Dockerfile', 'packages/frontend/b2b/c.ts']) === 'backend,admin,b2b' && touched(['packages/frontend/b2b/a.ts', 'packages/frontend/b2b/c.ts']) === 'b2b');
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');
 process.exit(failures ? 1 : 0);

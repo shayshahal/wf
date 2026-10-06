@@ -79,15 +79,24 @@ function rowTasks({ changed, test, pkgFor, pushHook, stackEnv }: { changed: stri
 
 export type Suite = 'backend' | 'admin' | 'b2b';
 
-// Pure: the whole suites (index.ts suites) whose tests can load what the round's diff changed: a
-// package's own files, and for the two apps also the shared packages both depend on
-// (packages/frontend/shared: @jewelryx/data, filters, types, ui) and the root's JS config. The
-// backend depends on none of those. Docs, round folders and verification/ load into no suite.
+// Pure: the whole suites (index.ts suites) whose tests can load or read what the round's diff
+// changed: a package's own files; for the two apps also the shared packages both depend on
+// (packages/frontend/shared: @jewelryx/data, filters, types, ui) and the root's JS config. Tests also
+// read other packages' files as text, which no import graph shows, so those edges are listed here
+// (measured 2026-10-06): the apps' contract tests read backend models (a new AuditAction member in
+// backend/app/models/audit_log.py failed admin's activity-label-coverage.test.ts; b2b's
+// notification-routes.test.ts reads models/notification.py), and backend's test_media_upload_limits.py
+// reads both apps' Dockerfiles and terraform/env-*.tfvars. Docs, round folders and verification/
+// reach no suite. A whole suite, not the tests importing the change: 24 of admin's 73 test files read
+// source as text, and `vitest related` missed 2 of 2 when a route they read was emptied and 1 of 1
+// when a translation key was renamed, while saving little once it picked anything (36 s to 28 s).
 export function suitesTouched(changed: string[]): Suite[] {
 	const touched = new Set<Suite>();
 	const apps = () => { touched.add('admin'); touched.add('b2b'); };
 	for (const f of changed) {
-		if (f.startsWith('packages/backend/')) touched.add('backend');
+		if (f.startsWith('packages/backend/')) { touched.add('backend'); apps(); }
+		else if (/^packages\/frontend\/(admin|b2b)\/Dockerfile$/.test(f)) { touched.add('backend'); touched.add(f.includes('/admin/') ? 'admin' : 'b2b'); }
+		else if (f.startsWith('terraform/')) touched.add('backend');
 		else if (f.startsWith('packages/frontend/admin/')) touched.add('admin');
 		else if (f.startsWith('packages/frontend/b2b/')) touched.add('b2b');
 		else if (f.startsWith('packages/frontend/') || ROOT_JS.test(f)) apps();
