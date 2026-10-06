@@ -27,7 +27,11 @@ reply without a tool call: never announce a next step — take it, or write `RES
    Then write the repro yourself (below), once, from the locators you read, and run it once. It must be red on this checkout.
    Start from what `wf new` put in `{{folder}}/repro/`: it loads and carries this round's URLs.
    Green is a finding only after you have measured what the ticket describes; a visual symptom is
-   measured in pixels.
+   measured in pixels, and the scenario must be able to show it. A geometric or timed symptom
+   carries the magnitude it depends on under `Diverges at` (the distance in px, the viewport, the
+   delay). BJEW-461 (2026-10-06) "did not reproduce" green on a modal that overflowed by 1 px, so
+   the jump it was written for could not happen; at a 600 px viewport the same modal overflowed by
+   367 px and the repro could measure it.
    Red means the defect's own assertion failed; a failed precondition (login, selector, missing data) is not red.
 5. Write `RESEARCH.md`. Every hop you cite is `file:line` from an analyzer answer or your own
    read — never from memory.
@@ -37,8 +41,9 @@ reply without a tool call: never announce a next step — take it, or write `RES
    NOT STABLE: make the repro wait for what it needs, and run it again. NOT THE DEFECT: every run
    failed outside `{{folder}}/repro/` (a login, a shared setup, missing data); fix it if it is in your
    repro, else write what failed under `Could not find` and stop. Its last run is the
-   `red output`. Green on all three runs, once you have measured what the ticket describes, is the
-   finding that it does not reproduce: write that under `Diverges at`, and wf asks the user.
+   `red output`. Green on all three runs, once you have measured what the ticket describes and the
+   scenario could have shown it, is the finding that it does not reproduce: write that under
+   `Diverges at`, and wf asks the user.
 
 ## Write `{{folder}}/RESEARCH.md` (≤60 lines)
 
@@ -52,7 +57,9 @@ Symptom: <one line, the ticket's words>
 
 ## Diverges at
 <the hop where the observed value stops matching what the ticket expects — file:line and the
- two values. Measured, not reasoned. If you could not measure it, say so here>
+ two values. Measured, not reasoned. A geometric or timed symptom also carries its magnitude
+ (the scroll distance in px, the viewport, the delay) — a 1 px symptom cannot go red.
+ If you could not measure it, say so here>
 
 ## Repro
 command: <ONE plain line, run as-is from the repo root — `wf check` runs it with no env and no
