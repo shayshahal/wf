@@ -1,6 +1,6 @@
 // ask.selfcheck.ts — node ask.selfcheck.ts → exit 0 when green.
 // Pure arms: a question opens, the round waits on its person, an answer closes it, the gate holds.
-import { addQuestion, appendAnswer, blockedQuestion, closeQuestion, openQuestionGate, parseArgs, questionLines } from './ask.ts';
+import { addQuestion, appendAnswer, blockedQuestion, closeQuestion, openQuestionGate, parseArgs, pendingRevisions, questionLines, reviseState } from './ask.ts';
 
 let failures = 0;
 const check = (name: string, cond: boolean, detail: unknown = '') =>
@@ -50,6 +50,16 @@ check('a second answer appends under the same ## Answer', appendAnswer('# b\n\n#
 
 check('status lines show who, the question and the default', questionLines(two).join('|') === '? q1 → user: soft-delete or hide? (default: hide)|? q2 → einat: error wording?', questionLines(two).join('|'));
 check('no questions → no lines', questionLines(base).length === 0 && questionLines(null).length === 0);
+
+// wf decide --revise: an answer that says the plan must change, from any step (BJEW-461, 2026-10-06).
+const t2 = '2026-09-24T10:00:00.000Z';
+const implementing = { ...base, step: 'implement', history: [{ step: 'implement', at: t }] };
+const sent = reviseState(implementing, '  the confirm opens behind the modal ', t2);
+check('the round goes back to plan, with the answer kept (trimmed)', sent.step === 'plan' && sent.revisions?.length === 1 && sent.revisions[0].text === 'the confirm opens behind the modal' && sent.revisions[0].at === t2 && sent.history?.at(-1)?.step === 'plan', JSON.stringify(sent));
+check('a second answer is added, not replacing the first', reviseState(sent, 'and again', t2).revisions?.length === 2);
+check('an open question still holds the round on its person', reviseState({ ...implementing, questions: [{ n: 5, to: 'einat', text: 'x', asked: t }] }, 'y', t2).waiting_on === 'einat');
+check('a revision is pending until a plan brief is newer than it', pendingRevisions(sent.revisions, undefined).length === 1 && pendingRevisions(sent.revisions, t).length === 1 && pendingRevisions(sent.revisions, '2026-09-24T11:00:00.000Z').length === 0 && pendingRevisions(undefined, undefined).length === 0);
+check('--revise is a flag of decide', parseArgs(['--revise', '--q', '2', 'x'], ['q'], ['revise']).revise === true);
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');
 process.exit(failures ? 1 : 0);

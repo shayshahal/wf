@@ -6,9 +6,11 @@
 //   wf ask "<question>" [--to shay|<the project's people>] [--default "<default>"]   → q<n>, waiting_on = --to
 //   wf ask --blocked [--to …]                                            → the Question line of BLOCKED.md
 //   wf decide [--q <n>] "<answer, their words>"                          → closes q<n>
+//   wf decide --revise [--q <n>] "<what the plan must now do>"            → the same, and the round goes back to `plan --revise`
 // `wf prompt` and `wf deliver` refuse while a question is open (openQuestionGate).
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { appendDecision, notifyAdapters, planPath } from './step.ts';
+import { stepHistory } from './friction.ts';
 import { people } from '../project.ts';
 import { readState, roundFile, toplevelOf, writeState } from './state.ts';
 import type { Question, State } from './state.ts';
@@ -128,15 +130,22 @@ export async function runAsk(argv: string[]): Promise<void> {
 }
 
 export async function runDecide(argv: string[]): Promise<void> {
-	const a = parse('decide', argv, ['q']);
+	const a = parse('decide', argv, ['q'], ['revise']);
 	const answer = a.positionals.join(' ').trim();
 	if (!answer) {
-		console.error('usage: wf decide [--q <n>] "<the answer, in their words>"');
+		console.error('usage: wf decide [--revise] [--q <n>] "<the answer, in their words>"');
 		process.exit(2);
 	}
 	const { toplevel, state } = roundState('decide');
 	const plan = planPath(toplevel, state);
 	if (!(state.questions ?? []).length) {
+		if (a.revise) {
+			// Nothing was asked and nothing is recorded in PLAN.md: the revised plan carries the answer.
+			const next = writeState(toplevel, reviseState(state, answer));
+			console.log('the round is back at plan: `wf next` dispatches plan --revise with this answer');
+			await notifyAdapters(next);
+			return;
+		}
 		// No question open: a decision nobody was asked for, recorded where the implementer reads it.
 		if (!existsSync(plan)) {
 			console.error(`wf decide: no ${plan} to record it in`);
@@ -168,8 +177,24 @@ export async function runDecide(argv: string[]): Promise<void> {
 		writeFileSync(plan, appendDecision(readFileSync(plan, 'utf8'), `${question.text} → ${question.to}: ${answer}`));
 		console.log(`q${question.n} closed · recorded in ${plan} § Decisions`);
 	}
-	const next = writeState(toplevel, closed.state);
+	const said = `${question.text}${question.default ? ` (default: ${question.default})` : ''} → ${answer}`;
+	const next = writeState(toplevel, a.revise ? reviseState(closed.state, said) : closed.state);
+	if (a.revise) console.log('the round is back at plan: `wf next` dispatches plan --revise with this answer');
 	await notifyAdapters(next);
+}
+
+// Pure: the state sent back to plan with `text`, an answer saying the plan must change. `wf next`
+// answers it with `plan --revise` until a plan brief is newer than the answer (pendingRevisions).
+// BJEW-461, 2026-10-06: the plan's Ask "if the close comes from elsewhere" had `return to plan` as
+// its default, so answering `default` was never acted on (overruledAsks ignores a default), and
+// from the implement step nothing led back to plan.
+export function reviseState(state: State, text: string, now = new Date().toISOString()): State {
+	return { ...state, step: 'plan', waiting_on: state.questions?.[0]?.to ?? null, since: now, history: stepHistory(state.history, 'plan', now), revisions: [...(state.revisions ?? []), { text: text.trim(), at: now }] };
+}
+
+// Pure: the revisions no plan brief has answered yet.
+export function pendingRevisions(revisions: { text: string; at: string }[] = [], planBriefAt: string | undefined) {
+	return revisions.filter((r) => !planBriefAt || r.at > planBriefAt);
 }
 
 // Pure: the plan's Asks (sources PLAN.md#<token>:<i>, for the plan briefed with `token`) whose

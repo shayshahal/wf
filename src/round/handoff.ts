@@ -10,6 +10,7 @@ import { reproCommand } from '../gates/check.ts';
 import { critiqueGap, CRITIQUE_FILE } from '../gates/critique.ts';
 import { reportFile, reportGap } from '../gates/standards.ts';
 import { planCommitRows } from './prompt.ts';
+import type { Brief } from './state.ts';
 
 export const newToken = () => randomBytes(3).toString('hex');
 
@@ -19,6 +20,14 @@ export const briefKey = (phase: string, n?: number | string | null) => (phase ==
 // The file each phase writes, in the round folder; standards writes one per check (handoffFile).
 export const HANDOFF_FILES: Record<string, string> = { research: 'RESEARCH.md', plan: 'PLAN.md', 'as-built': 'proof/CALL-STACK-AS-BUILT.md', validate: 'VALIDATION.md', critique: CRITIQUE_FILE };
 export const handoffFile = (phase: string, arg?: number | string | null) => (phase === 'standards' ? reportFile(String(arg)) : HANDOFF_FILES[phase]);
+
+// Pure: the briefs after `phase argv` is briefed. A revised plan voids every implement brief: a row
+// the revision changes is a fresh row (no count toward MAX_BRIEFS, no "blocked again" from an answer
+// to the old plan). A row already committed stays done: that is read from git and `wf check`, not here.
+export function briefsAfter(phase: string, argv: string[], briefs: Record<string, Brief> = {}): Record<string, Brief> {
+	if (phase !== 'plan' || !argv.includes('--revise')) return briefs;
+	return Object.fromEntries(Object.entries(briefs).filter(([key]) => !key.startsWith('implement ')));
+}
 
 export const tokenLine = (token: string) => `<!-- brief: ${token} -->`;
 

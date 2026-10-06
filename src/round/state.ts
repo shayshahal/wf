@@ -33,6 +33,9 @@ export type State = {
 	commit?: number;
 	questions?: Question[];
 	answered?: Question[];
+	// Answers that say the plan must change (`wf decide --revise`, ask.ts): `wf next` sends the round
+	// to `plan --revise` until a plan brief is newer than the answer.
+	revisions?: { text: string; at: string }[];
 	last_question?: number;
 	briefs?: Record<string, Brief>;
 	// The validation token whose T2 setup `wf show` already ran (projects/jewelryx/show.ts).

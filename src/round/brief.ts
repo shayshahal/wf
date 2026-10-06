@@ -9,7 +9,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { handoffFile, handoffGap, HANDOFF_FILES, newToken, tokenLine, tokenOf } from './handoff.ts';
+import { briefsAfter, handoffFile, handoffGap, HANDOFF_FILES, newToken, tokenLine, tokenOf } from './handoff.ts';
 import { nextAction, snapshotOf } from './next.ts';
 import { composePrompt } from './prompt.ts';
 import { ensureServers } from '../worktrees/serve.ts';
@@ -84,7 +84,7 @@ export async function runBrief(argv: string[]): Promise<void> {
 	// head: the commit a phase was briefed on. wf next re-runs validate once a fix(review) commit lands
 	// after it (TJEW-670: the PR shipped a validation of the tree before its review fix).
 	const head = execFileSync('git', ['-C', toplevel, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
-	writeState(toplevel, { briefs: { ...(state?.briefs ?? {}), [key]: { token, at: new Date().toISOString(), count, head, ...critiqueFields(phase, argv, state, toplevel, folder) } } });
+	writeState(toplevel, { briefs: { ...briefsAfter(phase, argv, state?.briefs), [key]: { token, at: new Date().toISOString(), count, head, ...critiqueFields(phase, argv, state, toplevel, folder) } } });
 	// On stderr, so the brief on stdout stays the prompt alone. A stack that will not start does not
 	// stop the brief: a backend-only round's research still has work to do without it.
 	if (USES_STACK.has(phase)) {
