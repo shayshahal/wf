@@ -13,6 +13,9 @@ const check = (name: string, cond: unknown, detail = '') =>
 // ── portless
 check('names carry the full slug', stackNames('tools-workflow-v2').b2b === 'http://tools-workflow-v2.b2b.jewelryx.localhost');
 check('B2B is the first app: it answers on the base port wf status probes', Object.keys(stackNames('s'))[0] === 'b2b');
+const upper = stackNames('fix-TJEW-1-x');
+check('a slug with capitals gives lowercase hosts that are their own URL origin', Object.values(upper).every((o) => o === o.toLowerCase() && new URL(o).origin === o), JSON.stringify(upper));
+check('portless registers the lowercase name the dev server is given', portlessServers('fix-TJEW-1-x')!.wrap({ role: 'b2b', port: 1, command: 'c' }).command.includes('--name fix-tjew-1-x.b2b.jewelryx '));
 const s = portlessServers('my-slug');
 const named = devCommands('18001', { origins: s!.origins, wrap: s!.wrap });
 check('each server runs behind its portless name', named[1].command === 'portless --name my-slug.b2b.jewelryx --app-port 18001 -- pnpm dev:frontend --port 18001 --strictPort' && named[2].env.PUBLIC_API_URL === 'http://my-slug.api.jewelryx.localhost/api/v1', named[1].command);
