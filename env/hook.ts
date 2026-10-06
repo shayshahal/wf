@@ -7,7 +7,7 @@
 // project's teardown) · alias urls. No post-start serve since 2026-10-04: the phases that use a stack
 // start it (src/worktrees/serve.ts ensureServers). What each does is the project's (project.ts).
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { repo, setup, teardown } from '../src/project.ts';
@@ -96,7 +96,17 @@ export async function runHook(argv: string[]) {
 		let state: State | null | undefined;
 		if (existsSync(file)) try { state = JSON.parse(readFileSync(file, 'utf8')); } catch { state = null; }
 		const refusal = gateVerdict({ state, force: process.env.WF_FORCE_REAP === '1' });
-		if (!refusal) return;
+		if (!refusal) {
+			// git worktree remove leaves junctions, and the folders holding them, behind (measured
+			// 2026-10-06: 15 worktrees removed through wt kept their 21 skill links, 27 entries each). The
+			// tools step and the round's verify-skill link (projects/jewelryx/round.ts) made them; unlinked
+			// here, once the removal is allowed, wt removes the whole folder. The link only, never its skill.
+			for (const d of ['.agents', '.claude', '.pi']) {
+				const dir = join(worktree, d, 'skills');
+				if (existsSync(dir)) for (const e of readdirSync(dir)) if (lstatSync(join(dir, e)).isSymbolicLink()) unlinkSync(join(dir, e));
+			}
+			return;
+		}
 		console.error(`refusing to remove ${worktree}: ${refusal}, or set WF_FORCE_REAP=1`);
 		process.exit(1);
 	}

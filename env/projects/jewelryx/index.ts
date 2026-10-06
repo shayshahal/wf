@@ -54,10 +54,24 @@ const oldContainer = (slug: string): RemovalStep => ({
 	},
 });
 
+// The proxy is one for every stack and outlives them. Left to a server's own `portless --name`, it starts
+// from that worktree and keeps it as its working directory, so the folder cannot be removed while it
+// runs: started 2026-10-06 12:36 by BJEW-461's stack, it held that folder past the round's reap (rmdir
+// EBUSY). Started here first, from the home folder, before any server; when it is up, a no-op
+// ("Proxy is already running", exit 0, same pid: measured the same day). No service is installed.
+function startProxyFromHome() {
+	spawnSync('portless', ['proxy', 'start', '--no-tls'], { cwd: homedir(), stdio: 'ignore', timeout: 30_000, shell: process.platform === 'win32', env: { ...process.env, PORTLESS_HTTPS: '0' } });
+}
+
 export const pieces = {
 	secretsFrom: () => SECRETS,
 	names: stackNames,
-	servers: portlessServers,
+	// Only serve calls this (projects/jewelryx/index.ts serve), so the proxy starts when servers do.
+	servers: (slug: string) => {
+		const servers = portlessServers(slug);
+		if (servers) startProxyFromHome();
+		return servers;
+	},
 	// portless prune drops the routes whose server died with the worktree; CI=1 keeps it from prompting.
 	teardown: ({ slug }) => [oldContainer(slug), { label: 'portless prune', cmd: 'portless', args: ['prune'], env: { CI: '1' } }],
 } satisfies Partial<Machine>;
