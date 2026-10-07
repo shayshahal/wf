@@ -12,7 +12,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { refuseCaller } from '../refusal.ts';
-import { addQuestion, blockedQuestion, overruledAsks, pendingRevisions, reviseState, wentThroughPlan } from './ask.ts';
+import { addQuestion, blockedQuestion, overruledAsks, pendingRevisions, reviseState, t2Revisions, wentThroughPlan } from './ask.ts';
 import { briefKey, handoffFile, handoffGap, HANDOFF_FILES, planAsks, planClass, rowDone, tokenOf, validationVerdict } from './handoff.ts';
 import { critiqueVerdict, MAX_EXCHANGES } from '../gates/critique.ts';
 import { reportFile, roundChecks } from '../gates/standards.ts';
@@ -40,6 +40,7 @@ const MAX_BRIEFS = 2;
 //     and the fix(review) commits since its brief),
 //     models (the model each effort level runs on here: seams.models; none, no model is named),
 //     revisions (the answers that say the plan must change: `wf decide --revise`),
+//     history (the steps the round went through, with when: a revision answering a T2 shows in it),
 //     researchRequests (the answers that say research must measure more: `wf decide --research`),
 //     head (HEAD's sha), suites (the last `wf check --suites` line: the head it measured and its
 //     result, or null before the first run) }
@@ -65,6 +66,7 @@ export type Snapshot = {
 	standards?: { id: string; text: string | null; fixesAfter: number }[];
 	models?: Models;
 	revisions?: { text: string; at: string }[];
+	history?: { step: string; at: string }[];
 	researchRequests?: { text: string; at: string }[];
 	head?: string;
 	suites?: { ts: string; head: string; result: 'green' | 'red' } | null;
@@ -213,7 +215,9 @@ export function nextAction(s: Snapshot): { say: string; effects: Effect[] } {
 		}
 		// Every fix asked for (a T2 changes-requested, a validation ruled `fix`) is one fix(review) commit.
 		const rulings = (s.answered ?? []).filter((q) => q.source?.startsWith('VALIDATION.md#') && /^\s*fix\b/i.test(q.answer ?? ''));
-		const t2Fixes = [...(s.files.review ?? '').matchAll(/^verdict:\s*changes-requested\s*$/gm)].length;
+		// A T2 comment answered with `wf decide --revise` is built by the revised plan's rows, not by a
+		// fix(review) commit: it is not counted either (JX-1221, 2026-10-07: see t2Revisions).
+		const t2Fixes = Math.max(0, [...(s.files.review ?? '').matchAll(/^verdict:\s*changes-requested\s*$/gm)].length - t2Revisions(s.history, s.revisions));
 		const fixed = s.subjects.filter((x) => x.startsWith('fix(review):')).length;
 		// A ruling `wf decide --revise --q` sent back to plan is built by the plan's own row, under the row's
 		// message, which need not start with fix(review): — it is not counted here (TJEW-670, 2026-10-06: q6 was
@@ -313,6 +317,7 @@ export function snapshotOf(toplevel: string): Snapshot {
 		questions: state.questions ?? [],
 		answered: state.answered ?? [],
 		revisions: state.revisions ?? [],
+		history: state.history ?? [],
 		researchRequests: state.researchRequests ?? [],
 		briefs: state.briefs ?? {},
 		commit: state.commit ?? null,
