@@ -45,22 +45,17 @@ before *Start*.
 
 - The tracker note is `JIRA.md` in the round folder (`wf deliver` writes it): one `## <id>` section
   per issue. Fill each section's lines in plain Hebrew from `TICKET.md` and what the round changed, with
-  no file path, code name or line number, show the user the exact text, and post each section on its
-  own issue without its `##` line (`addCommentToJiraIssue`, `contentFormat: "markdown"`).
-- A section whose heading has no ` (posted)` may still be on its issue: a session can die between the
-  post and the mark. Before posting one, read the issue's comments: one with the section's PR url is
-  that post, so mark the heading and post nothing. Pictures are uploaded under the PR's number
-  (`<pr>-before-1.png`), so one already in the issue's attachments is this round's and is not uploaded
-  again. Statuses are safe to set twice.
-- The round's pictures go with the note: `proof/before-<n>.png` and `proof/after-<n>.png` in the round
-  folder (research took the befores, validate the afters; they are gitignored, and gone after reap).
-  Before posting, attach each to each issue the note goes on:
-  `curl -s -u … -X POST -H "X-Atlassian-Token: no-check" -F "file=@proof/before-1.png;filename=<pr>-before-1.png" https://raynw.atlassian.net/rest/api/3/issue/<key>/attachments`,
-  and add a line to the note: `תמונות לפני/אחרי מצורפות לכרטיס.` No `JIRA_TOKEN` in the session
-  (`echo ${JIRA_TOKEN:+set}` prints nothing): post nothing and set no status. Tell the user the
-  session started without it, and stop: a new session, after they set it, picks the round up with
-  "resume <id>". The pictures are in the worktree until then (JX-268, 2026-10-07: posted without
-  them, the user told to attach them by hand, and the reap that came next deleted them).
+  no file path, code name or line number, and show the user the exact text. Then `wf post` from the
+  worktree posts it, the same way every round: for each section not yet ` (posted)`, it attaches the
+  round's `proof/before-<n>.png` and `proof/after-<n>.png` to the issue, posts the section (without
+  its `##` line) as a comment with those pictures shown in it, sets *Fixed in Local*, and marks the
+  heading itself. Run again, it skips what is already done (a comment with the PR's url, a picture
+  already attached under the PR's number). Never post a note or a picture by hand (JX-268,
+  2026-10-07: posted without its pictures, the user told to attach them, and the reap after it
+  deleted them).
+- `wf post` refuses, posting nothing, when a section still has a `<...>` line, or when the session
+  has no `JIRA_EMAIL` or `JIRA_TOKEN`: tell the user the session started without them, and stop; a
+  new session, after they set them, picks the round up with "resume <id>".
 
 ## People
 

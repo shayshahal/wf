@@ -284,4 +284,5 @@ export function trackerNote({ ids, url }: { ids: string[]; url: string }): { fil
 export const commands: Record<string, Command> = {
 	seed: async (argv) => (await import('./seed.ts')).runSeed(argv),
 	show: async (argv) => (await import('./show.ts')).runShow(argv),
+	post: async () => (await import('./post.ts')).runPost(),
 };
