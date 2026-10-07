@@ -12,6 +12,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { refuseCaller } from '../refusal.ts';
 import { CLASSIFY } from '../paths.ts';
 import { lastField, readVerdict, specShaFor } from '../gates/review-format.ts';
 import { people } from '../project.ts';
@@ -63,17 +64,17 @@ export async function runStep(argv: string[], { quiet = false } = {}) {
   const step = positionals[0];
   if (!STEPS.includes(step)) {
     console.error(`invalid step "${step ?? ''}" — one of: ${STEPS.join(' ')}`);
-    process.exit(2);
+    refuseCaller();
   }
   const waitingOn = flag('waiting-on') ?? (step === 'design' ? 'user' : null);
   if (waitingOn && !WAITING.includes(waitingOn)) {
     console.error(`invalid --waiting-on "${waitingOn}" — one of: ${WAITING.join(' ')}`);
-    process.exit(2);
+    refuseCaller();
   }
   const asserted = flag('class');
   if (asserted && !CLASSES.includes(asserted)) {
     console.error(`invalid --class "${asserted}" — one of: ${CLASSES.join(' ')}`);
-    process.exit(2);
+    refuseCaller();
   }
   const toplevel = sh(['rev-parse', '--show-toplevel']);
   // research and plan are ungated: they are the steps that produce the gates.

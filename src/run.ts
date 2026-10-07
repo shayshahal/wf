@@ -4,10 +4,12 @@
 // (human touchpoints), the project's own (project.ts commands: JewelryX's seed, show) and the env's.
 import { plug, seams } from './seams.ts';
 import type { Command, Seams } from './seams.ts';
+import { refusalKind, refuseCaller } from './refusal.ts';
 
 // A wf command that exits non-zero inside a round goes to .wf/events.log, for the line reap prints
 // (friction.ts): a refusal was only in the session's scrollback until 2026-09-28. Its message is the
-// last console.error line; the exit handler has to write synchronously.
+// last console.error line; the exit handler has to write synchronously. `kind` is `caller` for the
+// refusals wf makes before it reads the round (refusal.ts), which the record counts apart.
 async function logRefusals(argv: string[]) {
 	if (['handoff', 'hook', 'update'].includes(argv[0])) return;
 	const { refusalLine } = await import('./round/friction.ts');
@@ -21,7 +23,7 @@ async function logRefusals(argv: string[]) {
 		error(...args);
 	};
 	process.on('exit', (code) => {
-		const line = refusalLine({ ts: new Date().toISOString(), argv, code, message });
+		const line = refusalLine({ ts: new Date().toISOString(), argv, code, message, kind: refusalKind() });
 		if (!line) return;
 		try {
 			const dir = join(toplevelOf(), '.wf');
@@ -130,7 +132,7 @@ export async function run(argv: string[], pieces: Partial<Seams> = {}) {
 		if (Object.hasOwn(all, cmd)) await all[cmd](rest);
 		else {
 			console.log(await usage());
-			process.exit(2);
+			refuseCaller();
 		}
 	}
 }

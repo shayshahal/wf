@@ -10,6 +10,7 @@
 //   wf decide --research [--q <n>] "<what research must now measure>"    → the same, and `wf next` dispatches a fresh research with it
 // `wf prompt` and `wf deliver` refuse while a question is open (openQuestionGate).
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { refuseCaller } from '../refusal.ts';
 import { appendDecision, notifyAdapters, planPath } from './step.ts';
 import { stepHistory } from './friction.ts';
 import { people } from '../project.ts';
@@ -87,7 +88,7 @@ function parse<V extends string, B extends string = never>(cmd: string, argv: st
 		return parseArgs(argv, valued, booleans);
 	} catch (e) {
 		console.error(`wf ${cmd}: ${(e as Error).message}`);
-		process.exit(2);
+		refuseCaller();
 	}
 }
 
@@ -96,7 +97,7 @@ function roundState(cmd: string) {
 	const state = readState(toplevel);
 	if (!state) {
 		console.error(`wf ${cmd}: no round in .wf/state.json — run it in the round's worktree`);
-		process.exit(2);
+		refuseCaller();
 	}
 	return { toplevel, state };
 }
@@ -106,7 +107,7 @@ export async function runAsk(argv: string[]): Promise<void> {
 	const to = a.to ?? 'user';
 	if (!PEOPLE.includes(to)) {
 		console.error(`wf ask: --to ${to} — one of: ${PEOPLE.join(' ')}`);
-		process.exit(2);
+		refuseCaller();
 	}
 	const { toplevel, state } = roundState('ask');
 	let text: string | null = a.positionals.join(' ').trim();
@@ -122,7 +123,7 @@ export async function runAsk(argv: string[]): Promise<void> {
 	}
 	if (!text) {
 		console.error(`usage: wf ask "<question>" [--to ${PEOPLE.join('|')}] [--default "<default>"] · wf ask --blocked`);
-		process.exit(2);
+		refuseCaller();
 	}
 	const next = writeState(toplevel, addQuestion(state, { to, text, dflt: a.default, source }));
 	const q = next.questions!.at(-1)!;
@@ -135,7 +136,7 @@ export async function runDecide(argv: string[]): Promise<void> {
 	const answer = a.positionals.join(' ').trim();
 	if (!answer) {
 		console.error('usage: wf decide [--revise | --research] [--q <n>] "<the answer, in their words>"');
-		process.exit(2);
+		refuseCaller();
 	}
 	const { toplevel, state } = roundState('decide');
 	const refusal = a.revise && a.research ? '--revise and --research are two ways on: name one' : a.research ? researchGap(state) : null;

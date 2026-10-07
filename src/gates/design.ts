@@ -8,6 +8,7 @@
 // BJEW-454 rev 1 (312 lines) came back «information overload, i cannot follow this».
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { refuseCaller } from '../refusal.ts';
 import { openFile, openInEditor, opensWindows } from '../worktrees/editor.ts';
 import { resolveWorktree } from '../worktrees/worktree.ts';
 import { appendDatedSection, devUrlsFor, foldFeedbackLine, planPage, renderHeader, renderSkeleton, roundArtifacts, specShaFor } from './review-format.ts';
@@ -32,7 +33,7 @@ export async function runDesign(argv: string[]) {
   const round = argv.find((a) => !a.startsWith('-'));
   if (!round) {
     console.error('usage: wf design <round>');
-    process.exit(2);
+    refuseCaller();
   }
   const { path: worktree } = resolveWorktree(round);
   const spec = roundFile(worktree, 'SPEC.md');

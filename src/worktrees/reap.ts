@@ -11,6 +11,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { appendFileSync, copyFileSync, existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { refuseCaller } from '../refusal.ts';
 import { roundsDir } from '../project.ts';
 import { writeCloneLaunch } from './new.ts';
 import { frictionLine } from '../round/friction.ts';
@@ -85,7 +86,7 @@ export async function runReap(argv: string[]) {
 	const branch = argv.find((a) => !a.startsWith('-'));
 	if (!branch) {
 		console.error('usage: wf reap <branch>   (WF_FORCE_REAP=1 to actually run)');
-		process.exit(2);
+		refuseCaller();
 	}
 	let path: string;
 	try {

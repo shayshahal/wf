@@ -12,6 +12,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { refuseCaller } from '../refusal.ts';
 import { runCheck } from './check.ts';
 import { baseBranch, trackerNote } from '../project.ts';
 import { planCommitRows } from '../round/prompt.ts';
@@ -73,7 +74,7 @@ export async function runDeliver() {
 	// The id names the commit and the tracker note: without it they said docs(null) and `## null`.
 	if (!id) {
 		console.error('wf deliver: .wf/state.json has no id or round — run `wf step <step>` in this worktree first, or recreate the round with `wf new --id`');
-		process.exit(2);
+		refuseCaller();
 	}
 	const reviewFile = join(toplevel, folder, 'REVIEW.md');
 	const t2 = t2Gap(state, existsSync(reviewFile) ? readFileSync(reviewFile, 'utf8') : null);

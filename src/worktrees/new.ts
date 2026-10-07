@@ -14,6 +14,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { refuseCaller } from '../refusal.ts';
 import { baseBranch, newRound, roundBranches, roundsDir, stackUrls } from '../project.ts';
 import { basePortForBranch, createWorktree, excludeFromGit, listWorktrees, mainCheckout, slugForBranch, urlLines } from './worktree.ts';
 import { seams } from '../seams.ts';
@@ -114,14 +115,14 @@ export function fetchFor(base: string) {
 export async function runNew(argv: string[]) {
 	const branch = argv[0];
 	// A flag first is not a branch: `wf new --help` went to git as one and printed git branch's usage (TJEW-670).
-	if (!branch || branch.startsWith('-')) { console.error('usage: wf new <branch> [--base <ref>] [--class B|C] [--check] [--id <token>]...'); process.exit(2); }
+	if (!branch || branch.startsWith('-')) { console.error('usage: wf new <branch> [--base <ref>] [--class B|C] [--check] [--id <token>]...'); refuseCaller(); }
 	// wt defaults --base to the repo's default branch; rounds branch off the project's base branch.
 	const bi = argv.indexOf('--base');
 	const base = bi === -1 ? `origin/${baseBranch}` : argv[bi + 1];
-	if (!base) { console.error('wf new: --base needs a ref'); process.exit(2); }
+	if (!base) { console.error('wf new: --base needs a ref'); refuseCaller(); }
 	const ci = argv.indexOf('--class');
 	const klass = ci === -1 ? null : argv[ci + 1];
-	if (ci !== -1 && !['B', 'C'].includes(klass!)) { console.error('wf new: --class is B or C (A is the measured default)'); process.exit(2); }
+	if (ci !== -1 && !['B', 'C'].includes(klass!)) { console.error('wf new: --class is B or C (A is the measured default)'); refuseCaller(); }
 	const ids = argv.flatMap((a, i) => (a === '--id' && argv[i + 1] ? [argv[i + 1]] : []));
 	const live = liveRounds({ paths: realWorktrees(), readState: realReadState });
 	if (live.length >= 2 && !argv.includes('--force')) {
