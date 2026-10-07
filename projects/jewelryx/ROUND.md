@@ -45,10 +45,8 @@ before *Start*.
 
 - The tracker note is `JIRA.md` in the round folder (`wf deliver` writes it): one `## <id>` section
   per issue. Fill each section's lines in plain Hebrew from `TICKET.md` and what the round changed, with
-  no file path, code name or line number, and post each section on its own issue without its `##`
-  line (`addCommentToJiraIssue`, `contentFormat: "markdown"`). Do not ask first: T2 approved the
-  round, and the post is its last step (Shay, 2026-10-07: asked every round). Tell the user what was
-  posted, with the issue key, after.
+  no file path, code name or line number, show the user the exact text, and post each section on its
+  own issue without its `##` line (`addCommentToJiraIssue`, `contentFormat: "markdown"`).
 - A section whose heading has no ` (posted)` may still be on its issue: a session can die between the
   post and the mark. Before posting one, read the issue's comments: one with the section's PR url is
   that post, so mark the heading and post nothing. Pictures are uploaded under the PR's number
