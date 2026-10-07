@@ -33,7 +33,7 @@ a touched file fully only when the diff alone cannot settle a line.
 <one line per VALIDATION.md line you judged: its Verdict, each Build stack hop, each Commits row,
  Unplanned, and each Intent line. Exactly one of:
  `- AGREE · <the line, short>`
- `- DISAGREE_EVIDENCE · <the line, short> · <path>:<line> — <what the code or log there shows>`
+ `- DISAGREE_EVIDENCE · <the line, short> · <path>:<line> — <what the code or log there shows>` (`<path>:<line>-<line>` for a range)
  `- DISAGREE_CONCERN · <the line, short> — <the evidence that would settle it>`
  A line VALIDATION.md should have and lacks is a row too: `- DISAGREE_EVIDENCE · missing: <what> · <path>:<line> — …`>
 
