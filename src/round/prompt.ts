@@ -6,6 +6,7 @@
 // `implement N` also records `commit: N` in state — that is what `wf check` fences on.
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { refuseCaller } from '../refusal.ts';
 import { execFileSync } from 'node:child_process';
 import { baseBranch, directUrls, guidance, name as projectName } from '../project.ts';
 import { WF_HOME, WF_ROOT } from '../paths.ts';
@@ -159,7 +160,7 @@ export function runPrompt(argv: string[]) {
 		process.stdout.write(composePrompt(argv).text);
 	} catch (e) {
 		console.error(`wf prompt ${(e as Error).message}`);
-		process.exit(2);
+		refuseCaller();
 	}
 }
 

@@ -60,11 +60,21 @@ check('a round that went on past research is not settled by an old verdict', out
 check('anything else is the step it stopped at', outcomeOf(at('implement', { research: { token: 'tk', at: 't', count: 1 } }), '') === 'stopped at implement' && outcomeOf(null, '') === 'stopped at ?', `${outcomeOf(at('implement', { research: { token: 'tk', at: 't', count: 1 } }), '')} / ${outcomeOf(null, '')}`);
 const withEnvironment = frictionLine({ state, checksLog: `${checksLog}\n${JSON.stringify({ result: 'red', cause: 'environment' })}`, eventsLog, reviewText, end: '2026-09-28T09:30:00.000Z' });
 check('a red that never ran is named apart from a failed check', withEnvironment.includes('checks 4 (2 red, 1 environment) |'), withEnvironment);
+// BJEW-461 (2026-10-06): 3 of its 7 refusals were the round agent's own `usage:` and `invalid step`.
+const misuse = [
+	refusalLine({ ts: 't', argv: ['step', 'bogus'], code: 2, message: 'invalid step ""', kind: 'caller' }),
+	refusalLine({ ts: 't', argv: ['decide', '--q'], code: 2, message: 'usage: wf decide [--q <n>] "<the answer>"', kind: 'caller' }),
+	refusalLine({ ts: 't', argv: ['brief', 'validate'], code: 2, message: `wf next is not dispatching \`validate\` (it says: wait user: …)` }),
+].join('\n');
+const withCaller = frictionLine({ state, checksLog, eventsLog: `${eventsLog}\n${misuse}`, reviewText, end: '2026-09-28T09:30:00.000Z' });
+check('a refusal wf made before it read the round is counted apart, and its message kept out of the round\'s', withCaller.includes('wf refused 5 (2 not about the round): review cr/x:') && withCaller.includes('brief validate: wf next is not dispatching') && !withCaller.includes('invalid step') && !withCaller.includes('usage: wf decide'), withCaller);
 
 const old = frictionLine({ state: { round: 'fix/y', class: 'A', step: 'merged' }, checksLog: '', eventsLog: '', reviewText: '', end: '2026-09-28T09:30:00.000Z' });
 check('a round from before history was recorded still gets a line', old.includes('fix/y (class A, merged)') && old.includes('steps not recorded') && old.includes('T2 0'), old);
 
 check('wf check is not a refusal: checks.log has its runs', refusalLine({ ts: 't', argv: ['check'], code: 1, message: 'x' }) === null);
+// A refusal wf made before it read the round says so (refusal.ts); one about the round has no kind.
+check('a refusal says when it was not the round\'s', JSON.parse(refusalLine({ ts: 't', argv: ['step', 'bogus'], code: 2, message: 'invalid step ""', kind: 'caller' })!).kind === 'caller' && !('kind' in JSON.parse(refusalLine({ ts: 't', argv: ['next'], code: 2, message: 'x' })!)));
 check('exit 0 is not a refusal', refusalLine({ ts: 't', argv: ['next'], code: 0, message: '' }) === null);
 const r = JSON.parse(refusalLine({ ts: 't', argv: ['brief', 'plan', '--revise'], code: 2, message: 'wf brief plan: no RESEARCH.md\nsecond line' })!);
 check('a refusal keeps the command and the first line of its message', r.cmd === 'brief plan' && r.exit === 2 && r.msg === 'wf brief plan: no RESEARCH.md', JSON.stringify(r));

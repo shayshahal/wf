@@ -11,6 +11,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { refuseCaller } from '../refusal.ts';
 import { addQuestion, blockedQuestion, overruledAsks, pendingRevisions, reviseState } from './ask.ts';
 import { briefKey, handoffFile, handoffGap, HANDOFF_FILES, planAsks, planClass, rowDone, tokenOf, validationVerdict } from './handoff.ts';
 import { critiqueVerdict, MAX_EXCHANGES } from '../gates/critique.ts';
@@ -328,7 +329,7 @@ export async function runNext() {
 	const toplevel = toplevelOf();
 	if (!readState(toplevel)?.folder) {
 		console.error('wf next: no round here — run it in the round\'s worktree (wf new <branch> --id <id> makes one)');
-		process.exit(2);
+		refuseCaller();
 	}
 	let { say, effects } = nextAction(snapshotOf(toplevel));
 	for (const e of effects) {

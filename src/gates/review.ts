@@ -4,6 +4,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { refuseCaller } from '../refusal.ts';
 import { CLASSIFY } from '../paths.ts';
 import { openFile, openInEditor, opensWindows } from '../worktrees/editor.ts';
 import { baseBranch } from '../project.ts';
@@ -21,7 +22,7 @@ import { runStep } from '../round/step.ts';
 
 const usage: () => never = () => {
   console.error('usage: wf review <round> [--base dev] | wf review <round> --done');
-  process.exit(2);
+  refuseCaller();
 };
 const inWorktree = async (worktree: string, round: string, step: string) => {
   const prev = process.cwd();

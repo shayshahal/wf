@@ -5,6 +5,7 @@
 // time, retries).
 // Pure; reap.ts reads the files and writes the line.
 import type { State } from './state.ts';
+import type { RefusalKind } from '../refusal.ts';
 
 type Step = { step: string; at: string };
 
@@ -88,7 +89,13 @@ export function frictionLine({ state, checksLog, eventsLog, reviewText, end }: {
 	// the record instead of hiding inside the red count.
 	const environment = checks.filter((c) => c.cause === 'environment').length;
 	const unstable = all.filter((c) => c.row === 'repro' && c.result === 'unstable').length;
-	const refusals = jsonLines<{ cmd: string; msg: string }>(eventsLog);
+	const refusals = jsonLines<{ cmd: string; msg: string; kind?: unknown }>(eventsLog);
+	// A refusal wf made before it read the round — argv it will not take, a worktree with no round in it
+	// — is not the round's business, and counting it as wf stepping in inflated the record (BJEW-461,
+	// 2026-10-06: 3 of its 7 were `usage: wf decide [--q <n>]` and `invalid step ""`). Counted apart,
+	// and left out of the messages after the colon, which should say what wf ruled about the round.
+	const about = refusals.filter((r) => r.kind !== 'caller');
+	const away = refusals.length - about.length;
 	const verdicts = [...(reviewText ?? '').matchAll(/^verdict:\s*(\S+)\s*$/gm)].map((m) => m[1]).filter((v) => v !== 'pending');
 	const pushRefused = (reviewText?.match(/refused by the project's pre-push hook/g) ?? []).length;
 	const questions = (state?.answered?.length ?? 0) + (state?.questions?.length ?? 0);
@@ -98,7 +105,7 @@ export function frictionLine({ state, checksLog, eventsLog, reviewText, end }: {
 		history.length ? timeInSteps(history, end).join(', ') : 'steps not recorded',
 		`agents: ${agentsPerPhase(state?.briefs).join(', ') || 'none'}`,
 		`checks ${checks.length} (${checks.filter((c) => c.result !== 'green').length} red${environment ? `, ${environment} environment` : ''})${unstable ? `, repro unstable ${unstable}` : ''}`,
-		`wf refused ${refusals.length}${refusals.length ? `: ${[...new Set(refusals.map((r) => `${r.cmd}: ${r.msg}`.slice(0, 120)))].slice(0, 3).join('; ')}` : ''}`,
+		`wf refused ${refusals.length}${away ? ` (${away} not about the round)` : ''}${about.length ? `: ${[...new Set(about.map((r) => `${r.cmd}: ${r.msg}`.slice(0, 120)))].slice(0, 3).join('; ')}` : ''}`,
 		`questions ${questions}`,
 		`T2 ${verdicts.length - pushRefused} (${verdicts.filter((v) => v === 'changes-requested').length - pushRefused} changes-requested), push refused ${pushRefused}`,
 	];
@@ -106,8 +113,9 @@ export function frictionLine({ state, checksLog, eventsLog, reviewText, end }: {
 }
 
 // Pure: the .wf/events.log line for a wf command that exited non-zero in a round. `wf check` is left
-// out: its runs are in checks.log already.
-export function refusalLine({ ts, argv, code, message }: { ts: string; argv: string[]; code: number; message: string }): string | null {
+// out: its runs are in checks.log already. `kind` is set only for a refusal wf made before it read the
+// round (refusal.ts).
+export function refusalLine({ ts, argv, code, message, kind }: { ts: string; argv: string[]; code: number; message: string; kind?: RefusalKind | null }): string | null {
 	if (!code || argv[0] === 'check') return null;
-	return JSON.stringify({ ts, cmd: argv.slice(0, 2).join(' '), exit: code, msg: (message ?? '').split('\n')[0].trim() });
+	return JSON.stringify({ ts, cmd: argv.slice(0, 2).join(' '), exit: code, msg: (message ?? '').split('\n')[0].trim(), ...(kind ? { kind } : {}) });
 }
