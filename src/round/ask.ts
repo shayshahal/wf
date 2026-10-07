@@ -204,6 +204,16 @@ export const revisionText = (question: Pick<Question, 'text' | 'default'>, answe
 // a revision to its question, and the text is built from both (revisionText).
 export const wentThroughPlan = (question: Question, revisions: { text: string }[] = []) => revisions.some((r) => r.text === revisionText(question, (question.answer ?? '').trim()));
 
+// Pure: how many of the revisions answered a T2 changes-requested. `wf review --done` sets the step
+// back to implement (history: review, implement) and `wf decide --revise` then sets it to plan at the
+// revision's own timestamp (reviseState), so a plan entry at a revision's `at` right after that pair
+// says the revision is the answer to the review. JX-1221, 2026-10-07: "the code is fine, I don't like
+// the design, make 3 iterations" was answered so, the 3 variants were built, and `wf next` still
+// dispatched fix-review on the same REVIEW.md comment, over and over: the agent found nothing to fix.
+export function t2Revisions(history: { step: string; at: string }[] = [], revisions: { at: string }[] = []) {
+	return revisions.filter((r) => history.some((h, i) => h.step === 'plan' && h.at === r.at && history[i - 1]?.step === 'implement' && history[i - 2]?.step === 'review')).length;
+}
+
 // Pure: the state sent back to plan with `text`, an answer saying the plan must change. `wf next`
 // answers it with `plan --revise` until a plan brief is newer than the answer (pendingRevisions).
 // BJEW-461, 2026-10-06: the plan's Ask "if the close comes from elsewhere" had `return to plan` as

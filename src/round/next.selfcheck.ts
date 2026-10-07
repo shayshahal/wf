@@ -215,6 +215,18 @@ const t2Fixed = { ...done2, subjects: [...done2.subjects, 'fix(review): x'], fil
 check('the T2 fix committed → validate again: the PR carries VALIDATION.md (TJEW-670)', say(impl({ ...t2Fixed, fixesAfterValidate: 1 })) === 'dispatch validate: run `node C:/wf/wf.mjs brief validate` in this worktree and do exactly what it prints', say(impl({ ...t2Fixed, fixesAfterValidate: 1 })));
 check('a second T2 fix re-validates too, never escalating as a missing handoff', say(impl({ ...t2Fixed, fixesAfterValidate: 1, briefs: { ...base().briefs, validate: { token: 'ccc333', count: 3 } } })).startsWith('dispatch validate:'));
 check('validated after the fix → T2 again', say(impl({ ...t2Fixed, fixesAfterValidate: 0 })).startsWith('review: T2'));
+// JX-1221 (2026-10-07): a T2 changes-requested answered with `wf decide --revise` (step history: review,
+// implement by --done, then plan at the revision's own `at`) is built by the revised plan's rows, not a fix(review).
+const T = (m: number) => `2026-10-07T14:${String(m).padStart(2, '0')}:00.000Z`;
+const t2History = (...steps: [string, number][]) => steps.map(([step, m]) => ({ step, at: T(m) }));
+const afterDone = reviseState({ step: 'implement', history: t2History(['plan', 1], ['implement', 2], ['review', 3], ['implement', 4]) }, 'build 3 design variants', T(5));
+const t2Revised = (patch: Fixture = {}) => impl({ ...done2, files: { validation: VALID(), review: 'verdict: changes-requested\n' }, revisions: afterDone.revisions, history: afterDone.history, ...patch });
+check('T2 changes-requested answered by decide --revise, rows built → no fix-review, on to T2', !say(t2Revised()).includes('fix-review') && say(t2Revised()).startsWith('review: T2'), say(t2Revised()));
+check('the same review, no revise recorded → fix-review still owed', say(t2Revised({ revisions: [], history: [] })).startsWith('dispatch fix-review:'));
+check('a revise that did not come from a T2 (history: implement, plan) does not excuse the review', say(t2Revised({ history: t2History(['plan', 1], ['implement', 4], ['plan', 5]) })).startsWith('dispatch fix-review:'));
+const review2 = 'verdict: changes-requested\n\n## 2026-10-08\nverdict: changes-requested\n';
+check('a second T2 changes-requested after the revised one is still owed a fix(review)', say(t2Revised({ files: { validation: VALID(), review: review2 } })).startsWith('dispatch fix-review:'));
+check('…and its fix(review) commit satisfies it', !say(t2Revised({ files: { validation: VALID(), review: review2 }, subjects: [...done2.subjects, 'fix(review): y'] })).includes('fix-review'));
 check('T2 dismissed: nothing merges, wait on the user', say(base({ step: 'review', files: { review: 'verdict: dismissed\n' } })).startsWith('wait user: T2 was closed'));
 check('T2 approved → deliver (push, PR, merge, the note), then wf next', say(base({ step: 'pr' })) === 'deliver: T2 approved — `node C:/wf/wf.mjs deliver` (push, PR, merge, the tracker note), then `node C:/wf/wf.mjs next`', say(base({ step: 'pr' })));
 // The tracker note: a section per item, each marked once posted, so a resumed round never posts one twice.
