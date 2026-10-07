@@ -22,10 +22,12 @@ export type Verdict = (typeof VERDICTS)[number];
 
 const VERDICT = /^Verdict:[ \t]*(AGREE|DISAGREE_EVIDENCE|DISAGREE_CONCERN)[ \t]*$/m;
 // - AGREE · <the VALIDATION.md line>
-// - DISAGREE_EVIDENCE · <the line> · <path>:<line> — <what the code there shows>
+// - DISAGREE_EVIDENCE · <the line> · <path>:<line>[-<line>] — <what the code there shows>
 // - DISAGREE_CONCERN · <the line> — <the evidence that would settle it>
 const ROW = /^[-*]\s+(AGREE|DISAGREE_EVIDENCE|DISAGREE_CONCERN)\s+·\s+(.+)$/;
-const CITES = /\S+:\d+\s+—\s+\S/;
+// A range (`:403-404`) cites as well as a line: standards.ts accepts both, and JX-1221 (2026-10-07) was
+// held as a harness gap twice for a correct critique that cited `:403-404 —`.
+const CITES = /\S+:\d+(?:-\d+)?\s+—\s+\S/;
 
 const rowsOf = (body: string) => {
 	const section = /^## Rows[ \t]*\n([\s\S]*?)(?=^## |^Verdict:|(?![\s\S]))/m.exec(body)?.[1] ?? '';

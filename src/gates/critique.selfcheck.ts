@@ -21,6 +21,9 @@ check('no Verdict line: not a handoff', critiqueGap('# r\n## Rows\n- AGREE · x\
 check('no rows: not a handoff', critiqueGap(crit([], 'AGREE'))?.includes('no `## Rows`') === true);
 check('a row that is not one of the three verdicts', critiqueGap(crit(['- probably fine · x'], 'AGREE'))?.includes('is not `- <AGREE') === true);
 check('DISAGREE_EVIDENCE without a path:line is a concern, not evidence (the paper\'s text constraint)', critiqueGap(crit(['- DISAGREE_EVIDENCE · "one": met — looks wrong'], 'DISAGREE_EVIDENCE'))?.includes('cites no') === true);
+const RANGE = '- DISAGREE_EVIDENCE · "Read-only + one Edit": met · packages/frontend/admin/src/routes/users/[id]/+page.svelte:403-404 — the Edit link is here';
+check('a line range is a citation (JX-1221, 2026-10-07: `:403-404 —` was refused twice)', critiqueGap(crit([RANGE], 'DISAGREE_EVIDENCE')) === null, String(critiqueGap(crit([RANGE], 'DISAGREE_EVIDENCE'))));
+check('a range without the dash and what it shows is still no citation', critiqueGap(crit(['- DISAGREE_EVIDENCE · "one": met · a.ts:403-404 is wrong'], 'DISAGREE_EVIDENCE'))?.includes('cites no') === true);
 check('a verdict its rows do not come to: false consensus is refused', critiqueGap(crit([AGREE, EVIDENCE], 'AGREE'))?.includes('its rows come to DISAGREE_EVIDENCE') === true);
 
 check('T2 header: nothing when the critic agreed or never ran', critiqueLines(crit([AGREE], 'AGREE'), 'r/CRITIQUE.md', 1).length === 0 && critiqueLines(null, 'r/CRITIQUE.md', null).length === 0);
