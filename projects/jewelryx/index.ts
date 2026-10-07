@@ -268,15 +268,15 @@ export const suites = (changed: string[]): CheckTask[][] => suitesTouched(change
 
 // ── delivery ─────────────────────────────────────────────────────────────────
 
-// The note wf deliver leaves in the round folder, one section per ticket id (a round on subitems has
-// one per subitem); the round skill fills and posts each (wf never calls Monday). Only the scaffold:
+// The note wf deliver leaves in the round folder, one section per ticket id (a round on sub-tasks has
+// one per sub-task); the round skill fills and posts each (wf never calls Jira). Only the scaffold:
 // the words are for Einat, in plain Hebrew with no file, code name or line number
-// (docs/agents/monday.md), and PLAN.md's Cause and Approach are written for the code. TJEW-670
+// (docs/agents/jira.md), and PLAN.md's Cause and Approach are written for the code. TJEW-670
 // (2026-09-28): the note carried PLAN.md's Cause, file:line and all, as one note for four subitems.
 export function trackerNote({ ids, url }: { ids: string[]; url: string }): { file: string; text: string } {
 	const section = (id: string) => [`## ${id}`, 'תוקן ✅', 'מה היה: <what the reporter saw, from TICKET.md ## Intent>', 'מה שונה: <what she sees now>', 'לבדיקה: <where to look, step by step>', `PR: ${url}`].join('\n');
-	const head = '<!-- One comment per ## section, posted on that item. Fill the <...> lines in plain Hebrew for the reporter: no file path, code name or line number (docs/agents/monday.md, Comments on an item). The ## line is not posted. -->';
-	return { file: 'MONDAY.md', text: `${[head, ...ids.map(section)].join('\n\n')}\n` };
+	const head = '<!-- One comment per ## section, posted on that issue. Fill the <...> lines in plain Hebrew for the reporter: no file path, code name or line number (docs/agents/jira.md, Comments on an issue). The ## line is not posted. -->';
+	return { file: 'JIRA.md', text: `${[head, ...ids.map(section)].join('\n\n')}\n` };
 }
 
 // ── JewelryX's own wf commands ───────────────────────────────────────────────

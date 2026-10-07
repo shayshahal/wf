@@ -6,7 +6,7 @@ let failed = 0;
 const check = (name: string, cond: unknown, detail = '') => { console.log(`  ${cond ? 'ok  ' : 'FAIL'} ${name}${cond || !detail ? '' : ` — ${detail}`}`); if (!cond) failed++; };
 
 check('a change that brings a round folder with RESEARCH.md is a wf round', kindOf(['bug-reports/fix-x/RESEARCH.md', 'packages/a.ts'], 'Merge pull request #1 from o/fix/x') === 'wf');
-check('a ticket id in the branch or subject is ticket work', kindOf([], 'Merge pull request #274 from o/fix/bjew629-drawer') === 'ticket' && kindOf([], 'fix(TJEW-670): back') === 'ticket');
+check('a ticket id in the branch or subject is ticket work', kindOf([], 'Merge pull request #274 from o/fix/bjew629-drawer') === 'ticket' && kindOf([], 'fix(TJEW-670): back') === 'ticket' && kindOf([], 'Merge pull request #320 from o/fix/jx-1112-nav') === 'ticket');
 check('a v1 folder alone (the 09-09 import) is not a wf round', kindOf(['cr-reports/TJEW-1/FROZEN.txt'], 'docs(bug-reports): track the rounds') === 'other');
 
 check('app code under packages/ counts', isCode('packages/frontend/b2b/src/routes/+page.svelte') && isCode('packages/backend/app/x.py'));

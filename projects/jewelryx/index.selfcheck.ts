@@ -34,9 +34,9 @@ const down = teardown({ slug: 'fix-bjew-1', worktree: 'C:/wt/fix-bjew-1' });
 check('with no machine plugged in, a teardown drops the worktree\'s database, in-process', down.map((s) => s.label).join() === 'drop database' && typeof down[0].run === 'function' && !down[0].cmd);
 
 // ── the tracker note
-const note = trackerNote({ ids: ['TJEW-670.2', 'TJEW-670.3'], url: 'https://github.com/x/y/pull/7' });
-check('the note is MONDAY.md', note.file === 'MONDAY.md');
-check('one section per id, each with the PR url', note.text.includes('## TJEW-670.2\nתוקן ✅') && note.text.includes('## TJEW-670.3\nתוקן ✅') && note.text.split('PR: https://github.com/x/y/pull/7').length === 3, note.text);
+const note = trackerNote({ ids: ['JX-1112', 'JX-1113'], url: 'https://github.com/x/y/pull/7' });
+check('the note is JIRA.md', note.file === 'JIRA.md');
+check('one section per id, each with the PR url', note.text.includes('## JX-1112\nתוקן ✅') && note.text.includes('## JX-1113\nתוקן ✅') && note.text.split('PR: https://github.com/x/y/pull/7').length === 3, note.text);
 check('the scaffold carries no code: it is filled for the reporter, in Hebrew', !/Cause|Approach|\.py|\.ts|:\d/.test(note.text.replace(/https:\/\/\S+/g, '')) && note.text.includes('מה היה:') && note.text.includes('לבדיקה:'), note.text);
 
 // ── the worktree's .env (cases from the project's sanitize-worktree-env test)

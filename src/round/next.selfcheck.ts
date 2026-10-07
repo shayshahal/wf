@@ -219,8 +219,8 @@ check('T2 dismissed: nothing merges, wait on the user', say(base({ step: 'review
 check('T2 approved → deliver (push, PR, merge, the note), then wf next', say(base({ step: 'pr' })) === 'deliver: T2 approved — `node C:/wf/wf.mjs deliver` (push, PR, merge, the tracker note), then `node C:/wf/wf.mjs next`', say(base({ step: 'pr' })));
 // The tracker note: a section per item, each marked once posted, so a resumed round never posts one twice.
 const NOTE = '<!-- one per ## -->\n\n## TJEW-670.2\nתוקן ✅\nPR: u\n\n## TJEW-670.3\nתוקן ✅\nPR: u\n';
-const merged = (text: string | null) => base({ step: 'merged', note: { file: 'bug-reports/r/MONDAY.md', text } });
-check('merged, nothing posted → post every section', say(merged(NOTE)) === 'post: TJEW-670.2, TJEW-670.3 — each section of bug-reports/r/MONDAY.md on its own item, with the delivered status (ROUND.md); right after each, its heading gets ` (posted)`. Then `node C:/wf/wf.mjs next`', say(merged(NOTE)));
+const merged = (text: string | null) => base({ step: 'merged', note: { file: 'bug-reports/r/NOTE.md', text } });
+check('merged, nothing posted → post every section', say(merged(NOTE)) === 'post: TJEW-670.2, TJEW-670.3 — each section of bug-reports/r/NOTE.md on its own item, with the delivered status (ROUND.md); right after each, its heading gets ` (posted)`. Then `node C:/wf/wf.mjs next`', say(merged(NOTE)));
 check('one posted → only the other', say(merged(NOTE.replace('## TJEW-670.2', '## TJEW-670.2 (posted)'))).startsWith('post: TJEW-670.3 — '));
 check('all posted → done: reap', say(merged(NOTE.replace(/^## (\S+)$/gm, '## $1 (posted)'))) === 'done: `node C:/wf/wf.mjs reap fix/r`');
 check('no note recorded (delivered before wf recorded it) → done: reap', say(base({ step: 'merged' })) === 'done: `node C:/wf/wf.mjs reap fix/r`');

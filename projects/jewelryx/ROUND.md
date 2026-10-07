@@ -3,59 +3,61 @@
 What the round skill (`{{wf}}/skills/round/SKILL.md`) leaves to the project. Read once per session,
 before *Start*.
 
-## Tracker: Monday
+## Tracker: Jira
 
-- Tickets live on two boards: Bugs (`BJEW-`) and Tasks (`TJEW-`), both reachable by numeric id.
-  Board ids, status labels and how a comment to Einat reads: `docs/agents/monday.md` in the worktree.
-- Fetch the whole item: every update and reply, oldest first, and every asset, both those attached
-  to updates **and those in the item's file columns**, and the same for each subitem. One
-  `all_api_read` call returns all of it (2026-10-03: BJEW-602, and TJEW-670 with its 11 subitems;
-  under pi, Monday's tools are called from a `codemode` script), with `variables` `{"ids": ["<item id>"]}`:
+- Tickets are issues of the one project `JX` on `raynw.atlassian.net` (cloud id
+  `d0d265f2-904c-4b76-8bd7-ecfb592eb92f`): Bugs, Tasks and their Sub-tasks, each with its own key
+  (`JX-1112`; "start 1112" means `JX-1112`). Types, statuses, the Monday history and how a comment to
+  Einat reads: `docs/agents/jira.md` in the worktree. An old `BJEW-`/`TJEW-` id is found the way it says.
+- The tools: Atlassian's MCP (under pi, `mcp__atlassian__*` called from a `codemode` script) for
+  issues, comments and statuses; Jira's REST API for files, which the MCP cannot move, with
+  `curl -u "$JIRA_EMAIL:$JIRA_TOKEN"` (your Atlassian email and an API token from
+  id.atlassian.com, in the environment the session started with).
+- Fetch the whole issue: `getJiraIssue` with `fields: ["summary", "description", "status", "issuetype",
+  "parent", "subtasks", "comment", "attachment", "customfield_10251"]` and `responseContentFormat:
+  "markdown"`; each sub-task the same. Every comment, oldest first (`comment.total` more than the
+  comments returned: fetch the rest). Download each attachment into the round folder
+  (`curl -sL -u … -o <name> https://raynw.atlassian.net/rest/api/3/attachment/content/<id>`) and
+  `read` the images. An issue migrated from Monday has no attachments in Jira: its pictures are
+  still on its Monday item (`customfield_10251`), fetched with Monday's `all_api_read`, `variables`
+  `{"ids": ["<item id>"]}`, then each `public_url` downloaded (it expires within the hour):
   ```
-  query($ids: [ID!]) { items(ids: $ids) { id name board { id name } assets(assets_source: columns) { id name public_url }
-    updates(limit: 100) { id created_at text_body creator { name } assets { id name public_url }
-      replies { id created_at text_body creator { name } assets { id name public_url } } }
-    subitems { id name assets(assets_source: columns) { id name public_url }
-      updates(limit: 100) { id created_at text_body creator { name } assets { id name public_url }
-        replies { id created_at text_body creator { name } assets { id name public_url } } } } } }
+  query($ids: [ID!]) { items(ids: $ids) { id name assets(assets_source: columns) { id name public_url }
+    updates(limit: 100) { assets { id name public_url } replies { assets { id name public_url } } } } }
   ```
-  Then download each `public_url` into the round folder (it expires within the hour) and `read` the
-  images. 100 updates is a page: an item with that many needs `page: 2`.
-- A TJEW item that is one sentence is the "ticket that is a sentence" of *Start*: scope questions first.
-- An item with subitems is not one round (TJEW-670, 2026-09-28: a title, and 11 subitems that are
-  11 changes). Fetch every subitem's thread and assets too, list them for the user (position, title,
+- A Task that is one sentence is the "ticket that is a sentence" of *Start*: scope questions first.
+- An issue with sub-tasks is not one round (TJEW-670, 2026-09-28: a title, and 11 subitems that are
+  11 changes). Fetch every sub-task's thread and attachments too, list them for the user (key, title,
   what it asks in one line, its status), and ask how to group them: a round each, or a few small
-  ones of one kind together (texts and buttons to remove). A subitem that is only a title is a
+  ones of one kind together (texts and buttons to remove). A sub-task that is only a title is a
   sentence: scope questions, or a check, first.
-- A round on subitems: `--id <item id>.<n>` for each, `n` its position on the item from the top
-  (`TJEW-670.2`). `TICKET.md`: the item's title and thread, then each subitem's; `## Intent` is the
-  subitems' words. Its statuses and its note go on its subitems, never the item.
-- Statuses, set by you (never an agent):
+- A round on sub-tasks: `--id <sub-task key>` for each. `TICKET.md`: the parent's title and thread,
+  then each sub-task's; `## Intent` is the sub-tasks' words. Its statuses and its note go on its
+  sub-tasks, never the parent.
+- Statuses, set by you (never an agent), by name: `getTransitionsForJiraIssue`, then
+  `transitionJiraIssue` with the id of the transition whose `to` is that status. Every type, sub-tasks
+  included, has the one workflow:
 
-| when | status | a subitem's status |
-|---|---|---|
-| `wf new` made the worktree; a check's, when the user says go | *In Progress* | *Working on it* |
-| `wf deliver` merged the PR (after T2) | *Fixed in Local*, with the tracker note: the last thing a round does before reap. Shay sets the QA statuses himself when he moves `dev` to QA | *Waiting for review*, with the note |
+| when | status |
+|---|---|
+| `wf new` made the worktree; a check's, when the user says go | *In Progress* |
+| `wf deliver` merged the PR (after T2) | *Fixed in Local*, with the tracker note: the last thing a round does before reap. Shay sets the QA statuses himself when he moves `dev` to QA |
 
-- The tracker note is `MONDAY.md` in the round folder (`wf deliver` writes it): one `## <id>` section
-  per item. Fill each section's lines in plain Hebrew from `TICKET.md` and what the round changed, with
+- The tracker note is `JIRA.md` in the round folder (`wf deliver` writes it): one `## <id>` section
+  per issue. Fill each section's lines in plain Hebrew from `TICKET.md` and what the round changed, with
   no file path, code name or line number, show the user the exact text, and post each section on its
-  own item without its `##` line.
-- A section whose heading has no ` (posted)` may still be on its item: a session can die between the
-  post and the mark. Before posting one, read the item's updates: one with the section's PR url is
+  own issue without its `##` line (`addCommentToJiraIssue`, `contentFormat: "markdown"`).
+- A section whose heading has no ` (posted)` may still be on its issue: a session can die between the
+  post and the mark. Before posting one, read the issue's comments: one with the section's PR url is
   that post, so mark the heading and post nothing. Pictures are uploaded under the PR's number
-  (`<pr>-before-1.png`), so one already in the column is this round's and is not uploaded again.
-  Statuses are safe to set twice.
+  (`<pr>-before-1.png`), so one already in the issue's attachments is this round's and is not uploaded
+  again. Statuses are safe to set twice.
 - The round's pictures go with the note: `proof/before-<n>.png` and `proof/after-<n>.png` in the round
   folder (research took the befores, validate the afters; they are gitignored, and gone after reap).
-  The connector cannot attach a file to an update, only to a file column (BJEW-532). Read the item's
-  board's file columns (`columns(types: [file])`): Bugs and its subitems have `Files`, Tasks and its
-  subitems none (2026-09-28). With one: upload each picture to that column of each item the note went
-  on (`monday_get_asset_upload_url`, `curl -i -X PUT` the file, `monday_finalize_asset_upload` with the
-  ETag), read the column back to see the reporter's own files are still there (not yet seen in a round: if
-  they are gone, stop and tell the user), and add a line to the
-  note before posting: `תמונות לפני/אחרי מצורפות לפריט, בעמודת הקבצים.` Without one: after posting,
-  tell the user which files to drag onto the update, with their full paths.
+  Before posting, attach each to each issue the note goes on:
+  `curl -s -u … -X POST -H "X-Atlassian-Token: no-check" -F "file=@proof/before-1.png;filename=<pr>-before-1.png" https://raynw.atlassian.net/rest/api/3/issue/<key>/attachments`,
+  and add a line to the note: `תמונות לפני/אחרי מצורפות לכרטיס.` No `JIRA_TOKEN`: post without the
+  line, then tell the user which files to attach, with their full paths.
 
 ## People
 

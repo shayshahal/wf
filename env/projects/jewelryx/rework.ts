@@ -32,7 +32,8 @@ export type Fate = 'kept' | 'fix' | 'revert' | 'sweep' | 'other';
 // carries the branch).
 export function kindOf(added: string[], subject: string): Kind {
 	if (added.some((p) => /^(bug-reports|cr-reports)\/[^/]+\/(RESEARCH|VALIDATION|TICKET)\.md$/.test(p))) return 'wf';
-	return /\b[bt]jew-?\d+/i.test(subject) ? 'ticket' : 'other';
+	// JX-: Jira's key since 2026-10-07, when the tracker moved from Monday.
+	return /\b(?:[bt]jew|jx)-?\d+/i.test(subject) ? 'ticket' : 'other';
 }
 
 // Pure: the code lines a change can be judged on: app code under packages/, not generated.
@@ -69,6 +70,7 @@ export function fateOf(step: { subject: string; files: number }, sweep: number):
 	// A lint fix rewrites what a linter flagged, not a bug (#254, fix/lint-unknown-returns, on TJEW-700's lines).
 	if (step.files > sweep || /\blint/i.test(branch || step.subject)) return 'sweep';
 	const fix = branch ? /^(fix|hotfix|bugfix)[/-]/i.test(branch) : /^(fix|hotfix|bugfix)(\([^)]*\))?!?:/i.test(step.subject);
+	// A JX- key does not say whether it is a bug (Jira's one project holds both): only its fix/ branch does.
 	return fix || /\bbjew-?\d+/i.test(text) ? 'fix' : 'other';
 }
 

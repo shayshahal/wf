@@ -1,5 +1,5 @@
 // deliver.selfcheck.ts — node deliver.selfcheck.ts → exit 0 when green.
-// Fixture PLAN.md → the PR body, MONDAY.md.
+// Fixture PLAN.md → the PR body, the tracker note.
 import { hookRefused, prBody, refusedPushSection, t2Gap } from './deliver.ts';
 import type { State } from '../round/state.ts';
 
