@@ -8,9 +8,10 @@
 // `wf reap <branch>`, it only printed its plan, and Claude Code's auto mode refused the flag.
 // Every step tolerates "already gone": a reap that is re-run is a no-op, not an error.
 import { execFileSync, spawnSync } from 'node:child_process';
-import { appendFileSync, copyFileSync, existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { appendFileSync, copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { proofPairs } from '../gates/review-format.ts';
 import { refuseCaller } from '../refusal.ts';
 import { roundsDir } from '../project.ts';
 import { writeCloneLaunch } from './new.ts';
@@ -35,14 +36,22 @@ export function paperworkToKeep(porcelain: string) {
 // dev servers' output.
 export const ROUND_RECORD = ['state.json', 'checks.log', 'events.log'];
 
-function keepPaperwork(path: string, slug: string) {
+// Pure: the round's before/after pictures, which the project may gitignore, so git status never lists
+// them. JX-268 (BJEW-562, 2026-10-07): the note was posted without them (no JIRA_TOKEN in the session),
+// the user was told to attach them by hand, and reap deleted the folder they were in.
+export const proofToKeep = (folder: string, names: string[]) =>
+	proofPairs(names).flatMap((p) => [p.before, p.after]).filter((n) => n !== undefined).map((n) => `${folder}/proof/${n}`);
+
+function keepPaperwork(path: string, slug: string, folder: string | undefined) {
 	let porcelain = '';
 	try { porcelain = execFileSync('git', ['-C', path, 'status', '--porcelain', '--untracked-files=all'], { encoding: 'utf8' }); } catch (e) {
 		// Reap removes the worktree next: without the list, its uncommitted paperwork went with it, unsaid.
 		console.error(`wf reap: cannot list ${path}'s uncommitted paperwork (git status: ${e instanceof Error ? e.message.split('\n')[0] : String(e)}); nothing removed`);
 		process.exit(1);
 	}
-	const files = [...paperworkToKeep(porcelain), ...ROUND_RECORD.map((f) => `.wf/${f}`).filter((f) => existsSync(join(path, f)))];
+	const proofDir = folder ? join(path, folder, 'proof') : null;
+	const pictures = folder && proofDir && existsSync(proofDir) ? proofToKeep(folder, readdirSync(proofDir)) : [];
+	const files = [...new Set([...paperworkToKeep(porcelain), ...pictures, ...ROUND_RECORD.map((f) => `.wf/${f}`).filter((f) => existsSync(join(path, f)))])];
 	if (!files.length) return;
 	const dest = join(homedir(), '.cache', 'wf-reaped', slug);
 	for (const f of files) {
@@ -100,7 +109,7 @@ export async function runReap(argv: string[]) {
 	const force = reapRuns(process.env, state);
 	// Paperwork first: when it cannot be listed, reap stops, and ROUNDS.md gets no line for a round
 	// that is still there (2026-10-04, a broken .git: the line was written, then reap stopped).
-	if (force) keepPaperwork(path, slug);
+	if (force) keepPaperwork(path, slug, state?.folder);
 	if (force && state) recordFriction(path, state);
 	// Read before the worktree goes: the repository the branch lives in.
 	const gitDir = execFileSync('git', ['-C', path, 'rev-parse', '--path-format=absolute', '--git-common-dir'], { encoding: 'utf8' }).trim();

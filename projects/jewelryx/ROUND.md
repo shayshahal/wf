@@ -56,8 +56,11 @@ before *Start*.
   folder (research took the befores, validate the afters; they are gitignored, and gone after reap).
   Before posting, attach each to each issue the note goes on:
   `curl -s -u … -X POST -H "X-Atlassian-Token: no-check" -F "file=@proof/before-1.png;filename=<pr>-before-1.png" https://raynw.atlassian.net/rest/api/3/issue/<key>/attachments`,
-  and add a line to the note: `תמונות לפני/אחרי מצורפות לכרטיס.` No `JIRA_TOKEN`: post without the
-  line, then tell the user which files to attach, with their full paths.
+  and add a line to the note: `תמונות לפני/אחרי מצורפות לכרטיס.` No `JIRA_TOKEN` in the session
+  (`echo ${JIRA_TOKEN:+set}` prints nothing): post nothing and set no status. Tell the user the
+  session started without it, and stop: a new session, after they set it, picks the round up with
+  "resume <id>". The pictures are in the worktree until then (JX-268, 2026-10-07: posted without
+  them, the user told to attach them by hand, and the reap that came next deleted them).
 
 ## People
 
