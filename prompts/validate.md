@@ -65,6 +65,8 @@ as it is. A line left out is not legal. (TJEW-682 replay, 2026-09-27: the month 
 hover was called met from the code and a check that its scroll buttons were gone; nothing had
 measured hover, before or after.)
 
+A "must not touch X" or "not doing X" Intent line whose only evidence is the diff's file list ("diff touches none") has no before: and no after:, so it is `NOT MEASURED — <the file list shows none of X touched; no measurement of X's behaviour>`, never `met` (JX-1221, 2026-10-07: written `met` twice, refused twice).
+
 `wf check` runs on the uncommitted tree, so a commit's green line comes just before it: the last
 `.wf/checks.log` line before a commit is the one that covers it, and a `fix(review):` commit's run is
 logged under the round's last row. checks.log times are UTC (`Z`); `git log` prints local time with

@@ -215,6 +215,10 @@ const t2Fixed = { ...done2, subjects: [...done2.subjects, 'fix(review): x'], fil
 check('the T2 fix committed → validate again: the PR carries VALIDATION.md (TJEW-670)', say(impl({ ...t2Fixed, fixesAfterValidate: 1 })) === 'dispatch validate: run `node C:/wf/wf.mjs brief validate` in this worktree and do exactly what it prints', say(impl({ ...t2Fixed, fixesAfterValidate: 1 })));
 check('a second T2 fix re-validates too, never escalating as a missing handoff', say(impl({ ...t2Fixed, fixesAfterValidate: 1, briefs: { ...base().briefs, validate: { token: 'ccc333', count: 3 } } })).startsWith('dispatch validate:'));
 check('validated after the fix → T2 again', say(impl({ ...t2Fixed, fixesAfterValidate: 0 })).startsWith('review: T2'));
+// JX-1221 (2026-10-07): a validation that does not hand off holds the round only at the count of one tree's agents (brief.ts briefCount).
+const badValidation = (count: number) => impl({ ...done2, files: { validation: VALID().replace('before: red · after: green', 'diff touches none') }, briefs: { ...base().briefs, validate: { token: 'ccc333', count, head: 'B' } } });
+check('a bad validation on a new head, first brief → validate again, not a harness gap', say(badValidation(1)).startsWith('dispatch validate') && !say(badValidation(1)).startsWith('wait user'), say(badValidation(1)));
+check('the same bad validation at the second agent of that head → held', say(badValidation(2)).startsWith('wait user: validate was briefed 2 times'), say(badValidation(2)));
 // JX-1221 (2026-10-07): a T2 changes-requested answered with `wf decide --revise` (step history: review,
 // implement by --done, then plan at the revision's own `at`) is built by the revised plan's rows, not a fix(review).
 const T = (m: number) => `2026-10-07T14:${String(m).padStart(2, '0')}:00.000Z`;
