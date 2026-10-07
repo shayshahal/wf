@@ -1,7 +1,8 @@
 // friction.ts — the one line `wf reap` prints and adds to ~/.cache/wf-reaped/ROUNDS.md: where a round
-// spent its time and where wf or the person had to step in. Until 2026-09-28 finding that meant reading
-// a round's session log by hand (TJEW-670.11: the broken pre-push hook, the as-built file committed by
-// hand, the false "deviates"); Factory's Missions measure the same things (cycle time, retries).
+// spent its time, what came of it, and where wf or the person had to step in. Until 2026-09-28 finding
+// that meant reading a round's session log by hand (TJEW-670.11: the broken pre-push hook, the as-built
+// file committed by hand, the false "deviates"); Factory's Missions measure the same things (cycle
+// time, retries).
 // Pure; reap.ts reads the files and writes the line.
 import type { State } from './state.ts';
 
@@ -44,6 +45,36 @@ const jsonLines = <T,>(text: string): T[] => (text ?? '').split('\n').filter((l)
 	try { return [JSON.parse(l) as T]; } catch { /* a line cut off mid-write: skipped, the rest still read */ return []; }
 });
 
+// What came of the round, against `state.step`, which is only where the round *was* when it ended. The
+// two were one field in the record: a round that ended with a finding — its repro settled, the answer
+// SKILL.md offers the person as `stop`, and the whole point of a `wf new --check` round — was written
+// down as `held` or `research`, indistinguishable from one waiting on Shay (BJEW-461, 2026-10-06).
+// Derived from what the round already recorded: no state of its own, no new command.
+export type Outcome = 'delivered' | 'it does not reproduce' | 'not the defect' | 'nothing run' | `stopped at ${string}`;
+export function outcomeOf(state: State | null, checksLog: string): Outcome {
+	// First: a round can have had a green repro and been sent on anyway (`wf step plan`).
+	if (state?.step === 'merged') return 'delivered';
+	// What the repro settled, when the round ended where the repro is its answer: research, the step
+	// whose whole job it is, or held, waiting on the person's call about it. Keyed by the round's own
+	// research token — a verdict under a later token is another attempt's, and reading it as this
+	// round's called two merged rounds a non-reproduction (fix-bjew-669, fix-bjew-461-cancel-order-reopen,
+	// 2026-10-07). The step gate matters too: a round that went on to implement is not settled by a
+	// verdict nobody acted on.
+	const token = state?.briefs?.research?.token;
+	const settled = state?.step === 'research' || state?.step === 'held';
+	const verdict = settled
+		? jsonLines<{ row?: unknown; result?: string; token?: string }>(checksLog).filter((c) => c.row === 'repro' && token && c.token === token).at(-1)?.result
+		: undefined;
+	if (verdict === 'green') return 'it does not reproduce';
+	// Red outside the repro's own code on every run: a precondition failed, and the repro never measured
+	// anything (check.ts's NOT THE DEFECT; fix-bjew-461-cancel-order ended here, 2026-10-06, and read as
+	// a stall).
+	if (verdict === 'outside') return 'not the defect';
+	// No agent was ever briefed: a bench worktree, or a round dropped before research.
+	if (state && !Object.keys(state.briefs ?? {}).length) return 'nothing run';
+	return `stopped at ${state?.step ?? '?'}`;
+}
+
 // Pure: the round's line. checksLog / eventsLog are .wf/checks.log and .wf/events.log, reviewText the
 // round's REVIEW.md (each T2 and each refused push is a `verdict:` line in it).
 export function frictionLine({ state, checksLog, eventsLog, reviewText, end }: { state: State | null; checksLog: string; eventsLog: string; reviewText: string; end: string }): string {
@@ -63,6 +94,7 @@ export function frictionLine({ state, checksLog, eventsLog, reviewText, end }: {
 	const questions = (state?.answered?.length ?? 0) + (state?.questions?.length ?? 0);
 	const parts = [
 		`${end.slice(0, 10)} ${state?.id ?? state?.round ?? '?'} (class ${state?.class ?? '?'}, ${state?.step ?? '?'})${start ? `: ${duration(Date.parse(end) - Date.parse(start))}` : ''}`,
+		`outcome: ${outcomeOf(state, checksLog)}`,
 		history.length ? timeInSteps(history, end).join(', ') : 'steps not recorded',
 		`agents: ${agentsPerPhase(state?.briefs).join(', ') || 'none'}`,
 		`checks ${checks.length} (${checks.filter((c) => c.result !== 'green').length} red${environment ? `, ${environment} environment` : ''})${unstable ? `, repro unstable ${unstable}` : ''}`,

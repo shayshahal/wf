@@ -1,5 +1,5 @@
 // friction.selfcheck.ts — node friction.selfcheck.ts → exit 0 when green.
-import { agentsPerPhase, duration, frictionLine, refusalLine, stepHistory, timeInSteps } from './friction.ts';
+import { agentsPerPhase, duration, frictionLine, outcomeOf, refusalLine, stepHistory, timeInSteps } from './friction.ts';
 import type { State } from './state.ts';
 
 let failures = 0;
@@ -40,7 +40,24 @@ const withRepro = frictionLine({ state, checksLog: `${checksLog}\n${JSON.stringi
 check('wf check --repro lines are not commit checks: counted apart, unstable ones named', withRepro.includes('checks 3 (1 red), repro unstable 1 |'), withRepro);
 const withSuites = frictionLine({ state, checksLog: `${checksLog}\n${JSON.stringify({ row: 'suites', result: 'red' })}\n${JSON.stringify({ row: 'suites', result: 'green' })}`, eventsLog, reviewText, end: '2026-09-28T09:30:00.000Z' });
 check('whole suites are not commit checks', withSuites === line, withSuites);
-check('the line: total time, time per step, agents, checks, refusals, questions, T2s', line === "- 2026-09-28 TJEW-670.11 (class B, merged): 1h30m | research 30m, implement 40m, review 20m | agents: research 1 | checks 3 (1 red) | wf refused 2: review cr/x: wf review: class B round without proof/CALL-STACK-AS-BUILT.md — … | questions 2 | T2 3 (1 changes-requested), push refused 1", line);
+check('the line: total time, time per step, agents, checks, refusals, questions, T2s', line === "- 2026-09-28 TJEW-670.11 (class B, merged): 1h30m | outcome: delivered | research 30m, implement 40m, review 20m | agents: research 1 | checks 3 (1 red) | wf refused 2: review cr/x: wf review: class B round without proof/CALL-STACK-AS-BUILT.md — … | questions 2 | T2 3 (1 changes-requested), push refused 1", line);
+
+// What came of the round, against the step it ended at (BJEW-461, 2026-10-06: its record said `held`,
+// which read the same as a round waiting on Shay).
+const at = (step: string, briefs?: Record<string, { token: string; at: string; count: number }>) => ({ step, briefs }) as unknown as State;
+const greenRepro = JSON.stringify({ row: 'repro', result: 'green', token: 'tk' });
+check('a merged round delivered', outcomeOf(at('merged'), '') === 'delivered');
+check('a green repro for this round\'s brief is a finding, not a stall', outcomeOf(at('held', { research: { token: 'tk', at: 't', count: 1 } }), greenRepro) === 'it does not reproduce');
+check('a green repro under another brief is not this round\'s finding', outcomeOf(at('held', { research: { token: 'other', at: 't', count: 1 } }), greenRepro) === 'stopped at held');
+check('delivered wins over a green repro: the round was sent on anyway', outcomeOf(at('merged', { research: { token: 'tk', at: 't', count: 1 } }), greenRepro) === 'delivered');
+check('no agent ever briefed is nothing run', outcomeOf(at('classify', {}), '') === 'nothing run');
+// fix-bjew-461-cancel-order ended with its repro red outside its own code on every run: a precondition,
+// not a defect, and not a stall either (check.ts's NOT THE DEFECT).
+const outsideRepro = JSON.stringify({ row: 'repro', result: 'outside', token: 'tk' });
+check('a repro red outside its own code is not the defect', outcomeOf(at('research', { research: { token: 'tk', at: 't', count: 1 } }), outsideRepro) === 'not the defect');
+check('held on a repro verdict is still waiting on the call about it', outcomeOf(at('held', { research: { token: 'tk', at: 't', count: 1 } }), greenRepro) === 'it does not reproduce');
+check('a round that went on past research is not settled by an old verdict', outcomeOf(at('implement', { research: { token: 'tk', at: 't', count: 1 } }), outsideRepro) === 'stopped at implement');
+check('anything else is the step it stopped at', outcomeOf(at('implement', { research: { token: 'tk', at: 't', count: 1 } }), '') === 'stopped at implement' && outcomeOf(null, '') === 'stopped at ?', `${outcomeOf(at('implement', { research: { token: 'tk', at: 't', count: 1 } }), '')} / ${outcomeOf(null, '')}`);
 const withEnvironment = frictionLine({ state, checksLog: `${checksLog}\n${JSON.stringify({ result: 'red', cause: 'environment' })}`, eventsLog, reviewText, end: '2026-09-28T09:30:00.000Z' });
 check('a red that never ran is named apart from a failed check', withEnvironment.includes('checks 4 (2 red, 1 environment) |'), withEnvironment);
 
