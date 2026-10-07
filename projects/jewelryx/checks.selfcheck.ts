@@ -75,8 +75,11 @@ check('nothing changed: no hook run', checkTasks({ changed: [], test: null, pkgF
 const mixed = ['packages/backend/app/a.py', 'packages/frontend/b2b/src/gone.ts', ...svelteDiff];
 const withCommit = checkTasks({ changed: mixed, test: null, pkgFor, pushHook: true, onDisk: (f) => !f.endsWith('gone.ts') });
 check('pre-commit first, before ruff', labels(withCommit)[0] === 'lefthook pre-commit' && labels(withCommit)[1].startsWith('ruff check'), JSON.stringify(labels(withCommit)));
-check('pre-commit leaves a deleted file out; pre-push keeps it', withCommit[0].args!.join(' ') === 'exec lefthook run pre-commit --file packages/backend/app/a.py --file packages/frontend/b2b/src/routes/x/+page.svelte' && withCommit.at(-1)!.args!.includes('packages/frontend/b2b/src/gone.ts'), withCommit[0].args!.join(' '));
-check('only deletions: no pre-commit run, pre-push still runs', JSON.stringify(labels(checkTasks({ changed: ['packages/frontend/b2b/src/gone.ts'], test: null, pkgFor, pushHook: true, onDisk: () => false }))) === '["lefthook pre-push"]');
+const pushArgs = withCommit.at(-1)!.args!.join(' ');
+check('pre-commit and pre-push both leave a deleted file out (prettier --check exits 2 on it; the push lists ACMR only)', withCommit[0].args!.join(' ') === 'exec lefthook run pre-commit --file packages/backend/app/a.py --file packages/frontend/b2b/src/routes/x/+page.svelte' && pushArgs === 'exec lefthook run pre-push --file packages/backend/app/a.py --file packages/frontend/b2b/src/routes/x/+page.svelte', pushArgs);
+// TJEW-670 row 2 (2026-10-06): a row that only deletes files. No --file: lefthook reads its own `files:`.
+const onlyGone = checkTasks({ changed: ['packages/frontend/b2b/src/gone.ts'], test: null, pkgFor, pushHook: true, onDisk: () => false });
+check('only deletions: no pre-commit run, pre-push runs with no --file (lefthook reads its own files: list)', JSON.stringify(labels(onlyGone)) === '["lefthook pre-push"]' && onlyGone[0].args!.join(' ') === 'exec lefthook run pre-push', JSON.stringify(onlyGone));
 
 // The whole suites a round's diff reaches (index.ts suites).
 const touched = (changed: string[]) => suitesTouched(changed).join();
