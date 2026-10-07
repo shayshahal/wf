@@ -41,6 +41,8 @@ check('wf check --repro lines are not commit checks: counted apart, unstable one
 const withSuites = frictionLine({ state, checksLog: `${checksLog}\n${JSON.stringify({ row: 'suites', result: 'red' })}\n${JSON.stringify({ row: 'suites', result: 'green' })}`, eventsLog, reviewText, end: '2026-09-28T09:30:00.000Z' });
 check('whole suites are not commit checks', withSuites === line, withSuites);
 check('the line: total time, time per step, agents, checks, refusals, questions, T2s', line === "- 2026-09-28 TJEW-670.11 (class B, merged): 1h30m | research 30m, implement 40m, review 20m | agents: research 1 | checks 3 (1 red) | wf refused 2: review cr/x: wf review: class B round without proof/CALL-STACK-AS-BUILT.md — … | questions 2 | T2 3 (1 changes-requested), push refused 1", line);
+const withEnvironment = frictionLine({ state, checksLog: `${checksLog}\n${JSON.stringify({ result: 'red', cause: 'environment' })}`, eventsLog, reviewText, end: '2026-09-28T09:30:00.000Z' });
+check('a red that never ran is named apart from a failed check', withEnvironment.includes('checks 4 (2 red, 1 environment) |'), withEnvironment);
 
 const old = frictionLine({ state: { round: 'fix/y', class: 'A', step: 'merged' }, checksLog: '', eventsLog: '', reviewText: '', end: '2026-09-28T09:30:00.000Z' });
 check('a round from before history was recorded still gets a line', old.includes('fix/y (class A, merged)') && old.includes('steps not recorded') && old.includes('T2 0'), old);

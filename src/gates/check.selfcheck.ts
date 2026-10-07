@@ -2,7 +2,7 @@
 // Pure arms only (no git, no runners): the fence, the repro line, and what buildTasks makes of a
 // plan row's check cell. The project's own commands: projects/<name>/checks.selfcheck.ts.
 import { failedInRepro, failureFrame, failureSignature, reproVerdict } from './check.ts';
-import { checkRunLine, buildTasks, fenceViolations, isReproOnly, isRoundPaperwork, manualCheck, reproCommand, resolvedBlockedName, suitesLine, tokenize } from './check.ts';
+import { checkRunLine, buildTasks, fenceViolations, isReproOnly, isRoundPaperwork, manualCheck, redCause, reproCommand, resolvedBlockedName, suitesLine, tokenize } from './check.ts';
 import type { CheckTask } from './check.ts';
 
 let failures = 0;
@@ -50,6 +50,10 @@ check('a `repro --grep …` cell is a path for the project, which refuses it', a
 
 const logLine = JSON.parse(checkRunLine({ ts: 't', row: '2', rowCheck: '`repro`', tasks: [{ label: 'ruff check x.py', exit: 0 }, { label: 'npx playwright test r.spec.ts', exit: 1 }], result: 'red' }));
 check('checks.log line carries row, the row check, each task exit and the result', logLine.row === '2' && logLine.rowCheck === '`repro`' && logLine.tasks[1].exit === 1 && logLine.result === 'red', JSON.stringify(logLine));
+// BJEW-461 (2026-10-06): a gate that never ran (the stack, a task wf could not build) is the
+// environment, not a check the round failed; a task that ran and exited non-zero is the code.
+check('a red where no task ran is the environment; a task that ran and failed is the code', redCause({ exit: null }) === 'environment' && redCause({ exit: 1 }) === 'code' && redCause({ exit: 0 }) === 'code');
+check('the cause rides the red line, and a green line has none', JSON.parse(checkRunLine({ ts: 't', row: '2', rowCheck: null, tasks: [{ label: 'stack', exit: null, missing: 'the stack never answered' }], result: 'red', cause: 'environment' })).cause === 'environment' && !('cause' in JSON.parse(checkRunLine({ ts: 't', row: '2', rowCheck: null, tasks: [{ label: 'x', exit: 0 }], result: 'green' }))));
 
 // A row that only edits the repro runs it, expecting red: the round's before-the-fix run (TJEW-670).
 check('a row of repro files only is repro-only', isReproOnly(['bug-reports/r/repro/a.spec.ts'], 'bug-reports/r') && !isReproOnly(['bug-reports/r/repro/a.spec.ts', 'packages/x.ts'], 'bug-reports/r') && !isReproOnly([], 'bug-reports/r') && !isReproOnly(['bug-reports/r2/repro/a.spec.ts'], 'bug-reports/r'));
@@ -81,6 +85,10 @@ check('suites line: row suites, its head, red when any suite is', sl.row === 'su
 check('suites line: a green suite keeps no output, a red one its last 40 lines', sl.tasks[0].output === undefined && sl.tasks[1].output.split('\n').length === 40 && sl.tasks[1].output.endsWith('FAIL src/x.test.ts'));
 check('suites line: green when every suite exits 0', JSON.parse(suitesLine({ ts: 't', head: 'abc', runs: [{ label: 'a', exit: 0, output: '' }] })).result === 'green');
 check('suites line: a diff that reaches no suite is recorded, with no tasks, so wf next moves on', JSON.stringify(JSON.parse(suitesLine({ ts: 't', head: 'abc', runs: [] }))) === '{"ts":"t","row":"suites","head":"abc","tasks":[],"result":"green"}');
+// A suite whose runner never started is the environment, not a suite of failing tests; one that ran
+// and failed is the code, and a real failure beside an unrunnable suite keeps the line about the code.
+const suitesCause = (runs: { label: string; exit: number | null; output: string }[]) => JSON.parse(suitesLine({ ts: 't', head: 'abc', runs })).cause;
+check('suites line: a runner that never started is the environment', suitesCause([{ label: 'a', exit: null, output: 'spawn failed' }]) === 'environment' && suitesCause([{ label: 'a', exit: 1, output: 'FAIL' }]) === undefined && suitesCause([{ label: 'a', exit: null, output: 'spawn failed' }, { label: 'b', exit: 1, output: 'FAIL' }]) === undefined);
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');
 process.exit(failures ? 1 : 0);

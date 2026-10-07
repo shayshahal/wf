@@ -20,7 +20,8 @@
 // `repro`, result stable|unstable|green|outside) carries the research brief's token, which `wf next`
 // requires before plan.
 // Every run appends one JSON line to .wf/checks.log (row, the row's check, each task's exit,
-// green|red). The validate agent reads that, never the commit message: "the check was run"
+// green|red, and a red's `cause`: `environment` when no task ran at all). The validate agent reads
+// that, never the commit message: "the check was run"
 // is then observed, not claimed (llm-as-a-verifier: trust observed output, not narration).
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync } from 'node:fs';
@@ -117,9 +118,22 @@ export function isReproOnly(files: string[], folder: string | null) {
 	return Boolean(folder) && files.length > 0 && files.every((f) => f.startsWith(dir));
 }
 
-// Pure: the checks.log line for one run.
-export function checkRunLine({ ts, row, rowCheck, tasks, result, token }: { ts: string; row: number | string | null; rowCheck: string | null; tasks: CheckRun[]; result: string; token?: string }) {
-	return JSON.stringify({ ts, row, rowCheck, tasks, result, ...(token ? { token } : {}) });
+// Why a red is red, from the task that ended the run. `environment` when no task ever ran — the stack
+// would not answer, the project's check could not be built, a task is `missing`, or the row's check
+// names a repro RESEARCH.md has no `command:` for. `code` when the run found the round's own work at
+// fault: a task ran and exited non-zero, or the fence found a file outside the row.
+// BJEW-461 (2026-10-06): the shared setup's login failed before any spec ran. The repro side got
+// `outside` for it (reproVerdict); this is the commit gate's half of the same fix — a gate that never
+// ran was written down as `red`, so wf next, validate's Commits line and the friction line could not
+// tell "the code is wrong" from "the gate could not run".
+export type RedCause = 'code' | 'environment';
+export function redCause(task: { exit: number | null }): RedCause {
+	return task.exit === null ? 'environment' : 'code';
+}
+
+// Pure: the checks.log line for one run. `cause` only on a red: green has no cause to give.
+export function checkRunLine({ ts, row, rowCheck, tasks, result, cause, token }: { ts: string; row: number | string | null; rowCheck: string | null; tasks: CheckRun[]; result: string; cause?: RedCause; token?: string }) {
+	return JSON.stringify({ ts, row, rowCheck, tasks, result, ...(cause ? { cause } : {}), ...(token ? { token } : {}) });
 }
 
 // TJEW-665 (2026-09-28): the repro tapped before the page had hydrated, failed on its precondition
@@ -224,9 +238,9 @@ export async function runCheck() {
 	const { folder } = roundOf(state, toplevel);
 	const changed = changedFiles(toplevel);
 	const ran: CheckRun[] = [];
-	const logRun = (result: string) => {
+	const logRun = (result: string, cause?: RedCause) => {
 		mkdirSync(join(toplevel, '.wf'), { recursive: true });
-		appendFileSync(join(toplevel, '.wf', 'checks.log'), `${checkRunLine({ ts: new Date().toISOString(), row: state?.commit ?? null, rowCheck: row?.check ?? null, tasks: ran, result })}\n`);
+		appendFileSync(join(toplevel, '.wf', 'checks.log'), `${checkRunLine({ ts: new Date().toISOString(), row: state?.commit ?? null, rowCheck: row?.check ?? null, tasks: ran, result, cause })}\n`);
 	};
 	let row: PlanRow | null = null;
 	if (state?.commit && folder && existsSync(join(toplevel, folder, 'PLAN.md'))) {
@@ -234,8 +248,9 @@ export async function runCheck() {
 		const violations = fenceViolations(changed, rowFiles(row), folder);
 		if (violations.length) {
 			for (const f of violations) console.error(`fence: ${f} is not in PLAN.md row ${state.commit}`);
-			ran.push({ label: 'fence', exit: 1 });
-			logRun('red');
+			const fence = { label: 'fence', exit: 1 };
+			ran.push(fence);
+			logRun('red', redCause(fence));
 			process.exit(1);
 		}
 	}
@@ -245,9 +260,10 @@ export async function runCheck() {
 	let served = false;
 	for (const task of buildTasks({ row, projectTasks: (test) => checks({ toplevel, changed, test }), repro, reproOnly })) {
 		if (task.missing) {
-			console.error(`check: ${task.missing}`);
-			ran.push({ label: task.label, exit: null, missing: task.missing });
-			logRun('red');
+			const missing = { label: task.label, exit: null, missing: task.missing };
+			console.error(`COULD NOT RUN: ${missing.missing}`);
+			ran.push(missing);
+			logRun('red', redCause(missing));
 			process.exit(1);
 		}
 		if (task.stack && !served) {
@@ -255,26 +271,29 @@ export async function runCheck() {
 			try {
 				await ensureServers(toplevel, { wait: true });
 			} catch (e) {
-				console.error(`FAILED: ${(e as Error).message}`);
-				ran.push({ label: 'stack', exit: null, missing: (e as Error).message });
-				logRun('red');
+				const dead = { label: 'stack', exit: null, missing: (e as Error).message };
+				console.error(`COULD NOT RUN: ${dead.missing}`);
+				ran.push(dead);
+				logRun('red', redCause(dead));
 				process.exit(1);
 			}
 		}
 		const run = spawnSync(task.cmd!, task.args!, { cwd: join(toplevel, task.cwd!), env: { ...process.env, ...task.env }, encoding: 'utf8', shell: process.platform === 'win32' });
 		const output = `${run.stdout ?? ''}${run.stderr ?? ''}`;
 		if (task.expectRed) {
-			ran.push({ label: task.label, exit: run.status, expect: 'red', output: output.split('\n').slice(-15).join('\n').trimEnd() });
+			const before = { label: task.label, exit: run.status, expect: 'red' as const, output: output.split('\n').slice(-15).join('\n').trimEnd() };
+			ran.push(before);
 			if (run.status !== 0) continue;
 			console.error(`FAILED: the repro passes before the fix. A row that only edits the repro must leave it red on the defect: ${task.label}`);
-			logRun('red');
+			logRun('red', redCause(before));
 			process.exit(1);
 		}
-		ran.push({ label: task.label, exit: run.status });
+		const failed = { label: task.label, exit: run.status };
+		ran.push(failed);
 		if (run.status === 0) continue;
 		console.error(`FAILED: ${task.cmd} ${task.args!.join(' ')}`);
 		console.error(output.split('\n').slice(-TAIL).join('\n').trimEnd());
-		logRun('red');
+		logRun('red', redCause(failed));
 		process.exit(1);
 	}
 	logRun('green');
@@ -294,7 +313,12 @@ export function resolvedBlockedName(n: number, taken: string[]) {
 /** Record whole test suites for one HEAD: green only when every suite exited 0; keep red output tails. */
 export function suitesLine({ ts, head, runs }: { ts: string; head: string; runs: { label: string; exit: number | null; output: string }[] }) {
 	const tasks: CheckRun[] = runs.map((r) => (r.exit === 0 ? { label: r.label, exit: 0 } : { label: r.label, exit: r.exit, output: tail(r.output) }));
-	return JSON.stringify({ ts, row: 'suites', head, tasks, result: tasks.every((t) => t.exit === 0) ? 'green' : 'red' });
+	const red = tasks.filter((t) => t.exit !== 0);
+	// A suite whose own runner never started (a spawn error leaves its exit null) is the environment,
+	// not a suite of failing tests: validate's Suites section reads this before naming failing tests.
+	// Every red one, not any: a suite that really failed is the truth of the line.
+	const cause: RedCause | undefined = red.length && red.every((t) => t.exit === null) ? 'environment' : undefined;
+	return JSON.stringify({ ts, row: 'suites', head, tasks, result: red.length ? 'red' : 'green', ...(cause ? { cause } : {}) });
 }
 
 const tail = (output: string) => output.split('\n').slice(-TAIL).join('\n').trimEnd();

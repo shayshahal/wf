@@ -50,8 +50,12 @@ export function frictionLine({ state, checksLog, eventsLog, reviewText, end }: {
 	const history = state?.history ?? [];
 	const start = history[0]?.at ?? Object.values(state?.briefs ?? {}).map((b) => b.at).sort()[0] ?? null;
 	// Repro and whole suites are measurements, not a commit's check.
-	const all = jsonLines<{ row?: unknown; result: string }>(checksLog);
+	const all = jsonLines<{ row?: unknown; result: string; cause?: unknown }>(checksLog);
 	const checks = all.filter((c) => c.row !== 'repro' && c.row !== 'suites');
+	// A red whose cause is `environment` is a gate that never ran (check.ts, BJEW-461): counted apart
+	// from a failed check, so a round a dead stack or a missing seed stood in the way of is visible in
+	// the record instead of hiding inside the red count.
+	const environment = checks.filter((c) => c.cause === 'environment').length;
 	const unstable = all.filter((c) => c.row === 'repro' && c.result === 'unstable').length;
 	const refusals = jsonLines<{ cmd: string; msg: string }>(eventsLog);
 	const verdicts = [...(reviewText ?? '').matchAll(/^verdict:\s*(\S+)\s*$/gm)].map((m) => m[1]).filter((v) => v !== 'pending');
@@ -61,7 +65,7 @@ export function frictionLine({ state, checksLog, eventsLog, reviewText, end }: {
 		`${end.slice(0, 10)} ${state?.id ?? state?.round ?? '?'} (class ${state?.class ?? '?'}, ${state?.step ?? '?'})${start ? `: ${duration(Date.parse(end) - Date.parse(start))}` : ''}`,
 		history.length ? timeInSteps(history, end).join(', ') : 'steps not recorded',
 		`agents: ${agentsPerPhase(state?.briefs).join(', ') || 'none'}`,
-		`checks ${checks.length} (${checks.filter((c) => c.result !== 'green').length} red)${unstable ? `, repro unstable ${unstable}` : ''}`,
+		`checks ${checks.length} (${checks.filter((c) => c.result !== 'green').length} red${environment ? `, ${environment} environment` : ''})${unstable ? `, repro unstable ${unstable}` : ''}`,
 		`wf refused ${refusals.length}${refusals.length ? `: ${[...new Set(refusals.map((r) => `${r.cmd}: ${r.msg}`.slice(0, 120)))].slice(0, 3).join('; ')}` : ''}`,
 		`questions ${questions}`,
 		`T2 ${verdicts.length - pushRefused} (${verdicts.filter((v) => v === 'changes-requested').length - pushRefused} changes-requested), push refused ${pushRefused}`,
