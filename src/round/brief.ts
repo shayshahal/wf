@@ -60,6 +60,17 @@ function critiqueFields(phase: string, argv: string[], state: State | null, topl
 	return {};
 }
 
+// Pure: how many agents this phase's brief makes. A critique of a new validation and a research asked for
+// again are firsts (`fresh`, `again`). A validate briefed on a HEAD other than the last validate brief's is
+// one too: the count is the agents of one validated tree, not of the round. JX-1221 (2026-10-07): 6 briefs
+// over 3 heads (3 + 2 + 1), and `wf next` held the round as a harness gap on the first bad validation of
+// the third. A `--answer` on the same HEAD still counts: it is the same tree judged again, and two agents
+// that cannot hand it off is the gap. An old record with no head counts as before.
+export function briefCount({ phase, fresh, again, last, lastValidate, head }: { phase: string; fresh: boolean; again: boolean; last: { count?: number } | undefined; lastValidate: { head?: string } | undefined; head: string }): number {
+	const newTree = phase === 'validate' && lastValidate?.head !== undefined && lastValidate.head !== head;
+	return fresh || again || newTree ? 1 : (last?.count ?? 0) + 1;
+}
+
 // The phases that drive the app in a browser: their brief starts the stack and waits for it, since
 // nothing serves a worktree from its creation (2026-10-04, serve.ts).
 export const USES_STACK = new Set(['research', 'validate']);
@@ -95,10 +106,10 @@ export async function runBrief(argv: string[], { stack = ensureServers }: { stac
 	const fresh = phase === 'critique' && state?.briefs?.critique?.of !== tokenOf(readIf(join(toplevel, folder ?? '', HANDOFF_FILES.validate)));
 	// A research asked for again (`wf decide --research`) is a new first: MAX_BRIEFS counts the agents of one ask.
 	const again = phase === 'research' && pendingRevisions(state?.researchRequests, state?.briefs?.research?.at).length > 0;
-	const count = fresh || again ? 1 : (state?.briefs?.[key]?.count ?? 0) + 1;
 	// head: the commit a phase was briefed on. wf next re-runs validate once a fix(review) commit lands
 	// after it (TJEW-670: the PR shipped a validation of the tree before its review fix).
 	const head = execFileSync('git', ['-C', toplevel, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+	const count = briefCount({ phase, fresh, again, last: state?.briefs?.[key], lastValidate: state?.briefs?.validate, head });
 	writeState(toplevel, { briefs: { ...briefsAfter(phase, argv, state?.briefs), [key]: { token, at: new Date().toISOString(), count, head, ...(phase === 'plan' ? { spec: specShaFor(toplevel) } : {}), ...critiqueFields(phase, argv, state, toplevel, folder) } } });
 	process.stdout.write(`${composed.text.trimEnd()}\n${handoffText({ phase, folder, token, file: handoffFile(phase, argv[1]) })}`);
 }

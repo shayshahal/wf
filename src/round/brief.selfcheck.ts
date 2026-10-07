@@ -5,7 +5,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { runBrief } from './brief.ts';
+import { briefCount, runBrief } from './brief.ts';
 
 // Lines are printed once stdout is back: the arms below mute it.
 let failures = 0;
@@ -24,6 +24,16 @@ mkdirSync(join(dir, 'bug-reports', 'r'), { recursive: true });
 writeFileSync(join(dir, 'bug-reports', 'r', 'TICKET.md'), '# X-1\n\n## Intent\n\n> the order cancel confirm stays open — Shay\n');
 writeFileSync(join(dir, '.wf', 'state.json'), JSON.stringify({ round: 'fix/r', id: 'X-1', folder: 'bug-reports/r', step: 'research', class: 'A', base: 'HEAD' }));
 const briefs = () => JSON.parse(readFileSync(join(dir, '.wf', 'state.json'), 'utf8')).briefs?.research as { count: number } | undefined;
+
+// JX-1221 (2026-10-07): validate's count is per validated tree. Six briefs over heads A, A, A, B, B, then C.
+const at = (head: string, count: number) => ({ head, count });
+const v = (head: string, last: { head?: string; count?: number } | undefined) => briefCount({ phase: 'validate', fresh: false, again: false, last, lastValidate: last, head });
+check('a validate on the same head counts on: the second agent of that tree', v('A', at('A', 1)) === 2);
+check('an --answer on the same head counts too', v('A', at('A', 2)) === 3);
+check('count 6 on head A, a validate on head B is a first', v('B', at('A', 6)) === 1);
+check('the new head counts on from there', v('B', at('B', 1)) === 2);
+check('a record with no head counts as before', v('B', { count: 3 }) === 4);
+check('other phases ignore the head', briefCount({ phase: 'plan', fresh: false, again: false, last: at('A', 1), lastValidate: at('A', 6), head: 'B' }) === 2);
 
 const cwd = process.cwd();
 const write = process.stdout.write;
