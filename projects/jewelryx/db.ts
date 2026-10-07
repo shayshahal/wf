@@ -33,3 +33,30 @@ export function seedDatabase({ worktree, database, mongoUrl, reset = false }: { 
 export function dropDatabase({ worktree, database, mongoUrl }: { worktree: string; database: string; mongoUrl: string }): void {
 	run('drop', 'uv', ['run', '--quiet', '--directory', join(worktree, 'packages', 'backend'), 'python', '-c', 'import sys; from pymongo import MongoClient; MongoClient(sys.argv[1]).drop_database(sys.argv[2])', mongoUrl, database]);
 }
+
+// Pure: the databases a pytest run left behind. The backend names each run's database
+// <name>_test_<pid>_<8 hex>, plus _<suffix> for a test's extra one (tests/support/database.py), and
+// drops it only when the session ends, so a run that is killed or crashes leaves it. 2026-10-07: 21
+// of them, every pid dead, in the shared MongoDB. A running pid's database is a run in progress.
+export function strandedTestDatabases(names: string[], running: (pid: number) => boolean): string[] {
+	return names.filter((n) => {
+		const m = /_test_(\d+)_[0-9a-f]{8}(?:_|$)/.exec(n);
+		return m !== null && !running(Number(m[1]));
+	});
+}
+
+const running = (pid: number) => {
+	try { process.kill(pid, 0); return true; } catch (e) { return (e as NodeJS.ErrnoException).code === 'EPERM'; }
+};
+
+// Drops every stranded test database, through the worktree's python. Only in a MongoDB on this
+// machine: a pid says nothing about a run on another machine that shares a MongoDB.
+export function dropStrandedTestDatabases({ worktree, mongoUrl }: { worktree: string; mongoUrl: string }): void {
+	if (!['127.0.0.1', 'localhost', '[::1]'].includes(new URL(mongoUrl).hostname)) return;
+	const python = (code: string, args: string[]) => ['run', '--quiet', '--directory', join(worktree, 'packages', 'backend'), 'python', '-c', `import sys; from pymongo import MongoClient; c = MongoClient(sys.argv[1]); ${code}`, mongoUrl, ...args];
+	const list = spawnSync('uv', python('print("\\n".join(c.list_database_names()))', []), { encoding: 'utf8' });
+	if (list.status !== 0) throw new Error(`worktree db: listing databases failed (exit ${list.status})`);
+	const stranded = strandedTestDatabases(list.stdout.split(/\r?\n/).filter(Boolean), running);
+	if (stranded.length) run('drop stranded test databases', 'uv', python('[c.drop_database(d) for d in sys.argv[2:]]', stranded));
+	console.log(`worktree db: ${stranded.length} stranded test database(s) dropped${stranded.length ? `: ${stranded.join(', ')}` : ''}`);
+}

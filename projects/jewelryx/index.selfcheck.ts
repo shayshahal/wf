@@ -1,8 +1,8 @@
 // index.selfcheck.ts — node projects/jewelryx/index.selfcheck.ts → exit 0 when green.
 // Pure arms: JewelryX's ports and addresses, pages and tracker note (index.ts), the worktree's .env
-// (env.ts), its database's name (db.ts) and its dev-server commands (dev.ts), with no machine
+// (env.ts), its database's name and the stranded test databases (db.ts) and its dev-server commands (dev.ts), with no machine
 // plugged in. Shay's machine's arms: env/projects/jewelryx/index.selfcheck.ts. Nothing is run; the repro files are written into a temp folder.
-import { worktreeDatabase } from './db.ts';
+import { strandedTestDatabases, worktreeDatabase } from './db.ts';
 import { devCommands } from './dev.ts';
 import { includedFiles, sanitizeEnv } from './env.ts';
 import { handoffGap } from '../../src/round/handoff.ts';
@@ -31,7 +31,10 @@ check('a component is not a page', pageOf('packages/frontend/b2b/src/lib/x.svelt
 
 // ── teardown
 const down = teardown({ slug: 'fix-bjew-1', worktree: 'C:/wt/fix-bjew-1' });
-check('with no machine plugged in, a teardown drops the worktree\'s database, in-process', down.map((s) => s.label).join() === 'drop database' && typeof down[0].run === 'function' && !down[0].cmd);
+check('with no machine plugged in, a teardown drops the worktree\'s database, then stranded test databases, in-process', down.map((s) => s.label).join() === 'drop database,drop stranded test databases' && down.every((s) => typeof s.run === 'function' && !s.cmd), down.map((s) => s.label).join());
+// The backend's names (tests/support/database.py): <name>_test_<pid>_<8 hex>[_<suffix>]; pid 7 is running.
+const stranded = strandedTestDatabases(['jewelryx', 'jewelryx_fix-bjew-1', 'jewelryx_test_9304_2cb586fe', 'jewelryx_bench-suites_test_15260_b50c2d2b', 'jewelryx_test_9304_2cb586fe_fx', 'jewelryx_test_7_71d9a288', 'jewelryx-test', 'jewelryx_fix-test_1'], (pid) => pid === 7);
+check('stranded: a dead run\'s database and its suffixed one; not a running run\'s, a worktree\'s or one named by hand', stranded.join() === 'jewelryx_test_9304_2cb586fe,jewelryx_bench-suites_test_15260_b50c2d2b,jewelryx_test_9304_2cb586fe_fx', stranded.join());
 
 // ── the tracker note
 const note = trackerNote({ ids: ['JX-1112', 'JX-1113'], url: 'https://github.com/x/y/pull/7' });

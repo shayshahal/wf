@@ -31,14 +31,14 @@ check('a person gets the portless names', stackUrls({ slug: 'my-slug', port: 180
 // ── the worktrees' databases are the kit's: the repo's own MongoDB on 27017 (2026-10-04)
 check('a worktree\'s database is in the kit\'s MongoDB, whatever its own port', seedUrl({ slug: 'fix-bjew-1', port: 17554 }) === 'mongodb://127.0.0.1:27017');
 const down = teardown({ slug: 'fix-bjew-1', worktree: 'C:/wt/fix-bjew-1' });
-check('reap drops the worktree\'s database, then its own container if it has one, then portless routes', down.map((x) => x.label).join(' → ') === 'drop database → its own mongo container, if any → portless prune', down.map((x) => x.label).join(' → '));
-check('the plan itself runs nothing (the container is looked for at reap)', down.slice(0, 2).every((x) => typeof x.run === 'function'));
+check('reap drops the worktree\'s database and stranded test databases, then its own container if it has one, then portless routes', down.map((x) => x.label).join(' → ') === 'drop database → drop stranded test databases → its own mongo container, if any → portless prune', down.map((x) => x.label).join(' → '));
+check('the plan itself runs nothing (the container is looked for at reap)', down.slice(0, 3).every((x) => typeof x.run === 'function'));
 // A worktree made before 2026-10-04: its own container, volume and compose network.
 const old = oldContainerSteps('fix-bjew-1', true);
 check('made before: container (with its anonymous volumes, -v), volume, compose network', old.map((x) => x.label).join(' → ') === 'docker rm mongo → docker volume rm → docker network rm' && old[0].args!.includes('-v'), old.map((x) => x.label).join(' → '));
 check('docker names come from the slug', old[0].args!.at(-1) === 'jewelryx-mongo-fix-bjew-1' && old[1].args!.at(-1) === 'jewelryx-wt-mongo-fix-bjew-1' && old[2].args!.join(' ') === 'network rm jewelryx-wt-fix-bjew-1_default');
 check('none: nothing to remove', oldContainerSteps('fix-bjew-1', false).length === 0);
-check('portless prune runs with CI=1', (down[2] as { env: Record<string, string> }).env.CI === '1' && down[2].args!.join(' ') === 'prune');
+check('portless prune runs with CI=1', (down[3] as { env: Record<string, string> }).env.CI === '1' && down[3].args!.join(' ') === 'prune');
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');
 process.exit(failures ? 1 : 0);

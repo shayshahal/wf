@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { checkTasks, oracleEdits, parseStackEnv, planOracleGap, PRODUCT_BRANCH, seedActorsEnv, realPkgFor, suitesTouched } from './checks.ts';
 import type { Suite } from './checks.ts';
 import type { CheckTask } from '../../src/gates/check.ts';
-import { dropDatabase, worktreeDatabase } from './db.ts';
+import { dropDatabase, dropStrandedTestDatabases, worktreeDatabase } from './db.ts';
 import { seams } from '../../src/seams.ts';
 import type { Command, RemovalStep } from '../../src/seams.ts';
 import { listWorktrees, mainCheckout } from '../../src/worktrees/worktree.ts';
@@ -112,7 +112,12 @@ const KIT: Machine = {
 			if (r.status !== 0) throw new Error(`no MongoDB answers at ${url}, and the repo's (docker compose --profile local-db up -d mongodb) did not start: exit ${r.status ?? r.error?.message}. Start one, or set MONGO_URL to yours`);
 			return mongoAnswers(url);
 		},
-		teardown: ({ slug, worktree }) => [{ label: 'drop database', run: () => dropDatabase({ worktree, database: worktreeDatabase(slug), mongoUrl: KIT.database.url({ slug }) }) }],
+		// Then whatever test databases killed pytest runs left, any worktree's (db.ts): a reap is the
+		// one moment wf already cleans the MongoDB, and nothing else ever drops them.
+		teardown: ({ slug, worktree }) => [
+			{ label: 'drop database', run: () => dropDatabase({ worktree, database: worktreeDatabase(slug), mongoUrl: KIT.database.url({ slug }) }) },
+			{ label: 'drop stranded test databases', run: () => dropStrandedTestDatabases({ worktree, mongoUrl: KIT.database.url({ slug }) }) },
+		],
 	},
 	teardown: () => [],
 };
