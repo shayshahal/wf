@@ -26,6 +26,12 @@ check('a step the round came back to is summed (a T2 fix sends it back to implem
 
 const agents = agentsPerPhase({ research: { count: 1 }, 'implement 1': { count: 1 }, 'implement 2': { count: 2 }, validate: { count: 2 } });
 check('agents per phase: the implement rows add up', agents.join() === 'research 1,implement 3,validate 2', agents.join());
+// JX-1221 (2026-10-08): the reap line said `plan 16, implement 1` for a round that had briefed 7
+// implement rows, because a plan --revise voids the keys the old count was read from (handoff.ts).
+const runs = { research: 1, plan: 16, implement: 7, validate: 3, 'fix-review': 3 };
+const fromRuns = agentsPerPhase({ research: { count: 1 }, 'implement 18': { count: 1 } }, runs);
+check('agents per phase: briefCounts counts what the round did, not what survived', fromRuns.join() === 'research 1,plan 16,implement 7,validate 3,fix-review 3', fromRuns.join());
+check('agents per phase: no counts recorded falls back to the surviving briefs', agentsPerPhase({ research: { count: 1 }, 'implement 1': { count: 1 }, 'implement 2': { count: 2 }, validate: { count: 2 } }, null).join() === 'research 1,implement 3,validate 2' && agentsPerPhase({ plan: { count: 2 } }, {}).join() === 'plan 2');
 
 // A TJEW-670.11-shaped round: two T2s, a push the hook refused, one red check, two wf refusals.
 const state = { id: 'TJEW-670.11', class: 'B', step: 'merged', history, briefs: { research: { count: 1, at: '2026-09-28T08:01:00.000Z' } }, answered: [{ n: 1 }, { n: 2 }], questions: [] } as unknown as State;

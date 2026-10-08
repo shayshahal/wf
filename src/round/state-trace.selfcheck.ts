@@ -5,7 +5,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { writeState } from './state.ts';
-import { briefsCounts, droppedBriefs, STATE_WRITES_LOG, stateWriteLine } from './state-trace.ts';
+import { briefsCounts, droppedBriefs, runCounts, STATE_WRITES_LOG, stateWriteLine } from './state-trace.ts';
 import type { State } from './state.ts';
 
 let failures = 0;
@@ -15,11 +15,13 @@ const check = (name: string, cond: boolean, detail = '') =>
 const at = '2026-10-07T16:40:00.000Z';
 const disk: State = { round: 'fix/jx-252', briefs: {
   research: { token: 'cc8138', at, count: 1 }, plan: { token: '508d77', at, count: 3 },
-  validate: { token: '264620', at, count: 3 }, critique: { token: 'ed3c1c', at, count: 2 } } };
+  validate: { token: '264620', at, count: 3 }, critique: { token: 'ed3c1c', at, count: 2 } },
+  briefCounts: { research: 1, plan: 16, implement: 7 } };
 const briefs = disk.briefs!;
 
 check('counts in briefing order', briefsCounts(briefs) === 'research=1 plan=3 validate=3 critique=2', briefsCounts(briefs));
 check('a round with no briefs is empty', briefsCounts(undefined) === '' && briefsCounts({}) === '');
+check('the agent counts render per phase', runCounts(disk.briefCounts) === 'research=1 plan=16 implement=7' && runCounts(undefined) === '', runCounts(disk.briefCounts));
 
 // The rewind, and the writes that are not one.
 check('a lower count is a drop', droppedBriefs(disk, { ...disk, briefs: { ...briefs, validate: { token: '48e6c0', at, count: 1 } } }).join() === 'validate:3->1');
@@ -32,7 +34,7 @@ check('nothing on disk yet is not', droppedBriefs(null, { briefs: { validate: { 
 
 const line = JSON.parse(stateWriteLine({ ts: at, pid: 1, ppid: 2, up: 0.3, entry: 'C:/wf/env/wf.mjs', cmd: 'brief validate', cwd: 'C:/r', patch: ['briefs'], before: disk, after: { ...disk, briefs: { ...briefs, validate: { token: '48e6c0', at, count: 1 } } } }));
 check('the line names the writer', line.pid === 1 && line.ppid === 2 && line.entry === 'C:/wf/env/wf.mjs' && line.cmd === 'brief validate' && line.patch.join() === 'briefs', JSON.stringify(line));
-check('the line carries the drop and the counted map', line.dropped.join() === 'validate:3->1' && line.briefs === 'research=1 plan=3 validate=1 critique=2', JSON.stringify(line));
+check('the line carries the drop, the counted map and the agent counts', line.dropped.join() === 'validate:3->1' && line.briefs === 'research=1 plan=3 validate=1 critique=2' && line.runs === 'research=1 plan=16 implement=7', JSON.stringify(line));
 
 // End to end: the second write is the stale one a phase brief makes after a slower writer read first.
 const root = mkdtempSync(join(tmpdir(), 'wf-state-trace-'));

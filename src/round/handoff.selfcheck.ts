@@ -2,7 +2,7 @@
 // Pure arms: what each phase hands off and whether it answers the last brief (handoff.ts), and the
 // handoff a brief ends with (brief.ts). Nothing is run.
 import { briefGap, handoffText } from './brief.ts';
-import { briefKey, handoffGap, planAsks, planClass, rowDone, tokenOf, validationVerdict } from './handoff.ts';
+import { briefKey, briefsAfter, handoffGap, planAsks, planClass, rowDone, runsAfter, tokenOf, validationVerdict } from './handoff.ts';
 
 let failures = 0;
 const check = (name: string, cond: boolean | undefined, detail = '') =>
@@ -10,6 +10,13 @@ const check = (name: string, cond: boolean | undefined, detail = '') =>
 
 const research = '# r\r\n## Repro\r\ncommand: pnpm x\r\nred output:\r\n<!-- brief: 3f9a1c -->\r\n';
 check('the token is read from its HTML comment, CRLF or not', tokenOf(research) === '3f9a1c' && tokenOf('no token') === null);
+// A revised plan voids the implement briefs, and the count of agents that ran must survive it.
+const before = { research: { token: 'a', at: 't', count: 1 }, 'implement 1': { token: 'b', at: 't', count: 1 }, 'implement 2': { token: 'c', at: 't', count: 2 }, plan: { token: 'd', at: 't', count: 1 } };
+const voided = Object.keys(briefsAfter('plan', ['plan', '--revise'], before)).join();
+check('a revised plan voids the implement briefs', voided === 'research,plan', voided);
+const counted = runsAfter({ research: 1, implement: 2 }, 'implement');
+check('the agent counts survive it: the phase is tallied, nothing is removed', JSON.stringify(counted) === '{"research":1,"implement":3}', JSON.stringify(counted));
+check('the first brief of a phase is 1', runsAfter(undefined, 'plan').plan === 1);
 check('the last token wins', tokenOf('<!-- brief: aaa -->\n<!-- brief: bbb -->') === 'bbb');
 check('RESEARCH.md answering the brief, with a repro command: handed off', handoffGap('research', research, { token: '3f9a1c' }) === null);
 check('another brief\'s file is not the handoff', handoffGap('research', research, { token: '000000' })?.includes('not the answer to the last brief'));

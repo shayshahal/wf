@@ -30,6 +30,13 @@ export function briefsAfter(phase: string, argv: string[], briefs: Record<string
 	return Object.fromEntries(Object.entries(briefs).filter(([key]) => !key.startsWith('implement ')));
 }
 
+// Pure: the per-phase agent counts after `phase` is briefed. Separate from `briefsAfter` on purpose: a
+// count is what the round did, and a revision voids briefs, not history. Read off the surviving keys,
+// JX-1221 (2026-10-08) reported `plan 16, implement 1` for a round that had briefed 7 implement rows.
+export function runsAfter(counts: Record<string, number> | undefined, phase: string): Record<string, number> {
+	return { ...counts, [phase]: (counts?.[phase] ?? 0) + 1 };
+}
+
 export const tokenLine = (token: string) => `<!-- brief: ${token} -->`;
 
 // Pure: the last brief token in a file, or null.
