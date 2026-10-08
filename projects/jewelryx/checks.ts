@@ -57,7 +57,7 @@ const isJsTest = (f: string) => /\.(test|spec)\.[cm]?[jt]s$/.test(f);
 export function checkTasks({ changed, test, pkgFor, pushHook = false, onDisk = () => true, stackEnv = {}, oracleTouched = [] }: { changed: string[]; test: string | null; pkgFor: PkgFor; pushHook?: boolean; onDisk?: (file: string) => boolean; stackEnv?: Record<string, string>; oracleTouched?: string[] }): CheckTask[] {
 	const oracle = oracleGuardTask(oracleTouched);
 	if (oracle) return [oracle];
-	const tasks = rowTasks({ changed, test, pkgFor, pushHook, stackEnv });
+	const tasks = rowTasks({ changed, test, pkgFor, pushHook, stackEnv, onDisk });
 	if (!pushHook || !changed.length || tasks.some((t) => t.missing)) return tasks;
 	// What the commit will run, run first: ESLint (lint-kit's Svelte rules, @shadcn/lint) runs only in
 	// pre-commit, so an implementer met it at `git commit`, after wf check had said green (2026-10-04).
@@ -80,10 +80,13 @@ export function checkTasks({ changed, test, pkgFor, pushHook = false, onDisk = (
 	return [...preCommit, ...tasks, { label: 'lefthook pre-push', cmd: 'pnpm', args: ['exec', 'lefthook', 'run', 'pre-push', ...present.flatMap((f) => ['--file', f])], cwd: '.' }];
 }
 
-function rowTasks({ changed, test, pkgFor, pushHook, stackEnv }: { changed: string[]; test: string | null; pkgFor: PkgFor; pushHook: boolean; stackEnv: Record<string, string> }): CheckTask[] {
+// A deleted file is a change (the fence counts it) but no argument: ruff exits with E902 and vitest with
+// "No test files found" on a path that is gone (JX-1221 row 15, 2026-10-08, a row that `git rm`s a test).
+// A deleted frontend file still puts its package through svelte-check, whose imports it may have broken.
+function rowTasks({ changed, test, pkgFor, pushHook, stackEnv, onDisk }: { changed: string[]; test: string | null; pkgFor: PkgFor; pushHook: boolean; stackEnv: Record<string, string>; onDisk: (file: string) => boolean }): CheckTask[] {
 	const tasks: CheckTask[] = [];
 	const add = (t: CheckTask) => { if (!tasks.some((x) => x.label === t.label)) tasks.push(t); };
-	const backend = changed.filter((f) => f.startsWith('packages/backend/') && f.endsWith('.py'));
+	const backend = changed.filter((f) => f.startsWith('packages/backend/') && f.endsWith('.py') && onDisk(f));
 	const rel = (f: string) => (f.startsWith('packages/backend/') ? f.slice('packages/backend/'.length) : f);
 	if (backend.length) {
 		add({ label: `ruff check ${backend.map(rel).join(' ')}`, cmd: 'uv', args: ['run', '--frozen', 'ruff', 'check', ...backend.map(rel)], cwd: 'packages/backend' });
@@ -98,7 +101,7 @@ function rowTasks({ changed, test, pkgFor, pushHook, stackEnv }: { changed: stri
 		const pkg = pkgFor(f);
 		if (!pkg) continue;
 		if (!pkgs.has(pkg.name)) pkgs.set(pkg.name, { ...pkg, tests: [] });
-		if (isJsTest(f)) pkgs.get(pkg.name)!.tests.push(relative(pkg.dir, f).replace(/\\/g, '/'));
+		if (isJsTest(f) && onDisk(f)) pkgs.get(pkg.name)!.tests.push(relative(pkg.dir, f).replace(/\\/g, '/'));
 	}
 	for (const pkg of pkgs.values()) {
 		if (pkg.svelte && !pushHook) add({ label: `svelte-check ${pkg.name}`, cmd: 'pnpm', args: ['--filter', pkg.name, 'exec', 'svelte-check', '--threshold', 'error', '--incremental', '--tsgo'], cwd: '.' });
