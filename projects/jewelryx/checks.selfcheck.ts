@@ -81,6 +81,16 @@ check('pre-commit and pre-push both leave a deleted file out (prettier --check e
 const onlyGone = checkTasks({ changed: ['packages/frontend/b2b/src/gone.ts'], test: null, pkgFor, pushHook: true, onDisk: () => false });
 check('only deletions: no pre-commit run, pre-push runs with no --file (lefthook reads its own files: list)', JSON.stringify(labels(onlyGone)) === '["lefthook pre-push"]' && onlyGone[0].args!.join(' ') === 'exec lefthook run pre-push', JSON.stringify(onlyGone));
 
+// JX-1221 row 15 (2026-10-08): a row that `git rm`s a test. ruff and pytest were handed the deleted
+// path: `E902 The system cannot find the file specified`, so the row could never go green.
+const deletedPy = ['packages/backend/app/services/user_service.py', 'packages/backend/tests/services/test_ownership_transfer.py'];
+const gonePy = checkTasks({ changed: deletedPy, test: null, pkgFor, onDisk: (f) => !f.endsWith('test_ownership_transfer.py') });
+const goneArgs = gonePy.flatMap((t) => t.args ?? []).join(' ');
+check('a deleted .py is left out of ruff check, ruff format --check and pytest', !goneArgs.includes('test_ownership_transfer') && labels(gonePy).join() === 'ruff check app/services/user_service.py,ruff format --check app/services/user_service.py', JSON.stringify(labels(gonePy)));
+check('a row that only deletes a .py runs no ruff and no pytest', checkTasks({ changed: [deletedPy[1]], test: null, pkgFor, onDisk: () => false }).length === 0);
+const goneTest = checkTasks({ changed: ['packages/frontend/b2b/src/lib/x.svelte', 'packages/frontend/b2b/src/lib/x.test.ts'], test: null, pkgFor, onDisk: (f) => !f.endsWith('x.test.ts') });
+check('a deleted vitest file is not handed to vitest; its package still gets svelte-check', labels(goneTest).join() === 'svelte-check jewelryx-frontend', JSON.stringify(labels(goneTest)));
+
 // The whole suites a round's diff reaches (index.ts suites).
 const touched = (changed: string[]) => suitesTouched(changed).join();
 check('BJEW-461: an admin change and its round folder run only the admin suite', touched(['bug-reports/fix-bjew-461-cancel-order-reopen/MEASURED.md', 'packages/frontend/admin/src/lib/components/order/OrderDetailsDrawer.svelte']) === 'admin');
