@@ -22,6 +22,8 @@ export function claudeAgent(text: string, from: string) {
 	const fields = withModel(m[1], CLAUDE_CODE_MODELS).split(/\r?\n/).flatMap((line) => {
 		const [, key, value] = /^([\w-]+):\s*(.*)$/.exec(line) ?? [];
 		if (key === 'auto-exit') return [];
+		// pi-only keys: Claude Code has no per-agent MCP switch, its servers are global.
+		if (key === 'mcp') return [];
 		if (key === 'tools') {
 			const tools = value.split(/[\s,]+/).filter(Boolean).map((t) => TOOLS[t] ?? t);
 			// Claude Code searches with its own tools; pi's read-only agents grep through bash.
