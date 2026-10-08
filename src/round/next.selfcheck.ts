@@ -1,10 +1,15 @@
 // next.selfcheck.ts — node next.selfcheck.ts → exit 0 when green.
 // Pure arms: wf next's action for each row of what was the round skill's *On each result* table
 // (next.ts nextAction), from a fixture round. Nothing is run.
-import { lastSuites, nextAction, unpostedSections } from './next.ts';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, realpathSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { lastSuites, nextAction, snapshotOf, unpostedSections } from './next.ts';
 import type { Snapshot } from './next.ts';
 import { researchState, revisionText, reviseState } from './ask.ts';
 import { briefsAfter } from './handoff.ts';
+import { writeState } from './state.ts';
 import type { Brief, Question } from './state.ts';
 
 type Fixture = Partial<Omit<Snapshot, 'files' | 'briefs' | 'questions' | 'answered'>> & { files?: Partial<Snapshot['files']>; briefs?: Record<string, Partial<Brief>>; questions?: Partial<Question>[]; answered?: Partial<Question>[] };
@@ -266,6 +271,28 @@ check('no note recorded (delivered before wf recorded it) → done: reap', say(b
 check('a recorded note gone from disk → done, not a crash', say(merged(null)).startsWith('done: '));
 check('the ## lines of a section body are not sections', unpostedSections('## A\ntext ## B\n').join() === 'A');
 check('held → wait on the user', say(base({ step: 'held' })).startsWith('wait user: the round is held'));
+
+// snapshotOf on a real repo (the pure arms above are fed `commits` by hand; PR #90 shipped with nothing filling it,
+// so JX-1221's `wf next` dispatched fix-review forever, 2026-10-08): commits come from git, oldest first, with ISO
+// committer times, and a fix ruling answered before a fix(review) commit is met by it.
+const repo = realpathSync(mkdtempSync(join(tmpdir(), 'wf-next-')));
+try {
+	const git = (at: string, ...args: string[]) => execFileSync('git', ['-C', repo, '-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { encoding: 'utf8', env: { ...process.env, GIT_COMMITTER_DATE: at, GIT_AUTHOR_DATE: at } });
+	git('2026-10-01T10:00:00+03:00', 'init', '-q', '-b', 'main');
+	git('2026-10-01T10:00:00+03:00', 'commit', '-q', '--allow-empty', '-m', 'base');
+	git('2026-10-08T08:00:00+03:00', 'checkout', '-q', '-b', 'feat/x');
+	git('2026-10-07T15:00:00+03:00', 'commit', '-q', '--allow-empty', '-m', 'fix(x): one');
+	git('2026-10-08T08:49:32+03:00', 'commit', '-q', '--allow-empty', '-m', 'fix(review): the\ttabbed meta');
+	writeState(repo, { base: 'main', folder: '' });
+	const snap = snapshotOf(repo);
+	check('snapshotOf fills commits from git, oldest first, with ISO committer times', JSON.stringify(snap.commits) === JSON.stringify([{ subject: 'fix(x): one', at: '2026-10-07T15:00:00+03:00' }, { subject: 'fix(review): the\ttabbed meta', at: '2026-10-08T08:49:32+03:00' }]), JSON.stringify(snap.commits));
+	check('…and subjects are the same commits', JSON.stringify(snap.subjects) === JSON.stringify(snap.commits?.map((c) => c.subject)));
+	const ruled = (answered: string) => nextAction(jx({ subjects: [...jx().subjects, snap.subjects[1]], commits: [...jx().commits!, snap.commits![1]], answered: [jxAnswer(9, answered)], revisions: [] }));
+	check('a fix ruling answered before the fix(review) commit in a real repo is met → validate, not fix-review', ruled('2026-10-08T05:40:28.619Z').say.startsWith('dispatch validate:'), ruled('2026-10-08T05:40:28.619Z').say);
+	check('…and one answered after it is still owed', ruled('2026-10-08T06:00:00.000Z').say.startsWith('dispatch fix-review --from VALIDATION.md:'), ruled('2026-10-08T06:00:00.000Z').say);
+} finally {
+	rmSync(repo, { recursive: true, force: true });
+}
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');
 process.exit(failures ? 1 : 0);

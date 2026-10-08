@@ -307,6 +307,15 @@ function fixesSince(git: (...args: string[]) => string, head: string | undefined
 	try { return git('log', '--format=%s', `${head}..HEAD`).split('\n').filter((x) => x.startsWith('fix(review):')).length; } catch { return 0; }
 }
 
+// The commits since the base, oldest first, each with its committer time (ISO). A subject is cut at the first tab
+// only: the time has none. PR #90 read this field and nothing filled it, so every fix ruling stayed owed (JX-1221, 2026-10-08).
+function commitsSince(git: (...args: string[]) => string, base: string): { subject: string; at: string }[] {
+	return git('log', '--reverse', '--format=%cI%x09%s', `${base}..HEAD`).split('\n').filter(Boolean).map((line) => {
+		const tab = line.indexOf('\t');
+		return { subject: line.slice(tab + 1), at: line.slice(0, tab) };
+	});
+}
+
 export function snapshotOf(toplevel: string): Snapshot {
 	const state = readState(toplevel) ?? {};
 	const dir = join(toplevel, state.folder ?? '');
@@ -314,6 +323,7 @@ export function snapshotOf(toplevel: string): Snapshot {
 	const branch = git('rev-parse', '--abbrev-ref', 'HEAD');
 	const base = git('merge-base', state.base ?? `origin/${baseBranch}`, 'HEAD');
 	const specReview = read(join(dir, 'SPEC-REVIEW.md')) ?? '';
+	const commits = commitsSince(git, base);
 	return {
 		branch,
 		entry: seams.entry.replace(/\\/g, '/'),
@@ -331,7 +341,8 @@ export function snapshotOf(toplevel: string): Snapshot {
 		suites: lastSuites(read(join(toplevel, '.wf', 'checks.log')) ?? ''),
 		files: Object.fromEntries([['research', 'RESEARCH.md'], ['plan', 'PLAN.md'], ['blocked', 'BLOCKED.md'], ['asBuilt', HANDOFF_FILES['as-built']], ['validation', 'VALIDATION.md'], ['critique', HANDOFF_FILES.critique], ['review', 'REVIEW.md']].map(([k, f]) => [k, read(join(dir, f))])) as Snapshot['files'],
 		t1: { spec: specShaFor(toplevel), reviewed: lastField(specReview, 'spec-sha'), verdict: readVerdict(specReview) },
-		subjects: git('log', '--format=%s', `${base}..HEAD`).split('\n').filter(Boolean),
+		subjects: commits.map((c) => c.subject),
+		commits,
 		fixesAfterValidate: fixesSince(git, state.briefs?.validate?.head),
 		note: state.note ? { file: state.note, text: read(join(toplevel, state.note)) } : null,
 		models: seams.models,
