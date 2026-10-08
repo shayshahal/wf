@@ -16,6 +16,8 @@ thing in it, name it under Asks.
 # {{round}} — plan
 Class: A | B | C     <{{wf}}/process/CLASSES.md — one line, both halves: what the paths measure, and
                       the input coverage (every value has a source, or the owed value named)>
+                      wf next measures this plan's own files against the contract paths too, and can
+                      only upgrade the class: a row that touches one makes the round B, and T1 happens.
 Cause: <one line: the hop in RESEARCH.md "Diverges at" and what it does wrong>
 Approach: <one line: what changes, and why here and not elsewhere>
 

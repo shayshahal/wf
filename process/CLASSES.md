@@ -31,5 +31,9 @@ sidebar" is). JX-1221 (2026-10-07) answered `Class:` with paths alone and
 left the page's shape unsourced: three layout variants were built, and T2
 deleted them.
 
-The pathspec lives in the root `.gitattributes`; last match wins, so the
-`** wf-class=A` default comes first. `wf:classify` reports the class.
+The paths are the project's contract-paths file (one git pathspec glob per
+line; `projects/<name>/index.ts` says where it lives), and last match wins,
+so the `** wf-class=A` default comes first. `wf:classify` reports the class
+for the diff. `wf next` also measures a plan's own files against the same
+globs before anything is built: a plan whose rows touch one is B whatever its
+`Class:` line says, and a class never downgrades (A→B→C).

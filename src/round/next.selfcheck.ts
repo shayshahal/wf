@@ -2,11 +2,12 @@
 // Pure arms: wf next's action for each row of what was the round skill's *On each result* table
 // (next.ts nextAction), from a fixture round. Nothing is run.
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, realpathSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { lastSuites, nextAction, snapshotOf, unpostedSections } from './next.ts';
 import type { Snapshot } from './next.ts';
+import { contractPaths as contractPathsFile } from '../project.ts';
 import { researchState, revisionText, reviseState } from './ask.ts';
 import { briefsAfter } from './handoff.ts';
 import { writeState } from './state.ts';
@@ -20,7 +21,7 @@ const check = (name: string, cond: boolean, detail = '') =>
 
 const tok = (t: string) => `\n<!-- brief: ${t} -->\n`;
 const RESEARCH = `# r — research\n## Repro\ncommand: pnpm --dir verification exec playwright test -c ../bug-reports/r/repro/playwright.config.ts\n${tok('aaa111')}`;
-const plan = ({ klass = 'A', asks = 'none', token = 'bbb222' } = {}) => `# r — plan\nClass: ${klass}\nCause: x\n\n## Commits\n| # | message | files | check |\n|---|---|---|---|\n| 1 | fix(x): one | a.ts | repro |\n| 2 | fix(x): two | b.ts | repro |\n\n## Asks\n- ${asks}\n${tok(token)}`;
+const plan = ({ klass = 'A', asks = 'none', token = 'bbb222', files = 'a.ts', files2 = 'b.ts' } = {}) => `# r — plan\nClass: ${klass}\nCause: x\n\n## Commits\n| # | message | files | check |\n|---|---|---|---|\n| 1 | fix(x): one | ${files} | repro |\n| 2 | fix(x): two | ${files2} | repro |\n\n## Asks\n- ${asks}\n${tok(token)}`;
 const VALID = (v = 'matches plan', t = 'ccc333') => `# r — validation\nVerdict: ${v}\n## Build stack\n- hop 1: differs: returns null\n## Intent\n"one": met: a.ts:1 \u00b7 before: red \u00b7 after: green\n${tok(t)}`;
 // The critic agreed with validation ccc333 (gates/critique.ts): every arm below it is past the critique.
 const CRIT = (v = 'AGREE', t = 'fff666') => `# r — critique of the validation\n\n## Rows\n- ${v === 'AGREE' ? 'AGREE · Verdict: matches plan' : `${v} · hop 1: differs · a.ts:3 — it returns 0`}\n\nVerdict: ${v}\n${tok(t)}`;
@@ -93,6 +94,13 @@ check('an open question: wait on its person, nothing else', say(base({ ...withAs
 // plan, class B/C → T1
 const planB = base({ step: 'plan', files: { research: RESEARCH, plan: plan({ klass: 'B' }) } });
 check('plan says B: wf step plan --class B, then the design session', steps(planB).join() === 'plan --class B' && say(planB).startsWith('design: start the design session'), say(planB));
+// The class the plan's own files measure, not the one the plan wrote: the gitattributes measurement at
+// `wf new` runs against an empty diff, so before this T1 rested on the agent's `Class:` line.
+const contractPaths = 'packages/backend/app/api/**\n';
+const measuredB = base({ step: 'plan', klass: 'A', contractPaths, files: { research: RESEARCH, plan: plan({ klass: 'A', files: 'packages/backend/app/api/x.py' }) } });
+check('a plan that says A but lists a contract path measures B: step plan --class B, then T1', steps(measuredB).join() === 'plan --class B' && say(measuredB).startsWith('design: start the design session'), say(measuredB));
+check('a plan whose files are outside the contract paths stays A: implement, no T1', steps(base({ step: 'plan', klass: 'A', contractPaths, files: { research: RESEARCH, plan: plan({ klass: 'A' }) } })).join() === 'implement');
+check('no contract-paths file (contractPaths null): nothing is measured', steps(base({ step: 'plan', klass: 'A', contractPaths: null, files: { research: RESEARCH, plan: plan({ klass: 'A', files: 'packages/backend/app/api/x.py' }) } })).join() === 'implement');
 const design = (t1: Snapshot['t1']) => base({ step: 'design', klass: 'B', files: { research: RESEARCH, plan: plan({ klass: 'B' }) }, t1 });
 check('T1 not reviewed yet: wait on the user with wf design', say(design({ spec: 's1', reviewed: null, verdict: null })) === 'wait user: T1 on SPEC.md — `node C:/wf/wf.mjs design fix/r`');
 check('T1 approved the current SPEC.md → wf step implement, implement 1', steps(design({ spec: 's1', reviewed: 's1', verdict: 'approved' })).join() === 'implement' && say(design({ spec: 's1', reviewed: 's1', verdict: 'approved' })).startsWith('dispatch implement 1:'));
@@ -304,7 +312,11 @@ try {
 	git('2026-10-07T15:00:00+03:00', 'commit', '-q', '--allow-empty', '-m', 'fix(x): one');
 	git('2026-10-08T08:49:32+03:00', 'commit', '-q', '--allow-empty', '-m', 'fix(review): the\ttabbed meta');
 	writeState(repo, { base: 'main', folder: '' });
+	// The project's contract paths, read from the worktree: a missing one measures nothing, silently.
+	mkdirSync(join(repo, dirname(contractPathsFile)), { recursive: true });
+	writeFileSync(join(repo, contractPathsFile), 'packages/backend/app/api/**\n');
 	const snap = snapshotOf(repo);
+	check('snapshotOf reads the project\'s contract paths from the worktree', snap.contractPaths === 'packages/backend/app/api/**\n', JSON.stringify(snap.contractPaths));
 	check('snapshotOf fills commits from git, oldest first, with ISO committer times', JSON.stringify(snap.commits) === JSON.stringify([{ subject: 'fix(x): one', at: '2026-10-07T15:00:00+03:00' }, { subject: 'fix(review): the\ttabbed meta', at: '2026-10-08T08:49:32+03:00' }]), JSON.stringify(snap.commits));
 	check('…and subjects are the same commits', JSON.stringify(snap.subjects) === JSON.stringify(snap.commits?.map((c) => c.subject)));
 	const ruled = (answered: string) => nextAction(jx({ subjects: [...jx().subjects, snap.subjects[1]], commits: [...jx().commits!, snap.commits![1]], answered: [jxAnswer(9, answered)], revisions: [] }));

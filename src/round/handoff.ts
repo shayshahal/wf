@@ -11,7 +11,7 @@ import { reproCommand } from '../gates/check.ts';
 import { critiqueGap, CRITIQUE_FILE } from '../gates/critique.ts';
 import { reportFile, reportGap } from '../gates/standards.ts';
 import { planCommitRows, rowFiles } from './prompt.ts';
-import type { Brief } from './state.ts';
+import type { Brief, RoundClass } from './state.ts';
 
 export const newToken = () => randomBytes(3).toString('hex');
 
@@ -84,8 +84,9 @@ export function intentGap(text: string): string | null {
 }
 
 // Pure: PLAN.md's Class line, or null.
-export function planClass(text: string | null | undefined): string | null {
-	return /^Class:[ \t]*([ABC])\b/m.exec((text ?? '').replace(/\r\n/g, '\n'))?.[1] ?? null;
+export function planClass(text: string | null | undefined): RoundClass | null {
+	const m = /^Class:[ \t]*([ABC])\b/m.exec((text ?? '').replace(/\r\n/g, '\n'));
+	return m ? (m[1] as RoundClass) : null;
 }
 
 // Pure: PLAN.md's Asks, one `- <question> — default: <default>` line each (prompts/plan.md). A line
