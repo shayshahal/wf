@@ -234,14 +234,24 @@ export function rulingsOwed(rulings: Question[], revisions: { text: string; at: 
 	return { owed, used };
 }
 
-// Pure: how many of the revisions answered a T2 changes-requested. `wf review --done` sets the step
-// back to implement (history: review, implement) and `wf decide --revise` then sets it to plan at the
-// revision's own timestamp (reviseState), so a plan entry at a revision's `at` right after that pair
-// says the revision is the answer to the review. JX-1221, 2026-10-07: "the code is fine, I don't like
-// the design, make 3 iterations" was answered so, the 3 variants were built, and `wf next` still
-// dispatched fix-review on the same REVIEW.md comment, over and over: the agent found nothing to fix.
+// Pure: how many of the revisions answered a T2 changes-requested. A revision's plan entry (reviseState
+// stamps it at the revision's own `at`) answers the review when walking back from it, over `implement`
+// and `pr` entries only, reaches `review`. Two ways a changes-requested sends the round on: `wf review
+// --done` (history: review, implement) and `wf deliver`'s refused push, which comes after the approval
+// (review, pr, and `implement` after it when deliver's step wrote it). A plan entry behind another plan
+// entry is a second revision of the same stretch: the review was answered once. JX-1221: 2026-10-07 "the
+// code is fine, I don't like the design, make 3 iterations" was built, and `wf next` dispatched
+// fix-review on the same REVIEW.md comment, over and over; 2026-10-08 the hook's refusal was answered
+// by `wf decide --revise` (review, pr, plan), was not counted, and fix-review was owed again.
+// A revise from step `pr` with no refused push (an approved round changed its mind) counts too: its
+// review has no changes-requested to answer, which t2Fixes' floor at 0 absorbs.
 export function t2Revisions(history: { step: string; at: string }[] = [], revisions: { at: string }[] = []) {
-	return revisions.filter((r) => history.some((h, i) => h.step === 'plan' && h.at === r.at && history[i - 1]?.step === 'implement' && history[i - 2]?.step === 'review')).length;
+	const answersReview = (i: number) => {
+		let j = i - 1;
+		while (j >= 0 && (history[j].step === 'implement' || history[j].step === 'pr')) j--;
+		return j >= 0 && j < i - 1 && history[j].step === 'review';
+	};
+	return revisions.filter((r) => history.some((h, i) => h.step === 'plan' && h.at === r.at && answersReview(i))).length;
 }
 
 // Pure: the state sent back to plan with `text`, an answer saying the plan must change. `wf next`
