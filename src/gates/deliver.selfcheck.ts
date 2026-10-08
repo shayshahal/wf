@@ -28,6 +28,24 @@ const plan = [
 const body = prBody({ planText: plan, commitLines: ['- abc123 fix(auth): x'], validation: '## Validation\n+ send_otp_code: built' });
 check('PR body carries PLAN.md verbatim', body.includes('Cause: the send result is discarded at auth.py:599'));
 check('PR body carries the pushed commits and VALIDATION.md', body.includes('## Commits (as pushed)\n- abc123 fix(auth): x') && body.includes('## Validation\n+ send_otp_code: built'), body.slice(-160));
+
+// GitHub refuses a PR body over 65,536 characters (JX-1221, 2026-10-08): a ~70k plan still fits, keeps the
+// commits, the verdict and the sections T2 reads, and says where the full PLAN.md is.
+const row = (n: number) => `| ${n} | feat(x): row ${n} | a.ts | node --test |`;
+const bigPlan = ['# JX-1 — plan', 'Class: A', 'Cause: c', '', '## Build', 'b'.repeat(40000), '', '## Commits', '| # | message | files | check |', ...Array.from({ length: 18 }, (_, i) => row(i + 1)), '', '## Not doing', 'nothing else', '', '## T2 walk', 'open: /users/1', '', '## Decisions', 'd'.repeat(30000)].join('\n');
+const bigCommits = Array.from({ length: 18 }, (_, i) => `- c${i}abcd feat(x): row ${i + 1}`);
+const bigValidation = `# JX-1 — validation\nVerdict: matches plan\n\n${'v'.repeat(6000)}`;
+const fit = prBody({ planText: bigPlan, commitLines: bigCommits, validation: bigValidation, planPath: 'bug-reports/jx-1/PLAN.md' });
+check('a 70k plan gives a body under the GitHub limit', bigPlan.length > 65536 && fit.length < 65536, `${bigPlan.length} -> ${fit.length}`);
+check('the shortened body keeps the commits, the verdict, the table, Not doing and T2 walk', bigCommits.every((c) => fit.includes(c)) && fit.includes('Verdict: matches plan') && fit.includes(row(18)) && fit.includes('nothing else') && fit.includes('open: /users/1'));
+check('the shortened body drops Build first and says where the full plan is', !fit.includes('bbbbbbbbbb') && fit.includes('`bug-reports/jx-1/PLAN.md`'));
+check('a plan that fits is untouched', prBody({ planText: plan, commitLines: ['- a b'], validation: '' }) === prBody({ planText: plan, commitLines: ['- a b'], validation: '', budget: 1e9 }));
+// Build and Decisions cut and still over: the plan's tail goes, not the commits or the verdict.
+const bigRows = prBody({ planText: bigPlan.replace('nothing else', 'n'.repeat(70000)), commitLines: bigCommits, validation: bigValidation });
+check('a plan whose kept sections are still over is cut at its end', bigRows.length < 65536 && bigCommits.every((c) => bigRows.includes(c)) && bigRows.includes('Verdict: matches plan'), `${bigRows.length}`);
+const hugeCommits = Array.from({ length: 3000 }, (_, i) => `- c${i} feat(x): a long commit message to fill the list ${i}`);
+const hugeBody = prBody({ planText: bigPlan, commitLines: hugeCommits, validation: bigValidation + 'v'.repeat(90000) });
+check('commits and validation over the limit alone are cut too: newest commit and verdict kept', hugeBody.length < 65536 && hugeBody.includes(hugeCommits.at(-1)!) && hugeBody.includes('Verdict: matches plan'), `${hugeBody.length}`);
 check('PR body has no word-level as-built lines', !body.includes('## As built') && !/missing:|unplanned:/.test(body));
 
 

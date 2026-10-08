@@ -23,9 +23,47 @@ import { readState, roundOf, toplevelOf, writeState } from '../round/state.ts';
 import { runStep } from '../round/step.ts';
 import type { State } from '../round/state.ts';
 
-export function prBody({ planText, commitLines, validation }: { planText: string; commitLines: string[]; validation: string }) {
+// GitHub refuses a PR body over 65,536 characters (JX-1221, 2026-10-08: PLAN.md 61,331 + VALIDATION.md
+// 6,260 + commits, "Body is too long" at `gh pr create`). The budget keeps a margin under it; .length
+// counts UTF-16 units, never fewer than GitHub's characters.
+export const PR_BODY_BUDGET = 60000;
+
+// Plan sections cut first when the body is too long, biggest and least read first: Build is the call
+// stack, Decisions the Ask log. Commits, Not doing and T2 walk stay as long as they fit.
+const CUT_FIRST = ['Build', 'Decisions'];
+
+// Pure: the PR body: PLAN.md verbatim + the pushed commits + VALIDATION.md. Over the budget, the plan
+// shrinks first (CUT_FIRST sections, then its tail) and says the full PLAN.md is in the branch at
+// planPath. The commits and VALIDATION.md (verdict on its first lines) are cut only when they alone
+// are over the budget.
+export function prBody({ planText, commitLines, validation, planPath = 'PLAN.md', budget = PR_BODY_BUDGET }: { planText: string; commitLines: string[]; validation: string; planPath?: string; budget?: number }) {
+	const plan = planText.replace(/\r\n/g, '\n').trimEnd();
 	const validated = validation ? `\n${validation.replace(/\r\n/g, '\n').trimEnd()}\n` : '';
-	return `${planText.replace(/\r\n/g, '\n').trimEnd()}\n\n## Commits (as pushed)\n${commitLines.join('\n')}\n${validated}`;
+	const assemble = (planPart: string, lines: string[], tail: string) => `${planPart}\n\n## Commits (as pushed)\n${lines.join('\n')}\n${tail}`;
+	const full = assemble(plan, commitLines, validated);
+	if (full.length <= budget) return full;
+
+	const note = `> Shortened: GitHub limits a PR body to 65,536 characters. The full plan is in the branch at \`${planPath}\`.\n\n`;
+	const parts = plan.split(/^(?=## )/m);
+	for (let n = 1; n <= CUT_FIRST.length; n++) {
+		const cut = CUT_FIRST.slice(0, n);
+		const shorter = parts.map((p) => {
+			const name = cut.find((c) => new RegExp(`^## ${c}\\b`).test(p));
+			return name ? `## ${name}\n(cut here, in \`${planPath}\`)\n\n` : p;
+		});
+		const body = assemble(note + shorter.join('').trimEnd(), commitLines, validated);
+		if (body.length <= budget) return body;
+	}
+
+	// Still over: keep the commits and the validation's head, give the plan what is left, its head first.
+	const cap = Math.floor(budget / 3);
+	const tail = validated.length > cap ? `${validated.slice(0, cap)}\n(cut here, in VALIDATION.md)\n` : validated;
+	const lines = [...commitLines];
+	const dropped = () => (lines.length < commitLines.length ? [`- (${commitLines.length - lines.length} earlier commits in the branch)`] : []);
+	while (lines.length > 1 && [...dropped(), ...lines].join('\n').length > cap) lines.shift();
+	const listed = [...dropped(), ...lines];
+	const room = budget - assemble(note, listed, tail).length - 2;
+	return assemble(note + plan.slice(0, Math.max(0, room)) + '\n(cut here)', listed, tail);
 }
 
 // Pure: null when T2 approved the round (`wf review --done` moved it to step pr), else why deliver,
@@ -129,7 +167,7 @@ export async function runDeliver() {
 	// VALIDATION.md is the read-only validate agent's verdict (wf prompt validate); first thing T2 reads.
 	const validationPath = join(toplevel, folder, 'VALIDATION.md');
 	const validation = existsSync(validationPath) ? readFileSync(validationPath, 'utf8') : '';
-	writeFileSync(body, prBody({ planText, commitLines, validation }));
+	writeFileSync(body, prBody({ planText, commitLines, validation, planPath: `${folder}/PLAN.md` }));
 	const title = commitLines.at(-1)!.replace(/^- \w+ /, '');
 	const existing = spawnSync('gh', ['pr', 'view', '--json', 'url'], { cwd: toplevel, encoding: 'utf8' });
 	const url = existing.status === 0 ? JSON.parse(existing.stdout).url : null;
