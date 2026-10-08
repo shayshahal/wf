@@ -28,13 +28,12 @@ shape below — never "see above", never a summary of an earlier message.
 ```
 ## Where: <topic>
 ### Implementation
-- `packages/backend/app/services/otp_service.py` — sends and verifies codes
-- `packages/frontend/b2b/src/routes/(auth)/login/+page.svelte` — the screen
+- `<path from repo root>` — what it is (the handler, the screen)
+- `<path from repo root>` — what it is
 ### Tests
-- `packages/backend/tests/test_otp_service.py`
-- `verification/b2b/auth/otp-send.spec.ts`
+- `<path from repo root>`
 ### Config / types / decisions
-- `verification/decisions/2026-09-12-otp-failure-lands-as-notice.md`
+- `<path from repo root>`
 ### Not found
 - <what you searched for and did not find, with the patterns you used>
 ```

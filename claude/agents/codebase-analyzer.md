@@ -34,13 +34,13 @@ Entry: `path/file.py:line` — <function>
 <call stack — format in ${CLAUDE_PLUGIN_ROOT}/process/CALL-STACK-FORMAT.md, "As-is" style:
  no +/-/~ markers, every hop file:line, every ✗ names its landing>
 
-  POST /auth/2fa/send                    packages/backend/app/api/v1/endpoints/auth.py:212
-    OtpService.send(user)                app/services/otp_service.py:40 ← User → None
-      SmsProvider.send(phone, code)      app/services/sms.py:18
-        ✗ SmsError → lands: caught auth.py:220, returns 200 {"sent": true}
+  POST /auth/2fa/send                    path/to/handler.py:212
+    OtpService.send(user)                path/to/service.py:40 ← User → None
+      SmsProvider.send(phone, code)      path/to/provider.py:18
+        ✗ SmsError → lands: caught handler.py:220, returns 200 {"sent": true}
 
 ### Values
-- `code` — generated otp_service.py:44, stored otp_service.py:51, TTL 300 s (settings.py:88)
+- `code` — generated service.py:44, stored service.py:51, TTL 300 s (settings.py:88)
 
 ### Not traced
 - <hops you could not follow within budget, and where you stopped>

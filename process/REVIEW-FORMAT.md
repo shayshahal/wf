@@ -16,8 +16,8 @@ urls: <one `<app>: <url>` line per app, worktree.ts urlLines
       | n/a — a detached worktree has no stack>
 ```
 
-The names come from the worktree's branch (`worktree.ts`, `wt`'s `sanitize`); a
-detached worktree has no stack — omit the URLs and say so, never invent one.
+The names come from the worktree's branch (`worktree.ts`, the slug and port rules in
+`ports.ts`); a detached worktree has no stack — omit the URLs and say so, never invent one.
 
 ```
 files changed (<n>):

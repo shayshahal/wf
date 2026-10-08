@@ -118,7 +118,7 @@ word. In the round's worktree, *The loop*. Nothing lives in your context that th
 | deploy | Shay |
 | tracker status and comments | you, from the tracker note; never an agent |
 | edit `repro/` or a test the row did not list | nobody inside a round — that is a plan change, through `plan --revise` |
-| touch the base branch's checkout, another round's worktree, `~/.pi` | never from a round |
+| touch the base branch's checkout, another round's worktree, the harness's own config | never from a round |
 | `--no-verify`, widening a fence, lowering a threshold | never |
 
 ## When a round goes wrong
@@ -135,7 +135,7 @@ fresh; keep the fix only if the rerun is better. Tell the user in one line what 
 
 - **Two rounds live at once, max.** The box cannot run three stacks; every flake is repaid in
   agent turns.
-- **Harness trouble is not round trouble.** A `wt` hook failing, a merge conflict on the base
+- **Harness trouble is not round trouble.** A worktree hook failing, a merge conflict on the base
   branch, a broken test there: fix it in its own worktree, in its own PR, with wf's `harness-fixer`
   (*Dispatch in this harness*; its task: the trouble, its evidence, the narrowest command that
   shows it, the worktree and branch), and tell the user in one line. You know which suite the
