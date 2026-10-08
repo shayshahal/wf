@@ -10,7 +10,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pendingRevisions } from './ask.ts';
-import { briefsAfter, handoffFile, handoffGap, HANDOFF_FILES, newToken, tokenLine, tokenOf } from './handoff.ts';
+import { briefsAfter, handoffFile, handoffGap, HANDOFF_FILES, newToken, runsAfter, tokenLine, tokenOf } from './handoff.ts';
 import { nextAction, snapshotOf } from './next.ts';
 import { composePrompt } from './prompt.ts';
 import { specShaFor } from '../gates/review-format.ts';
@@ -110,7 +110,7 @@ export async function runBrief(argv: string[], { stack = ensureServers }: { stac
 	// after it (TJEW-670: the PR shipped a validation of the tree before its review fix).
 	const head = execFileSync('git', ['-C', toplevel, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
 	const count = briefCount({ phase, fresh, again, last: state?.briefs?.[key], lastValidate: state?.briefs?.validate, head });
-	writeState(toplevel, { briefs: { ...briefsAfter(phase, argv, state?.briefs), [key]: { token, at: new Date().toISOString(), count, head, ...(phase === 'plan' ? { spec: specShaFor(toplevel) } : {}), ...critiqueFields(phase, argv, state, toplevel, folder) } } });
+	writeState(toplevel, { briefs: { ...briefsAfter(phase, argv, state?.briefs), [key]: { token, at: new Date().toISOString(), count, head, ...(phase === 'plan' ? { spec: specShaFor(toplevel) } : {}), ...critiqueFields(phase, argv, state, toplevel, folder) } }, briefCounts: runsAfter(state?.briefCounts, phase) });
 	process.stdout.write(`${composed.text.trimEnd()}\n${handoffText({ phase, folder, token, file: handoffFile(phase, argv[1]) })}`);
 }
 

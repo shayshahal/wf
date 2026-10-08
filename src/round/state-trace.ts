@@ -7,9 +7,11 @@
 // handoff-hook.ts both build the map from a read — so a writer whose read is older than its write
 // drops whatever landed in between; every other field merges (state.ts).
 // `dropped` names what a write lost, with the counts, and the line carries the writer: entry (kit or
-// env), command, pid, ppid, cwd. A legitimate reset counts as a drop too — brief.ts's `fresh` (a
-// critique of a new validation) and `again` (research asked for again) start a phase at 1 on purpose —
-// so read the line's `cmd` beside it. Diagnostic: it goes once the stale writer is named and fixed.
+// env), command, pid, ppid, cwd, and `briefs` and `runs` (state.briefCounts, what the reap line reports
+// as `agents:`) as they stand after it. Four legitimate drops read as one — `fresh` (a critique of a new
+// validation), `again` (research asked for again), `newTree` (validate's count is per validated tree, so
+// a fix(review) commit starts it at 1) and `brief plan --revise` (briefsAfter voids every `implement *`
+// key) — so read the line's `cmd` beside it. Diagnostic: it goes once that writer is named and fixed.
 import { appendFileSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import type { State } from './state.ts';
@@ -19,6 +21,11 @@ export const STATE_WRITES_LOG = 'state-writes.log';
 // Pure: "validate=3 critique=2", in briefing order. "" for a round with no briefs.
 export function briefsCounts(briefs: Record<string, { count?: number }> | undefined): string {
 	return Object.entries(briefs ?? {}).map(([key, b]) => `${key}=${b.count ?? 1}`).join(' ');
+}
+
+// Pure: "plan=16 implement=7" — the per-phase agent counts, in the order each phase was first briefed.
+export function runCounts(runs: Record<string, number> | undefined): string {
+	return Object.entries(runs ?? {}).map(([phase, n]) => `${phase}=${n}`).join(' ');
 }
 
 // Pure: what this write lost — a brief the patch does not carry whose count is lower than the one on
@@ -44,6 +51,7 @@ export function stateWriteLine(w: { ts: string; pid: number; ppid: number; up: n
 		cwd: w.cwd,
 		patch: w.patch,
 		briefs: briefsCounts(w.after.briefs),
+		runs: runCounts(w.after.briefCounts),
 		dropped: droppedBriefs(w.before, w.after),
 	});
 }

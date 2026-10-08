@@ -46,6 +46,10 @@ export type State = {
 	researchRequests?: { text: string; at: string }[];
 	last_question?: number;
 	briefs?: Record<string, Brief>;
+	// How many agents each phase has had, over the whole round: every brief it sent, in a field nothing
+	// voids (`briefs` loses every `implement *` key on a plan --revise, on purpose). This is what `wf
+	// reap`'s line reports as `agents:`; a round from before the field falls back to the surviving briefs.
+	briefCounts?: Record<string, number>;
 	// The validation token whose T2 setup `wf show` already ran (projects/jewelryx/show.ts).
 	t2_setup?: string;
 	// The tracker note `wf deliver` wrote, from the worktree's top: `wf next` reads which of its

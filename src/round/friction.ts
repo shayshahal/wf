@@ -32,8 +32,11 @@ export function timeInSteps(history: Step[], end: string): string[] {
 	return [...spent].map(([step, ms]) => `${step} ${duration(ms)}`);
 }
 
-// Pure: agents per phase ("implement 1", "implement 2" → implement), from state.briefs counts.
-export function agentsPerPhase(briefs: Record<string, { count?: number }> | undefined): string[] {
+// Pure: agents per phase ("implement 1", "implement 2" → implement). `runs` is state.briefCounts: every
+// brief the round sent. The surviving `briefs` map cannot answer it — a plan --revise voids every
+// `implement *` key on purpose (handoff.ts) — and a round from before the field falls back to it.
+export function agentsPerPhase(briefs: Record<string, { count?: number }> | undefined, runs?: Record<string, number> | null): string[] {
+	if (runs && Object.keys(runs).length) return Object.entries(runs).map(([phase, n]) => `${phase} ${n}`);
 	const per = new Map<string, number>();
 	for (const [key, b] of Object.entries(briefs ?? {})) {
 		const phase = key.split(' ')[0];
@@ -103,7 +106,7 @@ export function frictionLine({ state, checksLog, eventsLog, reviewText, end }: {
 		`${end.slice(0, 10)} ${state?.id ?? state?.round ?? '?'} (class ${state?.class ?? '?'}, ${state?.step ?? '?'})${start ? `: ${duration(Date.parse(end) - Date.parse(start))}` : ''}`,
 		`outcome: ${outcomeOf(state, checksLog)}`,
 		history.length ? timeInSteps(history, end).join(', ') : 'steps not recorded',
-		`agents: ${agentsPerPhase(state?.briefs).join(', ') || 'none'}`,
+		`agents: ${agentsPerPhase(state?.briefs, state?.briefCounts).join(', ') || 'none'}`,
 		`checks ${checks.length} (${checks.filter((c) => c.result !== 'green').length} red${environment ? `, ${environment} environment` : ''})${unstable ? `, repro unstable ${unstable}` : ''}`,
 		`wf refused ${refusals.length}${away ? ` (${away} not about the round)` : ''}${about.length ? `: ${[...new Set(about.map((r) => `${r.cmd}: ${r.msg}`.slice(0, 120)))].slice(0, 3).join('; ')}` : ''}`,
 		`questions ${questions}`,
