@@ -50,7 +50,8 @@ Verdict: matches plan | deviates
  `met: <file:line that does it> · before: <the measurement on the unfixed code> · after: <the measurement on this tree>`
  `NOT MEASURED — <file:line that should do it, if any> · <which side has no measurement, and why>`
  `not met: <what the diff lacks>`
- `left out: <the PLAN.md ## Not doing line that says so>`>
+ `left out: <the PLAN.md ## Not doing line that says so>`
+ `left out: overruled by <who, when, the ruling quoted>` — for a line a later ruling reversed>
 ```
 
 **`met` takes a measurement on both sides, not a reading of the code.** *before* is what research
@@ -64,6 +65,8 @@ you could not measure now, is `NOT MEASURED`: a legal answer, which the person r
 as it is. A line left out is not legal. (TJEW-682 replay, 2026-09-27: the month dropdown's
 hover was called met from the code and a check that its scroll buttons were gone; nothing had
 measured hover, before or after.)
+
+An Intent line a later recorded ruling reversed (a T2 comment in `REVIEW.md`, a PM answer relayed at T2, a `## Decisions` line in `PLAN.md`, an entry in `.wf/state.json` `revisions`) is judged against that ruling, not the ticket's words: `left out: overruled by <who, when, the ruling quoted>` (`left out: overruled by PM at T2 #5 (REVIEW.md): "edit is in the page, means no edit page"`). Never `changed at T2 …` (no verdict, refused), and never `met` with a measurement of the removed thing. Name where the ruling is recorded; a reversal you cannot find recorded is `not met`. (JX-1221, 2026-10-08: "changed at T2" refused twice, once `met` with a made-up "404 before and after".)
 
 A "must not touch X" or "not doing X" Intent line whose only evidence is the diff's file list ("diff touches none") has no before: and no after:, so it is `NOT MEASURED — <the file list shows none of X touched; no measurement of X's behaviour>`, never `met` (JX-1221, 2026-10-07: written `met` twice, refused twice).
 
