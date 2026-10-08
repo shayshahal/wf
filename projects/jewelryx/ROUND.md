@@ -25,6 +25,9 @@ before *Start*.
   query($ids: [ID!]) { items(ids: $ids) { id name assets(assets_source: columns) { id name public_url }
     updates(limit: 100) { assets { id name public_url } replies { assets { id name public_url } } } } }
   ```
+  ⛔ **Monday is off** (`"enabled": false` in `~/.pi/agent/mcp.json`, 2026-10-08): `all_api_read`
+  does not exist until you turn the server on in `/mcp` for this session (it writes the file back).
+  Do that before fetching, or ask the user to paste the pictures.
 - A Task that is one sentence is the "ticket that is a sentence" of *Start*: scope questions first.
 - An issue with sub-tasks is not one round (TJEW-670, 2026-09-28: a title, and 11 subitems that are
   11 changes). Fetch every sub-task's thread and attachments too, list them for the user (key, title,
