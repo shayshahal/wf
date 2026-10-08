@@ -33,8 +33,9 @@ export function paperworkToKeep(porcelain: string) {
 // The round's own record in .wf/, which git never lists (wf excludes the folder): its state, with the
 // time it spent in each step, and the logs friction.ts reads. Reap dropped them, so no past round could
 // be measured but by its ROUNDS.md line (2026-10-03: the five reaped rounds had none). Not logs/: the
-// dev servers' output.
-export const ROUND_RECORD = ['state.json', 'checks.log', 'events.log'];
+// dev servers' output. state-writes.log is state-trace.ts's: briefs a write rewound are only ever read
+// after the fact, and reap is what deletes the worktree they are in.
+export const ROUND_RECORD = ['state.json', 'checks.log', 'events.log', 'state-writes.log'];
 
 // Pure: the round's before/after pictures, which the project may gitignore, so git status never lists
 // them. JX-268 (BJEW-562, 2026-10-07): the note was posted without them (no JIRA_TOKEN in the session),

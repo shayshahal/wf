@@ -10,14 +10,14 @@
 // Writes <git-toplevel>/.wf/state.json = { round, class, base, step, waiting_on, since }.
 // `base` is set once by `wf new --base` and reused by every later `step classify`.
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { refuseCaller } from '../refusal.ts';
 import { CLASSIFY } from '../paths.ts';
 import { lastField, readVerdict, specShaFor } from '../gates/review-format.ts';
 import { people } from '../project.ts';
 import { seams } from '../seams.ts';
-import { roundFile } from './state.ts';
+import { roundFile, writeState } from './state.ts';
 import type { RoundClass, State } from './state.ts';
 import { stepHistory } from './friction.ts';
 
@@ -116,13 +116,15 @@ export async function runStep(argv: string[], { quiet = false } = {}) {
     if (klass && kept !== measured) console.error(`wf step classify: paths measure ${measured}, keeping asserted ${kept} (a class never downgrades)`);
     klass = kept;
   }
-  // Spread prev: id/folder (wf new) and commit (wf prompt implement) are not this step's to drop.
+  // A patch of what this step owns, merged by writeState over the state as it is now: id/folder
+  // (wf new), commit (wf prompt implement) and any brief another command recorded while this step
+  // ran are kept. Writing `prev` back whole took the file to what was on disk when the command
+  // started: JX-252 (2026-10-07) briefed validate 7 times and left the file saying count 1.
   // An open question (wf ask) keeps the round waiting on its person until `wf decide` closes it.
   // history: when each step began, for the line reap prints (friction.ts).
   const since = new Date().toISOString();
-  const state: State = { ...prev, round, class: klass, base, step, waiting_on: waitingOn ?? prev.questions?.[0]?.to ?? null, since, history: stepHistory(prev.history, step, since) };
-  mkdirSync(join(toplevel, '.wf'), { recursive: true });
-  writeFileSync(file, JSON.stringify(state, null, 2) + '\n');
+  const patch: State = { round, class: klass, base, step, waiting_on: waitingOn ?? prev.questions?.[0]?.to ?? null, since, history: stepHistory(prev.history, step, since) };
+  const state = writeState(toplevel, patch);
   if (!quiet) console.log(JSON.stringify(state));
   await notifyAdapters(state);
 }

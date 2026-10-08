@@ -6,6 +6,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { roundsDir } from '../project.ts';
+import { traceStateWrite } from './state-trace.ts';
 
 export type RoundClass = 'A' | 'B' | 'C';
 // A question `wf ask` opened; `wf decide` moves it to `answered` with its answer (ask.ts).
@@ -77,9 +78,13 @@ export function roundFile(toplevel: string, name: string) {
 
 // Merge: every writer keeps the fields it does not own.
 export function writeState(toplevel: string, patch: State): State {
-	const state: State = { ...(readState(toplevel) ?? {}), ...patch };
+	// What is on disk now, kept: state-trace.ts compares it against what this write leaves behind,
+	// since `briefs` is the one field a patch replaces whole.
+	const before = readState(toplevel);
+	const state: State = { ...(before ?? {}), ...patch };
 	mkdirSync(join(toplevel, '.wf'), { recursive: true });
 	writeFileSync(stateFile(toplevel), JSON.stringify(state, null, 2) + '\n');
+	traceStateWrite(toplevel, { before, after: state, patch: Object.keys(patch) });
 	return state;
 }
 
