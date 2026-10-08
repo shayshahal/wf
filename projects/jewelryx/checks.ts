@@ -85,7 +85,13 @@ export function checkTasks({ changed, test, pkgFor, pushHook = false, onDisk = (
 // A deleted frontend file still puts its package through svelte-check, whose imports it may have broken.
 function rowTasks({ changed, test, pkgFor, pushHook, stackEnv, onDisk }: { changed: string[]; test: string | null; pkgFor: PkgFor; pushHook: boolean; stackEnv: Record<string, string>; onDisk: (file: string) => boolean }): CheckTask[] {
 	const tasks: CheckTask[] = [];
-	const add = (t: CheckTask) => { if (!tasks.some((x) => x.label === t.label)) tasks.push(t); };
+	// A task the row's own test ends up in — the changed tests' run and the row's single test can be
+	// the same command — is upgraded to the red-base one, not added twice.
+	const add = (t: CheckTask) => {
+		const i = tasks.findIndex((x) => x.label === t.label);
+		if (i === -1) tasks.push(t);
+		else if (t.redBase) tasks[i] = { ...tasks[i], redBase: true } as CheckTask;
+	};
 	const backend = changed.filter((f) => f.startsWith('packages/backend/') && f.endsWith('.py') && onDisk(f));
 	const rel = (f: string) => (f.startsWith('packages/backend/') ? f.slice('packages/backend/'.length) : f);
 	if (backend.length) {
@@ -94,7 +100,7 @@ function rowTasks({ changed, test, pkgFor, pushHook, stackEnv, onDisk }: { chang
 	}
 	const pytests = backend.filter(isPyTest);
 	if (test?.endsWith('.py') && !pytests.includes(test)) pytests.push(test);
-	if (pytests.length) add({ label: `pytest ${pytests.map(rel).join(' ')}`, cmd: 'uv', args: ['run', '--frozen', 'pytest', ...pytests.map(rel)], cwd: 'packages/backend' });
+	if (pytests.length) add({ label: `pytest ${pytests.map(rel).join(' ')}`, cmd: 'uv', args: ['run', '--frozen', 'pytest', ...pytests.map(rel)], cwd: 'packages/backend', ...(test?.endsWith('.py') ? { redBase: true } : {}) });
 
 	const pkgs = new Map<string, Pkg & { tests: string[] }>();
 	for (const f of changed.filter((f) => f.startsWith('packages/frontend/'))) {
@@ -115,12 +121,12 @@ function rowTasks({ changed, test, pkgFor, pushHook, stackEnv, onDisk }: { chang
 	// row 1, 2026-10-06: `Command "playwright" not found`): `pnpm --dir verification exec`, as the repro
 	// runs. That config's defaults are localhost:3000/:3001, not this round's stack (its pre-flight then
 	// refuses), so the stack's own URLs (.verify-stack.env, as the repro config reads them) go in the env.
-	if (test.startsWith('verification/')) add({ label: `playwright ${test}`, cmd: 'pnpm', args: ['--dir', 'verification', 'exec', 'playwright', 'test', test], cwd: '.', env: stackEnv, stack: true });
+	if (test.startsWith('verification/')) add({ label: `playwright ${test}`, cmd: 'pnpm', args: ['--dir', 'verification', 'exec', 'playwright', 'test', test], cwd: '.', env: stackEnv, stack: true, redBase: true });
 	else {
 		// vitest lives in the package, not at the root (TJEW-700 row 3: `Command "vitest" not found`).
 		const pkg = test.startsWith('packages/frontend/') ? pkgFor(test) : null;
-		if (pkg) { const t = relative(pkg.dir, test).replace(/\\/g, '/'); add({ label: `vitest ${pkg.name} ${t}`, cmd: 'pnpm', args: ['--filter', pkg.name, 'exec', 'vitest', 'run', t], cwd: '.' }); }
-		else add({ label: `vitest ${test}`, cmd: 'pnpm', args: ['exec', 'vitest', 'run', test], cwd: '.' });
+		if (pkg) { const t = relative(pkg.dir, test).replace(/\\/g, '/'); add({ label: `vitest ${pkg.name} ${t}`, cmd: 'pnpm', args: ['--filter', pkg.name, 'exec', 'vitest', 'run', t], cwd: '.', redBase: true }); }
+		else add({ label: `vitest ${test}`, cmd: 'pnpm', args: ['exec', 'vitest', 'run', test], cwd: '.', redBase: true });
 	}
 	return tasks;
 }

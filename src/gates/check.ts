@@ -9,6 +9,11 @@
 //             edits the repro runs it too, and it must be red: that run is the round's before-the-fix
 //             measurement, its output kept in checks.log (TJEW-670: the repro was fixed in a row
 //             checked `—`, and two of four subitems never had a red run)
+//   red-base — the row's own test, run with the row's change taken back to HEAD: it must be red, or
+//             the test cannot show the defect it claims to prove (a test that passes with and
+//             without the fix is not proof, process/PRACTICES.md). The project marks that one task
+//             (`redBase`, projects/<name>/checks.ts); lint, typecheck and the hooks stay out of it,
+//             because their red would prove nothing about the test.
 // `wf check --suites` (before validate, wf next): the project's whole suites for what the round's diff
 // reaches (project.ts suites), side by side, on a committed HEAD; one checks.log line (row `suites`,
 // the head it measured, each red task's output tail; no tasks when the diff reaches no suite) that
@@ -43,8 +48,8 @@ process.noDeprecation = true;
 // `stack`: the command drives the running app, so the worktree's stack is started (and answering)
 // before it runs: nothing serves a worktree from its creation (2026-10-04, serve.ts).
 export type CheckTask =
-	| { label: string; cmd: string; args: string[]; cwd: string; env?: Record<string, string>; expectRed?: boolean; stack?: boolean; missing?: never }
-	| { label: string; missing: string; cmd?: never; args?: never; cwd?: never; env?: never; expectRed?: never; stack?: never };
+	| { label: string; cmd: string; args: string[]; cwd: string; env?: Record<string, string>; expectRed?: boolean; stack?: boolean; redBase?: boolean; missing?: never }
+	| { label: string; missing: string; cmd?: never; args?: never; cwd?: never; env?: never; expectRed?: never; stack?: never; redBase?: never };
 // One task's run, as checks.log records it.
 export type CheckRun = { label: string; exit: number | null; missing?: string; expect?: 'red'; output?: string };
 
@@ -63,6 +68,52 @@ export const isRoundPaperwork = (file: string, folder: string | null) => file.st
 export function fenceViolations(changed: string[], allowed: string[], folder: string | null) {
 	const ok = new Set(allowed);
 	return changed.filter((f) => !isRoundPaperwork(f, folder) && !ok.has(f));
+}
+
+// Pure: the command a row's `check` cell names — the first code span, else the cell — or '' when the
+// cell is fence only: `—`/`-` (whatever note follows) or `manual: …`, whose last word is not a path.
+export function checkCellCommand(cell: string | null | undefined): string {
+	const c = cell ?? '';
+	return /^\s*[—-]/.test(c) || manualCheck(c) ? '' : (/`([^`]+)`/.exec(c)?.[1] ?? c).trim();
+}
+
+// Pure: the path that command runs — its last word (TJEW-700: the whole cell was sliced as a path).
+export const checkCellPath = (cell: string | null | undefined) => checkCellCommand(cell).split(/\s+/).pop() ?? '';
+
+// Pure: the files the red-base run takes back to HEAD — the row's changed files without the test the
+// row names (it stays, so it runs against the tree without the fix) and without the round's own
+// paperwork. Empty when the row only edits its test: there is no fix to take away.
+export function redBaseFiles({ changed, row, folder, testPath }: { changed: string[]; row: Pick<PlanRow, 'files'> | null; folder: string | null; testPath: string }): string[] {
+	if (!row || !testPath) return [];
+	const allowed = new Set(rowFiles(row));
+	return changed.filter((f) => allowed.has(f) && f !== testPath && !isRoundPaperwork(f, folder));
+}
+
+// Pure: the row's red-base run — the project's task that carries the row's own test, and the files
+// to take back to HEAD for it — or null when the row has no test task, or only its test to revert.
+export function redBaseRun({ tasks, changed, row, folder }: { tasks: CheckTask[]; changed: string[]; row: Pick<PlanRow, 'files' | 'check'> | null; folder: string | null }): { task: CheckTask; revert: string[] } | null {
+	const task = tasks.find((t) => t.redBase && !t.missing);
+	if (!task) return null;
+	const revert = redBaseFiles({ changed, row, folder, testPath: checkCellPath(row?.check) });
+	return revert.length ? { task, revert } : null;
+}
+
+// Runs `run()` with `paths` back at HEAD, then puts them back. `git stash push` is the one command
+// that both restores HEAD and keeps the working change — tracked or new, staged or not — so a pop
+// that fails is a refusal naming the stash, never a green.
+export function withFixReverted<T>(toplevel: string, paths: string[], run: () => T): T {
+	const git = (args: string[]) => spawnSync('git', ['-C', toplevel, ...args], { encoding: 'utf8' });
+	const push = git(['stash', 'push', '--include-untracked', '-m', 'wf red-base', '--', ...paths]);
+	if (push.status !== 0) throw new Error(`git stash push: ${(push.stderr || push.stdout).trim()}`);
+	try {
+		return run();
+	} finally {
+		const pop = git(['stash', 'pop']);
+		if (pop.status !== 0) {
+			console.error(`FAILED: git stash pop — the row's changes are in the stash (git stash list): ${(pop.stderr || pop.stdout).trim()}`);
+			process.exit(1);
+		}
+	}
 }
 
 // `command: <line>` under `## Repro` in RESEARCH.md.
@@ -93,15 +144,13 @@ export function manualCheck(cell: string | null | undefined): string | null {
 // plus `test` (the row's test path, or null); `repro` is the RESEARCH.md command line (or null).
 export function buildTasks({ row, projectTasks, repro, reproOnly = false }: { row: { check?: string } | null | undefined; projectTasks: (test: string | null) => CheckTask[]; repro: string | null; reproOnly?: boolean }): CheckTask[] {
 	// The command is the first `code span` when there is one — a cell may add a note after it
-	// (TJEW-700 row 6: "`vitest run …ts` (fixture carries …)" took `number)` as the path).
-	const cell = row?.check ?? '';
-	// A cell that starts with — (or -) is fence only, whatever note follows it (TJEW-682 rows 1 and 5
-	// carried a code span in the note, which was then read as the command). So is a `manual:` cell: a
-	// proof only a person can make has no command, and its last word is not a test path.
-	const check = /^\s*[—-]/.test(cell) || manualCheck(cell) ? '' : (/`([^`]+)`/.exec(cell)?.[1] ?? cell).trim();
+	// (TJEW-700 row 6: "`vitest run …ts` (fixture carries …)" took `number)` as the path). A cell that
+	// starts with — (or -) is fence only, whatever note follows it (TJEW-682 rows 1 and 5 carried a
+	// code span in the note, which was then read as the command). So is a `manual:` cell.
+	const check = checkCellCommand(row?.check);
 	// The cell is a command (`pytest packages/backend/tests/x.py`, `vitest run …/x.test.ts`):
 	// the path is its last word (TJEW-700: the whole cell was sliced as a path → `ackend/tests/…`).
-	const checkPath = check.split(/\s+/).pop() ?? '';
+	const checkPath = checkCellPath(row?.check);
 	const tasks = projectTasks(check && check !== 'repro' && !reproOnly ? checkPath : null);
 	if (check !== 'repro' && !reproOnly) return tasks;
 	if (!repro) return [...tasks, { label: 'repro', missing: 'RESEARCH.md ## Repro has no `command:` line' }];
@@ -258,7 +307,8 @@ export async function runCheck() {
 	const repro = existsSync(research) ? reproCommand(readFileSync(research, 'utf8')) : null;
 	const reproOnly = row ? isReproOnly(rowFiles(row), folder) : false;
 	let served = false;
-	for (const task of buildTasks({ row, projectTasks: (test) => checks({ toplevel, changed, test }), repro, reproOnly })) {
+	const tasks = buildTasks({ row, projectTasks: (test) => checks({ toplevel, changed, test }), repro, reproOnly });
+	for (const task of tasks) {
 		if (task.missing) {
 			const missing = { label: task.label, exit: null, missing: task.missing };
 			console.error(`COULD NOT RUN: ${missing.missing}`);
@@ -295,6 +345,53 @@ export async function runCheck() {
 		console.error(output.split('\n').slice(-TAIL).join('\n').trimEnd());
 		logRun('red', redCause(failed));
 		process.exit(1);
+	}
+
+	// Red-base (process/PRACTICES.md, TDD): the row's own test must fail with the row's change taken
+	// back to HEAD, or it cannot show the defect it claims to prove — a test that passes with and
+	// without the fix is not proof (docs/plans/2026-09-27-kit-and-env.md step 4: a jsdom test that
+	// laid nothing out, counted green). The project marks the row's test task (`redBase`); every other
+	// task stays out, because a lint or typecheck red would prove nothing about the test.
+	const redBasePlan = redBaseRun({ tasks, changed, row, folder });
+	if (redBasePlan) {
+		const { task: redTask, revert } = redBasePlan;
+		const label = `red-base ${checkCellPath(row?.check)}`;
+		if (redTask.stack && !served) {
+			served = true;
+			try {
+				await ensureServers(toplevel, { wait: true });
+			} catch (e) {
+				const dead = { label, exit: null, missing: (e as Error).message };
+				console.error(`COULD NOT RUN: ${dead.missing}`);
+				ran.push(dead);
+				logRun('red', 'environment');
+				process.exit(1);
+			}
+		}
+		// The stash dance restores the working change whatever the run does; a failure to stash or pop
+		// is the environment, never a green.
+		const run = (() => {
+			try {
+				return withFixReverted(toplevel, revert, () => spawnSync(redTask.cmd!, redTask.args!, { cwd: join(toplevel, redTask.cwd!), env: { ...process.env, ...redTask.env }, encoding: 'utf8', shell: process.platform === 'win32' }));
+			} catch (e) {
+				return e as Error;
+			}
+		})();
+		if (run instanceof Error) {
+			const dead = { label, exit: null, missing: run.message };
+			console.error(`COULD NOT RUN: ${dead.missing}`);
+			ran.push(dead);
+			logRun('red', 'environment');
+			process.exit(1);
+		}
+		const output = `${run.stdout ?? ''}${run.stderr ?? ''}`;
+		const redBase = { label, exit: run.status, expect: 'red' as const, output: output.split('\n').slice(-15).join('\n').trimEnd() };
+		ran.push(redBase);
+		if (run.status === 0) {
+			console.error(`FAILED: ${redTask.label} passes with the row's change taken away — it does not measure the defect. Make the test fail without the fix, or, when this row cannot have one, put its check cell at \`—\` — that is a plan change: write ${folder ?? 'the round folder'}/BLOCKED.md.`);
+			logRun('red', redCause(redBase));
+			process.exit(1);
+		}
 	}
 	logRun('green');
 	const blocked = folder && state?.commit ? join(toplevel, folder, 'BLOCKED.md') : null;

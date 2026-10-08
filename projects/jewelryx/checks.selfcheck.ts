@@ -24,6 +24,7 @@ check('backend diff runs ruff check, ruff format --check, pytest', JSON.stringif
   'ruff check app/api/auth.py tests/test_auth.py', 'ruff format --check app/api/auth.py tests/test_auth.py', 'pytest tests/test_auth.py',
 ]), JSON.stringify(labels(backend)));
 check('pytest runs from packages/backend', backend[2].cwd === 'packages/backend' && backend[2].cmd === 'uv');
+check('the row\'s test task is the red-base one; lint and format are not', backend[2].redBase === true && !backend.slice(0, 2).some((t: { redBase?: boolean }) => t.redBase), JSON.stringify(backend));
 
 const front = buildTasks({ changed: ['packages/frontend/b2b/src/lib/x.svelte', 'packages/frontend/b2b/src/lib/x.test.ts', 'packages/frontend/shared/types/src/a.ts'], row: { check: 'repro' }, pkgFor, repro: 'node scripts/repro.mjs' });
 check('svelte-check only for the package that has a svelte config', labels(front).filter((l) => l.startsWith('svelte-check')).join() === 'svelte-check jewelryx-frontend', labels(front).join(' | '));
@@ -36,6 +37,7 @@ check('check: repro with no command line reports it instead of passing', noRepro
 const pw = buildTasks({ changed: [], row: { check: 'verification/specs/login.spec.ts' }, pkgFor, repro: null });
 // BJEW-617 row 1 (2026-10-06): from the repo root, `pnpm exec playwright` found no playwright (it is installed in verification/ only).
 check('a verification/ .ts check runs playwright from verification/, as the repro does', pw[0].cmd === 'pnpm' && pw[0].args!.join(' ') === '--dir verification exec playwright test verification/specs/login.spec.ts' && pw[0].cwd === '.', JSON.stringify(pw[0]));
+check('a playwright row test is red-base', pw[0].redBase === true, JSON.stringify(pw[0]));
 check('it runs against the round stack, not the config default localhost:3000/:3001', pw[0].env?.B2B_URL === 'http://localhost:12345' && pw[0].env?.ADMIN_URL === 'http://localhost:12346' && pw[0].env?.API_URL === 'http://localhost:12347', JSON.stringify(pw[0].env));
 check('the env gives a verification spec the seeded owner (store owner) and supplier, which the round database has', actors.B2B_OWNER_EMAIL === 'buyer@seed.jewelryx' && actors.B2B_OWNER_PASSWORD === 'seed1234' && actors.B2B_SUPPLIER_EMAIL === 'seller@seed.jewelryx' && actors.B2B_SUPPLIER_PASSWORD === 'seed1234', JSON.stringify(actors));
 check('parseStackEnv skips comments and blank lines, trims spaces', JSON.stringify(Object.keys(stackEnv)) === '["B2B_URL","ADMIN_URL","API_URL"]' && stackEnv.ADMIN_URL === 'http://localhost:12346' && Object.keys(parseStackEnv('')).length === 0);
@@ -48,6 +50,7 @@ const vtCmd = buildTasks({ changed: [], row: { check: '`vitest run packages/fron
 check('a `vitest run <path>` cell runs that path in its package', vtCmd[0]?.args!.join(' ') === '--filter jewelryx-frontend exec vitest run src/x.test.ts', JSON.stringify(vtCmd));
 const vtDup = buildTasks({ changed: ['packages/frontend/b2b/src/x.test.ts'], row: { check: '`vitest run packages/frontend/b2b/src/x.test.ts`' }, pkgFor, repro: null });
 check('a changed test named by the check cell runs once', vtDup.filter((t: { label: string }) => t.label.startsWith('vitest')).length === 1, JSON.stringify(labels(vtDup)));
+check('a vitest row test is red-base even when the changed tests run it once', vtDup.filter((t: { redBase?: boolean }) => t.redBase).length === 1, JSON.stringify(vtDup));
 const noted = buildTasks({ changed: [], row: { check: '`vitest run packages/frontend/b2b/src/x.test.ts` (fixture carries params {floor: 3}, detail without the number)' }, pkgFor, repro: null });
 check('a note after the command does not replace its path', noted[0]?.args!.join(' ') === '--filter jewelryx-frontend exec vitest run src/x.test.ts', JSON.stringify(noted));
 check('no changes and no check cell → nothing to run', buildTasks({ changed: [], row: null, pkgFor, repro: null }).length === 0);

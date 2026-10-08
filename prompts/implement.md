@@ -26,6 +26,7 @@ Row {{n}}:
 - **Never edit `{{folder}}/repro/` or a test file the row does not list.** A red check is
   information about the code, not about the check. Making the grader pass is not the job.
 - Do not run any test the row's check does not name. Never a full suite, never start the app yourself.
+- `wf check` runs the row's test once with your change taken back to HEAD: green there is a refusal, not a pass — the test does not measure the defect. Make it fail without the fix, or, when the row cannot have one, put its check cell at `—` — a plan change: BLOCKED.md.
 - Do not "also fix" what you notice nearby. Put it in your reply; someone else decides.
 
 ## `{{folder}}/BLOCKED.md` (≤20 lines)
