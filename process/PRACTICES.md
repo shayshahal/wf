@@ -1,7 +1,7 @@
 # Practices
 
-Four habits every round follows. They are enforced by the flows that cite
-them, not by tooling.
+Four habits every round follows. TDD's red-base is enforced by `wf check`; the rest are
+enforced by the flows that cite them, not by tooling.
 
 **Worktree per round.** One round, one worktree, one branch off the project's base branch,
 created with `wf new`. No two agents share a checkout, no round reuses
@@ -13,7 +13,10 @@ not a sibling's.
 Bugs freeze a capture that shows the symptom, then the same capture clean;
 CRs measure cells RED on the base tree, GREEN on the build, RED reverted.
 A test that never failed is not proof — it is a test that cannot detect
-the defect. `NOT MEASURED — <why>` is always acceptable; silence is not.
+the defect. `wf check` runs the row's own test with the row's change taken
+back to HEAD and refuses a green: a test that passes with and without the
+fix does not reach a commit (red-base, `src/gates/check.ts`).
+`NOT MEASURED — <why>` is always acceptable; silence is not.
 
 **Evidence before completion.** No round is COMPLETE on assertion. Paste
 the command output — the suite counts, the shasums, the run logs — beside

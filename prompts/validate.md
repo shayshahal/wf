@@ -33,7 +33,7 @@ Verdict: matches plan | deviates
 <for each + or ~ hop in PLAN.md ## Build: `built` | `missing` | `differs: <one line how>` | `changed at T2: <the REVIEW.md comment>`>
 
 ## Commits
-<for each row: sha · files match row (yes | extra: <file> | missing: <file>) · check named in row was run — ONLY from `.wf/checks.log`: a `"result":"green"` line for that row whose `tasks` include its check (yes | no | red: <task>) — a red line whose `cause` is `"environment"` is nothing having run (the stack would not answer, a check wf could not build): `no (could not run: <task>)`, not a check the row failed. A row checked `manual: …` has no task to look for: its green line is the run, and the step it asked a person to make is T2's, not yours — `yes (manual: T2)`. A commit message saying it ran does not count >
+<for each row: sha · files match row (yes | extra: <file> | missing: <file>) · check named in row was run — ONLY from `.wf/checks.log`: a `"result":"green"` line for that row whose `tasks` include its check (yes | no | red: <task>) — a green line also carries the row's `red-base <path>` task with `"expect":"red"` and a non-zero exit: that red is the proof the test fails with the fix taken away, not a check the row failed. A red line whose `cause` is `"environment"` is nothing having run (the stack would not answer, a check wf could not build): `no (could not run: <task>)`, not a check the row failed. A row checked `manual: …` has no task to look for: its green line is the run, and the step it asked a person to make is T2's, not yours — `yes (manual: T2)`. A commit message saying it ran does not count >
 
 ## Suites
 <from `.wf/checks.log`'s last line with `"row":"suites"`, whose `head` is `git rev-parse HEAD`:
@@ -56,7 +56,8 @@ Verdict: matches plan | deviates
 
 **`met` takes a measurement on both sides, not a reading of the code.** *before* is what research
 measured on the unfixed code: `RESEARCH.md`'s red output or its measured `Diverges at`, or a
-`.wf/checks.log` task with `"expect":"red"` (a row that fixed the repro ran it before the fix; its
+`.wf/checks.log` task with `"expect":"red"` (a row that fixed the repro ran it before the fix, or
+the row's `red-base <path>` task, the same test with the fix taken back to HEAD; its
 `output` is the failure, and a failure that is a login, selector or missing data is not a
 measurement). *after* is
 the repro assertion for it green in `.wf/checks.log`'s last run, or what you measured on this

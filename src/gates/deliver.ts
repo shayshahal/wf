@@ -253,7 +253,7 @@ export async function runDeliver() {
 	const planText = readFileSync(plan, 'utf8');
 	const rows = planCommitRows(planText);
 	if (rows.length) writeState(toplevel, { commit: rows.at(-1)!.n });
-	runCheck(); // exits 1 with the failure; silent when the last row's check is green
+	await runCheck(); // exits 1 with the failure; silent when the last row's check is green
 
 	// The round folder ships with the PR (dev keeps every round's evidence), except
 	// repro/.auth, which holds a live login session. PNGs are gitignored (bug-reports/**/*.png).
