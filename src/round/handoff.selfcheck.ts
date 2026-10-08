@@ -23,6 +23,10 @@ check('a round begun before briefs is judged on its sections alone', handoffGap(
 check('Intent: met with a before and an after, NOT MEASURED, not met and left out are verdicts', handoffGap('validate', intent([MET, '"hover": NOT MEASURED \u2014 CalendarPanel.svelte:195 \u00b7 research did not measure hover', '"x": not met: no handler', '"y": left out: the admin picker']), null) === null);
 check('Intent: met from the code alone is refused (the TJEW-682 replay\'s month dropdown)', handoffGap('validate', intent(['"months scroll on wheel, not hover": met: CalendarPanel.svelte:195']), null)?.includes('without a before: and an after:'));
 check('Intent: a line with no verdict is refused', handoffGap('validate', intent(['"popover width": fine']), null)?.includes('has no verdict'));
+const REVERSED = '"Read-only + one Edit in the top bar": changed at T2 #5 (PM: click-to-edit, no edit page)';
+check('Intent: a line a later ruling reversed, as `left out: overruled by …`, passes', handoffGap('validate', intent(['"Read-only + one Edit": left out: overruled by PM at T2 #5 (REVIEW.md): "edit is in the page, means no edit page. remove it entirely"']), null) === null);
+check('Intent: "changed at T2" is refused, and the message says what to write', (() => { const g = handoffGap('validate', intent([REVERSED]), null); return !!g?.includes('has no verdict') && g.includes('left out: overruled by <who, when, the ruling quoted>'); })());
+check('Intent: a bare `left out:` is refused', handoffGap('validate', intent(['"x": left out:']), null)?.includes('left out with no reason'));
 check('Intent: no section is refused', handoffGap('validate', 'Verdict: matches plan\n', null)?.includes('no `## Intent` lines'));
 check('verdicts', validationVerdict('Verdict: deviates\n') === 'deviates' && validationVerdict('Verdict: matches plan — all rows') === 'matches plan');
 check('class line', planClass('# p\nClass: B — a contract path\n') === 'B' && planClass('# p\n') === null);

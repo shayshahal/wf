@@ -69,7 +69,8 @@ export function intentGap(text: string): string | null {
 	for (const l of lines) {
 		const notMet = /\bnot met:/.test(l);
 		const met = !notMet && /\bmet:/.test(l);
-		if (!met && !notMet && !/\bNOT MEASURED\b/.test(l) && !/\bleft out:/.test(l)) return `VALIDATION.md ## Intent: "${l.slice(0, 80)}" has no verdict (met | NOT MEASURED | not met | left out)`;
+		if (!met && !notMet && !/\bNOT MEASURED\b/.test(l) && !/\bleft out:/.test(l)) return `VALIDATION.md ## Intent: "${l.slice(0, 80)}" has no verdict (met | NOT MEASURED | not met | left out). A line a later recorded ruling reversed is \`left out: overruled by <who, when, the ruling quoted>\`, not "changed at T2"`;
+		if (/\bleft out:\s*$/.test(l)) return `VALIDATION.md ## Intent: "${l.slice(0, 80)}" is left out with no reason: name the PLAN.md ## Not doing line, or \`overruled by <who, when, the ruling quoted>\``;
 		if (met && !(/\bbefore:/.test(l) && /\bafter:/.test(l))) return `VALIDATION.md ## Intent: "${l.slice(0, 80)}" is met without a before: and an after: measurement — or it is NOT MEASURED`;
 	}
 	return null;
