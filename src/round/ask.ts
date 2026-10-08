@@ -204,6 +204,36 @@ export const revisionText = (question: Pick<Question, 'text' | 'default'>, answe
 // a revision to its question, and the text is built from both (revisionText).
 export const wentThroughPlan = (question: Question, revisions: { text: string }[] = []) => revisions.some((r) => r.text === revisionText(question, (question.answer ?? '').trim()));
 
+// Pure: which fix rulings still owe a fix(review) commit, and how many fix(review) commits rulings used.
+// A ruling is met by whichever comes first after it was answered: a revision (it went through plan, and
+// the plan's row builds it) or a fix(review) commit (each commit meets one ruling). `fixAt` is the commit
+// times (ms) of the fix(review) commits that are not a PLAN.md row's. JX-1221, 2026-10-08: q9 was answered
+// `fix` after four plan rows whose messages start with fix(review): — counted by subject alone they met it,
+// and `wf next` dispatched validate, which asked fix-or-accept again. q4's answer was built by row 5 after a
+// separate `wf decide --revise` with no --q, so only the order in time tells that it is met. A ruling with no
+// answered time is met by its own `--revise --q` text (wentThroughPlan) or by any commit, as a count.
+export function rulingsOwed(rulings: Question[], revisions: { text: string; at: string }[] = [], fixAt: number[] = []) {
+	const ms = (t: string | undefined) => Date.parse(t ?? '') || 0;
+	const free = [...fixAt].sort((a, b) => a - b);
+	let used = 0;
+	const owed: Question[] = [];
+	for (const q of [...rulings].sort((a, b) => ms(a.answered) - ms(b.answered))) {
+		if (wentThroughPlan(q, revisions)) continue;
+		if (!q.answered) {
+			if (free.length) { free.shift(); used++; } else owed.push(q);
+			continue;
+		}
+		const from = ms(q.answered);
+		const rev = Math.min(Infinity, ...revisions.map((r) => ms(r.at)).filter((t) => t >= from));
+		const i = free.findIndex((t) => t >= from);
+		if (rev !== Infinity && (i < 0 || rev <= free[i])) continue;
+		if (i < 0) { owed.push(q); continue; }
+		free.splice(i, 1);
+		used++;
+	}
+	return { owed, used };
+}
+
 // Pure: how many of the revisions answered a T2 changes-requested. `wf review --done` sets the step
 // back to implement (history: review, implement) and `wf decide --revise` then sets it to plan at the
 // revision's own timestamp (reviseState), so a plan entry at a revision's `at` right after that pair
