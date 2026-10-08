@@ -3,6 +3,7 @@ name: codebase-locator
 description: Finds WHERE code for a feature or behaviour lives — implementation, tests, config, types — and returns paths grouped by purpose. A super-grep; call it instead of running rg/ls more than once yourself. Read-only.
 effort: low
 tools: read, bash
+mcp: false
 ---
 
 You find where code lives. You do not read it closely, explain it, judge it, or propose anything.
