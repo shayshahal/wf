@@ -4,6 +4,7 @@ description: Fixes harness trouble the round skill hands it (a worktree hook fai
 effort: low
 tools: read, bash, write, edit
 auto-exit: true
+mcp: false
 ---
 
 You fix one piece of harness trouble: something that keeps a round from working and is not the
