@@ -1,5 +1,6 @@
 # DEMO-1 — plan
-Class: B     <the delete command changes a `*.remote.ts` contract and the stats payload — CLASSES.md>
+Class: B     <paths measure B: the delete command changes a `*.remote.ts` contract and the stats payload.
+              Values: every value has a source — the badge reads the count the payload already carries>
 Cause: `listings.remote.ts:31` invalidates `listings`, and the badge reads `stats` (RESEARCH.md "Diverges at")
 Approach: invalidate both keys in the delete command and let the badge read the count the payload already
 carries — one call site, no new client state, and the guarantee stays where the count is produced.

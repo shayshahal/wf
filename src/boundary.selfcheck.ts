@@ -2,15 +2,20 @@
 // The kit (everything outside env/) never imports the env and never names Shay's machine: the team
 // runs the kit alone, and a kit that reached into env/ or ~/.herdr would break on their machines
 // without a word (kit and env plan, step 2). The env imports the kit, never the other way round.
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WF_ROOT } from './paths.ts';
 
 const root = WF_ROOT;
 const SKIP = new Set(['env', 'docs', 'node_modules', '.git']);
-const kitFiles = (dir: string): string[] => readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
-	if (e.isDirectory()) return SKIP.has(e.name) && dir === root ? [] : kitFiles(join(dir, e.name));
+// `base` is the walk's root, so the selfcheck can walk a tree it builds. A directory holding its own
+// `.git` is another checkout, not this kit: untracked scratch (.delta/worktrees/<id>/wf) held full
+// copies of this repo, the walk read their env/ as the kit's, and the check went red on a clean tree
+// (2026-10-08).
+const kitFiles = (dir: string, base = root): string[] => readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+	if (e.isDirectory()) return (SKIP.has(e.name) && dir === base) || existsSync(join(dir, e.name, '.git')) ? [] : kitFiles(join(dir, e.name), base);
 	return /\.(ts|mjs)$/.test(e.name) ? [join(dir, e.name)] : [];
 });
 
@@ -30,6 +35,20 @@ const check = (name: string, cond: unknown, detail = '') =>
 
 check('envImports sees static and dynamic imports of env/', envImports("import { x } from './env/a.ts';\nawait import('../../env/b.ts');\nimport { y } from './env.ts';").join() === './env/a.ts,../../env/b.ts');
 check('machinePaths skips comments and sees code', machinePaths("// ~/.herdr\nconst a = join(homedir(), '.config', 'wf');").length === 1);
+
+// A nested checkout beside the kit is skipped: untracked scratch under .delta/worktrees held copies of
+// this repo, and the walk read their env/ and their machine paths as the kit's (2026-10-08).
+const tree = mkdtempSync(join(tmpdir(), 'wf-kitfiles-'));
+mkdirSync(join(tree, 'src'), { recursive: true });
+mkdirSync(join(tree, 'env'), { recursive: true });
+mkdirSync(join(tree, 'scratch', 'wf', 'env'), { recursive: true });
+writeFileSync(join(tree, 'src', 'a.ts'), 'export const a = 1;\n');
+writeFileSync(join(tree, 'env', 'b.ts'), "join(homedir(), '.config', 'wf');\n");
+writeFileSync(join(tree, 'scratch', 'wf', '.git'), 'gitdir: /elsewhere/wf/.git/worktrees/wf\n');
+writeFileSync(join(tree, 'scratch', 'wf', 'env', 'c.ts'), 'const p = process.env.LOCALAPPDATA;\n');
+const walked = kitFiles(tree, tree).map((f) => relative(tree, f).replace(/\\/g, '/'));
+check('the walk skips a nested checkout, and the env/ beside it', walked.join() === 'src/a.ts', walked.join());
+rmSync(tree, { recursive: true, force: true });
 
 // This file's own test strings name env/ on purpose.
 const files = kitFiles(root).filter((f) => f !== fileURLToPath(import.meta.url));
