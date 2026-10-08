@@ -16,8 +16,8 @@ section as text), opens that in an editor and the page in a browser, printing `p
 `## For T1` is what T1 approves and what binds the build;
 a T1 given in chat records what the user was shown (DESIGN-SESSION.md § 5).
 
-**T2 — `wf review <round> [--base <ref>]`** writes `<round folder>/REVIEW.md`, then commits and pushes it to the PR branch so the
-merge carries it. It marks
+**T2 — `wf review <round> [--base <ref>]`** writes `<round folder>/REVIEW.md` (uncommitted: `wf review`
+does not commit it, `wf deliver` excludes it, and `wf reap` keeps it with the round's record). It marks
 `step review --waiting-on user`, writes the skeleton first (server URLs, files changed
 vs base, class, spec sha), opens the branch-vs-base diff (Plannotator `review
 --diff-type branch`), then appends the folded comments and verdict.

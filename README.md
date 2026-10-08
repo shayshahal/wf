@@ -10,8 +10,8 @@ round commits (for JewelryX, `bug-reports/<round>/`).
 
 ## Where things are
 
-- `wf.mjs`: the kit's entry. The code is under `src/`, one module per command, each with a
-  `*.selfcheck.ts` beside it:
+- `wf.mjs`: the kit's entry. The code is under `src/`, one module per command; the pure functions are
+  checked by the `*.selfcheck.ts` files `src/selfcheck.ts` runs (beside the module that owns them):
   - `src/run.ts` is the dispatcher; `src/paths.ts` says where wf's own files are (`WF_ROOT`)
   - `src/models.ts`: each phase's effort level (`low` for the read-only judges, `medium` for the
     rest) and `wf models`, the model each level runs on here. Agent files say `effort:`, never a
