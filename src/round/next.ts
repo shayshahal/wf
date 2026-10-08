@@ -16,15 +16,16 @@ import { addQuestion, blockedQuestion, overruledAsks, pendingRevisions, reviseSt
 import { briefKey, handoffFile, handoffGap, HANDOFF_FILES, planAsks, planClass, rowDone, rowSubject, tokenOf, validationVerdict } from './handoff.ts';
 import { critiqueVerdict, MAX_EXCHANGES } from '../gates/critique.ts';
 import { reportFile, roundChecks } from '../gates/standards.ts';
-import { baseBranch } from '../project.ts';
-import { planCommitRows } from './prompt.ts';
+import { baseBranch, contractPaths as contractPathsFile } from '../project.ts';
+import { planCommitRows, rowFiles } from './prompt.ts';
+import { classFromFiles } from '../gates/classify.ts';
 import { lastField, readVerdict, specShaFor } from '../gates/review-format.ts';
 import { seams } from '../seams.ts';
 import { modelFor } from '../models.ts';
 import type { Models } from '../models.ts';
 import { readState, toplevelOf, writeState } from './state.ts';
 import type { Brief, Question, RoundClass } from './state.ts';
-import { notifyAdapters, runStep } from './step.ts';
+import { higherClass, notifyAdapters, runStep } from './step.ts';
 
 // A phase briefed this many times without a handoff goes to Shay, not to a third agent.
 const MAX_BRIEFS = 2;
@@ -67,6 +68,9 @@ export type Snapshot = {
 	note: { file: string; text: string | null } | null;
 	standards?: { id: string; text: string | null; fixesAfter: number }[];
 	models?: Models;
+	// The project's contract paths (one git pathspec glob per line), for measuring a plan's own files
+	// before any commit exists to run git on. Absent: nothing is measured (a fixture, or no file).
+	contractPaths?: string | null;
 	revisions?: { text: string; at: string }[];
 	history?: { step: string; at: string }[];
 	researchRequests?: { text: string; at: string }[];
@@ -161,8 +165,14 @@ export function nextAction(s: Snapshot): { say: string; effects: Effect[] } {
 		}
 		// An Ask answered against its default: the plan is revised to the answer first (ask.ts).
 		if (overruledAsks(s.answered, token).length) return dispatch('plan', ['--revise'], null);
-		const planned = planClass(s.files.plan);
-		if ((planned === 'B' || planned === 'C') && planned !== klass && klass !== 'C') {
+		// The plan's own files, measured against the project's contract paths: a plan that touches one is
+		// class B whatever its `Class:` line says. The gitattributes measurement at `wf new` runs against
+		// an empty diff, so before this the class was only ever what the plan agent wrote. Declared class
+		// and any assertion at `wf new` can only upgrade (A→B→C).
+		const declared = planClass(s.files.plan) ?? 'A';
+		const measured = s.contractPaths ? classFromFiles(planCommitRows(s.files.plan ?? '').flatMap((r) => rowFiles(r)), s.contractPaths) : 'A';
+		const planned = higherClass(higherClass(klass, declared), measured);
+		if ((planned === 'B' || planned === 'C') && planned !== klass) {
 			effects.push({ step: ['plan', '--class', planned] });
 			klass = planned;
 		}
@@ -350,6 +360,7 @@ export function snapshotOf(toplevel: string): Snapshot {
 		fixesAfterValidate: fixesSince(git, state.briefs?.validate?.head),
 		note: state.note ? { file: state.note, text: read(join(toplevel, state.note)) } : null,
 		models: seams.models,
+		contractPaths: read(join(toplevel, contractPathsFile)),
 		standards: roundChecks(toplevel, base).map((c) => ({ id: c.id, text: read(join(dir, reportFile(c.id))), fixesAfter: fixesSince(git, state.briefs?.[briefKey('standards', c.id)]?.head) })),
 		repro: Object.fromEntries((read(join(toplevel, '.wf', 'checks.log')) ?? '').split('\n').flatMap((l) => { try { const c = JSON.parse(l); return c.row === 'repro' && c.token ? [[c.token as string, c.result as string]] : []; } catch { /* a line cut off mid-write: skipped, the rest still read */ return []; } })),
 		checks: (read(join(toplevel, '.wf', 'checks.log')) ?? '').split('\n').filter(Boolean).flatMap((l) => { try { return [JSON.parse(l) as { row: number | string | null; result: string }]; } catch { /* a line cut off mid-write: skipped, the rest still read */ return []; } }).filter((c) => c.row !== 'repro' && c.row !== 'suites').map((c) => ({ ...c, row: c.row == null ? null : Number(c.row) })),

@@ -1,5 +1,7 @@
 // wf classify: any B file => class B. Class C is never set by paths;
 // only the orchestrator sets C (product-undecided).
+// classFromFiles is also what `wf next` measures a plan's own files with, before any commit exists
+// for git to run on: the gitattributes measurement at `wf new` sees an empty diff.
 // Base: --base, else .wf/state.json.base (set by wf new), else origin/<the project's base branch> — a bare
 // `wf classify` on a round cut from tools/wf-runtime used to diff against origin/dev
 // and report the runtime's own commits as the round's (BJEW-585 pilot note 1).
@@ -14,6 +16,39 @@ import { baseBranch, contractPaths as contractPathsFile } from "../project.ts";
 export function classAttributes(contractPaths: string) {
   const globs = contractPaths.split(/\r?\n/).map((l) => l.trim()).filter((l) => l && !l.startsWith("#"));
   return ["** wf-class=A", ...globs.map((g) => `${g} wf-class=B`)].join("\n") + "\n";
+}
+
+// Pure: one contract-path glob against one repo-relative path, as the generated gitattributes file
+// decides it — `** A` first, then the globs, so only a B glob can match. The rules are .gitignore's:
+// a pattern with no slash matches at any level, `*` does not cross `/`, `**` does. This is what
+// `wf next` measures a plan's own files with, before any commit exists to run git on.
+export function contractGlob(pattern: string, path: string): boolean {
+  const glob = pattern.trim();
+  if (!glob) return false;
+  return new RegExp(globSource(glob)).test(path.replace(/\\/g, "/"));
+}
+
+function globSource(pattern: string): string {
+  let out = "";
+  for (let i = 0; i < pattern.length; i++) {
+    const c = pattern[i];
+    if (c === "*") {
+      if (pattern[i + 1] === "*") {
+        if (pattern[i + 2] === "/") { out += "(?:.*/)?"; i += 2; }
+        else { out += ".*"; i += 1; }
+      } else out += "[^/]*";
+    } else if (c === "?") out += "[^/]";
+    else if (".+^${}()|[]\\".includes(c)) out += `\\${c}`;
+    else out += c;
+  }
+  return pattern.includes("/") ? `^${out}$` : `(?:^|/)${out}$`;
+}
+
+// Pure: the class a set of repo-relative paths measures — B when any contract-path glob matches one,
+// A otherwise. C is never set by paths; only the orchestrator sets it (process/CLASSES.md).
+export function classFromFiles(files: string[], contractPaths: string): "A" | "B" {
+  const globs = contractPaths.split(/\r?\n/).map((l) => l.trim()).filter((l) => l && !l.startsWith("#"));
+  return files.some((f) => globs.some((g) => contractGlob(g, f))) ? "B" : "A";
 }
 
 if (process.argv[1]?.replace(/\\/g, "/").endsWith("/classify.ts")) classify();
