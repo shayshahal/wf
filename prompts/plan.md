@@ -44,10 +44,25 @@ setup: <only when that screen needs data the seed lacks: one call that makes it,
  puts it to the person as it is. An Ask that one of `EARLIER.md ## Earlier rulings` answers
  takes that ruling as its default, and says so: `— default: <the ruling> (ruled <date>, <folder>)`.
  Empty is the normal case>
+
+## Decisions
+<the person's answers to this plan's Asks, one line each, as wf recorded them>
+
+## Revisions
+<history, oldest first: one line each, `[who and date] — what changed above, and why`. A revision
+ rewrites the header to the plan as it now stands; this list is the record of that rewrite, never
+ the plan. Empty on a first plan. `wf deliver` folds it — it is not what the reviewer reads first>
 ```
 
 ## Rules
 
+- **The header is the plan as it stands.** A revision — `plan --revise` after an answer, a T2 fix, a
+  blocked row — rewrites Class, Cause and Approach to what the round now builds and appends one
+  `## Revisions` line saying what changed and why. Never append a revision above `## Build` and
+  leave the header describing a design that was reversed. JX-1221 (2026-10-08): 14 revision lines
+  accumulated above `## Build`, and Cause and Approach still sent the reader to the
+  `/users/[id]/edit` page that T2 #5 had deleted five revisions earlier — and `wf deliver` puts that
+  header in the PR, so the PR asked the reviewer to read a design the round had already dropped.
 - **One approach.** No alternatives, no "option B". The Approach line says why.
 - **A view is not a section.** It replaces the prose it would have taken; `{{wf}}/process/SHOW-ME.md`
   has the view set and its rules. One HTML artifact in the round folder only when no static view

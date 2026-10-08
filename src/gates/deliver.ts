@@ -2,8 +2,9 @@
 // deliver.ts — wf deliver: after T2 approved (skills/round/SKILL.md). T2 is local and comes first: the
 // approval is the merge, and nothing leaves the machine before it (Shay, 2026-09-27).
 //   1. `wf check` with the last PLAN.md row's check (the repro)
-//   2. the PR: PLAN.md verbatim + the pushed commits + VALIDATION.md (the validate agent's
-//      hop-by-hop as-built check; a word heuristic here printed "missing: loop" — TJEW-700)
+//   2. the PR: the round's own sections in the order a reviewer reads them, the commits, and
+//      VALIDATION.md's verdict and as-built lines (the validate agent's check; a word heuristic
+//      here printed "missing: loop" — TJEW-700). Not PLAN.md verbatim — see prBody.
 //   3. the merge, and the branch deleted
 //   4. the project's tracker note in the round folder (the round skill posts it last; wf never calls the
 //      tracker), its path in .wf/state.json for `wf next`
@@ -28,42 +29,164 @@ import type { State } from '../round/state.ts';
 // counts UTF-16 units, never fewer than GitHub's characters.
 export const PR_BODY_BUDGET = 60000;
 
-// Plan sections cut first when the body is too long, biggest and least read first: Build is the call
-// stack, Decisions the Ask log. Commits, Not doing and T2 walk stay as long as they fit.
-const CUT_FIRST = ['Build', 'Decisions'];
+type PrSources = { ticket: string; plan: string; commitLines: string[]; validation: string; planPath?: string; budget?: number };
 
-// Pure: the PR body: PLAN.md verbatim + the pushed commits + VALIDATION.md. Over the budget, the plan
-// shrinks first (CUT_FIRST sections, then its tail) and says the full PLAN.md is in the branch at
-// planPath. The commits and VALIDATION.md (verdict on its first lines) are cut only when they alone
-// are over the budget.
-export function prBody({ planText, commitLines, validation, planPath = 'PLAN.md', budget = PR_BODY_BUDGET }: { planText: string; commitLines: string[]; validation: string; planPath?: string; budget?: number }) {
-	const plan = planText.replace(/\r\n/g, '\n').trimEnd();
-	const validated = validation ? `\n${validation.replace(/\r\n/g, '\n').trimEnd()}\n` : '';
-	const assemble = (planPart: string, lines: string[], tail: string) => `${planPart}\n\n## Commits (as pushed)\n${lines.join('\n')}\n${tail}`;
-	const full = assemble(plan, commitLines, validated);
-	if (full.length <= budget) return full;
-
-	const note = `> Shortened: GitHub limits a PR body to 65,536 characters. The full plan is in the branch at \`${planPath}\`.\n\n`;
-	const parts = plan.split(/^(?=## )/m);
-	for (let n = 1; n <= CUT_FIRST.length; n++) {
-		const cut = CUT_FIRST.slice(0, n);
-		const shorter = parts.map((p) => {
-			const name = cut.find((c) => new RegExp(`^## ${c}\\b`).test(p));
-			return name ? `## ${name}\n(cut here, in \`${planPath}\`)\n\n` : p;
-		});
-		const body = assemble(note + shorter.join('').trimEnd(), commitLines, validated);
-		if (body.length <= budget) return body;
+// The `## <name>` sections of a round file, by name. A section runs to the next `## ` or the end.
+function sectionsOf(text: string) {
+	const out: Record<string, string> = {};
+	for (const part of text.replace(/\r\n/g, '\n').split(/^## /m).slice(1)) {
+		const nl = part.indexOf('\n');
+		out[part.slice(0, nl).trim()] = part.slice(nl + 1).trim();
 	}
+	return out;
+}
 
-	// Still over: keep the commits and the validation's head, give the plan what is left, its head first.
-	const cap = Math.floor(budget / 3);
-	const tail = validated.length > cap ? `${validated.slice(0, cap)}\n(cut here, in VALIDATION.md)\n` : validated;
-	const lines = [...commitLines];
-	const dropped = () => (lines.length < commitLines.length ? [`- (${commitLines.length - lines.length} earlier commits in the branch)`] : []);
-	while (lines.length > 1 && [...dropped(), ...lines].join('\n').length > cap) lines.shift();
-	const listed = [...dropped(), ...lines];
-	const room = budget - assemble(note, listed, tail).length - 2;
-	return assemble(note + plan.slice(0, Math.max(0, room)) + '\n(cut here)', listed, tail);
+const h1Of = (text: string) => /^#\s+(.+)$/m.exec(text)?.[1]?.trim() ?? '';
+const section = (name: string, text: string | undefined) => (text?.trim() ? `## ${name}\n\n${text.trim()}\n` : '');
+const sub = (name: string, text: string) => (text.trim() ? `### ${name}\n\n${text.trim()}\n` : '');
+
+// The `Revision (…)` line an older plan left above `## Build`; new plans keep them in `## Revisions`.
+const isRevision = (line: string) => /^Revision \(/.test(line);
+
+// Pure: the PR title — the round's own title, TICKET.md's H1 (`# JX-1221 — דף משתמש …`). Never a
+// commit subject: JX-1221's title came from commitLines.at(-1), the round's *first* commit — "split
+// /users/[id] into a view-only detail page and a /users/[id]/edit page", a design T2 removed nine
+// revisions later (Shay, 2026-10-08). The title is the one line everybody reads.
+export function prTitle({ ticket, plan, commitLines }: Pick<PrSources, 'ticket' | 'plan' | 'commitLines'>) {
+	return h1Of(ticket) || commitLines.at(0)?.replace(/^- \w+ /, '') || h1Of(plan) || 'round';
+}
+
+// Pure: PLAN.md's `## Commits` as the PR lists it — one line per commit. The `files` cell goes (a row
+// listed every file it touched: 3,055 characters in one cell on JX-1221) and so do the `Row N:` build
+// instructions that follow the table. The hash comes from the pushed commits, matched by message; a
+// commit no row names (deliver's own round-folder commit) is listed after them, oldest last.
+export function prCommitRows(planText: string, commitLines: string[]) {
+	const hashOf = new Map<string, string>();
+	for (const line of commitLines) {
+		const m = /^- (\w+) (.+)$/.exec(line);
+		if (m) hashOf.set(m[2], m[1]);
+	}
+	const rows = planCommitRows(planText);
+	const named = new Set(rows.map((r) => r.message));
+	return [
+		...rows.map((r) => `| ${r.n} | ${hashOf.get(r.message) ?? '—'} | ${r.message} | ${r.check || '—'} |`),
+		...[...hashOf]
+			.filter(([subject]) => !named.has(subject))
+			.reverse()
+			.map(([subject, hash]) => `| — | ${hash} | ${subject} | — |`),
+	];
+}
+
+// Pure: the PR body — the round's own sections in the order a reviewer reads them, not PLAN.md
+// verbatim. JX-1221's body was 46,275 characters: 41% of it the commit table's file lists, a preamble
+// of 14 `Revision (…)` paragraphs, and `## Build` — the call stack, the one section that says how —
+// the section the budget cut first, because it sits after the first `## ` and the preamble does not.
+// Intent, Approach, the commits, the T2 walk, Not doing and VALIDATION.md's verdict are the
+// reviewer's minimum and are never cut. The call stack and the plan's history fold under `<details>`;
+// over the budget they go first, then the validation's detail, then the oldest commits — and the body
+// says where the rest is.
+export function prBody({ ticket, plan, commitLines, validation, planPath = 'PLAN.md', budget = PR_BODY_BUDGET }: PrSources) {
+	const folder = planPath.replace(/\/PLAN\.md$/, '');
+	const P = sectionsOf(plan);
+	const K = sectionsOf(ticket);
+	const V = sectionsOf(validation);
+	// The plan's header is the plan as it stands — Class, Cause, Approach (prompts/plan.md).
+	const head = plan.replace(/\r\n/g, '\n').split(/^## /m)[0].split('\n');
+	const header = head.slice(1).filter((l) => l.trim() && !isRevision(l));
+	const revisions = [...head.filter(isRevision), ...(P.Revisions ?? '').split('\n')]
+		.map((l) => l.trim())
+		.filter(Boolean);
+	// VALIDATION.md's own first lines, minus its `# <round> — validation` title.
+	const verdict = validation
+		.replace(/\r\n/g, '\n')
+		.split(/^## /m)[0]
+		.split('\n')
+		.filter((l) => l.trim() && !l.startsWith('# '))
+		.join('\n');
+	const commits = prCommitRows(plan, commitLines);
+	const decisions = P.Decisions ? P.Decisions.split('\n').filter((l) => l.trim().startsWith('- ')).length : 0;
+
+	let buildBlock = P.Build ? `<details>\n<summary>Build — the call stack (${P.Build.split('\n').length} lines)</summary>\n\n${P.Build}\n\n</details>\n` : '';
+	let historyBlock = revisions.length || P.Decisions ? `<details>\n<summary>Plan history — ${revisions.length} revisions, ${decisions} decisions</summary>\n\n${[P.Decisions, revisions.join('\n')].filter(Boolean).join('\n\n')}\n\n</details>\n` : '';
+	let keep = commits.length;
+	const valDetail: Array<[string, string]> = [
+		['Unplanned', V.Unplanned ?? ''],
+		['Live', V.Live ?? ''],
+		['Intent', V.Intent ?? ''],
+	];
+	let cut = false;
+
+	const commitsBlock = () => {
+		const earlier = keep < commits.length ? [`| — | — | (${commits.length - keep} earlier commits in the branch) | — |`] : [];
+		return `## Commits\n\n| # | commit | message | check |\n|---|---|---|---|\n${[...earlier, ...commits.slice(-keep)].join('\n')}\n`;
+	};
+	const validationBlock = () => {
+		const detail = valDetail.filter(([, body]) => body.trim()).map(([name, body]) => sub(name, body));
+		return [verdict, V.Suites ?? '', ...detail].filter((p) => p.trim()).length
+			? `## Validation\n\n${[verdict, V.Suites ?? '', ...detail].filter((p) => p.trim()).join('\n\n')}\n`
+			: '';
+	};
+	const assemble = () =>
+		[
+			cut ? `> Shortened: GitHub limits a PR body to 65,536 characters, so the round folder's own text stops here. PLAN.md, VALIDATION.md and the rest are in the branch at \`${planPath}\`.\n` : '',
+			`Round folder: \`${folder}/\`\n`,
+			section('Intent', K.Intent),
+			section('Approach', header.join('\n')),
+			commitsBlock(),
+			section('T2 walk', P['T2 walk']),
+			section('Not doing', P['Not doing']),
+			validationBlock(),
+			buildBlock,
+			historyBlock,
+		]
+			.filter((b) => b.trim())
+			.join('\n') + '\n';
+
+	// Least read first, and only what can be spared: a reviewer's minimum is above this list.
+	const stages: Array<() => boolean> = [
+		// The fold goes first: it is collapsed, and PLAN.md is in the same branch as this body.
+		() => {
+			if (!historyBlock) return false;
+			historyBlock = '';
+			return true;
+		},
+		() => {
+			if (!buildBlock) return false;
+			buildBlock = '';
+			return true;
+		},
+		// Then VALIDATION.md's detail, in valDetail's order: unplanned, live, intent.
+		() => {
+			const next = valDetail.find(([, body]) => body.trim() && !body.startsWith('(cut here'));
+			if (!next) return false;
+			next[1] = `(cut here, in \`${folder}/VALIDATION.md\`)`;
+			return true;
+		},
+		// Then the oldest commits, a quarter at a time, never the newest.
+		() => {
+			if (keep <= 1) return false;
+			keep = Math.max(1, keep - Math.ceil(keep / 4));
+			return true;
+		},
+	];
+	let text = assemble();
+	// One pass is the normal case: the folds, then the validation's detail. A body that is still over
+	// (a plan with thousands of commits) takes the same stages again until a pass cuts nothing.
+	for (let pass = 0; pass < 20 && text.length > budget; pass++) {
+		let changed = false;
+		for (const stage of stages) {
+			if (text.length <= budget) break;
+			if (!stage()) continue;
+			cut = true;
+			changed = true;
+			text = assemble();
+		}
+		if (!changed) break;
+	}
+	// Still over with only the reviewer's minimum left: `gh pr create` refuses the body outright, so
+	// the body stops here rather than fail the merge (JX-1221 hit "Body is too long" once already).
+	if (text.length > budget) text = `${text.slice(0, budget)}\n(cut here, in the branch: \`${planPath}\`)\n`;
+	return text;
 }
 
 // Pure: null when T2 approved the round (`wf review --done` moved it to step pr), else why deliver,
@@ -167,8 +290,10 @@ export async function runDeliver() {
 	// VALIDATION.md is the read-only validate agent's verdict (wf prompt validate); first thing T2 reads.
 	const validationPath = join(toplevel, folder, 'VALIDATION.md');
 	const validation = existsSync(validationPath) ? readFileSync(validationPath, 'utf8') : '';
-	writeFileSync(body, prBody({ planText, commitLines, validation, planPath: `${folder}/PLAN.md` }));
-	const title = commitLines.at(-1)!.replace(/^- \w+ /, '');
+	const ticketPath = join(toplevel, folder, 'TICKET.md');
+	const ticket = existsSync(ticketPath) ? readFileSync(ticketPath, 'utf8') : '';
+	writeFileSync(body, prBody({ ticket, plan: planText, commitLines, validation, planPath: `${folder}/PLAN.md` }));
+	const title = prTitle({ ticket, plan: planText, commitLines });
 	const existing = spawnSync('gh', ['pr', 'view', '--json', 'url'], { cwd: toplevel, encoding: 'utf8' });
 	const url = existing.status === 0 ? JSON.parse(existing.stdout).url : null;
 	const pr = url
