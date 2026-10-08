@@ -23,5 +23,13 @@ this by feel — "it's just wiring" is how a real decision gets waved
 through. A decision the agent makes anyway is recorded as `status: assumed`
 (in the project's decision records). (Test from jsmastery-pro/skills.)
 
+**A screen counts.** What a person reads on screen is a value in that
+enumeration, and its source is a mockup, a decision record or an existing
+screen — an existing screen only when the plan names what it takes from it
+("like the product page" is not a source; "its detail-page.css rules, its
+sidebar" is). JX-1221 (2026-10-07) answered `Class:` with paths alone and
+left the page's shape unsourced: three layout variants were built, and T2
+deleted them.
+
 The pathspec lives in the root `.gitattributes`; last match wins, so the
 `** wf-class=A` default comes first. `wf:classify` reports the class.

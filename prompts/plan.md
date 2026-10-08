@@ -14,7 +14,8 @@ thing in it, name it under Asks.
 
 ```
 # {{round}} — plan
-Class: A | B | C     <{{wf}}/process/CLASSES.md — one line why>
+Class: A | B | C     <{{wf}}/process/CLASSES.md — one line, both halves: what the paths measure, and
+                      the input coverage (every value has a source, or the owed value named)>
 Cause: <one line: the hop in RESEARCH.md "Diverges at" and what it does wrong>
 Approach: <one line: what changes, and why here and not elsewhere>
 
