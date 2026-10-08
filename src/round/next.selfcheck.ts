@@ -287,7 +287,7 @@ try {
 	const snap = snapshotOf(repo);
 	check('snapshotOf fills commits from git, oldest first, with ISO committer times', JSON.stringify(snap.commits) === JSON.stringify([{ subject: 'fix(x): one', at: '2026-10-07T15:00:00+03:00' }, { subject: 'fix(review): the\ttabbed meta', at: '2026-10-08T08:49:32+03:00' }]), JSON.stringify(snap.commits));
 	check('…and subjects are the same commits', JSON.stringify(snap.subjects) === JSON.stringify(snap.commits?.map((c) => c.subject)));
-	const ruled = (answered: string) => nextAction({ ...jx(), subjects: [...jx().subjects, snap.subjects[1]], commits: [...jx().commits!, snap.commits![1]], answered: [jxAnswer(9, answered)], revisions: [] });
+	const ruled = (answered: string) => nextAction(jx({ subjects: [...jx().subjects, snap.subjects[1]], commits: [...jx().commits!, snap.commits![1]], answered: [jxAnswer(9, answered)], revisions: [] }));
 	check('a fix ruling answered before the fix(review) commit in a real repo is met → validate, not fix-review', ruled('2026-10-08T05:40:28.619Z').say.startsWith('dispatch validate:'), ruled('2026-10-08T05:40:28.619Z').say);
 	check('…and one answered after it is still owed', ruled('2026-10-08T06:00:00.000Z').say.startsWith('dispatch fix-review --from VALIDATION.md:'), ruled('2026-10-08T06:00:00.000Z').say);
 } finally {
