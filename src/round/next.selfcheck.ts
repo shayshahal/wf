@@ -166,12 +166,35 @@ check('ruled accept → T2', say(ruled('accept, the label is fine')).startsWith(
 check('ruled fix → fix-review from VALIDATION.md', say(ruled('fix it')).startsWith('dispatch fix-review --from VALIDATION.md: run `node C:/wf/wf.mjs brief fix-review --from VALIDATION.md`'));
 check('the fix committed → validate again', say(impl({ ...done2, subjects: [...done2.subjects, 'fix(review): the label'], files: { validation: VALID('deviates') }, answered: [{ n: 3, source: 'VALIDATION.md#ccc333', answer: 'fix' }] })).startsWith('dispatch validate:'));
 // TJEW-670 (2026-10-06): a fix ruling recorded with `wf decide --revise --q` is built by a plan row whose subject is not fix(review):.
-const viaPlan: Partial<Question> = { n: 6, to: 'user', text: 'fix or accept: x differs', source: 'VALIDATION.md#ccc333', answer: 'fix, differently: single-flight' };
+const viaPlan: Partial<Question> = { n: 6, to: 'user', text: 'fix or accept: x differs', source: 'VALIDATION.md#ccc333', answer: 'fix, differently: single-flight', answered: '2026-10-06T19:38:53.000Z' };
 const viaPlanRevisions = [{ text: revisionText(viaPlan as Question, viaPlan.answer!), at: '2026-10-06T19:38:53.305Z' }];
 const viaPlanRound = (patch: Fixture = {}) => impl({ ...done2, subjects: [...done2.subjects, 'fix(admin): update the cached formula'], files: { validation: VALID('deviates') }, answered: [viaPlan], revisions: viaPlanRevisions, ...patch });
 check('fix ruling built by a plan row (decide --revise --q) → no fix-review, on to validate', !say(viaPlanRound()).includes('fix-review') && say(viaPlanRound()).startsWith('dispatch validate:'), say(viaPlanRound()));
 check('the same ruling, not revised through plan → still a fix(review) owed', say(viaPlanRound({ revisions: [] })).startsWith('dispatch fix-review --from VALIDATION.md'));
-check('a revise through plan does not excuse another ruling', say(viaPlanRound({ answered: [viaPlan, { n: 7, source: 'VALIDATION.md#ccc333', answer: 'fix' }] })).startsWith('dispatch fix-review --from VALIDATION.md'));
+check('a revise through plan does not excuse another ruling', say(viaPlanRound({ answered: [viaPlan, { n: 7, source: 'VALIDATION.md#ccc333', answer: 'fix', answered: '2026-10-06T19:40:00.000Z' }] })).startsWith('dispatch fix-review --from VALIDATION.md'));
+
+// JX-1221 (2026-10-08): q9 answered `fix` after plan rows 5, 6, 9 and 10, whose messages start with fix(review): —
+// they are rows of the plan (built after `wf decide --revise`), not the fix q9 asked for. q4 was built by row 5, after
+// a separate `wf decide --revise` with no --q.
+const jxRow = (n: number, message: string) => `| ${n} | ${message} | a.ts | repro |\n`;
+const jxPlan = plan().replace('\n## Asks', jxRow(5, 'fix(review): row five') + jxRow(6, 'fix(review): row six') + '\n## Asks');
+const jxAnswer = (n: number, answered: string): Partial<Question> => ({ n, to: 'user', text: `fix or accept ${n}`, source: 'VALIDATION.md#ccc333', answer: 'fix: x', answered });
+const jxCommit = (subject: string, at: string) => ({ subject, at });
+const jx = (patch: Fixture = {}) => impl({
+	...done2, checks: [...done2.checks, green(5), green(6)], files: { validation: VALID('deviates'), plan: jxPlan },
+	subjects: [...done2.subjects, 'fix(review): row five', 'fix(review): row six'],
+	commits: [jxCommit('fix(x): one', '2026-10-07T15:00:00+03:00'), jxCommit('fix(x): two', '2026-10-07T15:10:00+03:00'), jxCommit('fix(review): row five', '2026-10-07T19:05:28+03:00'), jxCommit('fix(review): row six', '2026-10-07T19:24:05+03:00')],
+	answered: [jxAnswer(4, '2026-10-07T16:01:12.835Z'), jxAnswer(9, '2026-10-08T05:40:28.619Z')],
+	revisions: [{ text: 'add a row 5 …', at: '2026-10-07T16:02:45.234Z' }, { text: 'T2 #3 …', at: '2026-10-07T17:24:53.989Z' }], ...patch,
+});
+check('a ruling answered after plan rows named fix(review): is not met by them → fix-review from VALIDATION.md', say(jx()).startsWith('dispatch fix-review --from VALIDATION.md:'), say(jx()));
+check('…and a fix(review) commit made after the answer meets it → validate', say(jx({ subjects: [...jx().subjects, 'fix(review): the meta'], commits: [...jx().commits!, jxCommit('fix(review): the meta', '2026-10-08T09:00:00+03:00')] })).startsWith('dispatch validate:'), say(jx({ subjects: [...jx().subjects, 'fix(review): the meta'], commits: [...jx().commits!, jxCommit('fix(review): the meta', '2026-10-08T09:00:00+03:00')] })));
+check('a fix(review) commit made before the answer does not meet it', say(jx({ commits: [...jx().commits!, jxCommit('fix(review): early', '2026-10-08T08:00:00+03:00')], subjects: [...jx().subjects, 'fix(review): early'] })).startsWith('dispatch fix-review --from VALIDATION.md:'));
+check('a ruling fixed by a commit, an unrelated revise after it, then a new ruling → the new one is owed', say(jx({
+	answered: [jxAnswer(4, '2026-10-07T16:01:12.000Z'), jxAnswer(9, '2026-10-08T06:00:00.000Z')],
+	revisions: [{ text: 'unrelated', at: '2026-10-07T19:00:00.000Z' }],
+	subjects: [...jx().subjects, 'fix(review): fixes q4'], commits: [...jx().commits!, jxCommit('fix(review): fixes q4', '2026-10-07T16:30:00.000Z')],
+})).startsWith('dispatch fix-review --from VALIDATION.md:'));
 
 const onModels = (s: Snapshot) => say({ ...s, models: { low: 'sonnet', medium: 'opus' } });
 // the critic: a fresh agent audits the validation before the person sees it (gates/critique.ts)

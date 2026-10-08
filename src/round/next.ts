@@ -12,8 +12,8 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { refuseCaller } from '../refusal.ts';
-import { addQuestion, blockedQuestion, overruledAsks, pendingRevisions, reviseState, t2Revisions, wentThroughPlan } from './ask.ts';
-import { briefKey, handoffFile, handoffGap, HANDOFF_FILES, planAsks, planClass, rowDone, tokenOf, validationVerdict } from './handoff.ts';
+import { addQuestion, blockedQuestion, overruledAsks, pendingRevisions, reviseState, rulingsOwed, t2Revisions } from './ask.ts';
+import { briefKey, handoffFile, handoffGap, HANDOFF_FILES, planAsks, planClass, rowDone, rowSubject, tokenOf, validationVerdict } from './handoff.ts';
 import { critiqueVerdict, MAX_EXCHANGES } from '../gates/critique.ts';
 import { reportFile, roundChecks } from '../gates/standards.ts';
 import { baseBranch } from '../project.ts';
@@ -58,6 +58,8 @@ export type Snapshot = {
 	files: Record<'research' | 'plan' | 'blocked' | 'asBuilt' | 'validation' | 'critique' | 'review', string | null>;
 	t1: { spec: string | null; reviewed: string | null; verdict: string | null };
 	subjects: string[];
+	// The commits since the base, oldest first, with their committer times (ISO): when a fix(review) was made. Absent: subjects, with no time.
+	commits?: { subject: string; at: string }[];
 	checks: { row: number | null; result: string }[];
 	// The last `wf check --repro` result per research token: stable | unstable | green | outside (checks.log, row `repro`).
 	repro: Record<string, string>;
@@ -218,13 +220,17 @@ export function nextAction(s: Snapshot): { say: string; effects: Effect[] } {
 		// A T2 comment answered with `wf decide --revise` is built by the revised plan's rows, not by a
 		// fix(review) commit: it is not counted either (JX-1221, 2026-10-07: see t2Revisions).
 		const t2Fixes = Math.max(0, [...(s.files.review ?? '').matchAll(/^verdict:\s*changes-requested\s*$/gm)].length - t2Revisions(s.history, s.revisions));
-		const fixed = s.subjects.filter((x) => x.startsWith('fix(review):')).length;
-		// A ruling `wf decide --revise --q` sent back to plan is built by the plan's own row, under the row's
-		// message, which need not start with fix(review): — it is not counted here (TJEW-670, 2026-10-06: q6 was
+		// A fix(review) commit that is a PLAN.md row's own (a row built after `wf decide --revise`) is that row's,
+		// not a fix a ruling or a T2 asked for (JX-1221, 2026-10-08: rows 5, 6, 9 and 10 met a ruling nobody had built).
+		const rowMessages = new Set(planCommitRows(s.files.plan ?? '').map(rowSubject));
+		const fixCommits = (s.commits ?? s.subjects.map((subject) => ({ subject, at: '' }))).filter((c) => c.subject.startsWith('fix(review):') && !rowMessages.has(c.subject));
+		// A ruling `wf decide --revise` sent back to plan is built by the plan's own row, under the row's
+		// message, which need not start with fix(review): — it is not owed (TJEW-670, 2026-10-06: q6 was
 		// built by row 4 `fix(admin): …`, and `wf next` dispatched fix-review again and again; the agent found
 		// nothing to fix). The rows being done is what satisfies it; validate still judges it again below.
-		const owed = rulings.filter((q) => !wentThroughPlan(q, s.revisions)).length;
-		if (fixed < t2Fixes + owed) return dispatch('fix-review', fixed < t2Fixes ? [] : ['--from', 'VALIDATION.md'], null);
+		const { owed, used } = rulingsOwed(rulings, s.revisions, fixCommits.map((c) => Date.parse(c.at) || 0));
+		const forT2 = fixCommits.length - used;
+		if (forT2 < t2Fixes || owed.length) return dispatch('fix-review', forT2 < t2Fixes ? [] : ['--from', 'VALIDATION.md'], null);
 		// The suites the round's diff reaches, on this HEAD, before validate judges it, and again after any commit
 		// (a fix moves HEAD): validate reads the line, and a red one is a deviation like any other.
 		// 2026-10-05: the changed tests passed, while tests no row touched had broken.
