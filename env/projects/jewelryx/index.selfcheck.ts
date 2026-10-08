@@ -28,7 +28,7 @@ delete process.env.PORTLESS;
 plug({ project: pieces });
 check('a person gets the portless names', stackUrls({ slug: 'my-slug', port: 18001 }).b2b === 'http://my-slug.b2b.jewelryx.localhost');
 
-// ── the worktrees' databases are the kit's: the repo's own MongoDB on 27017 (2026-10-04)
+// ── the worktrees' databases are the kit's: the MongoDB on 27017, container or native (native on this machine since 2026-10-08)
 check('a worktree\'s database is in the kit\'s MongoDB, whatever its own port', seedUrl({ slug: 'fix-bjew-1', port: 17554 }) === 'mongodb://127.0.0.1:27017');
 const down = teardown({ slug: 'fix-bjew-1', worktree: 'C:/wt/fix-bjew-1' });
 check('reap drops the worktree\'s database and stranded test databases, then its own container if it has one, then portless routes', down.map((x) => x.label).join(' → ') === 'drop database → drop stranded test databases → its own mongo container, if any → portless prune', down.map((x) => x.label).join(' → '));

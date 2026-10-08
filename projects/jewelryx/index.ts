@@ -100,10 +100,12 @@ const KIT: Machine = {
 	// Every worktree's database, jewelryx_<slug>, in the one MongoDB at MONGO_URL.
 	database: {
 		url: () => process.env.MONGO_URL ?? 'mongodb://127.0.0.1:27017',
-		// MONGO_URL set: that MongoDB is the person's, only checked. Unset and nothing on 27017: the repo's
-		// own is brought up (docker-compose.yml's `mongodb`, profile local-db, container jewelryx-mongodb),
-		// under the project name a clone folder named jeweleryx gives it, so a person's `docker compose up`
-		// and wf's are one container and one volume. Shay, 2026-10-04: "make wf bring it up"; before, a
+		// MONGO_URL set, or unset with something answering on 27017: that MongoDB is the person's, only
+		// checked (a natively installed MongoDB answers here the same as the repo's container: native on
+		// Shay's PC since 2026-10-08). Unset and nothing answers: the repo's own is brought up
+		// (docker-compose.yml's `mongodb`, profile local-db, container jewelryx-mongodb), under the
+		// project name a clone folder named jeweleryx gives it, so a person's `docker compose up` and
+		// wf's are one container and one volume. Shay, 2026-10-04: "make wf bring it up"; before, a
 		// stopped one stopped `wf new` with "start one".
 		async up({ worktree, slug, port }) {
 			const url = KIT.database.url({ slug, port });

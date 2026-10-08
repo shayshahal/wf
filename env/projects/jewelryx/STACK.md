@@ -27,9 +27,12 @@ Server-side calls stay off the proxy: `INTERNAL_API_URL` is `http://127.0.0.1:<b
 the proxy is down); stale routes are cleared with `portless prune`.
 
 A database per worktree, in one mongo, as for the team (the kit's `projects/jewelryx/index.ts`):
-`jewelryx_<slug>` in the repo's own MongoDB on 27017, `jewelryx-mongodb` (`docker-compose.yml`'s
-`mongodb`, profile `local-db`, compose project `jeweleryx`). When nothing answers there, setup brings
-it up with `docker compose -p jeweleryx --profile local-db up -d --wait mongodb`. The `db` step fills it with the project's fixture set
+`jewelryx_<slug>` in the MongoDB on 27017. On this machine that is the native Windows MongoDB service
+since 2026-10-08 (moved off Docker: 762,906 documents migrated with matching hashes and indexes, app
+API verified, autostart on sign-in, Docker Desktop stopped, its volume kept for rollback); the team's
+fallback stays the repo's own container, `jewelryx-mongodb` (`docker-compose.yml`'s `mongodb`, profile
+`local-db`, compose project `jeweleryx`). When nothing answers on 27017, setup brings that container
+up with `docker compose -p jeweleryx --profile local-db up -d --wait mongodb`. The `db` step fills it with the project's fixture set
 (`packages/backend/scripts/seed_fixtures.py`). The env step points `MONGODB_URL`/`DATABASE_NAME` at
 it, so no worktree shares dev's Atlas database or another round's data. `wf seed [--reset]` seeds it
 again; `--reset` drops only that database. Until 2026-10-04 each worktree had a container of its own

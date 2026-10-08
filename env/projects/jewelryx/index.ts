@@ -39,9 +39,12 @@ export function portlessServers(slug: string): { origins: Origins; wrap: Wrap } 
 	};
 }
 
-// The worktrees' databases are the kit's (projects/jewelryx/index.ts): jewelryx_<slug> in the repo's own
-// MongoDB on 27017, which wf brings up when it is down. Shay's machine had its own until 2026-10-04: a
-// container per worktree (Shay: "too much"), then one shared jewelryx-mongo-dev beside the repo's.
+// The worktrees' databases are the kit's (projects/jewelryx/index.ts): jewelryx_<slug> in the MongoDB
+// on 27017. On this machine that is the native Windows MongoDB service since 2026-10-08 (migrated off
+// Docker: 762,906 documents with matching hashes and indexes, app API verified, autostart on sign-in,
+// Docker Desktop stopped, its volume kept for rollback): wf finds it answering and never reaches the
+// kit's docker bring-up. History: a container per worktree until 2026-10-04 (Shay: "too much"), then
+// one shared jewelryx-mongo-dev beside the repo's, then the repo's own container until the native move.
 
 // Pure: what removes a worktree's own container, when it has one. Worktrees made before 2026-10-04
 // do; once `docker ps -a --filter name=jewelryx-mongo-` shows none, this, the reap step below and
