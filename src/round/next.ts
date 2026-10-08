@@ -222,8 +222,12 @@ export function nextAction(s: Snapshot): { say: string; effects: Effect[] } {
 		const t2Fixes = Math.max(0, [...(s.files.review ?? '').matchAll(/^verdict:\s*changes-requested\s*$/gm)].length - t2Revisions(s.history, s.revisions));
 		// A fix(review) commit that is a PLAN.md row's own (a row built after `wf decide --revise`) is that row's,
 		// not a fix a ruling or a T2 asked for (JX-1221, 2026-10-08: rows 5, 6, 9 and 10 met a ruling nobody had built).
-		const rowMessages = new Set(planCommitRows(s.files.plan ?? '').map(rowSubject));
-		const fixCommits = (s.commits ?? s.subjects.map((subject) => ({ subject, at: '' }))).filter((c) => c.subject.startsWith('fix(review):') && !rowMessages.has(c.subject));
+		// A row whose implement brief came after the commit did not build it: the row was added for a commit that
+		// was there already (JX-1221, 2026-10-08: q9's fix(review) commit 05:49Z was named by row 11 at 06:13Z, and
+		// briefed 06:14Z). A row with no brief left in state is the row's own, as before.
+		const briefedAfter = (n: number, at: string) => !!at && (brief('implement', n)?.at ?? '') > new Date(at).toISOString();
+		const rowBuilt = (c: { subject: string; at: string }) => rows.some((r) => rowSubject(r) === c.subject && !briefedAfter(r.n, c.at));
+		const fixCommits = (s.commits ?? s.subjects.map((subject) => ({ subject, at: '' }))).filter((c) => c.subject.startsWith('fix(review):') && !rowBuilt(c));
 		// A ruling `wf decide --revise` sent back to plan is built by the plan's own row, under the row's
 		// message, which need not start with fix(review): — it is not owed (TJEW-670, 2026-10-06: q6 was
 		// built by row 4 `fix(admin): …`, and `wf next` dispatched fix-review again and again; the agent found

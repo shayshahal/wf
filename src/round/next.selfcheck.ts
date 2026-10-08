@@ -201,6 +201,14 @@ check('a ruling fixed by a commit, an unrelated revise after it, then a new ruli
 	subjects: [...jx().subjects, 'fix(review): fixes q4'], commits: [...jx().commits!, jxCommit('fix(review): fixes q4', '2026-10-07T16:30:00.000Z')],
 })).startsWith('dispatch fix-review --from VALIDATION.md:'));
 
+// JX-1221 (2026-10-08): q9's fix(review) commit (05:49Z) was named by plan row 7 afterwards (the revise at 06:10Z added
+// it as a row, briefed 06:14Z): a row added for a commit that was there already does not make it the row's own.
+const jxSeven = { ...jx(), checks: [...jx().checks, green(7)], files: { ...jx().files, plan: jxPlan.replace('\n## Asks', jxRow(7, 'fix(review): the meta') + '\n## Asks') }, subjects: [...jx().subjects, 'fix(review): the meta'], commits: [...jx().commits!, jxCommit('fix(review): the meta', '2026-10-08T09:00:00+03:00')] };
+const sevenBriefed = (at: string) => ({ ...jxSeven, briefs: { ...jxSeven.briefs, 'implement 7': { token: 'x', count: 1, at } } });
+check('a ruling met by a fix(review) commit that a plan row later named (row briefed after it) stays met → validate', say(sevenBriefed('2026-10-08T06:14:42.834Z')).startsWith('dispatch validate:'), say(sevenBriefed('2026-10-08T06:14:42.834Z')));
+check('…a row briefed before the commit built it: not the ruling\'s fix → fix-review', say(sevenBriefed('2026-10-08T05:50:00.000Z')).startsWith('dispatch fix-review --from VALIDATION.md:'), say(sevenBriefed('2026-10-08T05:50:00.000Z')));
+check('…a row with no brief left in state is the row\'s own, as before', say(jxSeven).startsWith('dispatch fix-review --from VALIDATION.md:'), say(jxSeven));
+
 const onModels = (s: Snapshot) => say({ ...s, models: { low: 'sonnet', medium: 'opus' } });
 // the critic: a fresh agent audits the validation before the person sees it (gates/critique.ts)
 const critiqued = (critique: string | null, cb: Partial<Brief> | undefined, vb: Partial<Brief> = { token: 'ccc333', count: 1 }, validation = VALID()) => impl({ ...done2, files: { validation, critique }, briefs: { ...base().briefs, validate: vb, critique: cb } as Fixture['briefs'] });
@@ -259,6 +267,18 @@ check('a revise that did not come from a T2 (history: implement, plan) does not 
 const review2 = 'verdict: changes-requested\n\n## 2026-10-08\nverdict: changes-requested\n';
 check('a second T2 changes-requested after the revised one is still owed a fix(review)', say(t2Revised({ files: { validation: VALID(), review: review2 } })).startsWith('dispatch fix-review:'));
 check('…and its fix(review) commit satisfies it', !say(t2Revised({ files: { validation: VALID(), review: review2 }, subjects: [...done2.subjects, 'fix(review): y'] })).includes('fix-review'));
+// JX-1221 (2026-10-08): the same answer after `wf deliver`'s push was refused by the pre-push hook: REVIEW.md gets
+// a changes-requested section, and the revise comes from step pr (review, pr, plan), or after deliver's own
+// `wf step implement` (review, pr, implement, plan). Both answer the review.
+const reviewRefused = 'verdict: changes-requested\n\n## 2026-10-08 — the push was refused by the project\'s pre-push hook\n\nverdict: changes-requested\n';
+const afterRefusal = (...steps: [string, number][]) => reviseState({ step: 'implement', history: t2History(['plan', 1], ['implement', 2], ['review', 3], ['implement', 4], ['plan', 5], ['implement', 6], ['review', 7], ...steps) }, 'T2 answer + the hook\'s failures', T(20));
+const t2Refused = (via: ReturnType<typeof afterRefusal>, patch: Fixture = {}) => impl({ ...done2, files: { validation: VALID(), review: reviewRefused }, revisions: [...afterDone.revisions!, ...via.revisions!.slice(-1)], history: via.history, ...patch });
+const viaPr = afterRefusal(['pr', 8]);
+const viaPrImplement = afterRefusal(['pr', 8], ['implement', 9]);
+check('a refused push answered by decide --revise from step pr (review, pr, plan) → no fix-review', !say(t2Refused(viaPr)).includes('fix-review') && say(t2Refused(viaPr)).startsWith('review: T2'), say(t2Refused(viaPr)));
+check('…and from the step deliver wrote (review, pr, implement, plan)', !say(t2Refused(viaPrImplement)).includes('fix-review') && say(t2Refused(viaPrImplement)).startsWith('review: T2'), say(t2Refused(viaPrImplement)));
+check('…the refused push, no revise → fix-review owed', say(t2Refused(viaPr, { revisions: afterDone.revisions, history: t2History(['review', 7], ['pr', 8], ['implement', 9]) })).startsWith('dispatch fix-review:'));
+check('a second revise before the next review answers nothing: three changes-requested, two answered, one owed', say(t2Refused(afterRefusal(['pr', 8], ['implement', 9], ['plan', 10], ['implement', 11]), { revisions: [...afterDone.revisions!, { text: 'again', at: T(10) }, { text: 'and again', at: T(20) }], files: { validation: VALID(), review: `${reviewRefused}\nverdict: changes-requested\n` } })).startsWith('dispatch fix-review:'));
 check('T2 dismissed: nothing merges, wait on the user', say(base({ step: 'review', files: { review: 'verdict: dismissed\n' } })).startsWith('wait user: T2 was closed'));
 check('T2 approved → deliver (push, PR, merge, the note), then wf next', say(base({ step: 'pr' })) === 'deliver: T2 approved — `node C:/wf/wf.mjs deliver` (push, PR, merge, the tracker note), then `node C:/wf/wf.mjs next`', say(base({ step: 'pr' })));
 // The tracker note: a section per item, each marked once posted, so a resumed round never posts one twice.
@@ -290,6 +310,20 @@ try {
 	const ruled = (answered: string) => nextAction(jx({ subjects: [...jx().subjects, snap.subjects[1]], commits: [...jx().commits!, snap.commits![1]], answered: [jxAnswer(9, answered)], revisions: [] }));
 	check('a fix ruling answered before the fix(review) commit in a real repo is met → validate, not fix-review', ruled('2026-10-08T05:40:28.619Z').say.startsWith('dispatch validate:'), ruled('2026-10-08T05:40:28.619Z').say);
 	check('…and one answered after it is still owed', ruled('2026-10-08T06:00:00.000Z').say.startsWith('dispatch fix-review --from VALIDATION.md:'), ruled('2026-10-08T06:00:00.000Z').say);
+	// JX-1221 as state.json holds it: history, revisions and briefs come through snapshotOf from a real repo; the commit
+	// is q9's (05:49Z), row 7 that names it was briefed 06:14Z, the revise came after a refused push (review, pr, plan).
+	git('2026-10-08T09:00:00+03:00', 'commit', '-q', '--allow-empty', '-m', 'fix(review): the meta');
+	writeState(repo, {
+		base: 'main', folder: '', step: 'implement',
+		history: [{ step: 'review', at: '2026-10-08T06:03:17.973Z' }, { step: 'pr', at: '2026-10-08T06:05:28.735Z' }, { step: 'plan', at: '2026-10-08T06:10:13.026Z' }, { step: 'implement', at: '2026-10-08T06:14:13.905Z' }],
+		revisions: [{ text: 'T2 #4 + hook', at: '2026-10-08T06:10:13.026Z' }],
+		briefs: { 'implement 7': { token: 'x', count: 1, at: '2026-10-08T06:14:42.834Z' } },
+	});
+	const real = snapshotOf(repo);
+	const fromRepo = (patch: Fixture = {}) => nextAction({ ...jxSeven, commits: [...jxSeven.commits!.slice(0, -1), real.commits!.at(-1)!], history: real.history, revisions: [...jxSeven.revisions!.slice(0, 2), ...real.revisions!], briefs: { ...jxSeven.briefs, ...real.briefs }, answered: [jxAnswer(9, '2026-10-08T05:40:28.619Z')], ...patch } as Snapshot).say;
+	const refusedReview = 'verdict: changes-requested\n';
+	check('state.json from a real repo: review, pr, plan answers the refused push and q9 stays met by its commit → no fix-review', !fromRepo({ files: { ...jxSeven.files, review: refusedReview } }).includes('fix-review'), fromRepo({ files: { ...jxSeven.files, review: refusedReview } }));
+	check('…the same repo with a second changes-requested is owed one fix-review', fromRepo({ files: { ...jxSeven.files, review: refusedReview + refusedReview } }).startsWith('dispatch fix-review:'), fromRepo({ files: { ...jxSeven.files, review: refusedReview + refusedReview } }));
 } finally {
 	rmSync(repo, { recursive: true, force: true });
 }
