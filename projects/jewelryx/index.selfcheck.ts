@@ -87,7 +87,7 @@ rmSync(tree, { recursive: true, force: true });
 // ── wf check's env for a verification/ spec: the stack's URLs and the round seed's actors
 const stackTree = mkdtempSync(join(tmpdir(), 'wf-checks-'));
 writeFileSync(join(stackTree, '.verify-stack.env'), verifyStackEnv(direct, 'dev.log'));
-const [spec] = checks({ toplevel: stackTree, changed: [], test: 'verification/specs/login-relogin.spec.ts' }).filter((t) => t.stack);
+const [spec] = checks({ toplevel: stackTree, changed: [], target: { refactor: false, file: 'verification/specs/login-relogin.spec.ts', id: null, line: null } }).filter((t) => t.stack);
 check('a verification spec runs as the seeded owner and supplier, who are in the round database (not verification-owner@)', spec?.env?.B2B_OWNER_EMAIL === 'buyer@seed.jewelryx' && spec.env.B2B_OWNER_PASSWORD === 'seed1234' && spec.env.B2B_SUPPLIER_EMAIL === 'seller@seed.jewelryx' && spec.env.B2B_SUPPLIER_PASSWORD === 'seed1234', JSON.stringify(spec?.env));
 check('and still against the round stack', spec?.env?.B2B_URL === direct.b2b && spec.env.API_URL === direct.api, JSON.stringify(spec?.env));
 rmSync(stackTree, { recursive: true, force: true });
@@ -102,7 +102,7 @@ check('planGap is what handoff asks', planGap({ branch: 'feat/x', rows: [{ n: 1,
 {
   const repo = mkdtempSync(join(tmpdir(), 'wf-oracle-'));
   const git = (...args: string[]) => execFileSync('git', ['-C', repo, '-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
-  const guard = () => checks({ toplevel: repo, changed: [], test: null }).find((t) => t.label === 'oracle-guard')?.missing;
+  const guard = () => checks({ toplevel: repo, changed: [], target: null }).find((t) => t.label === 'oracle-guard')?.missing;
   git('init', '-q', '-b', 'dev');
   mkdirSync(join(repo, 'verification'));
   writeFileSync(join(repo, 'verification', 'a.spec.ts'), 'a\n');

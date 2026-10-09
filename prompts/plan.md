@@ -83,7 +83,21 @@ setup: <only when that screen needs data the seed lacks: one call that makes it,
   it red, whatever its check cell says.
 - `wf check` reads a check cell as exactly `repro`, one repo-rooted test path, or `manual: <what to
   look at>` (never `--dir` + a package path): `repro --grep …` runs nothing, and a check expected red
-  fails the commit.
+  fails the commit. A test-path cell must name the test **and** the assertion the fix turns green:
+  `` `path::test id@<line>` `` (`<line>` is the assertion's line in the test file). `wf check` runs
+  that one test with the row's change taken back to HEAD and greens only when the runner reports it
+  FAILED on a framework assertion at that exact origin. A red at another line, a NameError /
+  AttributeError / TypeError raised while evaluating the assertion, a helper whose own failure is the
+  origin, an import / collection / setup error, and a cell that names no id or no line are all **not**
+  proof — that is a plan change (add the id/line, or move the cell to `—`/`manual:`, and write
+  BLOCKED.md). A behavior-preserving row prefixes its cell `refactor:` (`` refactor: `path::test id` ``
+  — the id, no line): its named test must run and pass with the change **and** without it (the
+  runner's own report must name that case: a skip, a total, or a report that names another case is
+  not a pass), and the id is the runner's canonical full test name exactly as the runner reports it --
+  its own join of the describe path and the test name (run the one test and copy what it prints;
+  a partial name proves nothing), which wf escapes before `-t`/`-g` and matches exactly, and no red is
+  manufactured for it. A cell this project cannot run, or a runner whose report wf cannot read, fails
+  closed: never a fake green.
 - A measuring commit's check is `—` (fence only). A row whose only proof is a person looking gets
   `manual: <what they look at>` — the instruction you would give them, and no `|`. It is fence only
   too (`wf check` still gates the commit: the fence and the project's checks), and the step reaches
