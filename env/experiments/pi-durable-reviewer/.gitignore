@@ -1,0 +1,8 @@
+# Dependencies are installed here only, never committed.
+node_modules/
+# Durable storage, owner locks and control sockets never enter the repository.
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.lock
+*.sock
