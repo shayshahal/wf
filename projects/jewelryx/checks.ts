@@ -9,7 +9,7 @@
 //              the stricter svelte-check, so the --tsgo one above is dropped then)
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
-import type { CheckTask } from '../../src/gates/check.ts';
+import type { CheckTarget, CheckTask } from '../../src/gates/check.ts';
 
 // ── the oracle guard ─────────────────────────────────────────────────────────
 
@@ -49,15 +49,31 @@ export type PkgFor = (file: string) => Pkg | null;
 const isPyTest = (f: string) => /(^|\/)tests?\//.test(f) || /(^|\/)test_[^/]+\.py$/.test(f);
 const isJsTest = (f: string) => /\.(test|spec)\.[cm]?[jt]s$/.test(f);
 
+// A test id is a name, but vitest's `-t` and playwright's `-g` read it as a regular expression. The
+// #109 review hit `-g "amount (EUR)"`, which also selects `amount EUR` (the group matches nothing),
+// so the test the row names was never selected and an unrelated case reported `1 passed`. Every
+// RegExp metacharacter is escaped, so the selector only matches the literal characters the row named;
+// duplicates the row's own punctuation creates (`` . `` for any one character) are gone. vitest
+// matches the test's own name, so its selector is anchored (measured on vitest 5.0.1: `-t
+// "^amount \\(EUR\\)$"` runs that one case, `-t "amount (EUR)"` runs `amount EUR`). playwright's `-g`
+// matches the project, file and title together, so anchoring would invent a prefix the framework does
+// not have (measured on playwright 1.61.1: `-g account` selects by file, `-g "^amount \\(EUR\\)$"`
+// finds nothing).
+export function selectorLiteral(id: string, anchored = false): string {
+	const escaped = id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+	return anchored ? `^${escaped}$` : escaped;
+}
+
 // Pure: the commands to run, in order. `pkgFor(file)` returns { name, dir, svelte } for a frontend
-// file or null; `test` is the plan row's test path or null; `pushHook`: the repo has a lefthook.yml;
-// `onDisk(file)`: the file is still there (not deleted by the diff).
+// file or null; `target` is the plan row's check cell (its repo-relative test path, the intended test
+// id and assertion line, and whether the row is a `refactor:`) or null; `pushHook`: the repo has a
+// lefthook.yml; `onDisk(file)`: the file is still there (not deleted by the diff).
 // `oracleTouched`: the oracle files the working tree differs from the base in, on a fix/ or feat/
 // branch (index.ts), else empty.
-export function checkTasks({ changed, test, pkgFor, pushHook = false, onDisk = () => true, stackEnv = {}, oracleTouched = [] }: { changed: string[]; test: string | null; pkgFor: PkgFor; pushHook?: boolean; onDisk?: (file: string) => boolean; stackEnv?: Record<string, string>; oracleTouched?: string[] }): CheckTask[] {
+export function checkTasks({ changed, target, pkgFor, pushHook = false, onDisk = () => true, stackEnv = {}, oracleTouched = [] }: { changed: string[]; target: CheckTarget | null; pkgFor: PkgFor; pushHook?: boolean; onDisk?: (file: string) => boolean; stackEnv?: Record<string, string>; oracleTouched?: string[] }): CheckTask[] {
 	const oracle = oracleGuardTask(oracleTouched);
 	if (oracle) return [oracle];
-	const tasks = rowTasks({ changed, test, pkgFor, pushHook, stackEnv, onDisk });
+	const tasks = rowTasks({ changed, target, pkgFor, pushHook, stackEnv, onDisk });
 	if (!pushHook || !changed.length || tasks.some((t) => t.missing)) return tasks;
 	// What the commit will run, run first: ESLint (lint-kit's Svelte rules, @shadcn/lint) runs only in
 	// pre-commit, so an implementer met it at `git commit`, after wf check had said green (2026-10-04).
@@ -83,10 +99,12 @@ export function checkTasks({ changed, test, pkgFor, pushHook = false, onDisk = (
 // A deleted file is a change (the fence counts it) but no argument: ruff exits with E902 and vitest with
 // "No test files found" on a path that is gone (JX-1221 row 15, 2026-10-08, a row that `git rm`s a test).
 // A deleted frontend file still puts its package through svelte-check, whose imports it may have broken.
-function rowTasks({ changed, test, pkgFor, pushHook, stackEnv, onDisk }: { changed: string[]; test: string | null; pkgFor: PkgFor; pushHook: boolean; stackEnv: Record<string, string>; onDisk: (file: string) => boolean }): CheckTask[] {
+// The row's own test gets its own task that selects the named test id, so its result is about that one
+// case, not a suite total (#109: `1 passed, 1 skipped` cannot say whether the selected case ran).
+function rowTasks({ changed, target, pkgFor, pushHook, stackEnv, onDisk }: { changed: string[]; target: CheckTarget | null; pkgFor: PkgFor; pushHook: boolean; stackEnv: Record<string, string>; onDisk: (file: string) => boolean }): CheckTask[] {
 	const tasks: CheckTask[] = [];
-	// A task the row's own test ends up in — the changed tests' run and the row's single test can be
-	// the same command — is upgraded to the red-base one, not added twice.
+	const test = target?.file ?? null;
+	const id = target?.id ?? null;
 	const add = (t: CheckTask) => {
 		const i = tasks.findIndex((x) => x.label === t.label);
 		if (i === -1) tasks.push(t);
@@ -100,7 +118,12 @@ function rowTasks({ changed, test, pkgFor, pushHook, stackEnv, onDisk }: { chang
 	}
 	const pytests = backend.filter(isPyTest);
 	if (test?.endsWith('.py') && !pytests.includes(test)) pytests.push(test);
-	if (pytests.length) add({ label: `pytest ${pytests.map(rel).join(' ')}`, cmd: 'uv', args: ['run', '--frozen', 'pytest', ...pytests.map(rel)], cwd: 'packages/backend', ...(test?.endsWith('.py') ? { redBase: true } : {}) });
+	if (pytests.length) add({ label: `pytest ${pytests.map(rel).join(' ')}`, cmd: 'uv', args: ['run', '--frozen', 'pytest', ...pytests.map(rel)], cwd: 'packages/backend' });
+	// The row's own test, selected by id: the run's report is about that one test. pytest selects
+	// `path::id` and prints a `PASSED <nodeid>` line with `-rA`; vitest and playwright select by an
+	// escaped name literal (`-t`/`-g`) with the path left as it is, and `--reporter=verbose`/`list` so
+	// the report names the one case that ran (#109 review).
+	if (test?.endsWith('.py')) add({ label: `pytest ${rel(test)}${id ? `::${id}` : ''}`, cmd: 'uv', args: ['run', '--frozen', 'pytest', `${rel(test)}${id ? `::${id}` : ''}`, ...(id ? ['-rA'] : [])], cwd: 'packages/backend', redBase: true });
 
 	const pkgs = new Map<string, Pkg & { tests: string[] }>();
 	for (const f of changed.filter((f) => f.startsWith('packages/frontend/'))) {
@@ -118,15 +141,31 @@ function rowTasks({ changed, test, pkgFor, pushHook, stackEnv, onDisk }: { chang
 	if (!test.endsWith('.ts')) return [...tasks, { label: 'check', missing: `PLAN.md row check "${test}" is not runnable — use \`repro\`, one repo-rooted test path, or — (fence only)` }];
 	// verification/ drives the running app: wf check starts the stack first (stack: true, check.ts).
 	// Playwright is installed only in verification/node_modules, so the root has no `playwright` (BJEW-617
-	// row 1, 2026-10-06: `Command "playwright" not found`): `pnpm --dir verification exec`, as the repro
-	// runs. That config's defaults are localhost:3000/:3001, not this round's stack (its pre-flight then
-	// refuses), so the stack's own URLs (.verify-stack.env, as the repro config reads them) go in the env.
-	if (test.startsWith('verification/')) add({ label: `playwright ${test}`, cmd: 'pnpm', args: ['--dir', 'verification', 'exec', 'playwright', 'test', test], cwd: '.', env: stackEnv, stack: true, redBase: true });
-	else {
+	// row 1, 2026-10-06: `Command "playwright" not found`). The task runs in verification and hands the
+	// runner the verification-relative path, so the declared cwd IS the runner's cwd: its report prints
+	// `tests/…` and evidence.ts's sameTestFile resolves that against the task's cwd to the row's repo
+	// path exactly. Running from the root with `pnpm --dir verification` left the declared cwd `.` while
+	// the runner's cwd was verification, so a passing report named `tests/account.spec.ts` and the row
+	// was refused as unavailable (issue #109, 2026-10-09). That config's defaults are localhost:3000/:3001,
+	// not this round's stack (its pre-flight then refuses), so the stack's own URLs (.verify-stack.env,
+	// as the repro config reads them) go in the env. `--reporter=json` is the framework's own machine
+	// report: the suite tree gives the real describe/title path (the row's id is its space-joined
+	// canonical form, what `-g` matches) and each failed result the absolute assertion location, so
+	// evidence.ts binds the origin to `toplevel + target.file` instead of parsing the list text
+	// (#109 review, 2026-10-09).
+	if (test.startsWith('verification/')) {
+		const local = relative('verification', test).replace(/\\/g, '/');
+		add({ label: `playwright ${test}${id ? ` ${id}` : ''}`, cmd: 'pnpm', args: ['exec', 'playwright', 'test', local, ...(id ? ['-g', selectorLiteral(id)] : []), '--reporter=json'], cwd: 'verification', env: stackEnv, stack: true, redBase: true });
+	} else {
 		// vitest lives in the package, not at the root (TJEW-700 row 3: `Command "vitest" not found`).
+		// The row's own test carries `--reporter=verbose` by id, so the report names the one case that
+		// ran rather than a suite total (#109 review): the pass verdict requires that positive identity.
+		// The task runs in the package and hands the runner the package-relative path, so the declared
+		// cwd is the cwd `pnpm --filter … exec` would have used, and evidence.ts resolves the printed
+		// path to the row's repo path through the task's cwd (issue #109, 2026-10-09).
 		const pkg = test.startsWith('packages/frontend/') ? pkgFor(test) : null;
-		if (pkg) { const t = relative(pkg.dir, test).replace(/\\/g, '/'); add({ label: `vitest ${pkg.name} ${t}`, cmd: 'pnpm', args: ['--filter', pkg.name, 'exec', 'vitest', 'run', t], cwd: '.', redBase: true }); }
-		else add({ label: `vitest ${test}`, cmd: 'pnpm', args: ['exec', 'vitest', 'run', test], cwd: '.', redBase: true });
+		if (pkg) { const t = relative(pkg.dir, test).replace(/\\/g, '/'); add({ label: `vitest ${pkg.name} ${t}${id ? ` ${id}` : ''}`, cmd: 'pnpm', args: ['exec', 'vitest', 'run', t, ...(id ? ['-t', selectorLiteral(id, true), '--reporter=verbose'] : [])], cwd: pkg.dir, redBase: true }); }
+		else add({ label: `vitest ${test}${id ? ` ${id}` : ''}`, cmd: 'pnpm', args: ['exec', 'vitest', 'run', test, ...(id ? ['-t', selectorLiteral(id, true), '--reporter=verbose'] : [])], cwd: '.', redBase: true });
 	}
 	return tasks;
 }
