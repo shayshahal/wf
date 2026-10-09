@@ -51,10 +51,13 @@ export function classFromFiles(files: string[], contractPaths: string): "A" | "B
   return files.some((f) => globs.some((g) => contractGlob(g, f))) ? "B" : "A";
 }
 
-if (process.argv[1]?.replace(/\\/g, "/").endsWith("/classify.ts")) classify();
+// The dispatcher (run.ts) calls runClassify with the command's own arguments; running this file
+// directly (what `wf step classify` and T2 spawn) still works through the guard. process.argv[1]
+// tells them apart: it ends in classify.ts only for a direct run (2026-10-09: the route only
+// imported this module, the guard never fired, and `wf classify` printed nothing and exited 0).
+if (process.argv[1]?.replace(/\\/g, "/").endsWith("/classify.ts")) runClassify(process.argv.slice(2));
 
-function classify() {
-const args = process.argv.slice(2);
+export function runClassify(args: string[]) {
 const bi = args.indexOf("--base");
 const top = execFileSync("git", ["rev-parse", "--show-toplevel"], { encoding: "utf8" }).trim();
 const persistedBase = () => {

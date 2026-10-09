@@ -2,11 +2,12 @@
 // The contract-path globs `wf next` measures a plan's own files with, against the gitattributes file
 // the same globs make: `git check-attr` is the truth, and the pure matcher has to agree with it path
 // by path. A temp repo stands in; nothing is committed.
-import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { classAttributes, classFromFiles, contractGlob } from './classify.ts';
+import { WF_ROOT } from '../paths.ts';
 
 let failures = 0;
 const check = (name: string, cond: unknown, detail = '') =>
@@ -81,6 +82,68 @@ check('a comment and a blank line match nothing', classFromFiles(['src/x.ts'], '
 check('one contract path among many files is B', classFromFiles(['a.ts', 'packages/backend/app/models/u.py'], contractPaths) === 'B');
 check('a plan that touches no contract path is A', classFromFiles(['src/x.ts', 'docs/y.md'], contractPaths) === 'A');
 check('no files is A', classFromFiles([], contractPaths) === 'A');
+
+// The real command route, not the pure matcher: run.ts dispatches `classify` to runClassify, and only
+// running wf.mjs the way a person does exercises the arguments it owns, its output and its failure
+// modes. 2026-10-09: the route only imported the module, so `wf classify` printed nothing and exited 0.
+const cliEnv = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('GIT_')));
+const cliWf = (repo: string, args: string[]) => spawnSync(process.execPath, [join(WF_ROOT, 'wf.mjs'), ...args], { cwd: repo, env: cliEnv, encoding: 'utf8', timeout: 15000 });
+const jsonClass = (out: string): string | undefined => { try { return JSON.parse(out).class; } catch { return undefined; } };
+// A repo on `main` and a round branch one commit ahead, with the project's contract-paths file
+// (project.ts) unless the test is about it missing.
+const cliRepo = (paths: string | null) => {
+  const repo = mkdtempSync(join(tmpdir(), 'wf-classify-cli-'));
+  const git = (args: string[]) => {
+    const r = spawnSync('git', args, { cwd: repo, env: cliEnv, encoding: 'utf8' });
+    if (r.status !== 0) throw new Error(`fixture git ${args.join(' ')}: ${r.stderr}`);
+    return r.stdout.trim();
+  };
+  git(['init', '-q', '-b', 'main']);
+  git(['config', 'user.name', 'wf classify selfcheck']);
+  git(['config', 'user.email', 'wf-classify@example.invalid']);
+  if (paths !== null) {
+    mkdirSync(join(repo, 'docs', 'agents'), { recursive: true });
+    writeFileSync(join(repo, 'docs', 'agents', 'contract-paths.txt'), paths);
+  }
+  writeFileSync(join(repo, 'product.ts'), 'export const value = 0;\n');
+  git(['add', '.']);
+  git(['commit', '-qm', 'base']);
+  git(['switch', '-qc', 'round/classify-cli']);
+  writeFileSync(join(repo, 'product.ts'), 'export const value = 1;\n');
+  git(['add', 'product.ts']);
+  git(['commit', '-qm', 'change product']);
+  return repo;
+};
+
+const bRepo = cliRepo('**/*.ts\n');
+try {
+  const json = cliWf(bRepo, ['classify', '--base', 'main', '--json']);
+  check('wf classify --base main --json exits 0 with output', json.status === 0 && json.stdout.trim() !== '', `exit ${json.status}, out ${JSON.stringify(json.stdout)}`);
+  let parsed: { class?: string; files?: unknown } = {};
+  try { parsed = JSON.parse(json.stdout); } catch { /* the next check reports the raw output */ }
+  check('wf classify --base main --json returns class B and product.ts', parsed.class === 'B' && JSON.stringify(parsed.files) === JSON.stringify([{ path: 'product.ts', class: 'B' }]), json.stdout.trim());
+  const text = cliWf(bRepo, ['classify', '--base', 'main']);
+  check('wf classify (text) lists the file then the class', text.status === 0 && text.stdout === 'B\tproduct.ts\nclass: B\n', JSON.stringify(text.stdout));
+  const badBase = cliWf(bRepo, ['classify', '--base', 'no-such-ref']);
+  check('--base reaches the diff: a missing ref fails the command', badBase.status !== 0, `exit ${badBase.status}, out ${JSON.stringify(badBase.stdout)}`);
+  // No --base: the persisted .wf/state.json base (set by `wf new`) is the one the diff uses.
+  mkdirSync(join(bRepo, '.wf'), { recursive: true });
+  writeFileSync(join(bRepo, '.wf', 'state.json'), `${JSON.stringify({ base: 'main' })}\n`);
+  const persisted = cliWf(bRepo, ['classify', '--json']);
+  check('without --base the state.json base is used', persisted.status === 0 && jsonClass(persisted.stdout) === 'B', `exit ${persisted.status}, out ${JSON.stringify(persisted.stdout)}`);
+} finally { rmSync(bRepo, { recursive: true, force: true }); }
+
+const aRepo = cliRepo('packages/backend/app/models/**\n');
+try {
+  const run = cliWf(aRepo, ['classify', '--base', 'main', '--json']);
+  check('a change off every contract path is class A', run.status === 0 && jsonClass(run.stdout) === 'A', `exit ${run.status}, out ${JSON.stringify(run.stdout)}`);
+} finally { rmSync(aRepo, { recursive: true, force: true }); }
+
+const noDocs = cliRepo(null);
+try {
+  const run = cliWf(noDocs, ['classify', '--base', 'main', '--json']);
+  check('a missing contract-paths file fails, not reads as A', run.status !== 0 && /contract-paths\.txt is missing/.test(run.stderr), `exit ${run.status}, err ${JSON.stringify(run.stderr)}`);
+} finally { rmSync(noDocs, { recursive: true, force: true }); }
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');
 process.exit(failures ? 1 : 0);
