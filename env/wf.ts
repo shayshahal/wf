@@ -4,6 +4,7 @@
 // through env/wf.mjs; the team's plugin runs the kit's own ../wf.mjs (kit and env plan, 2026-09-27).
 import { run } from '../src/run.ts';
 import { herdrOpener } from './adapters/herdr.ts';
+import { notifyRound } from './adapters/osc7501.ts';
 import { processCwds } from './adapters/processes.ts';
 import { annotateFile, isPlannotatorPresent, reviewDiff } from './adapters/plannotator.ts';
 import { PI_MODELS, resolvePi } from './models.ts';
@@ -27,6 +28,9 @@ export async function runEnvWf(entry: string, argv: string[]) {
 		removalPlan,
 		reviewUI: { available: isPlannotatorPresent, annotate: annotateFile, reviewDiff },
 		opener: herdrOpener,
+		// Every step writes the round's records to the pty the command already has, for a terminal that
+		// implements OSC 7501 (src/notify/osc7501.ts); a terminal without it discards the line.
+		notify: [notifyRound],
 		processCwds,
 		commands: {
 			hook: async (a) => (await import('./hook.ts')).runHook(a),

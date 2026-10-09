@@ -16,6 +16,7 @@ import { refuseCaller } from '../refusal.ts';
 import { roundsDir } from '../project.ts';
 import { writeCloneLaunch } from './new.ts';
 import { frictionLine } from '../round/friction.ts';
+import { notifyAdapters } from '../round/step.ts';
 import { readState } from '../round/state.ts';
 import type { State } from '../round/state.ts';
 import type { RemovalStep } from '../seams.ts';
@@ -83,6 +84,15 @@ function recordFriction(path: string, state: State) {
 // Pure: whether reap runs its steps, or only prints them.
 export function reapRuns(env: NodeJS.ProcessEnv, state: State | null) {
 	return env.WF_FORCE_REAP === '1' || state?.step === 'merged';
+}
+
+// Pure: what a finished reap tells the notify seam so the round's records come off the terminal — the
+// state it read with step 'reaped' (notify/osc7501.ts turns that into one clear), or null. Null when
+// there is no state to name the records, and when the worktree is still there: a step that failed left
+// the round where it was, and clearing it would hide a round that is still there.
+// Nothing is written to state.json: the step lives in this call only.
+export function reapedState(state: State | null, worktreeGone: boolean) {
+	return state && worktreeGone ? { ...state, step: 'reaped' } : null;
 }
 
 // Pure: the step that deletes the round's local branch, or null. Only a merged round's (wf deliver
@@ -158,6 +168,10 @@ export async function runReap(argv: string[]) {
 	}
 	writeCloneLaunch(slug, null);
 	console.log('launch.json entries: ok');
+	// The round's records come off the terminal (reapedState); otherwise its last report stands as
+	// `blocked` until the shell that wrote it goes.
+	const reaped = reapedState(state, !existsSync(path));
+	if (reaped) await notifyAdapters(reaped);
 }
 
 if (process.argv[1]?.endsWith('reap.ts')) runReap(process.argv.slice(2));

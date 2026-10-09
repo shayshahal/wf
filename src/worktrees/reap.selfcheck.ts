@@ -1,6 +1,6 @@
 // reap.selfcheck.ts — node reap.selfcheck.ts → exit 0 when green.
 // Pure arm: which uncommitted paperwork reap keeps. The teardown plan is worktree.selfcheck.ts.
-import { branchStep, paperworkToKeep, proofToKeep, reapRuns } from './reap.ts';
+import { branchStep, paperworkToKeep, proofToKeep, reapRuns, reapedState } from './reap.ts';
 
 let failures = 0;
 const check = (name: string, cond: boolean, detail = '') =>
@@ -16,6 +16,15 @@ check('reap keeps the before/after pictures by name, gitignored or not, and noth
 // A merged round is reaped for real; anything else only with the flag (BJEW-562, 2026-09-27).
 check('merged: reap runs without the flag', reapRuns({}, { step: 'merged' }));
 check('not merged: dry unless WF_FORCE_REAP=1', !reapRuns({}, { step: 'review' }) && !reapRuns({}, null) && reapRuns({ WF_FORCE_REAP: '1' }, { step: 'review' }));
+
+// The records come off the terminal only when the round really went, and only ever under its own id
+// (notify/osc7501.ts: an id-less clear would take every record on the terminal, pi's included).
+const read = { id: '662', step: 'merged', questions: [{ n: 3, to: 'einat', text: 'ship it?', asked: '2026-10-08T00:00:00Z' }] };
+const gone = reapedState(read, true);
+check('a reaped round reports step reaped, under the id its records carry', gone?.step === 'reaped' && gone.id === '662', JSON.stringify(gone));
+check('the state it read is left alone: the step is on a copy', read.step === 'merged' && gone?.step === 'reaped', read.step);
+check('a worktree that is still there is not cleared', reapedState({ id: '662', step: 'merged' }, false) === null);
+check('no state, nothing to name the records by', reapedState(null, true) === null && reapedState(null, false) === null);
 
 const del = branchStep({ step: 'merged' }, 'cr/x', 'C:/repo/.git');
 check('merged: the local branch goes too, in its own repository', del?.args.join(' ') === '--git-dir=C:/repo/.git branch -D cr/x');
