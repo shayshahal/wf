@@ -104,8 +104,24 @@ export function planAsks(text: string | null | undefined): { text: string; dflt:
 // Pure: the row's message as a commit subject: backticks and surrounding space dropped.
 export const rowSubject = (row: { message: string }) => row.message.replace(/^`|`$/g, '').trim();
 
-// Pure: row n is done when a commit since the base has its message and `wf check` was green on it
-// (.wf/checks.log lines, parsed). The check is the record the validate agent reads too.
-export function rowDone(row: { n: number; message: string }, { subjects, checks }: { subjects: string[]; checks: { row: number | null; result: string }[] }): boolean {
-	return subjects.includes(rowSubject(row)) && checks.some((c) => c.row === row.n && c.result === 'green');
+// Pure: row n is done when a commit since the base has its message and the row's LAST `wf check`
+// (.wf/checks.log lines, parsed) is green on the row's own check cell AND on the content that commit
+// carries. Last, not any: a green followed by a later red is stale. The cell, not the number: a
+// revised plan reuses row numbers. The content, not the subject alone: a green on an earlier tree
+// cannot authorize a later commit under the same row (2026-10-09, #106 and its strictness review).
+// The content is the row scope (product/tests OUTSIDE the round folder): a round repro change is not
+// bound here, but the approval scope binds it and blocks the merge. `commitContent` maps a commit
+// subject to its row-scope identity; absent (pure fixtures) keeps the subject/cell/last-green rules,
+// present-but-missing refuses (a git lookup that failed must not read as green).
+export function rowDone(row: { n: number; message: string; check?: string }, { subjects, checks, commitContent }: { subjects: string[]; checks: { row: number | null; result: string; rowCheck?: string | null; content?: string }[]; commitContent?: Record<string, string> }): boolean {
+	if (!subjects.includes(rowSubject(row))) return false;
+	const last = checks.filter((c) => c.row === row.n).at(-1);
+	if (!last || last.result !== 'green') return false;
+	// A legacy line with no rowCheck cannot be bound to the row's cell and is refused when the row names one.
+	if (row.check !== undefined && last.rowCheck !== row.check) return false;
+	// An absent map is a pure fixture (no commit evidence to check). A present map that lacks the row's
+	// commit is a real failure (git could not read it, or the commit is gone): fail closed, never green.
+	if (commitContent === undefined) return true;
+	const expected = commitContent[rowSubject(row)];
+	return expected !== undefined && last.content === expected;
 }

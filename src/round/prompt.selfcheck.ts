@@ -37,8 +37,8 @@ check('every known placeholder substituted', out.includes('round BJEW-1 folder b
 check('unknown placeholder left alone', out.includes('{{unknown}}'));
 
 const dir = mkdtempSync(join(tmpdir(), 'wf-prompt-'));
-writeState(dir, { round: 'r', id: 'BJEW-1', folder: 'bug-reports/x' });
-writeState(dir, { commit: 2 });
+writeState(dir, () => ({ round: 'r', id: 'BJEW-1', folder: 'bug-reports/x' }));
+writeState(dir, () => ({ commit: 2 }));
 const state = readState(dir);
 check('writeState merges instead of replacing', state!.id === 'BJEW-1' && state!.commit === 2, JSON.stringify(state));
 writeFileSync(join(dir, 'broken.json'), 'x');

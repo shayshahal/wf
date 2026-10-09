@@ -55,9 +55,14 @@ export async function run(argv: string[], pieces: Partial<Seams> = {}) {
 	await logRefusals(argv);
 	// The hooks run whichever wf the plugin carries; the env's own commands are not a round's.
 	if (!['handoff', 'hook', 'update'].includes(cmd)) {
-		const { entryGap, readState, toplevelOf } = await import('./round/state.ts');
+		const { CorruptStateError, entryGap, readState, toplevelOf } = await import('./round/state.ts');
 		let gap = null;
-		try { gap = entryGap(readState(toplevelOf()), seams.madeBy); } catch { /* not in a git tree: no round to check the entry of */ }
+		try { gap = entryGap(readState(toplevelOf()), seams.madeBy); } catch (e) {
+			// A state file that is not the round's is the round's: report it and stop, instead of running
+			// the command as if there were no round here (issue #107).
+			if (e instanceof CorruptStateError) { console.error(`wf: ${e.message}`); process.exit(1); }
+			/* not in a git tree: no round to check the entry of */
+		}
 		if (gap) {
 			console.error(`wf: ${gap}`);
 			process.exit(1);
