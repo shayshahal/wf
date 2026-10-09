@@ -3,6 +3,7 @@
 // pieces plugged in. Which entry runs decides, not a variable: every process wf starts, or names in
 // a prompt, runs `seams.entry`, so a round started from one entry stays in it (kit and env plan,
 // 2026-09-27). The kit never imports an env; it only reads what was plugged in here.
+import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import { WF_ROOT } from './paths.ts';
 import { CLAUDE_CODE_MODELS } from './models.ts';
@@ -24,6 +25,11 @@ export type ReviewUI = {
 	reviewDiff: (o: { worktree: string; base: string; diffType?: string; since: string }) => ReviewFeedback | null;
 };
 export type Command = (argv: string[]) => unknown;
+// One `gh` call for the remote wf delivers to: argv, the folder to run it in, and what it printed.
+// The kit's default shells out to gh; a delivery test plugs a faithful fake so a retry can be proven
+// without a production remote (deliver.ts, deliver-recovery.selfcheck.ts).
+export type GhResult = { status: number | null; stdout: string; stderr: string };
+export type Gh = (args: string[], cwd: string) => GhResult;
 export type Seams = {
 	entry: string;
 	madeBy: string;
@@ -34,6 +40,8 @@ export type Seams = {
 	commands: Record<string, Command>;
 	models: Models;
 	resolveModel: ((model: string) => string | null) | null;
+	// The remote CLI deliver inspects, creates, edits and merges PRs through: the kit's is `gh`.
+	gh: Gh;
 	opener: (() => Record<string, string> | null) | null;
 	processCwds: (() => string[]) | null;
 	// Typed by the project that reads it (projects/<name>/index.ts).
@@ -64,6 +72,12 @@ export const seams: Seams = {
 	// (model) → the model the harness resolves it to, or null when it has none; `wf models` prints it.
 	// null: the harness cannot be asked (Claude Code resolves its aliases inside the session).
 	resolveModel: null,
+	// The kit's own remote CLI. A gh that fails is not an answer: deliver refuses rather than reading
+	// it as "no PR" and creating a second one for the same branch.
+	gh: (args, cwd) => {
+		const r = spawnSync('gh', args, { cwd, encoding: 'utf8' });
+		return { status: r.status, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
+	},
 	// () → who is opening a worktree, recorded in its state as `opened_by` by `wf new`: the env's own
 	// keys (Shay's: the pane and the agent session). null: nobody is recorded.
 	opener: null,

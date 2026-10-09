@@ -10,7 +10,9 @@ import { openFile, openInEditor, opensWindows } from '../worktrees/editor.ts';
 import { baseBranch } from '../project.ts';
 import { ensureServers } from '../worktrees/serve.ts';
 import { resolveWorktree } from '../worktrees/worktree.ts';
-import { appendDatedSection, asBuiltFile, beforeAfterPage, captionFor, devUrlsFor, foldFeedbackLine, lastField, planPage, proofPairs, readVerdict, renderHeader, renderSkeleton, roundArtifacts, specShaFor } from './review-format.ts';
+import { appendDatedSection, approvalContentGap, asBuiltFile, beforeAfterPage, captionFor, devUrlsFor, foldFeedbackLine, lastField, needsFreshReviewHeader, planPage, proofPairs, readVerdict, renderHeader, renderSkeleton, roundArtifacts, specShaFor } from './review-format.ts';
+import { approvalIdentity, approvalPaperworkExcluded, trackerNotePath } from './content-identity.ts';
+import type { ContentIdentity } from './content-identity.ts';
 import { seams } from '../seams.ts';
 import { manualCheck } from './check.ts';
 import { planCommitRows } from '../round/prompt.ts';
@@ -56,6 +58,28 @@ const classify = (worktree: string, base: string): string => {
     return '—'; // classify.ts not installed yet (Task 1 worktree) — header says so
   }
 };
+
+// The worktree and HEAD identities of the implementation, read through the round's folder; a git that
+// cannot read the tree is refused, not approved blind (#106).
+const currentIdentity = (worktree: string): ContentIdentity => {
+  const folder = readState(worktree).folder ?? null;
+  try {
+    return approvalIdentity(worktree, folder, trackerNotePath(folder));
+  } catch (e) {
+    console.error(`wf review: could not read the implementation: ${(e as Error).message}`);
+    process.exit(2);
+  }
+};
+
+// Pure: the product/test files changed but not committed. The review screen diffs the committed
+// branch, so uncommitted product was never shown to T2; approving it would bind a verdict to bytes
+// nobody saw (#106 review, 2026-10-09). The round folder's own evidence is allowed: it is read as
+// files, not through the diff.
+function dirtyProduct(worktree: string, folder: string | null, notePath: string | null): string[] {
+  const git = (args: string[]) => execFileSync('git', ['-C', worktree, ...args], { encoding: 'utf8' }).split('\n').map((s) => s.trim()).filter(Boolean);
+  const dirty = [...new Set([...git(['diff', '--name-only', 'HEAD']), ...git(['diff', '--name-only', '--cached']), ...git(['ls-files', '--others', '--exclude-standard'])])];
+  return dirty.filter((p) => !approvalPaperworkExcluded(p, folder, notePath) && !(folder && (p === folder || p.startsWith(`${folder}/`))));
+}
 
 // Pure: the files T2 is shown, with the as-built call stack when it is in the worktree. The as-built
 // phase does not commit it (only wf deliver commits the round folder), so the diff alone never had
@@ -151,6 +175,15 @@ export async function runReview(argv: string[]) {
     process.exit(2);
   }
   await inWorktree(worktree, round, 'review');
+  // T2 sees the committed diff, so uncommitted product cannot be approved: it was never shown. Refuse
+  // before the stack is started, so a dirty tree does not wait on servers it will not use (#106 review).
+  const folder = readState(worktree).folder ?? null;
+  const notePath = trackerNotePath(folder);
+  const uncommitted = dirtyProduct(worktree, folder, notePath);
+  if (uncommitted.length) {
+    console.error(`wf review: ${uncommitted.join(', ')} changed but not committed — the review screen shows the committed branch, so T2 cannot approve it; commit it, then run wf review ${round} again`);
+    process.exit(2);
+  }
   // T2 opens the round's pages: the stack is started for it, since nothing serves a worktree from its
   // creation (2026-10-04, serve.ts). A stack that will not start leaves the diff to review, and says so.
   try { console.log(await ensureServers(worktree, { wait: true })); } catch (e) { /* the diff is still reviewable: the line says why there are no pages */ console.error((e as Error).message); }
@@ -166,9 +199,23 @@ export async function runReview(argv: string[]) {
   }
   const standards = [...critiqueFor(worktree), ...standardsFor(worktree)];
   const manual = manualFor(worktree);
-  const header = () => renderHeader({ round, klass, base, specSha: specShaFor(worktree), urls: devUrlsFor(worktree), files, beforeAfter, standards, manual });
+  // The identities the verdict is bound to, computed once at open and printed in every header this run
+  // writes. T2 computes them again at --done; a change since makes the approval stale (content-identity.ts).
+  const identity = currentIdentity(worktree);
+  const contentSha = identity.worktree;
+  const headSha = identity.head;
+  const header = () => renderHeader({ round, klass, base, specSha: specShaFor(worktree), contentSha, headSha, urls: devUrlsFor(worktree), files, beforeAfter, standards, manual });
   const file = roundFile(worktree, 'REVIEW.md');
-  if (!existsSync(file)) appendDatedSection(file, renderSkeleton({ round, klass, base, specSha: specShaFor(worktree), urls: devUrlsFor(worktree), files, beforeAfter, standards, manual }));
+  const previous = existsSync(file) ? readFileSync(file, 'utf8') : null;
+  // First review: the skeleton. Re-opened after the implementation moved (no review screen to append
+  // its own header): a fresh dated header with the new shas, so the person writes the verdict under
+  // it. Both shas are compared (needsFreshReviewHeader): a commit that changed only HEAD, with the
+  // worktree restored, must still force a fresh header, or a valid new review cannot recover a stale
+  // HEAD (#106 final review). Same worktree and HEAD: nothing, the verdict stands.
+  const previousBinding = previous === null ? null : { contentSha: lastField(previous, 'content-sha'), headSha: lastField(previous, 'head-sha') };
+  if (previous === null || (!seams.reviewUI?.available() && needsFreshReviewHeader(previousBinding, contentSha, headSha))) {
+    appendDatedSection(file, renderSkeleton({ round, klass, base, specSha: specShaFor(worktree), contentSha, headSha, urls: devUrlsFor(worktree), files, beforeAfter, standards, manual }));
+  }
   // The machine's review screen when it has one (seams.reviewUI: plannotator on Shay's), else an editor.
   if (!seams.reviewUI?.available()) {
     if (!opensWindows()) {
@@ -207,6 +254,15 @@ async function runReviewDone(worktree: string, round: string) {
   if (!verdict) {
     console.error(`no verdict yet — set the verdict: line in ${file} to one of: approved | changes-requested | dismissed`);
     process.exit(2);
+  }
+  // An approval is only for the implementation it judged: changes-requested and dismissed need no
+  // binding, but advancing to delivery on a stale approval is the #106 hole (2026-10-09).
+  if (verdict === 'approved') {
+    const gap = approvalContentGap(text, currentIdentity(worktree));
+    if (gap) {
+      console.error(`wf review --done: ${gap}`);
+      process.exit(2);
+    }
   }
   if (verdict === 'approved') await inWorktree(worktree, round, 'pr');
   else if (verdict === 'changes-requested') await inWorktree(worktree, round, 'implement');

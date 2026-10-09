@@ -19,7 +19,7 @@ import { handoffFile, handoffGap, rowDone } from './handoff.ts';
 import { snapshotOf } from './next.ts';
 import type { Snapshot } from './next.ts';
 import { planCommitRows } from './prompt.ts';
-import { readState, writeState } from './state.ts';
+import { CorruptStateError, readState, writeState } from './state.ts';
 import type { Brief } from './state.ts';
 
 type HookInput = { cwd?: string; stop_hook_active?: boolean; agent_type?: string; hook_event_name?: string; tool_input?: { subagent_type?: string } };
@@ -68,7 +68,10 @@ function roundAt(cwd: string): string | null {
 	try {
 		const toplevel = execFileSync('git', ['-C', cwd, 'rev-parse', '--show-toplevel'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
 		return existsSync(join(toplevel, '.wf', 'state.json')) && readState(toplevel)?.folder ? toplevel : null;
-	} catch {
+	} catch (e) {
+		// A state file that is not the round's is the round's, not "no round here": rethrow so the hook
+		// can block instead of letting a worker end or fork past its gate (issue #107).
+		if (e instanceof CorruptStateError) throw e;
 		// Not a git checkout: no round here, and the hook lets the agent be.
 		return null;
 	}
@@ -76,7 +79,19 @@ function roundAt(cwd: string): string | null {
 
 export async function runHandoff(argv: string[]): Promise<void> {
 	const input = await stdinJson();
-	const toplevel = roundAt(input.cwd ?? process.cwd());
+	let toplevel: string | null;
+	try {
+		toplevel = roundAt(input.cwd ?? process.cwd());
+	} catch (e) {
+		if (!(e instanceof CorruptStateError)) throw e;
+		// The round's state cannot be read: deny/block whichever event the harness is running, so a
+		// corrupt round never fails open (issue #107).
+		const reason = `wf handoff: ${e.message}`;
+		process.stdout.write(JSON.stringify(input.hook_event_name === 'PreToolUse'
+			? { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } }
+			: { decision: 'block', reason }));
+		return;
+	}
 	if (!toplevel) return;
 	if (argv[0] === 'check') {
 		// Once per brief: a second hand-back or stop goes through, and wf next redispatches (a hook
@@ -87,8 +102,12 @@ export async function runHandoff(argv: string[]): Promise<void> {
 		if (!last || s.briefs[last.key].sent_back) return;
 		const gap = stopGap(s);
 		if (!gap) return;
-		const state = readState(toplevel);
-		writeState(toplevel, { briefs: { ...state!.briefs, [last.key]: { ...state!.briefs![last.key], sent_back: true } } });
+		// From the state under the write lock: a brief another process recorded meanwhile keeps its
+		// key, only this one's `sent_back` is added (issue #107).
+		writeState(toplevel, (state) => {
+			const brief = state.briefs?.[last.key];
+			return brief ? { briefs: { ...state.briefs, [last.key]: { ...brief, sent_back: true } } } : {};
+		});
 		const out = input.hook_event_name === 'PreToolUse'
 			? { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: `not yet: ${gap}` } }
 			: { decision: 'block', reason: gap };

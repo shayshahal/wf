@@ -36,6 +36,7 @@ import { planCommitRows, rowFiles } from '../round/prompt.ts';
 import type { PlanRow } from '../round/prompt.ts';
 import { readState, roundOf, toplevelOf } from '../round/state.ts';
 import { ensureServers } from '../worktrees/serve.ts';
+import { worktreeContentSha } from './content-identity.ts';
 
 const TAIL = 40;
 // `pnpm` is a .cmd shim on Windows, so its runs need shell:true; Node then prints DEP0190
@@ -180,9 +181,31 @@ export function redCause(task: { exit: number | null }): RedCause {
 	return task.exit === null ? 'environment' : 'code';
 }
 
-// Pure: the checks.log line for one run. `cause` only on a red: green has no cause to give.
-export function checkRunLine({ ts, row, rowCheck, tasks, result, cause, token }: { ts: string; row: number | string | null; rowCheck: string | null; tasks: CheckRun[]; result: string; cause?: RedCause; token?: string }) {
-	return JSON.stringify({ ts, row, rowCheck, tasks, result, ...(cause ? { cause } : {}), ...(token ? { token } : {}) });
+// Pure: the checks.log line for one run. `cause` only on a red: green has no cause to give. `content`
+// is the implementationContentSha the run finished on (content-identity.ts) — recorded so a green
+// names what it measured, never the bytes a mutating task replaced before the run ended (#106).
+export function checkRunLine({ ts, row, rowCheck, tasks, result, cause, token, content }: { ts: string; row: number | string | null; rowCheck: string | null; tasks: CheckRun[]; result: string; cause?: RedCause; token?: string; content?: string }) {
+	return JSON.stringify({ ts, row, rowCheck, tasks, result, ...(cause ? { cause } : {}), ...(token ? { token } : {}), ...(content ? { content } : {}) });
+}
+
+// The row identity a run measured, or undefined when git cannot read the tree: the log line still
+// records the run, and rowDone treats a line with no content as evidence it cannot bind (handoff.ts).
+// The row scope excludes the round folder, so it equals the product/tests a row commit carries.
+const contentOf = (toplevel: string, folder: string | null): string | undefined => {
+	try {
+		return worktreeContentSha(toplevel, folder, null, 'row');
+	} catch {
+		return undefined; // git could not read the tree: the line records the run, with no identity to bind
+	}
+};
+
+// Pure: what an unreadable or changed before/after identity means. `unavailable` when git could not
+// read either snapshot (fail closed: no green is minted); `changed` when a task rewrote the tree
+// between them. `null` only when both were read and are equal.
+export type IdentityGap = 'unavailable' | 'changed' | null;
+export function identityGap(start: string | undefined, end: string | undefined): IdentityGap {
+	if (start === undefined || end === undefined) return 'unavailable';
+	return start === end ? null : 'changed';
 }
 
 // TJEW-665 (2026-09-28): the repro tapped before the page had hydrated, failed on its precondition
@@ -254,6 +277,7 @@ export async function runRepro() {
 	}
 	await stackOrExit(toplevel);
 	const [cmd, ...args] = tokenize(repro);
+	const start = contentOf(toplevel, folder);
 	const runs: { exit: number | null; output: string }[] = [];
 	for (let i = 1; i <= REPRO_RUNS; i++) {
 		const run = spawnSync(cmd, args, { cwd: toplevel, encoding: 'utf8', shell: process.platform === 'win32' });
@@ -264,7 +288,19 @@ export async function runRepro() {
 	const verdict = reproVerdict(runs, folder);
 	mkdirSync(join(toplevel, '.wf'), { recursive: true });
 	const tasks = runs.map((r) => ({ label: repro, exit: r.exit, output: r.output.split('\n').slice(-15).join('\n').trimEnd() }));
-	appendFileSync(join(toplevel, '.wf', 'checks.log'), `${checkRunLine({ ts: new Date().toISOString(), row: 'repro', rowCheck: null, tasks, result: verdict.result, token: state?.briefs?.research?.token })}\n`);
+	const end = contentOf(toplevel, folder);
+	// A repro that rewrites the tree measures bytes other than the ones it was handed: no verdict binds.
+	// An unreadable before/after snapshot is refused too, not counted as no change.
+	const gap = identityGap(start, end);
+	appendFileSync(join(toplevel, '.wf', 'checks.log'), `${checkRunLine({ ts: new Date().toISOString(), row: 'repro', rowCheck: null, tasks, result: gap ?? verdict.result, token: state?.briefs?.research?.token, content: end })}\n`);
+	if (gap === 'unavailable') {
+		console.error('check --repro: could not read the implementation before and after the repro (git could not compute the tree); refusing to record a verdict.');
+		process.exit(1);
+	}
+	if (gap === 'changed') {
+		console.error('check --repro: the repro rewrote files while it ran; its verdict names bytes it did not all measure. Commit or revert them, then run `wf check --repro` again.');
+		process.exit(1);
+	}
 	console.log(`\n${verdict.result === 'unstable' ? 'NOT STABLE' : verdict.result === 'outside' ? 'NOT THE DEFECT' : verdict.result}: ${verdict.say}`);
 	if (verdict.result === 'outside') {
 		console.log('A precondition failed (login, setup, data), so the repro never measured the defect. Fix it if it is in your repro, then run `wf check --repro` again; if it is not, write what failed under `Could not find` and stop: wf next takes it on.');
@@ -287,9 +323,10 @@ export async function runCheck() {
 	const { folder } = roundOf(state, toplevel);
 	const changed = changedFiles(toplevel);
 	const ran: CheckRun[] = [];
+	const start = contentOf(toplevel, folder);
 	const logRun = (result: string, cause?: RedCause) => {
 		mkdirSync(join(toplevel, '.wf'), { recursive: true });
-		appendFileSync(join(toplevel, '.wf', 'checks.log'), `${checkRunLine({ ts: new Date().toISOString(), row: state?.commit ?? null, rowCheck: row?.check ?? null, tasks: ran, result, cause })}\n`);
+		appendFileSync(join(toplevel, '.wf', 'checks.log'), `${checkRunLine({ ts: new Date().toISOString(), row: state?.commit ?? null, rowCheck: row?.check ?? null, tasks: ran, result, cause, content: contentOf(toplevel, folder) })}\n`);
 	};
 	let row: PlanRow | null = null;
 	if (state?.commit && folder && existsSync(join(toplevel, folder, 'PLAN.md'))) {
@@ -393,9 +430,26 @@ export async function runCheck() {
 			process.exit(1);
 		}
 	}
-	logRun('green');
+	// A task that rewrote the tree (a `--fix` hook, a repro) measured bytes other than the ones it was
+	// handed; an unreadable before/after snapshot measured nothing provable. Either way, no green:
+	// record `changed` or `unavailable` and refuse (#106 review).
+	const end = contentOf(toplevel, folder);
+	const gap = identityGap(start, end);
+	if (gap === 'unavailable') {
+		console.error('FAILED: could not read the implementation before and after the check (git could not compute the tree); refusing to record a green.');
+		logRun('unavailable');
+		process.exit(1);
+	}
+	if (gap === 'changed') {
+		console.error('FAILED: the check rewrote files while it ran; a green would name bytes the run did not all measure. Commit or revert them, then run `wf check` again.');
+		logRun('changed');
+		process.exit(1);
+	}
+	// Resolve a block before recording green: the renamed file is trailing paperwork, and computing the
+	// identity after it keeps the recorded line equal to the tree the next `wf next` sees (#106).
 	const blocked = folder && state?.commit ? join(toplevel, folder, 'BLOCKED.md') : null;
 	if (blocked && existsSync(blocked)) renameSync(blocked, join(toplevel, folder!, resolvedBlockedName(state!.commit!, readdirSync(join(toplevel, folder!)))));
+	logRun('green');
 }
 
 // A block the row got past becomes its record: BLOCKED.md → BLOCKED-commit<n>.md, one name in every
@@ -408,14 +462,14 @@ export function resolvedBlockedName(n: number, taken: string[]) {
 }
 
 /** Record whole test suites for one HEAD: green only when every suite exited 0; keep red output tails. */
-export function suitesLine({ ts, head, runs }: { ts: string; head: string; runs: { label: string; exit: number | null; output: string }[] }) {
+export function suitesLine({ ts, head, runs, content, gap }: { ts: string; head: string; runs: { label: string; exit: number | null; output: string }[]; content?: string; gap?: IdentityGap }) {
 	const tasks: CheckRun[] = runs.map((r) => (r.exit === 0 ? { label: r.label, exit: 0 } : { label: r.label, exit: r.exit, output: tail(r.output) }));
 	const red = tasks.filter((t) => t.exit !== 0);
 	// A suite whose own runner never started (a spawn error leaves its exit null) is the environment,
 	// not a suite of failing tests: validate's Suites section reads this before naming failing tests.
 	// Every red one, not any: a suite that really failed is the truth of the line.
 	const cause: RedCause | undefined = red.length && red.every((t) => t.exit === null) ? 'environment' : undefined;
-	return JSON.stringify({ ts, row: 'suites', head, tasks, result: red.length ? 'red' : 'green', ...(cause ? { cause } : {}) });
+	return JSON.stringify({ ts, row: 'suites', head, tasks, result: gap ?? (red.length ? 'red' : 'green'), ...(cause ? { cause } : {}), ...(content ? { content } : {}) });
 }
 
 const tail = (output: string) => output.split('\n').slice(-TAIL).join('\n').trimEnd();
@@ -448,6 +502,7 @@ export async function runSuites() {
 		child.on('close', (exit) => resolve({ label: task.label, exit, output }));
 	});
 	// A suite's steps in order, stopping at the first red one, which then names the suite's result.
+	const contentStart = contentOf(toplevel, folder);
 	const runs = await Promise.all(picked.map(async (steps) => {
 		let last: { label: string; exit: number | null; output: string } = { label: '', exit: 0, output: '' };
 		for (const task of steps) {
@@ -456,9 +511,19 @@ export async function runSuites() {
 		}
 		return last;
 	}));
-	const line = suitesLine({ ts: new Date().toISOString(), head, runs });
+	const contentEnd = contentOf(toplevel, folder);
+	const gap = identityGap(contentStart, contentEnd);
+	const line = suitesLine({ ts: new Date().toISOString(), head, runs, gap, content: contentEnd });
 	mkdirSync(join(toplevel, '.wf'), { recursive: true });
 	appendFileSync(join(toplevel, '.wf', 'checks.log'), `${line}\n`);
+	if (gap === 'unavailable') {
+		console.error('check --suites: could not read the implementation before and after the suites (git could not compute the tree); refusing to record a result.');
+		process.exit(1);
+	}
+	if (gap === 'changed') {
+		console.error('check --suites: a suite rewrote files while it ran; the result names bytes it did not all measure. Commit or revert them, then run `wf check --suites` again.');
+		process.exit(1);
+	}
 	if (!runs.length) return console.log(`suites: none at ${head.slice(0, 9)}, the round's diff reaches no suite. validate reads it from checks.log.`);
 	const took = `${Math.round((Date.now() - start) / 1000)}s`;
 	const red = runs.filter((r) => r.exit !== 0);

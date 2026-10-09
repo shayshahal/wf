@@ -17,13 +17,17 @@ import { CLASSIFY } from '../paths.ts';
 import { lastField, readVerdict, specShaFor } from '../gates/review-format.ts';
 import { people } from '../project.ts';
 import { seams } from '../seams.ts';
-import { roundFile, writeState } from './state.ts';
+import { roundFile, readState, writeState } from './state.ts';
 import type { RoundClass, State } from './state.ts';
 import { stepHistory } from './friction.ts';
 
 export const STEPS = ['classify', 'research', 'plan', 'design', 'implement', 'review', 'pr', 'merged', 'held'];
 const WAITING = ['user', ...people, 'ci'];
 const CLASSES = ['A', 'B', 'C'];
+// A `step` refused by a gate that reads the state under the write lock (class/SPEC/PLAN). Thrown from
+// inside the updater so the gate and the write are one decision: the updater does not return a patch,
+// nothing is written, and runStep reports it as a refusal (issue #107).
+class StepGateError extends Error {}
 // null = T1 approved the current SPEC.md; otherwise the one-line reason it did not.
 export function t1Gap(toplevel: string): string | null {
   const current = specShaFor(toplevel);
@@ -89,42 +93,58 @@ export async function runStep(argv: string[], { quiet = false } = {}) {
     process.exit(2);
   }
   const round = flag('round') ?? sh(['rev-parse', '--abbrev-ref', 'HEAD']);
-  const file = join(toplevel, '.wf', 'state.json');
-  let prev: State = {};
-  try {
-    prev = JSON.parse(readFileSync(file, 'utf8'));
-  } catch { /* first step in this worktree */ }
+  const assertedClass = (asserted ?? null) as RoundClass | null;
+  const prev = readState(toplevel) ?? {};
   // --class is an assertion and wins outright; a measurement can only upgrade what is stored.
-  let klass = (asserted ?? prev.class ?? null) as RoundClass | null;
-  if (step === 'implement' && (klass === 'B' || klass === 'C')) {
-    const reason = t1Gap(toplevel);
-    if (reason) {
-      console.error(`wf step implement: class ${klass} round, ${reason} — T1 (wf design) must approve the SPEC.md that is about to be built`);
-      process.exit(2);
-    }
-  }
-  // Class A needs no SPEC.md, but it still needs the plan the implementer is fenced to.
-  if (step === 'implement' && klass !== 'B' && klass !== 'C' && !existsSync(planPath(toplevel, prev))) {
-    console.error(`wf step implement: no ${prev.folder ? `${prev.folder}/` : ''}PLAN.md — the plan phase writes it before implementation starts`);
-    process.exit(2);
-  }
-  const base = flag('base') ?? prev.base ?? null;
+  // `classify` runs before the lock (it spawns git), so it measures against the base read here; the
+  // write below merges the measurement with the class on disk under the lock.
+  let measured: RoundClass | null = null;
   if (step === 'classify') {
-    const out = execFileSync('node', [CLASSIFY, '--json', ...(base ? ['--base', base] : [])], { encoding: 'utf8' });
-    const measured = JSON.parse(out).class;
-    const kept = higherClass(klass, measured);
-    if (klass && kept !== measured) console.error(`wf step classify: paths measure ${measured}, keeping asserted ${kept} (a class never downgrades)`);
-    klass = kept;
+    const measureBase = flag('base') ?? prev.base ?? null;
+    const out = execFileSync('node', [CLASSIFY, '--json', ...(measureBase ? ['--base', measureBase] : [])], { encoding: 'utf8' });
+    measured = JSON.parse(out).class as RoundClass;
+    const kept = higherClass(assertedClass ?? prev.class ?? null, measured);
+    if ((assertedClass ?? prev.class) && kept !== measured) console.error(`wf step classify: paths measure ${measured}, keeping asserted ${kept} (a class never downgrades)`);
   }
   // A patch of what this step owns, merged by writeState over the state as it is now: id/folder
   // (wf new), commit (wf prompt implement) and any brief another command recorded while this step
   // ran are kept. Writing `prev` back whole took the file to what was on disk when the command
   // started: JX-252 (2026-10-07) briefed validate 7 times and left the file saying count 1.
+  // class and base are merged against the state under the write lock, so a concurrent `wf step
+  // classify` upgrade or a `wf new --base` another command wrote is kept (issue #107). The gates that
+  // read class/SPEC/PLAN are checked inside the updater too, against that same state: a class that
+  // went up to B/C while this command ran cannot be written from a pre-lock snapshot that skipped T1.
   // An open question (wf ask) keeps the round waiting on its person until `wf decide` closes it.
+  // waiting_on and history read the state inside the write lock: a question another command opened
+  // while this step ran still holds the round (issue #107).
   // history: when each step began, for the line reap prints (friction.ts).
   const since = new Date().toISOString();
-  const patch: State = { round, class: klass, base, step, waiting_on: waitingOn ?? prev.questions?.[0]?.to ?? null, since, history: stepHistory(prev.history, step, since) };
-  const state = writeState(toplevel, patch);
+  let state: State;
+  try {
+    state = writeState(toplevel, (current) => {
+      const klass: RoundClass | null = step === 'classify'
+        ? higherClass(assertedClass ?? current.class ?? null, measured as RoundClass)
+        : assertedClass ?? current.class ?? null;
+      if (step === 'implement' && (klass === 'B' || klass === 'C')) {
+        const reason = t1Gap(toplevel);
+        if (reason) throw new StepGateError(`class ${klass} round, ${reason} — T1 (wf design) must approve the SPEC.md that is about to be built`);
+      }
+      // Class A needs no SPEC.md, but it still needs the plan the implementer is fenced to.
+      if (step === 'implement' && klass !== 'B' && klass !== 'C' && !existsSync(planPath(toplevel, current))) {
+        throw new StepGateError(`no ${current.folder ? `${current.folder}/` : ''}PLAN.md — the plan phase writes it before implementation starts`);
+      }
+      const base = flag('base') ?? current.base ?? null;
+      return {
+        round, class: klass, base, step, since,
+        waiting_on: waitingOn ?? current.questions?.[0]?.to ?? null,
+        history: stepHistory(current.history, step, since),
+      };
+    });
+  } catch (e) {
+    if (!(e instanceof StepGateError)) throw e;
+    console.error(`wf step ${step}: ${e.message}`);
+    process.exit(2);
+  }
   if (!quiet) console.log(JSON.stringify(state));
   await notifyAdapters(state);
 }

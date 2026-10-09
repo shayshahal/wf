@@ -109,7 +109,7 @@ export async function runAsk(argv: string[]): Promise<void> {
 		console.error(`wf ask: --to ${to} — one of: ${PEOPLE.join(' ')}`);
 		refuseCaller();
 	}
-	const { toplevel, state } = roundState('ask');
+	const { toplevel } = roundState('ask');
 	let text: string | null = a.positionals.join(' ').trim();
 	let source: string | null = null;
 	if (a.blocked) {
@@ -125,7 +125,7 @@ export async function runAsk(argv: string[]): Promise<void> {
 		console.error(`usage: wf ask "<question>" [--to ${PEOPLE.join('|')}] [--default "<default>"] · wf ask --blocked`);
 		refuseCaller();
 	}
-	const next = writeState(toplevel, addQuestion(state, { to, text, dflt: a.default, source }));
+	const next = writeState(toplevel, (state) => addQuestion(state, { to, text, dflt: a.default, source }));
 	const q = next.questions!.at(-1)!;
 	console.log(`q${q.n} → ${to}: ${text}`);
 	await notifyAdapters(next);
@@ -148,13 +148,13 @@ export async function runDecide(argv: string[]): Promise<void> {
 	if (!(state.questions ?? []).length) {
 		if (a.revise) {
 			// Nothing was asked and nothing is recorded in PLAN.md: the revised plan carries the answer.
-			const next = writeState(toplevel, reviseState(state, answer));
+			const next = writeState(toplevel, (state) => reviseState(state, answer));
 			console.log('the round is back at plan: `wf next` dispatches plan --revise with this answer');
 			await notifyAdapters(next);
 			return;
 		}
 		if (a.research) {
-			const next = writeState(toplevel, researchState(state, answer));
+			const next = writeState(toplevel, (state) => researchState(state, answer));
 			console.log(RESEARCH_SAID);
 			await notifyAdapters(next);
 			return;
@@ -168,30 +168,56 @@ export async function runDecide(argv: string[]): Promise<void> {
 		console.log(`recorded in ${plan} § Decisions`);
 		return;
 	}
-	let closed: ReturnType<typeof closeQuestion>;
+	// The question this decision answers is bound once, by number: --q names it, and with no --q only a
+	// single open question can be meant (two open need --q). Binding the number (not "the first open
+	// question") means the close under the write lock below finds that question or refuses — another
+	// command that closed it and opened a new one meanwhile cannot make this answer land on the new
+	// question (issue #107).
+	const open = state.questions ?? [];
+	if (a.q == null && open.length > 1) {
+		console.error(`wf decide: ${open.length} questions are open — name one with --q: ${open.map((q) => `q${q.n}`).join(', ')}`);
+		process.exit(2);
+	}
+	const target = a.q == null ? open[0].n : Number(String(a.q).replace(/^q/, ''));
+	if (a.q != null && !Number.isInteger(target)) {
+		console.error(`wf decide: --q ${a.q} is not a question number`);
+		process.exit(2);
+	}
+	// Where the answer is read is checked before the state is written: a missing PLAN.md refuses while
+	// the question is still open, instead of closing it with nowhere to record the answer.
+	const blocked = open.find((q) => q.n === target)?.source?.startsWith('BLOCKED.md') ?? false;
+	if (!blocked && !existsSync(plan)) {
+		console.error(`wf decide: no ${plan} to record q${target}'s answer in`);
+		process.exit(2);
+	}
+	// Close against the state under the write lock, and record the question the lock-side close
+	// actually moved to `answered` — never one picked from the pre-lock read. If that question is gone
+	// (another command closed it), the updater throws and neither the state nor PLAN.md is touched.
+	// State and PLAN.md are two files with no shared transaction: the state write lands first, so the
+	// remaining gap is a PLAN.md that disappears between the check above and the write below — the
+	// answer is then in state only. That is the one pre-existing cross-file edge left.
+	let next: State;
+	const decided = { question: null as Question | null };
 	try {
-		const n = a.q == null ? null : Number(String(a.q).replace(/^q/, ''));
-		if (n !== null && !Number.isInteger(n)) throw new Error(`--q ${a.q} is not a question number`);
-		closed = closeQuestion(state, n, undefined, answer);
+		next = writeState(toplevel, (current) => {
+			const result = closeQuestion(current, target, undefined, answer);
+			decided.question = result.question;
+			const said = revisionText(result.question, answer);
+			return a.revise ? reviseState(result.state, said) : a.research ? researchState(result.state, said) : result.state;
+		});
 	} catch (e) {
 		console.error(`wf decide: ${(e as Error).message}`);
 		process.exit(2);
 	}
-	const { question } = closed;
+	const question = decided.question as Question;
 	if (question.source?.startsWith('BLOCKED.md')) {
 		const file = roundFile(toplevel, 'BLOCKED.md');
 		writeFileSync(file, appendAnswer(readFileSync(file, 'utf8'), answer));
 		console.log(`q${question.n} closed · answer in ${file} § Answer`);
 	} else {
-		if (!existsSync(plan)) {
-			console.error(`wf decide: no ${plan} to record q${question.n}'s answer in`);
-			process.exit(2);
-		}
 		writeFileSync(plan, appendDecision(readFileSync(plan, 'utf8'), `${question.text} → ${question.to}: ${answer}`));
 		console.log(`q${question.n} closed · recorded in ${plan} § Decisions`);
 	}
-	const said = revisionText(question, answer);
-	const next = writeState(toplevel, a.revise ? reviseState(closed.state, said) : a.research ? researchState(closed.state, said) : closed.state);
 	if (a.revise) console.log('the round is back at plan: `wf next` dispatches plan --revise with this answer');
 	if (a.research) console.log(RESEARCH_SAID);
 	await notifyAdapters(next);
