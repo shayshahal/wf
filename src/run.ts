@@ -1,6 +1,6 @@
 // run.ts — the dispatcher: run(argv, pieces). wf.mjs calls it with the kit's defaults, an env's
 // entry with its own pieces plugged into the seams (seams.ts).
-// Commands: next, brief, step, status, new, serve, check, standards, models, classify (delegated to ./gates/classify.ts when installed), design + review
+// Commands: next, brief, step, status, new, serve, check, standards, models, classify, design + review
 // (human touchpoints), the project's own (project.ts commands: JewelryX's seed, show) and the env's.
 import { plug, seams } from './seams.ts';
 import type { Command, Seams } from './seams.ts';
@@ -114,12 +114,10 @@ export async function run(argv: string[], pieces: Partial<Seams> = {}) {
 		const { runReap } = await import('./worktrees/reap.ts');
 		await runReap(rest);
 	} else if (cmd === 'classify') {
-		try {
-			await import('./gates/classify.ts');
-		} catch (e) {
-			if ((e as NodeJS.ErrnoException).code !== 'ERR_MODULE_NOT_FOUND') throw e;
-			console.log('classify: not installed');
-		}
+		// The command's arguments belong to runClassify; only importing the module ran nothing
+		// (its standalone guard keys on argv[1], which is wf.mjs here) and exited 0 (2026-10-09).
+		const { runClassify } = await import('./gates/classify.ts');
+		runClassify(rest);
 	} else if (cmd === 'design') {
 		const { runDesign } = await import('./gates/design.ts');
 		await runDesign(rest);
