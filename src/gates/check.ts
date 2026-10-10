@@ -3,7 +3,7 @@
 // Silent + exit 0 on green; on red only the failing command and the last 40 lines
 // of its output, exit 1. Everything is derived from the working-tree diff and the
 // agreement's `## Verification` cases (TICKET.md for class A, AGREEMENT.md for B/C):
-//   fence   — no file outside the selected case's `files` cell may have changed. A case-less run
+//   fence   — no file outside the agreement's cases may have changed. A case-less run
 //             with a product file changed and no project check refuses rather than log an empty green
 //   project — the project's commands for the changed files and the case's test path (project.ts checks)
 //   repro   — the case's `check` cell `repro`: the command the agreement records. A case that only
@@ -534,10 +534,17 @@ export async function runCheck(argv: string[] = []) {
 	}
 	const changed = changedFiles(toplevel, base);
 	// The verification cases of the round's agreement (TICKET.md for class A, AGREEMENT.md for B/C).
-	// No per-commit bookkeeping (#112): `--case N` names one, else the single case whose files this
-	// diff touches, else the single case. `--case "<path>::<id>@<line>"` names a raw cell (class A).
+	// No per-commit bookkeeping (#112): default checks every declared case; `--case N` selects
+	// proof, not round scope. `--case "<path>::<id>@<line>"` names a raw cell (class A).
 	const agreementFile = agreementPath(toplevel, state?.class ?? null, folder);
 	const cases = verificationCases(existsSync(agreementFile) ? readFileSync(agreementFile, 'utf8') : '');
+	if (new Set(cases.map((c) => c.n)).size !== cases.length) {
+		const ambiguous = { label: 'cases', exit: null, missing: 'verification case numbers must be unique; duplicate numbers cannot select independent proofs' };
+		console.error(`COULD NOT RUN: ${ambiguous.missing}`);
+		ran.push(ambiguous);
+		logRun('red', 'environment');
+		process.exit(1);
+	}
 	const caseIdx = argv.indexOf('--case');
 	const caseArg = caseIdx >= 0 ? argv[caseIdx + 1] : null;
 	if (caseArg != null) row = /^\d+$/.test(caseArg) ? cases.find((c) => c.n === Number(caseArg)) ?? null : { n: 0, line: '', message: caseArg, files: checkCellTarget(caseArg)?.file ?? '', check: caseArg };
@@ -551,7 +558,7 @@ export async function runCheck(argv: string[] = []) {
 	}
 	// Scopeprot: a changed product/test file outside the agreement's cases is refused; a round's added
 	// helper belongs in a case's `files` cell, which is mutable working detail (no renewed T1).
-	const allowed = row ? caseFiles(row) : cases.flatMap((c) => caseFiles(c));
+	const allowed = cases.length ? cases.flatMap((c) => caseFiles(c)) : caseFiles(row);
 	const violations = allowed.length ? fenceViolations(changed, allowed, folder) : [];
 	if (violations.length) {
 		for (const f of violations) console.error(`fence: ${f} is not in the agreement's verification cases`);
@@ -560,11 +567,18 @@ export async function runCheck(argv: string[] = []) {
 		logRun('red', redCause(fence));
 		process.exit(1);
 	}
+	// 2026-10-10 stack review: a null target on a multi-case diff logged lint-only green. Measure
+	// every promised assertion, with separate evidence lines; one red stops the command.
+	if (caseArg === null && cases.length > 1) {
+		for (const c of cases) await runCheck(['--case', String(c.n)]);
+		return;
+	}
 	const repro = existsSync(agreementFile) ? reproCommand(readFileSync(agreementFile, 'utf8')) : null;
 	const reproOnly = row ? isReproOnly(caseFiles(row), folder) : false;
 	const target = checkCellTarget(row?.check);
 	let served = false;
-	const tasks = buildTasks({ row, projectTasks: (t) => checks({ toplevel, changed, target: t }), repro, reproOnly });
+	const caseChanged = row ? changed.filter((f) => caseFiles(row).includes(f)) : changed;
+	const tasks = buildTasks({ row, projectTasks: (t) => checks({ toplevel, changed: caseChanged, target: t }), repro, reproOnly });
 	// Nothing to run is not a green: a case-less or fence-only run with a product file changed and no
 	// project check would log a pass that measured nothing (#109). `changed` is the same list the fence
 	// uses (committed vs base, worktree, index, untracked), so a committed-only or reverse-index (index
