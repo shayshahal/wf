@@ -14,9 +14,6 @@ import { roundsDir } from '../project.ts';
 export type RoundClass = 'A' | 'B' | 'C';
 // A question `wf ask` opened; `wf decide` moves it to `answered` with its answer (ask.ts).
 export type Question = { n: number; to: string; text: string; default?: string; source?: string; asked: string; answer?: string | null; answered?: string };
-// What `wf brief` recorded for a phase (handoff.ts): the token its handoff file must end with.
-// of: the validation token a critique judged; exchange: which critique of that validation's chain it is;
-// answers: the exchange a `validate --answer` answered (gates/critique.ts).
 // .wf/state.json. Every field is optional: each command writes only its own (writeState merges),
 // and a hand-cut worktree has only what `wf step` wrote.
 // `wf_version` is the runtime that wrote the state (2 = the smaller route, #110/#111). A state from
