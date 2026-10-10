@@ -179,14 +179,14 @@ export async function runReview(argv: string[]) {
     console.log(`agreement: ${agreementHtml}`);
     openFile(agreementHtml);
   }
-  const standards = assessmentFor(worktree);
+  const assessment = assessmentFor(worktree);
   const manual = manualFor(worktree);
   // The identities the verdict is bound to, computed once at open and printed in every header this run
   // writes. T2 computes them again at --done; a change since makes the approval stale (content-identity.ts).
   const identity = currentIdentity(worktree);
   const contentSha = identity.worktree;
   const headSha = identity.head;
-  const header = () => renderHeader({ round, klass, base, contentSha, headSha, urls: devUrlsFor(worktree), files, beforeAfter, standards, manual });
+  const header = () => renderHeader({ round, klass, base, contentSha, headSha, urls: devUrlsFor(worktree), files, beforeAfter, assessment, manual });
   const file = roundFile(worktree, 'REVIEW.md');
   const previous = existsSync(file) ? readFileSync(file, 'utf8') : null;
   // First review: the skeleton. Re-opened after the implementation moved (no review screen to append
@@ -196,7 +196,7 @@ export async function runReview(argv: string[]) {
   // HEAD (#106 final review). Same worktree and HEAD: nothing, the verdict stands.
   const previousBinding = previous === null ? null : { contentSha: lastField(previous, 'content-sha'), headSha: lastField(previous, 'head-sha') };
   if (previous === null || (!seams.reviewUI?.available() && needsFreshReviewHeader(previousBinding, contentSha, headSha))) {
-    appendDatedSection(file, renderSkeleton({ round, klass, base, contentSha, headSha, urls: devUrlsFor(worktree), files, beforeAfter, standards, manual }));
+    appendDatedSection(file, renderSkeleton({ round, klass, base, contentSha, headSha, urls: devUrlsFor(worktree), files, beforeAfter, assessment, manual }));
   }
   // The machine's review screen when it has one (seams.reviewUI: plannotator on Shay's), else an editor.
   if (!seams.reviewUI?.available()) {

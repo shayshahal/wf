@@ -3,7 +3,7 @@
 // cell, the repro) with this project's checkTasks, as `wf check` runs them. No git, no runners.
 import { buildTasks as coreBuildTasks } from '../../src/gates/check.ts';
 import type { CheckTarget } from '../../src/gates/check.ts';
-import { checkTasks, oracleGuardTask, parseStackEnv, planOracleGap, seedActorsEnv, suitesTouched } from './checks.ts';
+import { checkTasks, oracleGuardTask, parseStackEnv, oracleCaseGap, seedActorsEnv, suitesTouched } from './checks.ts';
 import type { PkgFor } from './checks.ts';
 
 // A check-cell target with no id or line: what `checkTasks` gets for a row whose test it must run whole.
@@ -83,7 +83,7 @@ const noted = buildTasks({ changed: [], row: { check: '`vitest run packages/fron
 check('a note after the command does not replace its path', noted[0]?.args!.join(' ') === 'exec vitest run src/x.test.ts', JSON.stringify(noted));
 check('no changes and no check cell → nothing to run', buildTasks({ changed: [], row: null, pkgFor, repro: null }).length === 0);
 const grep = buildTasks({ changed: [], row: { check: '`repro --grep auction`' }, pkgFor, repro: 'node r.mjs' });
-check('a check cell wf cannot run is refused, not skipped', grep.at(-1)?.missing?.includes('not runnable'), JSON.stringify(grep));
+check('a check cell wf cannot run is refused, not skipped, with the current verification contract', grep.at(-1)?.missing?.includes('Verification check') && grep.at(-1)?.missing?.includes('not runnable') && !grep.at(-1)?.missing?.includes('PLAN.md'), JSON.stringify(grep));
 const fenceOnly = buildTasks({ changed: [], row: { check: '—' }, pkgFor, repro: null });
 check('— means fence only: no check task, no refusal', fenceOnly.length === 0, JSON.stringify(fenceOnly));
 const fenceNote = buildTasks({ changed: [], row: { check: '— (svelte-check runs on its own). Also run `repro --grep x`' }, pkgFor, repro: 'node r.mjs' });
@@ -138,14 +138,14 @@ check('in a fixed order, once each', touched(['packages/frontend/b2b/a.ts', 'pac
 // ── the oracle guard (scripts/oracle-guard.mjs in JewelryX): BJEW-617, 2026-10-06
 const row = (n: number, message: string, files: string) => ({ n, message, files: files.split(/[\s,`]+/).filter(Boolean) });
 const bjew617 = [row(1, 'test(verification): log out via the settings sidebar in login-relogin', '`verification/tests/login-relogin.spec.ts`'), row(2, 'fix(b2b): drop contact and logout from the desktop dropdown', 'packages/frontend/b2b/src/lib/components/layout/Header.svelte, verification/tests/m1-desktop-guard-b2b.spec.ts')];
-const gap = planOracleGap({ branch: 'fix/bjew-617-account-menu-logout', rows: bjew617 });
+const gap = oracleCaseGap({ branch: 'fix/bjew-617-account-menu-logout', rows: bjew617 });
 check('a fix/ plan whose rows list verification/ files is refused, each row and file named', gap?.includes('row 1: verification/tests/login-relogin.spec.ts') && gap.includes('row 2: verification/tests/m1-desktop-guard-b2b.spec.ts'), String(gap));
-check('the refusal says the guard\'s rule and where coverage goes', gap?.includes('oracle-guard') && gap.includes('fix/* or feat/*') && gap.includes('bugs-to-tests / cr-to-tests') && gap.includes('verification/* branch'), String(gap));
-check('a feat/ plan listing JewelryX-Tools/ is refused too', planOracleGap({ branch: 'feat/tjew-700-x', rows: [row(1, 'chore: tool', 'JewelryX-Tools/Doc-to-Tests/gate/x.py')] })?.includes('row 1: JewelryX-Tools/Doc-to-Tests/gate/x.py') === true);
-check('a verification/* branch may plan verification/ rows', planOracleGap({ branch: 'verification/sveltekit3-form-names', rows: bjew617 }) === null);
-check('a plan with no oracle file in its rows passes, a path that only mentions verification does not count', planOracleGap({ branch: 'fix/x', rows: [row(1, 'fix: x', 'packages/backend/app/x.py, docs/verification/notes.md')] }) === null);
-check('a revert row is let through: on a branch that carries the edit it is how the guard goes green', planOracleGap({ branch: 'fix/x', rows: [row(2, 'revert: "test(verification): log out via the settings sidebar in login-relogin"', 'verification/tests/login-relogin.spec.ts'), row(3, 'fix(b2b): x', 'packages/frontend/b2b/src/a.svelte')] }) === null);
-check('no branch known: nothing to judge', planOracleGap({ branch: null, rows: bjew617 }) === null);
+check('the refusal says the guard\'s rule, where coverage goes and the current agreement', gap?.includes('oracle-guard') && gap.includes('fix/* or feat/*') && gap.includes('bugs-to-tests / cr-to-tests') && gap.includes('verification/* branch') && gap.includes('The agreement lists oracle files') && !gap.includes('PLAN.md'), String(gap));
+check('a feat/ plan listing JewelryX-Tools/ is refused too', oracleCaseGap({ branch: 'feat/tjew-700-x', rows: [row(1, 'chore: tool', 'JewelryX-Tools/Doc-to-Tests/gate/x.py')] })?.includes('row 1: JewelryX-Tools/Doc-to-Tests/gate/x.py') === true);
+check('a verification/* branch may plan verification/ rows', oracleCaseGap({ branch: 'verification/sveltekit3-form-names', rows: bjew617 }) === null);
+check('a plan with no oracle file in its rows passes, a path that only mentions verification does not count', oracleCaseGap({ branch: 'fix/x', rows: [row(1, 'fix: x', 'packages/backend/app/x.py, docs/verification/notes.md')] }) === null);
+check('a revert row is let through: on a branch that carries the edit it is how the guard goes green', oracleCaseGap({ branch: 'fix/x', rows: [row(2, 'revert: "test(verification): log out via the settings sidebar in login-relogin"', 'verification/tests/login-relogin.spec.ts'), row(3, 'fix(b2b): x', 'packages/frontend/b2b/src/a.svelte')] }) === null);
+check('no branch known: nothing to judge', oracleCaseGap({ branch: null, rows: bjew617 }) === null);
 check('no oracle file differing: no guard task', oracleGuardTask([]) === null);
 const guardRow = checkTasks({ changed: ['verification/tests/login-relogin.spec.ts'], target: target('verification/tests/login-relogin.spec.ts'), pkgFor, pushHook: true, oracleTouched: ['verification/tests/login-relogin.spec.ts'] });
 check('row 1 of BJEW-617: an oracle edit in the diff makes the row check red at once, before lefthook, with the rule', guardRow.length === 1 && guardRow[0].label === 'oracle-guard' && guardRow[0].missing?.includes('verification/tests/login-relogin.spec.ts') === true && guardRow[0].missing.includes('bugs-to-tests / cr-to-tests'), JSON.stringify(guardRow));

@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { createConnection } from 'node:net';
 import { join } from 'node:path';
-import { checkTasks, oracleEdits, parseStackEnv, planOracleGap, PRODUCT_BRANCH, seedActorsEnv, realPkgFor, suitesTouched } from './checks.ts';
+import { checkTasks, oracleEdits, parseStackEnv, oracleCaseGap, PRODUCT_BRANCH, seedActorsEnv, realPkgFor, suitesTouched } from './checks.ts';
 import type { Suite } from './checks.ts';
 import type { CheckTarget, CheckTask } from '../../src/gates/check.ts';
 import { dropDatabase, dropStrandedTestDatabases, worktreeDatabase } from './db.ts';
@@ -220,10 +220,10 @@ export function newRound({ worktree, folder, port }: { worktree: string; folder:
 
 // ── checks ───────────────────────────────────────────────────────────────────
 
-// The plan's rows against the project's rules, when the plan is handed off (handoff.ts handoffGap):
-// null, or why the rows cannot be built. `branch` is the round's.
-export function planGap({ branch, rows }: { branch: string | null; rows: { n: number; message: string; files: string[] }[] }): string | null {
-	return planOracleGap({ branch, rows });
+// The agreement's verification cases against the project's rules: null, or why they cannot pass.
+// `branch` is the round's; the rows are verification cases, never planned commits.
+export function agreementCaseGap({ branch, rows }: { branch: string | null; rows: { n: number; message: string; files: string[] }[] }): string | null {
+	return oracleCaseGap({ branch, rows });
 }
 
 // The oracle files the worktree differs from the base in (checks.ts, the oracle guard): committed, staged,

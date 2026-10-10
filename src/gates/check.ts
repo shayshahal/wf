@@ -55,7 +55,7 @@ import { worktreeContentSha } from './content-identity.ts';
 const TAIL = 40;
 // `pnpm` is a .cmd shim on Windows, so its runs need shell:true; Node then prints DEP0190
 // on every spawn, which would break "silent on green". The argv here is paths wf itself
-// derived from PLAN.md, never a user string.
+// derived from verification cells; shellArgUnsafe below rejects shell metavariables.
 process.noDeprecation = true;
 
 // One `wf check` command, or `missing`: the check the plan row names cannot run. The project's
@@ -219,7 +219,7 @@ export function tokenize(line: string) {
 	return [...line.matchAll(/"([^"]*)"|(\S+)/g)].map((m) => m[1] ?? m[2]);
 }
 
-// Pure: a row's manual proof, when its `check` cell is `manual: <what to look at>` (prompts/plan.md),
+// Pure: a case's manual proof, when its `check` cell is `manual: <what to look at>` (prompts/agree.md),
 // else null. A row whose only proof is a person looking is **fence only** at `wf check` — the fence and
 // the project's checks still gate its commit — and this text is what T2 reads, as a `manual:` line
 // beside the diff (`review-format.ts` renderHeader, review.ts). Case-insensitive on purpose: a cell
@@ -247,7 +247,7 @@ export function buildTasks({ row, projectTasks, repro, reproOnly = false }: { ro
 	if (check !== 'repro' && !reproOnly) return tasks;
 	if (!repro) return [...tasks, { label: 'repro', missing: 'the agreement ## Repro has no `command:` line' }];
 	const [cmd, ...args] = tokenize(repro);
-	// Research's repro reproduces the defect in the running app (prompts/research.md).
+	// The agreement's repro reproduces the defect in the running app (prompts/agree.md).
 	return [...tasks, { label: repro, cmd, args, cwd: '.', stack: true, ...(reproOnly ? { expectRed: true } : {}) }];
 }
 
@@ -576,7 +576,7 @@ export async function runCheck(argv: string[] = []) {
 		ran.push(failed);
 		if (run.status === 0) {
 			if (failed.evidence && failed.evidence.verdict !== 'passed') {
-				console.error(`FAILED: the selected test is not shown to have run and passed with the change: ${failed.evidence.say}. A row checked against \`path::test id\` must run that test green on the current tree; a skip or a suite total is not a pass (prompts/plan.md).`);
+				console.error(`FAILED: the selected test is not shown to have run and passed with the change: ${failed.evidence.say}. A row checked against \`path::test id\` must run that test green on the current tree; a skip or a suite total is not a pass (prompts/agree.md).`);
 				logRun('red', redCause(failed));
 				process.exit(1);
 			}
@@ -652,15 +652,15 @@ export async function runCheck(argv: string[] = []) {
 		if (evidence.verdict === want) {
 			// proven: fall through to the content guard and the green line.
 		} else if (target?.refactor) {
-			console.error(`FAILED: refactor: ${evidence.say}. A behavior-preserving row's selected test must pass with the change taken away too: make it green on both sides, or drop \`refactor:\` when the row really changes behavior (prompts/plan.md).`);
+			console.error(`FAILED: refactor: ${evidence.say}. A behavior-preserving row's selected test must pass with the change taken away too: make it green on both sides, or drop \`refactor:\` when the case really changes behavior (prompts/agree.md).`);
 			logRun('red', redCause(redBase));
 			process.exit(1);
 		} else if (evidence.verdict === 'passed') {
-			console.error(`FAILED: ${redTask.label} passes with the row's change taken away — it does not measure the defect. Make the test fail without the fix, or, when this row cannot have one, put its check cell at \`—\` — that is a plan change: write ${folder ?? 'the round folder'}/BLOCKED.md.`);
+			console.error(`FAILED: ${redTask.label} passes with the row's change taken away — it does not measure the defect. Make the test fail without the fix, or mark a genuine behavior-preserving case \`refactor:\` and prove it green on both sides. If the agreed verification cannot be met, write ${folder ?? 'the round folder'}/BLOCKED.md.`);
 			logRun('red', redCause(redBase));
 			process.exit(1);
 		} else {
-			console.error(`FAILED: red-base cannot prove the intended assertion: ${evidence.say}. Make the run fail on the assertion the row names (\`path::test id@<line>\`), or move the row's check to \`—\`/\`manual:\` — a plan change: write ${folder ?? 'the round folder'}/BLOCKED.md.`);
+			console.error(`FAILED: red-base cannot prove the intended assertion: ${evidence.say}. Make the run fail on the assertion the case names (\`path::test id@<line>\`), or correct the runner/environment problem. If the evidence still cannot be obtained, write ${folder ?? 'the round folder'}/BLOCKED.md.`);
 			logRun('red', redCause(redBase));
 			process.exit(1);
 		}
@@ -759,12 +759,12 @@ export async function runSuites() {
 		console.error('check --suites: a suite rewrote files while it ran; the result names bytes it did not all measure. Commit or revert them, then run `wf check --suites` again.');
 		process.exit(1);
 	}
-	if (!runs.length) return console.log(`suites: none at ${head.slice(0, 9)}, the round's diff reaches no suite. validate reads it from checks.log.`);
+	if (!runs.length) return console.log(`suites: none at ${head.slice(0, 9)}, the round's diff reaches no suite. The assessment reads it from checks.log.`);
 	const took = `${Math.round((Date.now() - start) / 1000)}s`;
 	const red = runs.filter((r) => r.exit !== 0);
 	if (!red.length) return console.log(`suites green at ${head.slice(0, 9)} in ${took}: ${runs.map((r) => r.label).join(', ')}`);
 	for (const r of red) console.error(`FAILED: ${r.label}\n${tail(r.output)}\n`);
-	console.error(`suites red at ${head.slice(0, 9)} in ${took}: ${red.map((r) => r.label).join(', ')}. validate reads it from checks.log.`);
+	console.error(`suites red at ${head.slice(0, 9)} in ${took}: ${red.map((r) => r.label).join(', ')}. The assessment reads it from checks.log.`);
 	process.exitCode = 1;
 }
 

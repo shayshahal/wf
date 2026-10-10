@@ -27,6 +27,13 @@ state file) are removable. `wf reap` stops the tree's processes first, runs the 
 while the worktree exists, then removes it and runs the same teardown again (each step tolerates
 "already gone").
 
+Pipeline cutover follows the agreed finish-before-release policy: finish active legacy rounds on
+that installed runtime before installing the replacement. There is no state converter or second
+pipeline. Planned-commit rows, their completion tokens and their decided-skip obligations (#74)
+are retired with that protocol, not imported into version 2. The replacement resumes one build
+phase; it cannot redispatch an obsolete `implement N` row. Verification cases remain working detail,
+not commit-completion obligations.
+
 One round is one PR to the base branch: CI runs on it, T2 approves it, and it merges with
 `gh pr merge <n> --merge` (a merge commit, not a squash). The round folder merges with it and stays: it is the round's memory. Then
 `wf step merged` opens the reap gate and `wf reap <branch>` removes the worktree (skills/round/SKILL.md,

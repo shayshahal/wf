@@ -34,8 +34,8 @@ in one.
 not write the code reads it — a different model where possible — along two
 axes kept apart: standards (does it follow this repo's rules?) and spec
 (does it do what was asked, no more?). The two reports are presented side by
-side, never merged, so one axis cannot mask the other. In a round, validate is
-the behavior axis, and the repository's rules are the other (STANDARDS.md). One independent,
+side, never merged, so one axis cannot mask the other. In a round, behavior/evidence is
+one axis and the repository's rules are another (STANDARDS.md). One independent,
 read-only assessment covers both by default, its findings distinguishable by axis; a within-agreement
 finding returns to the build, at most twice, and a genuine blocker is one contextual escalation
 (`src/round/next.ts`; Adversarial Review, arXiv 2608.18167).

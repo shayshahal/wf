@@ -6,7 +6,7 @@ import { strandedTestDatabases, worktreeDatabase } from './db.ts';
 import { devCommands } from './dev.ts';
 import { includedFiles, sanitizeEnv } from './env.ts';
 import { agreementGap } from '../../src/round/agreement.ts';
-import { checks, directUrls, pageOf, planGap, setup, stackUrls, teardown, trackerNote } from './index.ts';
+import { checks, directUrls, pageOf, agreementCaseGap, setup, stackUrls, teardown, trackerNote } from './index.ts';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -97,7 +97,7 @@ const agreementWith = (files: string) => ['# r — agreement', 'Class: B', '## O
 check('agreement: a fix/ case with a verification/ file is refused (the oracle guard)', agreementGap(agreementWith('verification/tests/x.spec.ts'), 'B', 'fix/bjew-617-x')?.includes('oracle-guard') === true);
 check('agreement: the same case on a verification/ branch, or with no branch known, is accepted', agreementGap(agreementWith('verification/tests/x.spec.ts'), 'B', 'verification/x') === null && agreementGap(agreementWith('verification/tests/x.spec.ts'), 'B') === null);
 check('agreement: a fix/ case that stays in the product is accepted', agreementGap(agreementWith('packages/backend/app/x.py'), 'B', 'fix/x') === null);
-check('planGap is what the agreement gap asks', planGap({ branch: 'feat/x', rows: [{ n: 1, message: 'm', files: ['verification/a.ts'] }] }) !== null);
+check('agreementCaseGap is what the agreement gap asks', agreementCaseGap({ branch: 'feat/x', rows: [{ n: 1, message: 'm', files: ['verification/a.ts'] }] }) !== null);
 {
   const repo = mkdtempSync(join(tmpdir(), 'wf-oracle-'));
   const git = (...args: string[]) => execFileSync('git', ['-C', repo, '-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });

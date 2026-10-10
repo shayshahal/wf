@@ -67,6 +67,13 @@ check('unknown decision maps to changes-requested, keeping the comment', meh.end
 
 const skel = renderSkeleton({ round: 'feat/x', klass: 'A', base: 'dev', date: '2026-09-17', files: ['a.ts'] });
 check('skeleton verdict is not a real verdict', readVerdict(skel) === null, skel);
+const currentHeader = renderHeader({ round: 'r', agreementSha: 'agreed', contentSha: 'worktree', headSha: 'head', assessment: ['assessment: VERIFIED (r/ASSESSMENT.md)'], files: ['proof/CALL-STACK-AS-BUILT.md'] });
+check('review headers bind the current agreement and implementation, never the retired SPEC', currentHeader.includes('agreement-sha: agreed') && currentHeader.includes('content-sha: worktree') && currentHeader.includes('head-sha: head') && !currentHeader.includes('spec-sha:') && currentHeader.includes('diffed against the agreement'), currentHeader);
+check('review headers retain the consolidated assessment summary exactly once', currentHeader.split('assessment: VERIFIED (r/ASSESSMENT.md)').length === 2, currentHeader);
+// @ts-expect-error SPEC is not an input to the replacement review header.
+renderHeader({ round: 'r', specSha: 'obsolete' });
+// @ts-expect-error Per-rule standards reports are not an input to the consolidated assessment.
+renderHeader({ round: 'r', standards: ['standards: obsolete'] });
 const targetLine = { ...annotate, decision: "lgtm", target: { review: { base: "dev", changedFiles: 124 } } };
 check('fold records what plannotator actually reviewed', foldFeedbackLine(targetLine).includes("reviewed: dev (124 files)"));
 check('lastField takes the newest dated section', lastField('base: dev\nverdict: approved\n## 2\nbase: tools/wf-runtime\n', 'base') === 'tools/wf-runtime');

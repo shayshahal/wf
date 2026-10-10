@@ -74,7 +74,7 @@ export function foldFeedbackLine(input: ReviewFeedback | string) {
 
 const today = () => new Date().toISOString().slice(0, 10);
 
-// Pure: header block both review files share. `base` null = SPEC review (no diff).
+// Pure: header block both review files share. `base` null = agreement review (no diff).
 // "look at:" — every changed page, as a URL on this worktree's server, so the reviewer opens the
 // screen and not only the diff (Shay, BJEW-600 pilot, 2026-09-19). The project says which files are
 // pages (project.ts pageOf); `urls` is the header's `<app>: <url>` lines.
@@ -92,14 +92,12 @@ export function lookAtLines(urls: string | null, files: string[], pageFor: (file
   }
   return out;
 }
-// `standards`: one line per rule's report (standards.ts summaryLines), beside the diff and never
-// folded into VALIDATION.md: one axis must not mask the other (PRACTICES.md, Second-model review).
-// `contentSha`/`headSha`: the worktree and HEAD identities the review opened on
-// (content-identity.ts), the two lines that bind the verdict to the code T2 judged — deliver pushes
-// HEAD, so both must match. Absent on a SPEC review and on reviews from before #106 (2026-10-09),
-// which approvalContentGap refuses.
-export type ReviewHeader = { round: string; klass?: string; base?: string | null; specSha?: string | null; agreementSha?: string | null; contentSha?: string | null; headSha?: string | null; date?: string; urls?: string | null; files?: string[]; beforeAfter?: string | null; standards?: string[]; manual?: string[] };
-export function renderHeader({ round, klass = '—', base = null, specSha = null, agreementSha = null, contentSha = null, headSha = null, date = today(), urls = null, files = [], beforeAfter = null, standards = [], manual = [] }: ReviewHeader) {
+// `agreementSha` binds T1's agreed material. `contentSha`/`headSha` bind T2's worktree and HEAD
+// (content-identity.ts): deliver pushes HEAD, so both must match. `assessment` is the one final
+// assessment's summary, not the former per-rule standards reports. SPEC has no producer in the
+// replacement and must not remain another rendered document contract (#111/#113 audit, 2026-10-10).
+export type ReviewHeader = { round: string; klass?: string; base?: string | null; agreementSha?: string | null; contentSha?: string | null; headSha?: string | null; date?: string; urls?: string | null; files?: string[]; beforeAfter?: string | null; assessment?: string[]; manual?: string[] };
+export function renderHeader({ round, klass = '—', base = null, agreementSha = null, contentSha = null, headSha = null, date = today(), urls = null, files = [], beforeAfter = null, assessment = [], manual = [] }: ReviewHeader) {
   return [
     `# Review — ${round}`,
     ``,
@@ -107,15 +105,14 @@ export function renderHeader({ round, klass = '—', base = null, specSha = null
     `class: ${klass}`,
     `base: ${base ?? 'n/a (agreement review)'}`,
     ...(agreementSha ? [`agreement-sha: ${agreementSha}`] : []),
-    `spec-sha: ${specSha ?? 'n/a'}`,
     ...(contentSha ? [`content-sha: ${contentSha}`] : []),
     ...(headSha ? [`head-sha: ${headSha}`] : []),
     `date: ${date}`,
     urls ?? `urls: n/a — port not derivable without wt (see REVIEW-FORMAT.md)`,
-    ...(asBuiltFile(files) ? [`look at: ${asBuiltFile(files)}  ← the call stack as built, diffed against SPEC — read first`] : []),
+    ...(asBuiltFile(files) ? [`look at: ${asBuiltFile(files)}  ← the call stack as built, diffed against the agreement — read first`] : []),
     ...(beforeAfter ? [`look at: ${beforeAfter}  ← screenshots: before (the base) and after (this round)`] : []),
     ...lookAtLines(urls, files),
-    ...standards,
+    ...assessment,
     ...manual,
     ``,
     `files changed (${files.length}):`,
@@ -132,7 +129,7 @@ export function renderSkeleton(opts: ReviewHeader) {
 // Last `<key>: <value>` line wins (review files are append-only dated sections).
 export const lastField = (text: string, key: string) => [...text.matchAll(new RegExp(`^${key}:[ \\t]*(\\S+)[ \\t]*$`, 'gm'))].at(-1)?.[1] ?? null;
 
-// The as-built call stack a B/C worker delivers (plan Task 6). T2 must see it: the one
+// An optional as-built call stack accompanying consequential work. T2 must see it: the one
 // contract change of BJEW-586 (a new error_code on a 400) was in this file and nowhere on
 // the reviewer's screen. It lives in the round's diff, wherever the bug folder is.
 export const asBuiltFile = (files: string[]) => files.find((f) => /(^|\/)proof\/CALL-STACK-AS-BUILT\.md$/.test(f)) ?? null;

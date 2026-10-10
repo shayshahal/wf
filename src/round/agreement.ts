@@ -17,7 +17,7 @@
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { planGap } from '../project.ts';
+import { agreementCaseGap } from '../project.ts';
 import type { RoundClass } from './state.ts';
 
 export const AGREEMENT_FILE = 'AGREEMENT.md';
@@ -96,9 +96,9 @@ export function agreementGap(text: string | null | undefined, klass: RoundClass 
 	if (!agreed) return `${AGREEMENT_FILE} has no \`## Agreed\` behavior — what changes, what is excluded, the choice, the verification promise`;
 	const cases = verificationCases(text);
 	if (!cases.length) return `${AGREEMENT_FILE} has no \`## Verification\` cases — one table row per case \`| # | case | files | check |\``;
-	// The project's own rule on what a case may touch (projects/<name>/index.ts planGap): a fix/ case
+	// The project's own rule on what a case may touch (projects/<name>/index.ts agreementCaseGap): a fix/ case
 	// listing a verification/ file is refused, so the oracle tests cannot be edited.
-	return planGap({ branch, rows: cases.map((c) => ({ n: c.n, message: c.message, files: caseFiles(c) })) });
+	return agreementCaseGap({ branch, rows: cases.map((c) => ({ n: c.n, message: c.message, files: caseFiles(c) })) });
 }
 
 // Pure: null when every `## Intent` line of an assessment is one verdict and every `met:` has a
