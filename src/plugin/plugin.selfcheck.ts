@@ -39,7 +39,7 @@ check('SubagentStop matches the plugin-scoped agent type, anchored', stop.matche
 // In auto mode the report goes through SubagentHandback, before SubagentStop (BJEW-562, 2026-09-27).
 const handback = JSON.parse(readFileSync(join(root, manifest.hooks), 'utf8')).hooks.PreToolUse.find((h: { matcher: string; hooks: { args: string[] }[] }) => h.matcher === 'SubagentHandback');
 check('a hand-back is checked too, before it reaches the orchestrator', handback?.hooks[0].args.slice(1).join(' ') === 'handoff check');
-const skills = ['round', 'design-session'].map((s) => readFileSync(join(root, 'skills', s, 'SKILL.md'), 'utf8'));
+const skills = ['round', 'agreement-session'].map((s) => readFileSync(join(root, 'skills', s, 'SKILL.md'), 'utf8'));
 check('the skills name wf\'s files as ${CLAUDE_PLUGIN_ROOT}, no {{wf}} or {{project}} left', skills.every((t) => !t.includes('{{wf}}') && !t.includes('{{project}}')));
 // BJEW-461 (2026-10-06): the round skill sent harness trouble to a `scout`, a pi agent of Shay's on another model.
 // Every text an agent of wf's reads: the skills, the prompts, the process docs, the agents themselves.
