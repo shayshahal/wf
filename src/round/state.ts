@@ -33,9 +33,10 @@ export type State = {
 	made_by?: string;
 	// Who opened the worktree (seams.opener, at `wf new`), so a tool beside wf can show which agent it belongs to.
 	opened_by?: Record<string, string>;
-	// The harness session working this round now, as a reference (round/session.ts): recorded when a
-	// phase reads its brief or a Claude hook fires, so a resumed session picks the work up without a
-	// hand-typed transcript path. A reference, never the transcript's content.
+	// The phase worker's harness session, as a reference (round/session.ts): recorded when its brief
+	// runs (pi's PI_SESSION_ID/PI_SESSION_FILE) or its own Claude hook fires (the subagent's agent_id /
+	// agent_transcript_path, never the main session's fields), so the round names the worker rather than
+	// the parent session. A reference, never the transcript's content.
 	session?: { harness: string; id: string; transcript: string | null; step: string | null; at: string };
 	entry?: string;
 	check?: boolean;

@@ -47,7 +47,8 @@ export async function runBrief(argv: string[], { stack = ensureServers }: { stac
 	}
 	const { toplevel, folder, state } = composed;
 	// The phase worker's own harness session is the one to resume: record it as a round fact (pi's
-	// PI_SESSION_ID / PI_SESSION_FILE, or Claude's CLAUDE_CODE_SESSION_ID). Best-effort (session.ts).
+	// PI_SESSION_ID / PI_SESSION_FILE). Claude Code's shared session id is not the worker's, so in
+	// Claude the worker is recorded from its own hook (session.ts). Best-effort.
 	recordSession(toplevel, harnessSession(), readState(toplevel)?.step ?? phase);
 	// The stack comes first. A stack that will not start does not stop the brief: the build can start
 	// without it, and `wf check` starts its own.
