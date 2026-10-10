@@ -22,7 +22,7 @@ import { openQuestionGate } from '../round/ask.ts';
 import { readVerdict, approvalBinding, approvalContentGap } from './review-format.ts';
 import { headContentSha, trackerNotePath, worktreeContentSha } from './content-identity.ts';
 import type { ContentIdentity } from './content-identity.ts';
-import { readState, roundOf, toplevelOf, writeState } from '../round/state.ts';
+import { readState, resolveRoundBase, roundOf, toplevelOf, writeState } from '../round/state.ts';
 import { runStep } from '../round/step.ts';
 import type { GhResult } from '../seams.ts';
 import type { State } from '../round/state.ts';
@@ -613,6 +613,17 @@ export async function runDeliver() {
 		await finishDelivery({ toplevel, state, folder, ids: state?.ids ?? [id], url: resume.url, because: 'was already merged' });
 		return;
 	}
+	// The round's own base, not the project's base branch (O3, 2026-10-10): a round started with
+	// `wf new --base main` in a project whose base branch is dev has a resolving state.base and may have
+	// no origin/dev. Resolve it here, before the last check and the push, so an unresolvable base
+	// refuses before anything leaves the machine; the commit list after the push reuses this resolved
+	// commit rather than asking git for origin/<project baseBranch> — which failed after the push and
+	// left the round stuck with a pushed branch and no PR.
+	const { ref: baseRef, base } = resolveRoundBase(toplevel, state);
+	if (!base) {
+		console.error(`wf deliver: the round's base \`${baseRef}\` does not resolve — fetch it, or start the round with \`wf new --base <ref>\``);
+		process.exit(2);
+	}
 	await runCheck([]); // exits 1 with the failure; silent when the matching case is green
 	requireApprovedContent('the last check');
 
@@ -645,10 +656,9 @@ export async function runDeliver() {
 	}
 	requireApprovedContent('the push hook');
 
-	const base = git(toplevel, ['merge-base', `origin/${baseBranch}`, 'HEAD']);
 	const commitLines = git(toplevel, ['log', '--format=- %h %s', `${base}..HEAD`]).split('\n').filter(Boolean);
 	if (!commitLines.length) {
-		console.error(`wf deliver: no commits since origin/${baseBranch} — nothing to deliver`);
+		console.error(`wf deliver: no commits since ${baseRef} — nothing to deliver`);
 		process.exit(1);
 	}
 	const body = join(tmpdir(), `wf-pr-${Date.now()}.md`);
