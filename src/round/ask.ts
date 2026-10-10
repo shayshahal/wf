@@ -9,7 +9,7 @@
 // `wf prompt` and `wf deliver` refuse while a question is open (openQuestionGate).
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { refuseCaller } from '../refusal.ts';
-import { appendDecision, agreementPathOf, notifyAdapters } from './step.ts';
+import { appendDecision, agreementPathOf } from './step.ts';
 import { stepHistory } from './friction.ts';
 import { people } from '../project.ts';
 import { agreementSha } from './agreement.ts';
@@ -122,7 +122,14 @@ export async function runAsk(argv: string[]): Promise<void> {
 	const next = writeState(toplevel, (state) => addQuestion(state, { to, text, dflt: a.default, source }));
 	const q = next.questions!.at(-1)!;
 	console.log(`q${q.n} → ${to}: ${text}`);
-	await notifyAdapters(next);
+}
+
+// Record a local correction as the round's own fact (state.decisions), beside the agreement's
+// `## Decisions` line the build reads. `wf status --inspect` shows it and a resumed build's brief
+// carries it (prompt.ts), so a local correction reaches the implementation without a renewed
+// agreement or T1 (#114). `wf decide --revise` is the other path: a new revision and a fresh T1.
+function recordDecision(toplevel: string, text: string) {
+	writeState(toplevel, (s) => ({ decisions: [...(s.decisions ?? []), { text: text.trim(), at: new Date().toISOString() }] }));
 }
 
 export async function runDecide(argv: string[]): Promise<void> {
@@ -137,9 +144,8 @@ export async function runDecide(argv: string[]): Promise<void> {
 	if (!(state.questions ?? []).length) {
 		if (a.revise) {
 			const sha = agreementSha(toplevel, state.class ?? null, state.folder ?? null);
-			const next = writeState(toplevel, (state) => reviseState(state, answer, sha));
+			writeState(toplevel, (state) => reviseState(state, answer, sha));
 			console.log('the round is back at agree: `wf next` sends it to a fresh agreement and T1 with this answer');
-			await notifyAdapters(next);
 			return;
 		}
 		// No question open: a decision nobody was asked for, recorded where the build reads it.
@@ -148,6 +154,7 @@ export async function runDecide(argv: string[]): Promise<void> {
 			process.exit(2);
 		}
 		writeFileSync(agreement, appendDecision(readFileSync(agreement, 'utf8'), answer));
+		recordDecision(toplevel, answer);
 		console.log(`recorded in ${agreement} § Decisions`);
 		return;
 	}
@@ -169,10 +176,9 @@ export async function runDecide(argv: string[]): Promise<void> {
 		console.error(`wf decide: no ${agreement} to record q${target}'s answer in`);
 		process.exit(2);
 	}
-	let next: State;
 	const decided = { question: null as Question | null };
 	try {
-		next = writeState(toplevel, (current) => {
+		writeState(toplevel, (current) => {
 			const result = closeQuestion(current, target, undefined, answer);
 			decided.question = result.question;
 			const said = revisionText(result.question, answer);
@@ -192,11 +198,12 @@ export async function runDecide(argv: string[]): Promise<void> {
 		// the person's, and `wf next` reads the ruling from `answered` (next.ts).
 		console.log(`q${question.n} closed · ruling recorded`);
 	} else {
-		writeFileSync(agreement, appendDecision(readFileSync(agreement, 'utf8'), `${question.text} → ${question.to}: ${answer}`));
+		const line = `${question.text} → ${question.to}: ${answer}`;
+		writeFileSync(agreement, appendDecision(readFileSync(agreement, 'utf8'), line));
+		recordDecision(toplevel, line);
 		console.log(`q${question.n} closed · recorded in ${agreement} § Decisions`);
 	}
 	if (a.revise) console.log('the round is back at agree: `wf next` sends it to a fresh agreement and T1 with this answer');
-	await notifyAdapters(next);
 }
 
 // Pure: the text `wf decide --revise --q` records in state.revisions for an answered question.

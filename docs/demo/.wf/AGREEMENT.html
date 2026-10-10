@@ -29,19 +29,9 @@ footer{color:#888;font-size:12px;margin-top:40px;border-top:1px solid #8883;padd
 <p class="wf-src-6" id="wf-src-6">Class: B — the delete command changes a <code>*.remote.ts</code> contract and the stats payload.</p>
 <h2 class="wf-src-8" id="wf-src-8">Observed</h2>
 <ul>
-<li class="wf-src-10" id="wf-src-10">The delete command invalidates one key and the badge reads another:</li>
-</ul>
-<p class="wf-src-11" id="wf-src-11">  <code>packages/admin/src/lib/listings.remote.ts:31</code> calls <code>invalidate('listings')</code>, while</p>
-<p class="wf-src-12" id="wf-src-12">  <code>packages/admin/src/routes/admin/listings/ListingBadge.svelte:12</code> reads <code>stats.total</code>.</p>
-<ul>
-<li class="wf-src-13" id="wf-src-13">The API payload already carries the count the badge needs, counted in the same request:</li>
-</ul>
-<p class="wf-src-14" id="wf-src-14">  <code>packages/admin/src/lib/listings.remote.ts:18</code> (<code>GET /listings</code> → <code>stats</code>).</p>
-<ul>
-<li class="wf-src-15" id="wf-src-15">The delete can be refused; that path is unchanged and lands at</li>
-</ul>
-<p class="wf-src-16" id="wf-src-16">  <code>packages/admin/src/routes/admin/listings/+page.svelte:52</code> (<code>deleteError</code>).</p>
-<ul>
+<li class="wf-src-10" id="wf-src-10">The delete command invalidates one key and the badge reads another: <span class="wf-src-11" id="wf-src-11"><code>packages/admin/src/lib/listings.remote.ts:31</code> calls <code>invalidate('listings')</code>, while</span> <span class="wf-src-12" id="wf-src-12"><code>packages/admin/src/routes/admin/listings/ListingBadge.svelte:12</code> reads <code>stats.total</code>.</span></li>
+<li class="wf-src-13" id="wf-src-13">The API payload already carries the count the badge needs, counted in the same request: <span class="wf-src-14" id="wf-src-14"><code>packages/admin/src/lib/listings.remote.ts:18</code> (<code>GET /listings</code> → <code>stats</code>).</span></li>
+<li class="wf-src-15" id="wf-src-15">The delete can be refused; that path is unchanged and lands at <span class="wf-src-16" id="wf-src-16"><code>packages/admin/src/routes/admin/listings/+page.svelte:52</code> (<code>deleteError</code>).</span></li>
 <li class="wf-src-17" id="wf-src-17">Measured on <code>dev</code>: after a delete the badge keeps the old count until a reload.</li>
 </ul>
 <pre class="wf-src-19 diff" id="wf-src-19"><span class="ctx">  /admin/listings +page.svelte</span>
@@ -51,20 +41,11 @@ footer{color:#888;font-size:12px;margin-top:40px;border-top:1px solid #8883;padd
 <span class="ctx">    ListingBadge.svelte:12          reads stats.total</span></pre>
 <h2 class="wf-src-27" id="wf-src-27">Agreed</h2>
 <ul>
-<li class="wf-src-29" id="wf-src-29">Deleting a listing updates the count the badge shows without a reload: the delete command</li>
-</ul>
-<p class="wf-src-30" id="wf-src-30">  invalidates the stats key beside the listings key, so the badge re-reads after a delete. Data and</p>
-<p class="wf-src-31" id="wf-src-31">  action behavior are otherwise unchanged.</p>
-<ul>
-<li class="wf-src-32" id="wf-src-32">Choice: invalidate both keys at the one delete call site, rather than adding client state or a</li>
-</ul>
-<p class="wf-src-33" id="wf-src-33">  second request for the count. Rejected: a badge watcher on <code>listings.length</code>, which duplicates the</p>
-<p class="wf-src-34" id="wf-src-34">  server's count in the client.</p>
-<ul>
+<li class="wf-src-29" id="wf-src-29">Deleting a listing updates the count the badge shows without a reload: the delete command <span class="wf-src-30" id="wf-src-30">invalidates the stats key beside the listings key, so the badge re-reads after a delete. Data and</span> <span class="wf-src-31" id="wf-src-31">action behavior are otherwise unchanged.</span></li>
+<li class="wf-src-32" id="wf-src-32">Choice: invalidate both keys at the one delete call site, rather than adding client state or a <span class="wf-src-33" id="wf-src-33">second request for the count. Rejected: a badge watcher on <code>listings.length</code>, which duplicates the</span> <span class="wf-src-34" id="wf-src-34">server's count in the client.</span></li>
 <li class="wf-src-35" id="wf-src-35">Excluded: the filtered-count debate (ASK-1) and the delete-error path; neither changes here.</li>
-<li class="wf-src-36" id="wf-src-36">Verification promise: the case below proves a delete drops the badge count, and a person confirms</li>
+<li class="wf-src-36" id="wf-src-36">Verification promise: the case below proves a delete drops the badge count, and a person confirms <span class="wf-src-37" id="wf-src-37">the badge on <code>/admin/listings</code> after a delete.</span></li>
 </ul>
-<p class="wf-src-37" id="wf-src-37">  the badge on <code>/admin/listings</code> after a delete.</p>
 <pre class="wf-src-39 diff" id="wf-src-39"><span class="ctx"> packages/admin/src/lib/listings.remote.ts</span>
 <span class="del">-  export const deleteListing = remoteCommand(async (id) =&gt; { await api.delete(id); invalidate('listings'); })</span>
 <span class="add">+  export const deleteListing = remoteCommand(async (id) =&gt; {</span>

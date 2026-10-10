@@ -27,7 +27,7 @@ import { modelFor } from '../models.ts';
 import type { Models } from '../models.ts';
 import { readState, resolveRoundBase, toplevelOf, writeState } from './state.ts';
 import type { Question, RoundClass } from './state.ts';
-import { higherClass, notifyAdapters, runStep } from './step.ts';
+import { higherClass, runStep } from './step.ts';
 
 // How many times a within-agreement finding is repaired autonomously before one contextual escalation
 // (#113.3). An evaluated default, not a universal rule (#110).
@@ -322,9 +322,6 @@ export async function runNext() {
 		if (e.blockedAnswered !== undefined) writeState(toplevel, () => ({ blocked_answered: e.blockedAnswered }));
 		if (e.ask) writeState(toplevel, (state) => addQuestion(state, e.ask!));
 	}
-	if (effects.some((e) => e.ask)) {
-		await notifyAdapters(readState(toplevel)!);
-		({ say } = nextAction(snapshotOf(toplevel)));
-	}
+	if (effects.some((e) => e.ask)) ({ say } = nextAction(snapshotOf(toplevel)));
 	console.log(say);
 }

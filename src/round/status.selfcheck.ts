@@ -1,10 +1,12 @@
 // status.selfcheck.ts — node status.selfcheck.ts → exit 0 when green.
 // Two fake worktrees, stubbed list + gh via inject, assert mine-first ordering and the ← YOU marker.
+import { execFileSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { plug } from '../seams.ts';
-import { allLines, collectRows, formatRow, liveRounds, prLabel, formatAgeSince, processesIn, realDetailFor } from './status.ts';
+import { allLines, collectRows, formatRow, liveRounds, prLabel, formatAgeSince, processesIn, realDetailFor, inspectRound, porcelainEntries, nameStatusEntries, lastEvidence, evidenceBinding, formatInspect } from './status.ts';
+import { agreementSha } from './agreement.ts';
 import type { Question, State } from './state.ts';
 
 let failures = 0;
@@ -85,6 +87,8 @@ check('a round nobody waits on reads "running"', all[4] === '  BJEW-1  build  ru
 check('a worktree with no state is not a round', !all.join('|').includes('wt-bare'), all.join('|'));
 check('no rounds → no lines', allLines({ paths: [bare], readState: readAll, detailFor: () => '', now }).length === 0);
 check('liveRounds counts everything but merged and held', liveRounds({ paths: [old, mine, mid, bare], readState: readAll }).map((r) => r.state.id).join() === 'BJEW-1,BJEW-2', JSON.stringify(liveRounds({ paths: [old, mine, mid, bare], readState: readAll }).map((r) => r.state.id)));
+const allWithInspect = allLines({ paths: [old], readState: readAll, detailFor: () => '', now, inspectFor: () => '  agreement: x' });
+check('--all --inspect carries the per-round block under its line', allWithInspect.some((l) => l === '  agreement: x'), allWithInspect.join('|'));
 mkdirSync(join(old, 'bug-reports', 'BJEW-1'), { recursive: true });
 writeFileSync(join(old, 'bug-reports', 'BJEW-1', 'TICKET.md'), '# t\n\n## Intent\n- x\n\n## Verification\n| # | case | files | check |\n|---|---|---|---|\n| 1 | a | b | c |\n| 2 | a | b | c |\n');
 const ticketText = readFileSync(join(old, 'bug-reports', 'BJEW-1', 'TICKET.md'), 'utf8').replace(/\r\n/g, '\n').trimEnd();
@@ -97,6 +101,71 @@ check('procs: the worktree and below, from a process block, with backslashes and
 check('procs: a sibling whose name starts the same is not inside', processesIn('C:/Users/S/wt/fix-ab', cwds, true) === 1);
 check('procs: case-blind on Windows only', processesIn('c:/users/s/wt/fix-a', cwds, true) === 2 && processesIn('c:/users/s/wt/fix-a', cwds, false) === 0);
 check('procs: shown in the row when counted, absent when not', formatRow({ path: 'p', state: null, pr: '-', stack: null, processes: 3 }).endsWith(' · 3 procs') && !formatRow({ path: 'p', state: null, pr: '-', stack: null }).includes('procs'));
+
+// The inspect block (#114): the in-flight diff, evidence, facts and references, from injected git.
+const ir = join(root, 'wt-inspect');
+const irFolder = join(ir, 'bug-reports', 'BJEW-9');
+mkdirSync(join(ir, '.wf'), { recursive: true });
+mkdirSync(irFolder, { recursive: true });
+writeFileSync(join(irFolder, 'AGREEMENT.md'), '# a\n\n## Observed\n- x at `a.ts:1`\n\n## Agreed\n- do it\n\n## Verification\n| # | case | files | check |\n|---|---|---|---|\n| 1 | a | b | c |\n');
+writeFileSync(join(irFolder, 'ASSESSMENT.md'), 'Verdict: repair\nhead: abcd1234\n\n## Intent\nmet: before: 1 after: 2\n');
+writeFileSync(join(irFolder, 'AGREEMENT-REVIEW.md'), 'agreement-sha: deadbeef\n\nverdict: approved\n');
+writeFileSync(join(irFolder, 'option-a.html'), '<p>x</p>\n');
+writeFileSync(join(ir, '.wf', 'AGREEMENT.html'), '<p>agreement page</p>\n');
+writeFileSync(join(ir, '.wf', 'checks.log'), '{"row":1,"result":"red"}\nnot json\n{"row":3,"result":"green","content":"run 3"}\n');
+const irState: State = { wf_version: 2, class: 'B', folder: 'bug-reports/BJEW-9', step: 'build', base: 'dev', questions: [{ n: 1, to: 'user', text: 'hide or delete?', asked: '2026-10-10T00:00:00Z' }], session: { harness: 'pi', id: 'sess-1234567890', transcript: 'C:/t/s.jsonl', step: 'build', at: '2026-10-10T01:00:00Z' }, decisions: [{ text: 'keep it', at: '2026-10-10T00:30:00Z' }] };
+const gitFake = (args: string[]) => args[0] === 'status' ? ' M packages/x.ts\0?? bug-reports/BJEW-9/new.md\0' : ' packages/x.ts | 5 +++--\n 2 files changed, 5 insertions(+), 2 deletions(-)\n';
+const fakeIdentity = () => 'run 3';
+check('porcelain keeps git\'s exact staged/unstaged XY', JSON.stringify(porcelainEntries('M  a.ts\0 M b.ts\0MM c.ts\0?? d.ts\0')) === JSON.stringify([{ status: 'M ', path: 'a.ts' }, { status: ' M', path: 'b.ts' }, { status: 'MM', path: 'c.ts' }, { status: '??', path: 'd.ts' }]));
+check('porcelain -z takes a rename\'s new path and skips its original, unquoted', JSON.stringify(porcelainEntries('R  src/New name.ts\0src/Old name.ts\0?? src/עברית.ts\0')) === JSON.stringify([{ status: 'R ', path: 'src/New name.ts' }, { status: '??', path: 'src/עברית.ts' }]));
+check('last evidence reads the case and the suites apart, skipping a line cut mid-write', JSON.stringify(lastEvidence('{"row":1,"result":"green","content":"tree:c"}\nnot json\n{"row":"suites","result":"red"}\n')) === JSON.stringify({ case: { row: 1, result: 'green', content: 'tree:c' }, suites: { row: 'suites', result: 'red' } }));
+check('evidence binding: only a matching recomputed identity is current', evidenceBinding({ row: 1, result: 'green', content: 'tree:c' }, 'tree:c') === 'current' && evidenceBinding({ row: 1, result: 'green', content: 'tree:c' }, 'tree:x') === 'stale' && evidenceBinding({ row: 1, result: 'green', content: 'tree:c' }, null) === 'unknown' && evidenceBinding({ row: 1, result: 'green' }, 'tree:c') === 'unknown');
+const insp = inspectRound({ path: ir, state: irState, git: gitFake, guidance: ['docs/agents'], wfRoot: '/wf', identity: fakeIdentity });
+check('inspect names the agreement for the class', insp.agreement.file === 'bug-reports/BJEW-9/AGREEMENT.md' && insp.agreement.exists && !!insp.agreement.sha, JSON.stringify(insp.agreement));
+check('inspect lists the in-flight diff with git\'s XY', insp.diff.files?.map((f) => `${f.status} ${f.path}`).join() === ' M packages/x.ts,?? bug-reports/BJEW-9/new.md', JSON.stringify(insp.diff.files));
+check('inspect carries the diff stat summary', (insp.diff.stat ?? '').includes('2 files changed'), String(insp.diff.stat));
+check('inspect reads the latest case evidence and binds it to the recomputed identity', insp.evidence.case?.row === 3 && insp.evidence.case?.result === 'green' && insp.evidence.case?.content === 'run 3' && insp.evidence.binding === 'current', JSON.stringify(insp.evidence));
+check('inspect facts: assessment verdict + head, T1, questions, decisions', insp.facts.assessment?.verdict === 'repair' && insp.facts.assessment?.head === 'abcd1234' && insp.facts.t1.verdict === 'approved' && insp.facts.questions[0]?.n === 1 && insp.facts.decisions[0]?.text === 'keep it', JSON.stringify(insp.facts));
+check('T1 reads STALE while the approved sha is not the material sha', /T1 STALE/.test(formatInspect(insp)) && !/T1 approved/.test(formatInspect(insp)), formatInspect(insp));
+writeFileSync(join(irFolder, 'AGREEMENT-REVIEW.md'), `agreement-sha: ${agreementSha(ir, 'B', 'bug-reports/BJEW-9')}\n\nverdict: approved\n`);
+check('T1 reads approved when the reviewed sha is the material sha', /T1 approved/.test(formatInspect(inspectRound({ path: ir, state: irState, git: gitFake, identity: fakeIdentity }))));
+writeFileSync(join(irFolder, 'AGREEMENT-REVIEW.md'), 'agreement-sha: deadbeef\n\nverdict: approved\n');
+check('inspect says blocked only when BLOCKED.md is there', insp.facts.blocked === false && (writeFileSync(join(irFolder, 'BLOCKED.md'), 'Question: x\n'), inspectRound({ path: ir, state: irState, git: gitFake, identity: fakeIdentity }).facts.blocked === true));
+check('inspect references the session, artifacts (round + .wf pages) and guidance', insp.refs.session?.id === 'sess-1234567890' && insp.refs.artifacts.includes('option-a.html') && insp.refs.artifacts.includes('.wf/AGREEMENT.html') && insp.refs.guidance.includes('docs/agents') && insp.refs.guidance.some((g) => g.endsWith('ROUND.md')), JSON.stringify(insp.refs));
+check('a base git cannot resolve keeps the listing and names its own reason, never clean', (() => { const d = inspectRound({ path: ir, state: { ...irState, base: 'origin/nope' }, git: (args: string[]) => { if (args[0] === 'diff') throw new Error('ambiguous argument'); return ' M packages/x.ts\0'; }, identity: fakeIdentity }).diff; return d.files?.length === 1 && d.stat === null && d.statError !== null && /origin\/nope/.test(d.statError); })());
+check('git that cannot read the worktree reads diff as unknown, not empty', (() => { const d = inspectRound({ path: ir, state: irState, git: () => { throw new Error('no git'); }, identity: fakeIdentity }).diff; return d.files === null && d.error === 'git could not read this worktree'; })());
+check('the inspect block names the agreement, diff, evidence, facts and refs', ['agreement:', 'diff:', 'evidence:', 'facts:', 'refs:'].every((k) => formatInspect(insp).includes(`  ${k}`)), formatInspect(insp));
+check('the inspect block shows the recorded local feedback', formatInspect(insp).includes('decision: 2026-10-10 keep it'), formatInspect(insp));
+check('inspect exposes the opener as the recorded reference, absent when none', inspectRound({ path: ir, state: { ...irState, opened_by: { pane: 'abc123', session: 'sess-9' } }, git: gitFake, identity: fakeIdentity }).refs.openedBy?.pane === 'abc123' && insp.refs.openedBy === null && !formatInspect(insp).includes('opened by'), JSON.stringify(insp.refs));
+check('the inspect block names the opener when it is there', formatInspect(inspectRound({ path: ir, state: { ...irState, opened_by: { pane: 'abc123', session: 'sess-9' } }, git: gitFake, identity: fakeIdentity })).includes('opened by pane=abc123, session=sess-9'));
+check('name-status lists the committed change set, a rename by its destination, -z unquoted', JSON.stringify(nameStatusEntries('A\0committed.txt\0R100\0old.ts\0new.ts\0M\0עברית.ts\0')) === JSON.stringify([{ status: 'A', path: 'committed.txt', committed: true }, { status: 'R100', path: 'new.ts', committed: true }, { status: 'M', path: 'עברית.ts', committed: true }]));
+
+// Committed work vs base: porcelain is vs HEAD, so the listing must also enumerate the base..HEAD
+// change set or a clean worktree ahead of base reads as 0 entries/clean (2026-10-10 closure, F3).
+// Real git in a throwaway repo, the same inspectRound path the CLI runs.
+{
+  const repo = mkdtempSync(join(tmpdir(), 'wf-status-diff-'));
+  const git = (...args: string[]) => execFileSync('git', ['-C', repo, '-c', 'core.autocrlf=false', '-c', 'user.name=t', '-c', 'user.email=t@e.invalid', ...args], { encoding: 'utf8' }).trim();
+  try {
+    git('init', '-q', '-b', 'main');
+    git('config', 'core.autocrlf', 'false');
+    writeFileSync(join(repo, 'base.txt'), 'base\n'); git('add', '-A'); git('commit', '-qm', 'base');
+    git('checkout', '-qb', 'fix/x');
+    const folder = 'bug-reports/x';
+    mkdirSync(join(repo, folder), { recursive: true });
+    mkdirSync(join(repo, '.wf'), { recursive: true });
+    writeFileSync(join(repo, folder, 'AGREEMENT.md'), '# AGREEMENT\n\n## Observed\n- x\n\n## Agreed\n- y\n\n## Verification\n\n| # | case | files | check |\n|---|---|---|---|\n| 1 | a | b | c |\n');
+    writeFileSync(join(repo, '.wf', 'state.json'), JSON.stringify({ wf_version: 2, round: 'fix/x', id: 'x', folder, class: 'B', step: 'review', base: 'main' }));
+    writeFileSync(join(repo, 'committed.txt'), 'committed\n');
+    git('add', '-A'); git('commit', '-qm', 'the whole round committed, worktree clean');
+    const st = JSON.parse(readFileSync(join(repo, '.wf', 'state.json'), 'utf8')) as State;
+    const realGit = (args: string[]) => execFileSync('git', ['-C', repo, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    const d = inspectRound({ path: repo, state: st, git: realGit, identity: fakeIdentity }).diff;
+    check('a clean worktree ahead of base lists the committed file, not 0 entries as clean', d.files?.some((f) => f.path === 'committed.txt' && f.committed) === true, JSON.stringify(d));
+    const line = formatInspect(inspectRound({ path: repo, state: st, git: realGit, identity: fakeIdentity }));
+    check('the committed-only diff does not read 0 entries/(clean), it names the clean working tree', /diff: \d+ entr/.test(line) && !/diff: 0 entr/.test(line) && !/\(clean\)/.test(line) && /working tree clean/.test(line) && /committed\.txt \(committed\)/.test(line), line);
+  } finally { rmSync(repo, { recursive: true, force: true }); }
+}
 rmSync(root, { recursive: true, force: true });
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');
 process.exit(failures ? 1 : 0);

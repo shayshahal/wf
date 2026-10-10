@@ -62,6 +62,9 @@ export function composePrompt(argv: string[]) {
 	const intent = ticketIntent(ticket);
 	if (!intent) throw new Error(`${phase}: ${folder}/TICKET.md has no \`## Intent\` — the requester's words, verbatim and attributed`);
 	const agreementText = existsSync(agreementPath(toplevel, klass, folder)) ? readFileSync(agreementPath(toplevel, klass, folder), 'utf8') : '';
+	// Owner feedback (`## Decisions`, wf decide) reaches the build and the assessment through
+	// `agreedMaterial` in the `{{agreement}}` of both templates — one projection, so the text is not
+	// duplicated (#114 closure, F2).
 	const vars: PromptVars = { round: id, folder, base: state?.base ?? `origin/${baseBranch}`, intent, agreement: agreedMaterial(agreementText, klass), file: agreementFile(klass), assessment: '' };
 	// The project's direct URLs, {{<app>}}: Node on Windows cannot resolve *.localhost.
 	try {
