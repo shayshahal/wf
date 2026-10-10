@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 // deliver.ts — wf deliver: after T2 approved (skills/round/SKILL.md). T2 is local and comes first: the
 // approval is the merge, and nothing leaves the machine before it (Shay, 2026-09-27).
-//   1. `wf check` with the last PLAN.md row's check (the repro)
+//   1. `wf check` with the agreement's verification case (the repro)
 //   2. the PR: the round's own sections in the order a reviewer reads them, the commits, and
-//      VALIDATION.md's verdict and as-built lines (the validate agent's check; a word heuristic
-//      here printed "missing: loop" — TJEW-700). Not PLAN.md verbatim — see prBody.
+//      ASSESSMENT.md's verdict (the assess agent's check; a word heuristic
+//      here printed "missing: loop" — TJEW-700). Not the agreement verbatim — see prBody.
 //   3. the merge, and the branch deleted
 //   4. the project's tracker note in the round folder (the round skill posts it last; wf never calls the
 //      tracker), its path in .wf/state.json for `wf next`
@@ -32,7 +32,7 @@ import type { State } from '../round/state.ts';
 // counts UTF-16 units, never fewer than GitHub's characters.
 export const PR_BODY_BUDGET = 60000;
 
-type PrSources = { ticket: string; plan: string; commitLines: string[]; validation: string; planPath?: string; folder?: string; budget?: number };
+type PrSources = { ticket: string; agreement: string; commitLines: string[]; assessment: string; agreementPath: string; folder?: string; budget?: number };
 
 // The `## T2 walk` line of the agreement — a section body, or the `**T2 walk.**` bullet the agreement
 // template writes inside `## Agreed` (both name the same `open:` line).
@@ -52,127 +52,116 @@ const h1Of = (text: string) => /^#\s+(.+)$/m.exec(text)?.[1]?.trim() ?? '';
 const section = (name: string, text: string | undefined) => (text?.trim() ? `## ${name}\n\n${text.trim()}\n` : '');
 const sub = (name: string, text: string) => (text.trim() ? `### ${name}\n\n${text.trim()}\n` : '');
 
-// The `Revision (…)` line an older plan left above `## Build`; new plans keep them in `## Revisions`.
-const isRevision = (line: string) => /^Revision \(/.test(line);
-
 // Pure: the PR title — the round's own title, TICKET.md's H1 (`# JX-1221 — דף משתמש …`). Never a
 // commit subject: JX-1221's title came from commitLines.at(-1), the round's *first* commit — "split
 // /users/[id] into a view-only detail page and a /users/[id]/edit page", a design T2 removed nine
 // revisions later (Shay, 2026-10-08). The title is the one line everybody reads.
-export function prTitle({ ticket, plan, commitLines }: Pick<PrSources, 'ticket' | 'plan' | 'commitLines'>) {
-	return h1Of(ticket) || commitLines.at(0)?.replace(/^- \w+ /, '') || h1Of(plan) || 'round';
+export function prTitle({ ticket, agreement, commitLines }: Pick<PrSources, 'ticket' | 'agreement' | 'commitLines'>) {
+	return h1Of(ticket) || commitLines.at(0)?.replace(/^- \w+ /, '') || h1Of(agreement) || 'round';
 }
 
-// Pure: the agreement's `## Verification` as the PR lists it — one line per case. The `files` cell
-// goes and so do any build instructions that follow the table. The hash comes from the pushed
-// commits, matched by message; a commit no case names (deliver's own round-folder commit) is listed
-// after them, oldest last.
-export function prCommitRows(planText: string, commitLines: string[]) {
-	const hashOf = new Map<string, string>();
-	for (const line of commitLines) {
-		const m = /^- (\w+) (.+)$/.exec(line);
-		if (m) hashOf.set(m[2], m[1]);
-	}
-	const rows = verificationCases(planText);
-	const named = new Set(rows.map((r) => r.message));
-	return [
-		...rows.map((r) => `| ${r.n} | ${hashOf.get(r.message) ?? '—'} | ${r.message} | ${r.check || '—'} |`),
-		...[...hashOf]
-			.filter(([subject]) => !named.has(subject))
-			.reverse()
-			.map(([subject, hash]) => `| — | ${hash} | ${subject} | — |`),
-	];
+// Pure: the pushed commits as the PR lists them — one row per commit, newest first. A commit is not a
+// verification case (#112): no row is matched to a case, carries its check, or waits for a subject to
+// appear under `## Verification`. The old rows joined a case's `message` to a commit *subject* to pair
+// the agreed case with the pushed hash; the case and the commit are now independent lists.
+export function commitRows(commitLines: string[]) {
+	return commitLines
+		.map((line) => /^- (\w+) (.+)$/.exec(line))
+		.filter((m): m is RegExpExecArray => m !== null)
+		.map((m) => `| ${m[1]} | ${m[2]} |`);
 }
 
 // Pure: the PR body — the round's own sections in the order a reviewer reads them, not the agreement
 // verbatim. JX-1221's body was 46,275 characters: 41% of it the commit table's file lists, a preamble
 // of 14 `Revision (…)` paragraphs, and `## Build` — the call stack, the one section that says how —
 // the section the budget cut first, because it sits after the first `## ` and the preamble does not.
-// Intent, the agreement's agreed material, the commits, the T2 walk, Not doing and ASSESSMENT.md's
-// verdict are the reviewer's minimum and are never cut. The call stack and the agreement's history
-// fold under `<details>`; over the budget they go first, then the assessment's detail, then the oldest
-// commits — and the body says where the rest is.
-export function prBody({ ticket, plan, commitLines, validation, planPath = 'PLAN.md', folder: roundFolder, budget = PR_BODY_BUDGET }: PrSources) {
-	const folder = roundFolder ?? planPath.replace(/\/[^/]+$/, '');
-	const P = sectionsOf(plan);
+// Intent, the agreement's agreed material, the actual commits and verification cases, the T2 walk and
+// ASSESSMENT.md's verdict are the reviewer's minimum and are never cut. The agreement's working notes
+// (units, rulings, a repro) fold under `<details>`; over the budget they go first, then the
+// assessment's detail, then the oldest commits — and the body says where the rest is.
+export function prBody({ ticket, agreement, commitLines, assessment, agreementPath: agreementFilePath, folder: roundFolder, budget = PR_BODY_BUDGET }: PrSources) {
+	const folder = roundFolder ?? agreementFilePath.replace(/\/[^/]+$/, '');
+	const A = sectionsOf(agreement);
 	const K = sectionsOf(ticket);
-	const V = sectionsOf(validation);
-	// The plan's header is the plan as it stands — Class, Cause, Approach (prompts/plan.md).
-	const head = plan.replace(/\r\n/g, '\n').split(/^## /m)[0].split('\n');
-	const header = head.slice(1).filter((l) => l.trim() && !isRevision(l));
-	const revisions = [...head.filter(isRevision), ...(P.Revisions ?? '').split('\n')]
-		.map((l) => l.trim())
-		.filter(Boolean);
-	// VALIDATION.md's own first lines, minus its `# <round> — validation` title.
-	const verdict = validation
+	const V = sectionsOf(assessment);
+	// ASSESSMENT.md's own first lines, minus its `# <round> — final assessment` title: the `Verdict:`
+	// and `head:` the reviewer reads before anything else (prompts/assess.md).
+	const verdict = assessment
 		.replace(/\r\n/g, '\n')
 		.split(/^## /m)[0]
 		.split('\n')
 		.filter((l) => l.trim() && !l.startsWith('# '))
 		.join('\n');
-	const commits = prCommitRows(plan, commitLines);
-	const decisions = P.Decisions ? P.Decisions.split('\n').filter((l) => l.trim().startsWith('- ')).length : 0;
 	// The agreed material a reviewer after the merge must be able to read: the agreement's own behavior
-	// (Observed + Agreed for B/C, Intent for class A). PLAN.md is gone; without this the PR body lost
-	// what the round was agreed to do (#111.2, #113.5).
-	const agreementBody = [P.Observed, P.Agreed].filter(Boolean).join('\n\n').trim() || (P.Intent ?? K.Intent ?? '').trim();
-	const t2Walk = P['T2 walk']?.trim() || t2WalkOf(plan);
-
-	let buildBlock = P.Build ? `<details>\n<summary>Build — the call stack (${P.Build.split('\n').length} lines)</summary>\n\n${P.Build}\n\n</details>\n` : '';
-	let historyBlock = revisions.length || P.Decisions ? `<details>\n<summary>Plan history — ${revisions.length} revisions, ${decisions} decisions</summary>\n\n${[P.Decisions, revisions.join('\n')].filter(Boolean).join('\n\n')}\n\n</details>\n` : '';
+	// (Observed + Agreed for B/C, Intent for class A). Without this the PR body lost what the round was
+	// agreed to do (#111.2, #113.5).
+	const agreementBody = [A.Observed, A.Agreed].filter(Boolean).join('\n\n').trim() || (A.Intent ?? K.Intent ?? '').trim();
+	const t2Walk = A['T2 walk']?.trim() || t2WalkOf(agreement);
+	// The assessment's own sections, in the template's order and by axis, so one cannot mask another:
+	// the intent judgement, what was observed, consequential design, applicable standards, and the
+	// `material:` line that says the work left the agreement (#113.1, prompts/assess.md).
+	const detail: Record<string, string> = {
+		Intent: V.Intent ?? '',
+		'Behavior and evidence': V['Behavior and evidence'] ?? '',
+		Design: V.Design ?? '',
+		Standards: V.Standards ?? '',
+		Agreement: V.Agreement ?? '',
+	};
+	// The agreement's optional working notes — the units a large change lands in, the person's rulings,
+	// and a check round's repro — folded: detail, not what a reviewer reads first.
+	const notes = [['Units', A.Units], ['Decisions', A.Decisions], ['Repro', A.Repro]] as const;
+	const notesText = notes.map(([name, text]) => section(name, text)).join('\n').trim();
+	let notesBlock = notesText ? `<details>\n<summary>Working notes — ${notes.filter(([, text]) => text?.trim()).map(([name]) => name.toLowerCase()).join(', ')}</summary>\n\n${notesText}\n\n</details>\n` : '';
+	const commits = commitRows(commitLines);
+	// The agreement's verification cases beside the commits, but never joined to them (#112): the case
+	// says what `wf check` proves, the commit says what landed. Neither names the other.
+	const cases = verificationCases(agreement);
+	const verificationBlock = cases.length
+		? `## Verification\n\n| # | case | check |\n|---|---|---|\n${cases.map((c) => `| ${c.n} | ${c.message} | ${c.check || '—'} |`).join('\n')}\n`
+		: '';
 	let keep = commits.length;
-	const valDetail: Array<[string, string]> = [
-		['Unplanned', V.Unplanned ?? ''],
-		['Live', V.Live ?? ''],
-		['Intent', V.Intent ?? ''],
-	];
 	let cut = false;
 
 	const commitsBlock = () => {
-		const earlier = keep < commits.length ? [`| — | — | (${commits.length - keep} earlier commits in the branch) | — |`] : [];
-		return `## Commits\n\n| # | commit | message | check |\n|---|---|---|---|\n${[...earlier, ...commits.slice(-keep)].join('\n')}\n`;
+		const earlier = keep < commits.length ? [`| — | (${commits.length - keep} earlier commits in the branch) |`] : [];
+		return `## Commits\n\n| commit | message |\n|---|---|\n${[...earlier, ...commits.slice(0, keep)].join('\n')}\n`;
 	};
-	const validationBlock = () => {
-		const detail = valDetail.filter(([, body]) => body.trim()).map(([name, body]) => sub(name, body));
-		return [verdict, V.Suites ?? '', ...detail].filter((p) => p.trim()).length
-			? `## Assessment\n\n${[verdict, V.Suites ?? '', ...detail].filter((p) => p.trim()).join('\n\n')}\n`
-			: '';
+	const assessmentBlock = () => {
+		const lines = Object.entries(detail)
+			.filter(([, body]) => body.trim())
+			.map(([name, body]) => sub(name, body));
+		return [verdict, ...lines].filter((p) => p.trim()).length ? `## Assessment\n\n${[verdict, ...lines].filter((p) => p.trim()).join('\n\n')}\n` : '';
 	};
 	const assemble = () =>
 		[
-			cut ? `> Shortened: GitHub limits a PR body to 65,536 characters, so the round folder's own text stops here. The agreement, ASSESSMENT.md and the rest are in the branch at \`${planPath}\`.\n` : '',
+			cut ? `> Shortened: GitHub limits a PR body to 65,536 characters, so the round folder's own text stops here. The agreement, ASSESSMENT.md and the rest are in the branch at \`${agreementFilePath}\`.\n` : '',
 			`Round folder: \`${folder}/\`\n`,
 			section('Intent', K.Intent),
 			section('Agreement', agreementBody),
-			section('Approach', header.join('\n')),
 			commitsBlock(),
+			verificationBlock,
 			section('T2 walk', t2Walk),
-			section('Not doing', P['Not doing']),
-			validationBlock(),
-			buildBlock,
-			historyBlock,
+			assessmentBlock(),
+			notesBlock,
 		]
 			.filter((b) => b.trim())
 			.join('\n') + '\n';
 
 	// Least read first, and only what can be spared: a reviewer's minimum is above this list.
+	const cutOrder = ['Standards', 'Design', 'Behavior and evidence', 'Agreement', 'Intent'];
 	const stages: Array<() => boolean> = [
-		// The fold goes first: it is collapsed, and PLAN.md is in the same branch as this body.
+		// The fold goes first: it is collapsed, and the agreement is in the same branch as this body.
 		() => {
-			if (!historyBlock) return false;
-			historyBlock = '';
+			if (!notesBlock) return false;
+			notesBlock = '';
 			return true;
 		},
+		// Then the assessment's detail, least consequential first: standards, design, the evidence, the
+		// material line, and last the intent judgement.
 		() => {
-			if (!buildBlock) return false;
-			buildBlock = '';
-			return true;
-		},
-		// Then VALIDATION.md's detail, in valDetail's order: unplanned, live, intent.
-		() => {
-			const next = valDetail.find(([, body]) => body.trim() && !body.startsWith('(cut here'));
-			if (!next) return false;
-			next[1] = `(cut here, in \`${folder}/ASSESSMENT.md\`)`;
+			const name = cutOrder.find((n) => detail[n].trim() && !detail[n].startsWith('(cut here'));
+			if (!name) return false;
+			detail[name] = `(cut here, in \`${folder}/ASSESSMENT.md\`)`;
 			return true;
 		},
 		// Then the oldest commits, a quarter at a time, never the newest.
@@ -183,8 +172,8 @@ export function prBody({ ticket, plan, commitLines, validation, planPath = 'PLAN
 		},
 	];
 	let text = assemble();
-	// One pass is the normal case: the folds, then the validation's detail. A body that is still over
-	// (a plan with thousands of commits) takes the same stages again until a pass cuts nothing.
+	// One pass is the normal case: the fold, then the assessment's detail. A body that is still over
+	// (a round with thousands of commits) takes the same stages again until a pass cuts nothing.
 	for (let pass = 0; pass < 20 && text.length > budget; pass++) {
 		let changed = false;
 		for (const stage of stages) {
@@ -198,7 +187,7 @@ export function prBody({ ticket, plan, commitLines, validation, planPath = 'PLAN
 	}
 	// Still over with only the reviewer's minimum left: `gh pr create` refuses the body outright, so
 	// the body stops here rather than fail the merge (JX-1221 hit "Body is too long" once already).
-	if (text.length > budget) text = `${text.slice(0, budget)}\n(cut here, in the branch: \`${planPath}\`)\n`;
+	if (text.length > budget) text = `${text.slice(0, budget)}\n(cut here, in the branch: \`${agreementFilePath}\`)\n`;
 	return text;
 }
 
@@ -540,8 +529,8 @@ export async function runDeliver() {
 	const { id, folder } = roundOf(state, toplevel);
 	const branch = git(toplevel, ['rev-parse', '--abbrev-ref', 'HEAD']);
 	const head = git(toplevel, ['rev-parse', 'HEAD']);
-	const plan = agreementPath(toplevel, state?.class ?? null, folder);
-	if (!folder || !existsSync(plan)) {
+	const agreementFile = agreementPath(toplevel, state?.class ?? null, folder);
+	if (!folder || !existsSync(agreementFile)) {
 		console.error(`wf deliver: no agreement file in ${folder ?? 'the round folder'}`);
 		process.exit(2);
 	}
@@ -586,14 +575,13 @@ export async function runDeliver() {
 		process.exit(2);
 	}
 	// The PR carries the assessment: it must be the completed final assessment, with a verdict (#113).
-	const validationFile = join(toplevel, folder, ASSESSMENT_FILE);
-	const vGap = assessmentGap(existsSync(validationFile) ? readFileSync(validationFile, 'utf8') : null);
+	const assessmentFile = join(toplevel, folder, ASSESSMENT_FILE);
+	const vGap = assessmentGap(existsSync(assessmentFile) ? readFileSync(assessmentFile, 'utf8') : null);
 	if (vGap) {
 		console.error(`wf deliver: ${vGap}`);
 		process.exit(2);
 	}
-	const planText = readFileSync(plan, 'utf8');
-	const rows = verificationCases(planText);
+	const agreementText = readFileSync(agreementFile, 'utf8');
 	// The GitHub repository this delivery addresses: origin's own identity, from origin's configured
 	// urls and pushurls, and the push urls git resolves those to. gh without --repo asks whatever
 	// repository it infers from this folder, so a second remote or a fork could receive the branch or
@@ -665,12 +653,11 @@ export async function runDeliver() {
 	}
 	const body = join(tmpdir(), `wf-pr-${Date.now()}.md`);
 	// The assessment is the read-only final assessment (#113); first thing T2 reads.
-	const validationPath = join(toplevel, folder, ASSESSMENT_FILE);
-	const validation = existsSync(validationPath) ? readFileSync(validationPath, 'utf8') : '';
+	const assessment = existsSync(assessmentFile) ? readFileSync(assessmentFile, 'utf8') : '';
 	const ticketPath = join(toplevel, folder, TICKET_FILE);
 	const ticket = existsSync(ticketPath) ? readFileSync(ticketPath, 'utf8') : '';
-	writeFileSync(body, prBody({ ticket, plan: planText, commitLines, validation, planPath: `${folder}/${agreementPath(toplevel, state?.class ?? null, folder).split(/[\\/]/).pop()}`, folder }));
-	const title = prTitle({ ticket, plan: planText, commitLines });
+	writeFileSync(body, prBody({ ticket, agreement: agreementText, commitLines, assessment, agreementPath: `${folder}/${agreementPath(toplevel, state?.class ?? null, folder).split(/[\\/]/).pop()}`, folder }));
+	const title = prTitle({ ticket, agreement: agreementText, commitLines });
 	// An open PR is this delivery's own: edit its body, never create a second one (issue 108).
 	const url = resume.do === 'resume' ? resume.url : null;
 	const pr = url
