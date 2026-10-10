@@ -39,8 +39,17 @@ check('SubagentStop matches the plugin-scoped agent type, anchored', stop.matche
 // In auto mode the report goes through SubagentHandback, before SubagentStop (BJEW-562, 2026-09-27).
 const handback = JSON.parse(readFileSync(join(root, manifest.hooks), 'utf8')).hooks.PreToolUse.find((h: { matcher: string; hooks: { args: string[] }[] }) => h.matcher === 'SubagentHandback');
 check('a hand-back is checked too, before it reaches the orchestrator', handback?.hooks[0].args.slice(1).join(' ') === 'handoff check');
-const skills = ['round', 'agreement-session'].map((s) => readFileSync(join(root, 'skills', s, 'SKILL.md'), 'utf8'));
+const skills = ['round', 'design-session'].map((s) => readFileSync(join(root, 'skills', s, 'SKILL.md'), 'utf8'));
 check('the skills name wf\'s files as ${CLAUDE_PLUGIN_ROOT}, no {{wf}} or {{project}} left', skills.every((t) => !t.includes('{{wf}}') && !t.includes('{{project}}')));
+// The public skills are installed at `~/.local/share/wf/skills/<dir>`, and PI's `settings.json`
+// registers each installed path (`README.md` step 4). A rename that moves the folder without moving
+// the registered path dangles it, and the skill stops loading (2026-10-10, #114: a `design-session`
+// registered path met no folder after the folder became `agreement-session`, so T1 never loaded the
+// skill). Keep the folder and the frontmatter name together.
+for (const e of readdirSync(join(root, 'skills'), { withFileTypes: true }).filter((e) => e.isDirectory())) {
+	const text = readFileSync(join(root, 'skills', e.name, 'SKILL.md'), 'utf8');
+	check(`skills/${e.name} declares name: ${e.name}`, new RegExp(`^name: ${e.name}$`, 'm').test(text));
+}
 // BJEW-461 (2026-10-06): the round skill sent harness trouble to a `scout`, a pi agent of Shay's on another model.
 // Every text an agent of wf's reads: the skills, the prompts, the process docs, the agents themselves.
 const texts = ['skills', 'prompts', 'process', 'agents', 'projects'].flatMap((d) => readdirSync(join(root, d), { recursive: true, encoding: 'utf8' })

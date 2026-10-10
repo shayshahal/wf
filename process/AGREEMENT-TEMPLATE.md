@@ -3,7 +3,7 @@
 The skeleton of `<round folder>/AGREEMENT.md`, the one document class B/C work is agreed on and
 built from (#110, #111). Class A needs none of it: `TICKET.md` is the agreement, and a `## Repro`
 (for a check round) or a `## Verification` table may sit in it. This file is also what the T1
-agreement session (`skills/agreement-session/SKILL.md`) follows.
+agreement session (`skills/design-session/SKILL.md`) follows.
 
 The section order is fixed. The `## Verification` cases are the only machine-read part; everything
 above them is agreed material, and T1 binds its sha (`src/round/agreement.ts`).
