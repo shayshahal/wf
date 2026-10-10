@@ -34,10 +34,10 @@ const front = buildTasks({ changed: ['packages/frontend/b2b/src/lib/x.svelte', '
 check('svelte-check only for the package that has a svelte config', labels(front).filter((l) => l.startsWith('svelte-check')).join() === 'svelte-check jewelryx-frontend', labels(front).join(' | '));
 check('vitest runs the changed test file, package-relative', labels(front).includes('vitest jewelryx-frontend src/lib/x.test.ts'), labels(front).join(' | '));
 check('svelte-check carries --incremental --tsgo', front[0].args!.join(' ').includes('--threshold error --incremental --tsgo'), front[0].args!.join(' '));
-check('check: repro runs the RESEARCH.md command', front.at(-1)!.cmd === 'node' && front.at(-1)!.args!.join(' ') === 'scripts/repro.mjs', JSON.stringify(front.at(-1)));
+check('check: repro runs the agreement command', front.at(-1)!.cmd === 'node' && front.at(-1)!.args!.join(' ') === 'scripts/repro.mjs', JSON.stringify(front.at(-1)));
 
 const noRepro = buildTasks({ changed: [], row: { check: 'repro' }, pkgFor, repro: null });
-check('check: repro with no command line reports it instead of passing', noRepro.at(-1)!.missing?.includes('RESEARCH.md'), JSON.stringify(noRepro));
+check('check: repro with no command line reports it instead of passing', noRepro.at(-1)!.missing?.includes('the agreement'), JSON.stringify(noRepro));
 const pw = buildTasks({ changed: [], row: { check: 'verification/specs/login.spec.ts' }, pkgFor, repro: null });
 // BJEW-617 row 1 (2026-10-06): from the repo root, `pnpm exec playwright` found no playwright (it is installed in verification/ only).
 // The task's declared cwd is verification -- the runner's own cwd -- and it is handed the

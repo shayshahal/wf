@@ -44,26 +44,26 @@ check('annotated maps to changes-requested', folded.endsWith('verdict: changes-r
 
 const annotate = {
   v: 1, ts: '2026-09-17T20:01:00.000Z', client: 'test', project: 'x', surface: 'annotate',
-  decision: 'approved', target: 'SPEC.md', feedback: '',
+  decision: 'approved', target: 'AGREEMENT.md', feedback: '',
   annotations: [{ blockId: 'usage-table', text: 'add a row' }],
 };
 // The adapter hands the parsed line, fold also takes its JSON text. Until 2026-10-01 the variants
 // below spread the text, which copies its characters, not its fields: none carried the annotation.
 const annotateLine = JSON.stringify(annotate);
 const folded2 = foldFeedbackLine(annotateLine);
-check('blockId-only comment targets SPEC.md', folded2.includes('SPEC.md:usage-table — add a row'), folded2);
+check('blockId-only comment targets the agreement', folded2.includes('AGREEMENT.md:usage-table — add a row'), folded2);
 check('approved maps to approved', folded2.endsWith('verdict: approved'), folded2);
 check('the review UI\'s own message is the note line (stdout carries only {decision,message})', foldFeedbackLine({ ...annotate, message: 'shown in chat, not in a browser' }).includes('note — shown in chat, not in a browser'), foldFeedbackLine({ ...annotate, message: 'shown in chat, not in a browser' }));
 // The shape a real record has: a digest with a section per annotation, a quoted person line, and — the part
 // that reached a round's SPEC-REVIEW.md, 2026-10-06 — the element's HTML and box coordinates.
 const realDigest = { ...annotate, feedback: '# File Feedback\n\nI\'ve reviewed this file and have 1 pieces of feedback:\n\n## 1. General feedback about the file\n> this is still information overload\n\n- **selector** `#wf-src-50 > strong`\n- **box** 298,315 492×20 (viewport 1680×901)\n\n---\n\n## Label Summary\n' };
-check('a real digest folds to its comment lines only — no digest headers, no selectors, no box coordinates', foldFeedbackLine(realDigest) === 'SPEC.md:usage-table — add a row\nverdict: approved', foldFeedbackLine(realDigest));
+check('a real digest folds to its comment lines only — no digest headers, no selectors, no box coordinates', foldFeedbackLine(realDigest) === 'AGREEMENT.md:usage-table — add a row\nverdict: approved', foldFeedbackLine(realDigest));
 const lgtm = foldFeedbackLine({ ...annotate, decision: 'lgtm' });
-check('review-surface lgtm maps to approved (plannotator 0.27.16)', lgtm.endsWith('verdict: approved') && lgtm.includes('SPEC.md:usage-table — add a row'), lgtm);
+check('review-surface lgtm maps to approved (plannotator 0.27.16)', lgtm.endsWith('verdict: approved') && lgtm.includes('AGREEMENT.md:usage-table — add a row'), lgtm);
 const withNotes = foldFeedbackLine({ ...annotate, decision: 'approved-with-notes' });
-check('an approval with a comment (approved-with-notes) maps to approved, keeping the comment', withNotes.endsWith('verdict: approved') && withNotes.includes('SPEC.md:usage-table — add a row'), withNotes);
+check('an approval with a comment (approved-with-notes) maps to approved, keeping the comment', withNotes.endsWith('verdict: approved') && withNotes.includes('AGREEMENT.md:usage-table — add a row'), withNotes);
 const meh = foldFeedbackLine({ ...annotate, decision: 'meh' });
-check('unknown decision maps to changes-requested, keeping the comment', meh.endsWith('verdict: changes-requested') && meh.includes('SPEC.md:usage-table — add a row'), meh);
+check('unknown decision maps to changes-requested, keeping the comment', meh.endsWith('verdict: changes-requested') && meh.includes('AGREEMENT.md:usage-table — add a row'), meh);
 
 const skel = renderSkeleton({ round: 'feat/x', klass: 'A', base: 'dev', date: '2026-09-17', files: ['a.ts'] });
 check('skeleton verdict is not a real verdict', readVerdict(skel) === null, skel);
@@ -131,23 +131,23 @@ check('the copy button falls back when the frame refuses the clipboard API (sand
 check('no mermaid script on a page with no mermaid block', !planPage({ title: 'P', meta: [], section: '- a' }).includes('cdn.jsdelivr.net'));
 const pageHtml = planPage({ title: '<b>', meta: ['x <y>'], section: '## <i>', artifacts: [{ title: 'v.html', src: '../r/v.html' }] });
 check('the page escapes the title, meta and artifact, and embeds it', pageHtml.includes('<title>&lt;b&gt;</title>') && pageHtml.includes('x &lt;y&gt;') && pageHtml.includes('src="../r/v.html"'), pageHtml);
-// Folding a comment made on the rendered page back to a SPEC.md line (planBody's tag, pageLine). The
+// Folding a comment made on the rendered page back to an agreement line (planBody's tag, pageLine). The
 // payloads are what Plannotator 0.28.5 logged for clicks on a styled page (2026-10-06): the tag has to be
 // read out of both fields, because elementPath keeps only an element's first class where the selector
 // keeps them all, and a click on a `<b>` inside a block reports the block's tag with the `<b>` after it.
 const onWrapper = { text: 'here?', elementTag: 'p', elementPath: 'body > div.block:nth-of-type(3)> p', elementSelector: 'div.block.wf-src-12 > p', originalText: 'Comment on this paragraph (the inner element), not the box around it. ← inline comment here' };
-check('a page comment folds to the line of the block it landed on, quoting what it landed on', commentLine(onWrapper) === 'SPEC.md:12 — here? (on: Comment on this paragraph (the inner element), not the box around it. ← inline comment here)', commentLine(onWrapper));
+check('a page comment folds to the line of the block it landed on, quoting what it landed on', commentLine(onWrapper) === 'AGREEMENT.md:12 — here? (on: Comment on this paragraph (the inner element), not the box around it. ← inline comment here)', commentLine(onWrapper));
 const onNested = { text: 'or here?', elementTag: 'b', elementPath: 'body > div.block:nth-of-type(5) > blockquote.wf-src-77 > b', elementSelector: 'blockquote.wf-src-77 > b', originalText: '← inline comment here' };
-check('a click inside a block still folds to the block, quoting only the clicked words', commentLine(onNested) === 'SPEC.md:77 — or here? (on: ← inline comment here)', commentLine(onNested));
+check('a click inside a block still folds to the block, quoting only the clicked words', commentLine(onNested) === 'AGREEMENT.md:77 — or here? (on: ← inline comment here)', commentLine(onNested));
 check('the deepest tag wins when a branch carries two', pageLine({ elementSelector: 'div.wf-src-12 > p.wf-src-42' }) === 42, String(pageLine({ elementSelector: 'div.wf-src-12 > p.wf-src-42' })));
-check('a comment on page chrome the page cannot place says so', commentLine({ text: 'nice', elementPath: 'body > div#scriptcheck', originalText: 'SCRIPTS RUN — mermaid would draw' }) === 'SPEC.md:? — nice (on: SCRIPTS RUN — mermaid would draw)', commentLine({ text: 'nice', elementPath: 'body > div#scriptcheck', originalText: 'SCRIPTS RUN — mermaid would draw' }));
+check('a comment on page chrome the page cannot place says so', commentLine({ text: 'nice', elementPath: 'body > div#scriptcheck', originalText: 'SCRIPTS RUN — mermaid would draw' }) === 'AGREEMENT.md:? — nice (on: SCRIPTS RUN — mermaid would draw)', commentLine({ text: 'nice', elementPath: 'body > div#scriptcheck', originalText: 'SCRIPTS RUN — mermaid would draw' }));
 // The markdown surface carries originalText too (Shay's own T1 on wf, 2026-10-06): a blockId plus the
 // text of the block that was annotated, which is what the reviser needs and used to be dropped.
-check('a markdown-surface comment keeps its blockId and gains the quoted block', commentLine({ text: 'main or dev?', blockId: 'block-14', originalText: 'a Desktop session on their main checkout, not the round worktree' }) === 'SPEC.md:block-14 — main or dev? (on: a Desktop session on their main checkout, not the round worktree)', commentLine({ text: 'main or dev?', blockId: 'block-14', originalText: 'a Desktop session on their main checkout, not the round worktree' }));
-check('a quote spanning lines stays on one line, clipped to 96', commentLine({ text: 't', blockId: 'b', originalText: `a\nb ${'x'.repeat(200)}` }).startsWith('SPEC.md:b — t (on: a b ') && /\(on: x{95}…\)$/.test(commentLine({ text: 't', blockId: 'b', originalText: 'x'.repeat(200) })), commentLine({ text: 't', blockId: 'b', originalText: 'x'.repeat(200) }));
-check('no quote, no `on:`', commentLine({ text: 't', blockId: 'b' }) === 'SPEC.md:b — t', commentLine({ text: 't', blockId: 'b' }));
+check('a markdown-surface comment keeps its blockId and gains the quoted block', commentLine({ text: 'main or dev?', blockId: 'block-14', originalText: 'a Desktop session on their main checkout, not the round worktree' }) === 'AGREEMENT.md:block-14 — main or dev? (on: a Desktop session on their main checkout, not the round worktree)', commentLine({ text: 'main or dev?', blockId: 'block-14', originalText: 'a Desktop session on their main checkout, not the round worktree' }));
+check('a quote spanning lines stays on one line, clipped to 96', commentLine({ text: 't', blockId: 'b', originalText: `a\nb ${'x'.repeat(200)}` }).startsWith('AGREEMENT.md:b — t (on: a b ') && /\(on: x{95}…\)$/.test(commentLine({ text: 't', blockId: 'b', originalText: 'x'.repeat(200) })), commentLine({ text: 't', blockId: 'b', originalText: 'x'.repeat(200) }));
+check('no quote, no `on:`', commentLine({ text: 't', blockId: 'b' }) === 'AGREEMENT.md:b — t', commentLine({ text: 't', blockId: 'b' }));
 const foldedPage = foldFeedbackLine({ decision: 'approved-with-notes', target: 'SPEC-T1.html', annotations: [onWrapper] });
-check('a page review folds to the same review-file shape, with a real SPEC.md line', foldedPage.includes('SPEC.md:12 — here?') && foldedPage.endsWith('verdict: approved'), foldedPage);
+check('a page review folds to the same review-file shape, with a real agreement line', foldedPage.includes('AGREEMENT.md:12 — here?') && foldedPage.endsWith('verdict: approved'), foldedPage);
 
 const artDir = mkdtempSync(pjoin(tmpdir(), 'wf-art-'));
 writeFileSync(pjoin(artDir, 'b.html'), 'x');

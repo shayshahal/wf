@@ -5,7 +5,7 @@
 // PLAN.md row `wf prompt implement N` recorded in .wf/state.json:
 //   fence   — no file outside row N's `files` cell may have changed
 //   project — the project's commands for the changed files and the row's test path (project.ts checks)
-//   repro   — the row's `check` cell `repro`: the command RESEARCH.md records. A row that only
+//   repro   — the case's `check` cell `repro`: the command the agreement records. A case that only
 //             edits the repro runs it too, and it must be red: that run is the round's before-the-fix
 //             measurement, its output kept in checks.log (TJEW-670: the repro was fixed in a row
 //             checked `—`, and two of four subitems never had a red run)
@@ -33,7 +33,7 @@
 // validate reads and wf next keys on. Not a commit gate: it measures what the round has done to tests
 // no row touched (2026-10-05: a change broke tests outside its commit checks, unseen until the next
 // day's full-suite run).
-// `wf check --repro` (research, prompts/research.md): RESEARCH.md's repro, three times; stable only when
+// `wf check --repro` (prompts/agree.md): the agreement's repro, three times; stable only when
 // all three are red at the same place, in the round's repro files. Its line in checks.log (row
 // `repro`, result stable|unstable|green|outside) carries the research brief's token, which `wf next`
 // requires before plan.
@@ -212,7 +212,7 @@ export function reproCommand(text: string) {
 }
 
 // Split a command line on whitespace, honouring "double quotes" — enough for the one
-// line RESEARCH.md checks in; no shell is involved anywhere in wf.
+// line the agreement checks in; no shell is involved anywhere in wf.
 export function tokenize(line: string) {
 	return [...line.matchAll(/"([^"]*)"|(\S+)/g)].map((m) => m[1] ?? m[2]);
 }
@@ -229,7 +229,7 @@ export function manualCheck(cell: string | null | undefined): string | null {
 
 // Pure: the commands to run, in order. `projectTasks(target)` is the project's commands for the diff
 // plus the row's `target` (its test path, named test id and intended line, and `refactor:` — or null);
-// `repro` is the RESEARCH.md command line (or null).
+// `repro` is the agreement's command line (or null).
 export function buildTasks({ row, projectTasks, repro, reproOnly = false }: { row: { check?: string } | null | undefined; projectTasks: (target: CheckTarget | null) => CheckTask[]; repro: string | null; reproOnly?: boolean }): CheckTask[] {
 	// The command is the first `code span` when there is one — a cell may add a note after it
 	// (TJEW-700 row 6: "`vitest run …ts` (fixture carries …)" took `number)` as the path). A cell that
@@ -243,7 +243,7 @@ export function buildTasks({ row, projectTasks, repro, reproOnly = false }: { ro
 	const target = checkCellTarget(row?.check);
 	const tasks = projectTasks(check && check !== 'repro' && !reproOnly ? target : null);
 	if (check !== 'repro' && !reproOnly) return tasks;
-	if (!repro) return [...tasks, { label: 'repro', missing: 'RESEARCH.md ## Repro has no `command:` line' }];
+	if (!repro) return [...tasks, { label: 'repro', missing: 'the agreement ## Repro has no `command:` line' }];
 	const [cmd, ...args] = tokenize(repro);
 	// Research's repro reproduces the defect in the running app (prompts/research.md).
 	return [...tasks, { label: repro, cmd, args, cwd: '.', stack: true, ...(reproOnly ? { expectRed: true } : {}) }];
@@ -259,7 +259,7 @@ export function isReproOnly(files: string[], folder: string | null) {
 
 // Why a red is red, from the task that ended the run. `environment` when no task ever ran — the stack
 // would not answer, the project's check could not be built, a task is `missing`, or the row's check
-// names a repro RESEARCH.md has no `command:` for. `code` when the run found the round's own work at
+// names a repro the agreement has no `command:` for. `code` when the run found the round's own work at
 // fault: a task ran and exited non-zero, or the fence found a file outside the row.
 // BJEW-461 (2026-10-06): the shared setup's login failed before any spec ran. The repro side got
 // `outside` for it (reproVerdict); this is the commit gate's half of the same fix — a gate that never
@@ -278,7 +278,7 @@ export function checkRunLine({ ts, row, rowCheck, tasks, result, cause, token, c
 }
 
 // The row identity a run measured, or undefined when git cannot read the tree: the log line still
-// records the run, and rowDone treats a line with no content as evidence it cannot bind (handoff.ts).
+// records the run; a line with no content is evidence that cannot bind an approval (#106).
 // The row scope excludes the round folder, so it equals the product/tests a row commit carries.
 const contentOf = (toplevel: string, folder: string | null): string | undefined => {
 	try {
@@ -452,10 +452,10 @@ export async function runRepro() {
 		process.exit(1);
 	}
 	if (verdict.result === 'green') {
-		console.log('If the repro measures what the ticket describes, that is the finding: RESEARCH.md says it does not reproduce, and wf next asks the user.');
+		console.log('If the repro measures what the ticket describes, that is the finding: the agreement says it does not reproduce, and wf next asks the user.');
 		return;
 	}
-	console.log(`\nthe last run, for RESEARCH.md's red output:\n${runs.at(-1)!.output.split('\n').filter((l) => l.trim()).slice(-10).join('\n')}`);
+	console.log(`\nthe last run, for the agreement's red output:\n${runs.at(-1)!.output.split('\n').filter((l) => l.trim()).slice(-10).join('\n')}`);
 }
 
 export async function runCheck(argv: string[] = []) {

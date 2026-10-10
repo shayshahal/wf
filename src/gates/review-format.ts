@@ -44,9 +44,10 @@ export function commentLine(a: Annotation = {}) {
     const range = a.lineStart ? `:${a.lineStart}${a.lineEnd && a.lineEnd !== a.lineStart ? `-${a.lineEnd}` : ''}` : '';
     return `${a.file}${range} — ${text}${on}`;
   }
-  // A comment with no file is a SPEC comment: the page's own line when it came from the rendered page,
-  // Plannotator's blockId on the markdown surface, `?` when neither says where it was.
-  return `SPEC.md:${pageLine(a) ?? a.blockId ?? a.lineStart ?? '?'} — ${text}${on}`;
+  // A comment with no file is an agreement comment (T1) or a T2 note: the page's own line when it
+  // came from the rendered page, Plannotator's blockId on the markdown surface, `?` when neither says
+  // where it was. `AGREEMENT.md` is where T1's agreed material lives; T2 folds the same shape.
+  return `AGREEMENT.md:${pageLine(a) ?? a.blockId ?? a.lineStart ?? '?'} — ${text}${on}`;
 }
 
 // Pure: one `path:line[-end] — text` line per annotation, then the verdict line.

@@ -28,7 +28,7 @@ check('a second resolved block on the same commit gets a suffix', resolvedBlocke
 check('a SPEC.md below the root is still fenced', !isRoundPaperwork('packages/backend/SPEC.md', folder));
 
 const research = ['# r', '', '## Repro', 'command: uv run --frozen pytest tests/test_auth.py -k otp', 'red output:', '1 failed', '', '## Seen before'].join('\r\n');
-check('repro command read from RESEARCH.md', reproCommand(research) === 'uv run --frozen pytest tests/test_auth.py -k otp', String(reproCommand(research)));
+check('repro command read from the agreement', reproCommand(research) === 'uv run --frozen pytest tests/test_auth.py -k otp', String(reproCommand(research)));
 check('no ## Repro → null', reproCommand('# r\nnothing') === null);
 check('tokenize honours double quotes', JSON.stringify(tokenize('pnpm exec playwright test "a b.spec.ts"')) === '["pnpm","exec","playwright","test","a b.spec.ts"]', JSON.stringify(tokenize('pnpm exec playwright test "a b.spec.ts"')));
 
@@ -72,11 +72,11 @@ check('no row → the project runs the diff with no test', at(undefined) === nul
 check('a manual: cell is fence only: the project gets no test, and its last word is not a path', at('manual: open /admin/listings, the badge shows 3') === null, String(at('manual: open /admin/listings, the badge shows 3')));
 check('manualCheck reads the text; no text, another cell, or none is null', manualCheck('manual: the badge shows 3') === 'the badge shows 3' && manualCheck('Manual: x') === 'x' && manualCheck('manual:') === null && manualCheck('—') === null && manualCheck('packages/backend/tests/test_auth.py') === null, String(manualCheck('manual: the badge shows 3')));
 const repro = buildTasks({ row: { check: 'repro' }, projectTasks, repro: 'node scripts/repro.mjs' });
-check('check: repro runs the project tasks, then the RESEARCH.md command', JSON.stringify(labels(repro)) === '["project -","node scripts/repro.mjs"]' && repro[1].cmd === 'node' && repro[1].args.join(' ') === 'scripts/repro.mjs', JSON.stringify(repro));
+check('check: repro runs the project tasks, then the agreement command', JSON.stringify(labels(repro)) === '["project -","node scripts/repro.mjs"]' && repro[1].cmd === 'node' && repro[1].args.join(' ') === 'scripts/repro.mjs', JSON.stringify(repro));
 // Nothing serves a worktree from its creation (2026-10-04): the repro drives the app, so wf check starts the stack for it.
 check('check: the repro needs the stack, the project\'s stand-in task does not', repro[1].stack === true && !repro[0].stack, JSON.stringify(repro));
 const noRepro = buildTasks({ row: { check: 'repro' }, projectTasks, repro: null });
-check('check: repro with no command line reports it instead of passing', noRepro.at(-1)!.missing?.includes('RESEARCH.md'), JSON.stringify(noRepro));
+check('check: repro with no command line reports it instead of passing', noRepro.at(-1)!.missing?.includes('the agreement'), JSON.stringify(noRepro));
 check('a `repro --grep …` cell is a path for the project, which refuses it', at('`repro --grep auction`') === 'auction');
 // The assertion binding (#109) is core syntax; the project's command wants the bare path, so
 // `path::id@line` and `refactor: path…` hand it a path that still ends in `.py`/`.ts`.
