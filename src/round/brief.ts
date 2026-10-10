@@ -100,17 +100,22 @@ export async function runBrief(argv: string[], { stack = ensureServers }: { stac
 		try { console.error(await stack(toplevel, { wait: true })); } catch (e) { /* the brief still goes out: research can start without the app */ console.error((e as Error).message); }
 	}
 	const token = newToken();
-	const state = readState(toplevel);
-	// count: how many agents this phase has had; wf next stops at two without a handoff.
-	// A critique of a new validation is that validation's first, not the round's next.
-	const fresh = phase === 'critique' && state?.briefs?.critique?.of !== tokenOf(readIf(join(toplevel, folder ?? '', HANDOFF_FILES.validate)));
-	// A research asked for again (`wf decide --research`) is a new first: MAX_BRIEFS counts the agents of one ask.
-	const again = phase === 'research' && pendingRevisions(state?.researchRequests, state?.briefs?.research?.at).length > 0;
 	// head: the commit a phase was briefed on. wf next re-runs validate once a fix(review) commit lands
 	// after it (TJEW-670: the PR shipped a validation of the tree before its review fix).
 	const head = execFileSync('git', ['-C', toplevel, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
-	const count = briefCount({ phase, fresh, again, last: state?.briefs?.[key], lastValidate: state?.briefs?.validate, head });
-	writeState(toplevel, { briefs: { ...briefsAfter(phase, argv, state?.briefs), [key]: { token, at: new Date().toISOString(), count, head, ...(phase === 'plan' ? { spec: specShaFor(toplevel) } : {}), ...critiqueFields(phase, argv, state, toplevel, folder) } }, briefCounts: runsAfter(state?.briefCounts, phase) });
+	const spec = phase === 'plan' ? specShaFor(toplevel) : null;
+	const at = new Date().toISOString();
+	// briefs and briefCounts are built from the state as it is under the write lock, not from a copy
+	// read before it: a brief another command recorded meanwhile is not erased (issue #107). The count
+	// is how many agents this phase has had; wf next stops at two without a handoff. A critique of a
+	// new validation is that validation's first, not the round's next; a research asked for again
+	// (`wf decide --research`) is a new first too (MAX_BRIEFS counts the agents of one ask).
+	writeState(toplevel, (state) => {
+		const fresh = phase === 'critique' && state.briefs?.critique?.of !== tokenOf(readIf(join(toplevel, folder ?? '', HANDOFF_FILES.validate)));
+		const again = phase === 'research' && pendingRevisions(state.researchRequests, state.briefs?.research?.at).length > 0;
+		const count = briefCount({ phase, fresh, again, last: state.briefs?.[key], lastValidate: state.briefs?.validate, head });
+		return { briefs: { ...briefsAfter(phase, argv, state.briefs), [key]: { token, at, count, head, ...(phase === 'plan' ? { spec } : {}), ...critiqueFields(phase, argv, state, toplevel, folder) } }, briefCounts: runsAfter(state.briefCounts, phase) };
+	});
 	process.stdout.write(`${composed.text.trimEnd()}\n${handoffText({ phase, folder, token, file: handoffFile(phase, argv[1]) })}`);
 }
 

@@ -8,7 +8,7 @@ import { createConnection } from 'node:net';
 import { join } from 'node:path';
 import { checkTasks, oracleEdits, parseStackEnv, planOracleGap, PRODUCT_BRANCH, seedActorsEnv, realPkgFor, suitesTouched } from './checks.ts';
 import type { Suite } from './checks.ts';
-import type { CheckTask } from '../../src/gates/check.ts';
+import type { CheckTarget, CheckTask } from '../../src/gates/check.ts';
 import { dropDatabase, dropStrandedTestDatabases, worktreeDatabase } from './db.ts';
 import { seams } from '../../src/seams.ts';
 import type { Command, RemovalStep } from '../../src/seams.ts';
@@ -241,13 +241,21 @@ function oracleTouched(toplevel: string): string[] {
 	return oracleEdits([...new Set([...lines(git(['diff', '--name-only', mergeBase, ...paths])), ...lines(git(['ls-files', '--others', '--exclude-standard', ...paths]))])]).sort();
 }
 
-// wf check's commands for the changed files, plus `test` (the plan row's test path, or null). Each is
-// { label, cmd, args, cwd } (cwd repo-relative), or { label, missing } when `test` is not runnable.
-export function checks({ toplevel, changed, test }: { toplevel: string; changed: string[]; test: string | null }): CheckTask[] {
+// wf check's commands for the changed files, plus the row's check cell `target` (its test path, the
+// named test id and intended assertion line, and whether it is a `refactor:`) or null. Each is
+// { label, cmd, args, cwd } (cwd repo-relative), or { label, missing } when the cell is not runnable.
+export function checks({ toplevel, changed, target }: { toplevel: string; changed: string[]; target: CheckTarget | null }): CheckTask[] {
 	const stackFile = join(toplevel, '.verify-stack.env');
 	const stackEnv = { ...seedActorsEnv(logins), ...(existsSync(stackFile) ? parseStackEnv(readFileSync(stackFile, 'utf8')) : {}) };
-	return checkTasks({ changed, test, pkgFor: realPkgFor(toplevel), pushHook: existsSync(join(toplevel, 'lefthook.yml')), onDisk: (f) => existsSync(join(toplevel, f)), stackEnv, oracleTouched: oracleTouched(toplevel) });
+	return checkTasks({ changed, target, pkgFor: realPkgFor(toplevel), pushHook: existsSync(join(toplevel, 'lefthook.yml')), onDisk: (f) => existsSync(join(toplevel, f)), stackEnv, oracleTouched: oracleTouched(toplevel) });
 }
+
+// What one red-base run's own output proves (#109, evidence.ts): core's check.ts reads this instead
+// of the exit code, with the check cell's target (`path::test id@<line>`), and greens a row only on
+// `behavioral-failure` (or `passed` for a `refactor:` row). `reproFailure` is core's repro half: the
+// project decides whether a repro's failure is a framework assertion wf can read.
+export { redBaseEvidence, reproFailure } from './evidence.ts';
+export type { RunnerEvidence } from './evidence.ts';
 
 // `wf check --suites`: before validate, on each committed HEAD, the whole suite of each package the
 // round's diff reaches (checks.ts suitesTouched); each suite its steps in order, the suites side by

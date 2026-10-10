@@ -10,6 +10,7 @@ import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { baseBranch, contractPaths as contractPathsFile } from "../project.ts";
+import { CorruptStateError, readState } from "../round/state.ts";
 
 // Pure: the project's contract paths (one pathspec glob per line, # comments) as a gitattributes
 // file. Last match wins, so the default A comes first.
@@ -62,8 +63,14 @@ const bi = args.indexOf("--base");
 const top = execFileSync("git", ["rev-parse", "--show-toplevel"], { encoding: "utf8" }).trim();
 const persistedBase = () => {
   try {
-    return JSON.parse(readFileSync(join(top, ".wf", "state.json"), "utf8")).base ?? null;
-  } catch { /* no state.json, or none that parses: the project's base branch decides */ return null; }
+    return readState(top)?.base ?? null;
+  } catch (e) {
+    // A state file that is not the round's is reported, not read as "no base here": falling back to
+    // the project's base branch would classify against the wrong base (issue #107).
+    if (e instanceof CorruptStateError) throw e;
+    /* an unreadable state file: the project's base branch decides */
+    return null;
+  }
 };
 const hasOriginBase = spawnSync("git", ["rev-parse", "--verify", "-q", `origin/${baseBranch}`]).status === 0;
 const base = bi === -1 ? (persistedBase() ?? (hasOriginBase ? `origin/${baseBranch}` : baseBranch)) : (args[bi + 1] ?? baseBranch);

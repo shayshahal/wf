@@ -1,0 +1,22 @@
+{
+  "name": "wf-pi-durable-reviewer-experiment",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Experimental read-only reviewer built on @earendil-works/pi-durable (wf issue #116). A separate local harness; its dependencies live only in this folder and are never part of wf's runtime graph.",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "dependencies": {
+    "@earendil-works/chord": "1.1.0",
+    "@earendil-works/pi-ai": "1.1.0",
+    "@earendil-works/pi-durable": "1.1.0"
+  },
+  "scripts": {
+    "typecheck": "node ../../../node_modules/typescript/bin/tsc -p tsconfig.json",
+    "test": "node test/kill-recovery.ts",
+    "test:hardening": "node test/hardening.ts",
+    "test:owner-lock": "node test/owner-lock.ts",
+    "review": "node src/runner.ts"
+  }
+}

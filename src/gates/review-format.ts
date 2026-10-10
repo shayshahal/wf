@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto';
 import { appendFileSync, existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { relative } from 'node:path';
 import { pageOf, stackUrls } from '../project.ts';
+import type { ContentIdentity } from './content-identity.ts';
 import { basePortForBranch, listWorktrees, slugForBranch, urlLines } from '../worktrees/worktree.ts';
 import { roundFile } from '../round/state.ts';
 
@@ -94,8 +95,12 @@ export function lookAtLines(urls: string | null, files: string[], pageFor: (file
 }
 // `standards`: one line per rule's report (standards.ts summaryLines), beside the diff and never
 // folded into VALIDATION.md: one axis must not mask the other (PRACTICES.md, Second-model review).
-export type ReviewHeader = { round: string; klass?: string; base?: string | null; specSha?: string | null; date?: string; urls?: string | null; files?: string[]; beforeAfter?: string | null; standards?: string[]; manual?: string[] };
-export function renderHeader({ round, klass = '—', base = null, specSha = null, date = today(), urls = null, files = [], beforeAfter = null, standards = [], manual = [] }: ReviewHeader) {
+// `contentSha`/`headSha`: the worktree and HEAD identities the review opened on
+// (content-identity.ts), the two lines that bind the verdict to the code T2 judged — deliver pushes
+// HEAD, so both must match. Absent on a SPEC review and on reviews from before #106 (2026-10-09),
+// which approvalContentGap refuses.
+export type ReviewHeader = { round: string; klass?: string; base?: string | null; specSha?: string | null; contentSha?: string | null; headSha?: string | null; date?: string; urls?: string | null; files?: string[]; beforeAfter?: string | null; standards?: string[]; manual?: string[] };
+export function renderHeader({ round, klass = '—', base = null, specSha = null, contentSha = null, headSha = null, date = today(), urls = null, files = [], beforeAfter = null, standards = [], manual = [] }: ReviewHeader) {
   return [
     `# Review — ${round}`,
     ``,
@@ -103,6 +108,8 @@ export function renderHeader({ round, klass = '—', base = null, specSha = null
     `class: ${klass}`,
     `base: ${base ?? 'n/a (SPEC review)'}`,
     `spec-sha: ${specSha ?? 'n/a'}`,
+    ...(contentSha ? [`content-sha: ${contentSha}`] : []),
+    ...(headSha ? [`head-sha: ${headSha}`] : []),
     `date: ${date}`,
     urls ?? `urls: n/a — port not derivable without wt (see REVIEW-FORMAT.md)`,
     ...(asBuiltFile(files) ? [`look at: ${asBuiltFile(files)}  ← the call stack as built, diffed against SPEC — read first`] : []),
@@ -308,6 +315,52 @@ export function readVerdict(text: string) {
   let found: string | null = null;
   for (const m of text.matchAll(/^verdict:\s*(\S+)\s*$/gm)) found = m[1];
   return (VERDICTS as (string | null)[]).includes(found) ? found : null;
+}
+
+// Pure: the last real `verdict:` and the `content-sha`/`head-sha` of the section it is written in. A
+// verdict cannot borrow a later header's sha across a `## <date>` boundary: a re-open that appended
+// a header without a verdict leaves the pair on the earlier section, and a verdict with no sha in its
+// own section is unbound and refused (#106 review, 2026-10-09).
+const SECTION_HEAD = /^## \d{4}-\d{2}-\d{2}[ \t]*$/gm;
+function reviewSections(text: string): string[] {
+  const body = text.replace(/\r\n/g, '\n');
+  const starts = [...body.matchAll(SECTION_HEAD)].map((m) => m.index!);
+  if (!starts.length) return [body];
+  const out = [body.slice(0, starts[0])];
+  for (let i = 0; i < starts.length; i++) out.push(body.slice(starts[i], starts[i + 1] ?? body.length));
+  return out;
+}
+export function approvalBinding(text: string): { verdict: string | null; contentSha: string | null; headSha: string | null } {
+  for (const section of reviewSections(text).reverse()) {
+    const verdicts = [...section.matchAll(/^verdict:\s*(\S+)\s*$/gm)].map((m) => m[1]).filter((v) => (VERDICTS as string[]).includes(v));
+    if (!verdicts.length) continue;
+    const field = (key: string) => [...section.matchAll(new RegExp(`^${key}:\\s*(\\S+)\\s*$`, 'gm'))].at(-1)?.[1] ?? null;
+    return { verdict: verdicts.at(-1)!, contentSha: field('content-sha'), headSha: field('head-sha') };
+  }
+  return { verdict: null, contentSha: null, headSha: null };
+}
+
+// Pure: whether `wf review` must append a fresh dated header: the first open, or a re-open (no review
+// screen) whose recorded worktree OR HEAD identity moved. Both, because a commit that changed only
+// HEAD (with the worktree restored) must still force a new review (#106 final review).
+export function needsFreshReviewHeader(previous: { contentSha: string | null; headSha: string | null } | null, contentSha: string, headSha: string): boolean {
+  if (previous === null) return true;
+  return previous.contentSha !== contentSha || previous.headSha !== headSha;
+}
+
+// Pure: null when `reviewText` approved the implementation whose current worktree and HEAD identities
+// are `current`, else why not. The verdict is bound to the two shas its own section recorded when
+// review opened (review.ts, content-identity.ts). The worktree must still be the approved bytes; HEAD
+// must be the approved HEAD or the approved worktree itself — deliver commits the round folder after
+// T2, so a retry's HEAD is the approved content and not yet the reviewed HEAD (#106/#108). A review
+// with no sha in the verdict's section was written before wf recorded it (or by hand), and the
+// identity cannot be reconstructed after the fact, so it is refused rather than trusted.
+export function approvalContentGap(reviewText: string, current: ContentIdentity): string | null {
+  const { contentSha, headSha } = approvalBinding(reviewText);
+  if (!contentSha || !headSha) return 'REVIEW.md has no content-sha/head-sha in the verdict\'s section, so nothing binds it to the implementation it approved; re-run `wf review <round>` (it records the content T2 is approving), then set the verdict again';
+  if (contentSha !== current.worktree) return `the working tree changed after T2 approved it (REVIEW.md: ${contentSha}, this tree: ${current.worktree}) — a product, test or repro change invalidates the approval; re-run \`wf review <round>\` and T2`;
+  if (headSha !== current.head && contentSha !== current.head) return `the committed implementation changed after T2 approved it (REVIEW.md: ${headSha}, HEAD: ${current.head}) — deliver pushes HEAD, so a change it carries is not the approved code; re-run \`wf review <round>\` and T2`;
+  return null;
 }
 
 export function specShaFor(worktree: string) {

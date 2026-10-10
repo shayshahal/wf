@@ -134,7 +134,7 @@ export function composePrompt(argv: string[]) {
 		const row = rows.find((r) => r.n === n);
 		if (!row) throw new Error(`implement ${argv[1] ?? ''}: ${folder}/PLAN.md has no commit row ${argv[1] ?? ''} (rows: ${rows.map((r) => r.n).join(', ') || 'none'})`);
 		Object.assign(vars, { n, total: rows.length, row: row.line });
-		writeState(toplevel, { commit: n });
+		writeState(toplevel, () => ({ commit: n }));
 		files = rowFiles(row);
 	}
 	// standards <check>: the one rule, inline, and the changed files it covers (standards.ts).

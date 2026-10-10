@@ -2,6 +2,7 @@
   "compilerOptions": {
     "target": "esnext",
     "module": "nodenext",
+    "moduleResolution": "nodenext",
     "noEmit": true,
     "allowImportingTsExtensions": true,
     "erasableSyntaxOnly": true,
@@ -10,6 +11,5 @@
     "types": ["node"],
     "skipLibCheck": true
   },
-  "include": ["**/*.ts"],
-  "exclude": ["node_modules", "docs", "env/experiments"]
+  "include": ["src/**/*.ts", "test/**/*.ts"]
 }

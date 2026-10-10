@@ -25,7 +25,7 @@ const plan = ({ klass = 'A', asks = 'none', token = 'bbb222', files = 'a.ts', fi
 const VALID = (v = 'matches plan', t = 'ccc333') => `# r — validation\nVerdict: ${v}\n## Build stack\n- hop 1: differs: returns null\n## Intent\n"one": met: a.ts:1 \u00b7 before: red \u00b7 after: green\n${tok(t)}`;
 // The critic agreed with validation ccc333 (gates/critique.ts): every arm below it is past the critique.
 const CRIT = (v = 'AGREE', t = 'fff666') => `# r — critique of the validation\n\n## Rows\n- ${v === 'AGREE' ? 'AGREE · Verdict: matches plan' : `${v} · hop 1: differs · a.ts:3 — it returns 0`}\n\nVerdict: ${v}\n${tok(t)}`;
-const green = (n: number) => ({ row: n, result: 'green' });
+const green = (n: number) => ({ row: n, result: 'green', rowCheck: 'repro' });
 const base = (patch: Fixture = {}) => ({
 	branch: 'fix/r', entry: 'C:/wf/wf.mjs', step: 'classify', klass: 'A', questions: [], answered: [], commit: null,
 	briefs: { research: { token: 'aaa111', count: 1 }, plan: { token: 'bbb222', count: 1 }, validate: { token: 'ccc333', count: 1 }, critique: { token: 'fff666', count: 1, of: 'ccc333', exchange: 1 } },
@@ -311,7 +311,7 @@ try {
 	git('2026-10-08T08:00:00+03:00', 'checkout', '-q', '-b', 'feat/x');
 	git('2026-10-07T15:00:00+03:00', 'commit', '-q', '--allow-empty', '-m', 'fix(x): one');
 	git('2026-10-08T08:49:32+03:00', 'commit', '-q', '--allow-empty', '-m', 'fix(review): the\ttabbed meta');
-	writeState(repo, { base: 'main', folder: '' });
+	writeState(repo, () => ({ base: 'main', folder: '' }));
 	// The project's contract paths, read from the worktree: a missing one measures nothing, silently.
 	mkdirSync(join(repo, dirname(contractPathsFile)), { recursive: true });
 	writeFileSync(join(repo, contractPathsFile), 'packages/backend/app/api/**\n');
@@ -325,12 +325,12 @@ try {
 	// JX-1221 as state.json holds it: history, revisions and briefs come through snapshotOf from a real repo; the commit
 	// is q9's (05:49Z), row 7 that names it was briefed 06:14Z, the revise came after a refused push (review, pr, plan).
 	git('2026-10-08T09:00:00+03:00', 'commit', '-q', '--allow-empty', '-m', 'fix(review): the meta');
-	writeState(repo, {
+	writeState(repo, () => ({
 		base: 'main', folder: '', step: 'implement',
 		history: [{ step: 'review', at: '2026-10-08T06:03:17.973Z' }, { step: 'pr', at: '2026-10-08T06:05:28.735Z' }, { step: 'plan', at: '2026-10-08T06:10:13.026Z' }, { step: 'implement', at: '2026-10-08T06:14:13.905Z' }],
 		revisions: [{ text: 'T2 #4 + hook', at: '2026-10-08T06:10:13.026Z' }],
 		briefs: { 'implement 7': { token: 'x', count: 1, at: '2026-10-08T06:14:42.834Z' } },
-	});
+	}));
 	const real = snapshotOf(repo);
 	const fromRepo = (patch: Fixture = {}) => nextAction({ ...jxSeven, commits: [...jxSeven.commits!.slice(0, -1), real.commits!.at(-1)!], history: real.history, revisions: [...jxSeven.revisions!.slice(0, 2), ...real.revisions!], briefs: { ...jxSeven.briefs, ...real.briefs }, answered: [jxAnswer(9, '2026-10-08T05:40:28.619Z')], ...patch } as Snapshot).say;
 	const refusedReview = 'verdict: changes-requested\n';

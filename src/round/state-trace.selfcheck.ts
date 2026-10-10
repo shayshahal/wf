@@ -38,8 +38,8 @@ check('the line carries the drop, the counted map and the agent counts', line.dr
 
 // End to end: the second write is the stale one a phase brief makes after a slower writer read first.
 const root = mkdtempSync(join(tmpdir(), 'wf-state-trace-'));
-writeState(root, { round: 'fix/jx-252', briefs });
-writeState(root, { briefs: { research: briefs.research, plan: briefs.plan, validate: { token: '48e6c0', at, count: 1 } } });
+writeState(root, () => ({ round: 'fix/jx-252', briefs }));
+writeState(root, () => ({ briefs: { research: briefs.research, plan: briefs.plan, validate: { token: '48e6c0', at, count: 1 } } }));
 const lines = readFileSync(join(root, '.wf', STATE_WRITES_LOG), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
 check('one line per write', lines.length === 2, String(lines.length));
 check('the second line names what it dropped', lines[1].dropped.join(';') === 'validate:3->1;critique:2->0', JSON.stringify(lines[1]));

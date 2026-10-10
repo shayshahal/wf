@@ -17,6 +17,7 @@ import { briefKey, handoffFile, handoffGap, HANDOFF_FILES, planAsks, planClass, 
 import { critiqueVerdict, MAX_EXCHANGES } from '../gates/critique.ts';
 import { reportFile, roundChecks } from '../gates/standards.ts';
 import { baseBranch, contractPaths as contractPathsFile } from '../project.ts';
+import { commitContentSha } from '../gates/content-identity.ts';
 import { planCommitRows, rowFiles } from './prompt.ts';
 import { classFromFiles } from '../gates/classify.ts';
 import { lastField, readVerdict, specShaFor } from '../gates/review-format.ts';
@@ -61,7 +62,10 @@ export type Snapshot = {
 	subjects: string[];
 	// The commits since the base, oldest first, with their committer times (ISO): when a fix(review) was made. Absent: subjects, with no time.
 	commits?: { subject: string; at: string }[];
-	checks: { row: number | null; result: string }[];
+	checks: { row: number | null; result: string; rowCheck?: string | null; content?: string }[];
+	// The row-scope identity of each plan row's commit, by its message: what a green check must name
+	// for `rowDone` to accept it (#106 review). Absent on a fixture or a repo with no commits.
+	commitContent?: Record<string, string>;
 	// The last `wf check --repro` result per research token: stable | unstable | green | outside (checks.log, row `repro`).
 	repro: Record<string, string>;
 	fixesAfterValidate: number;
@@ -338,6 +342,21 @@ export function snapshotOf(toplevel: string): Snapshot {
 	const base = git('merge-base', state.base ?? `origin/${baseBranch}`, 'HEAD');
 	const specReview = read(join(dir, 'SPEC-REVIEW.md')) ?? '';
 	const commits = commitsSince(git, base);
+	// The row-scope identity of each plan row's commit: a row's green must name it. Newest first, so a
+	// row message committed twice (a re-commit after a fix) binds the commit HEAD now carries, not the
+	// oldest one (#106 final review).
+	const rowSubjects = new Set(planCommitRows(read(join(dir, 'PLAN.md')) ?? '').map(rowSubject));
+	const commitContent: Record<string, string> = {};
+	if (rowSubjects.size) {
+		try {
+			for (const line of git('log', '--format=%H%x09%s', `${base}..HEAD`).split('\n').filter(Boolean)) {
+				const tab = line.indexOf('\t');
+				const sha = line.slice(0, tab);
+				const subject = line.slice(tab + 1);
+				if (rowSubjects.has(subject) && !(subject in commitContent)) commitContent[subject] = commitContentSha(toplevel, sha, state.folder ?? null, null, 'row');
+			}
+		} catch { /* no commits, or git cannot read the tree: no row evidence to bind */ }
+	}
 	return {
 		branch,
 		entry: seams.entry.replace(/\\/g, '/'),
@@ -364,6 +383,7 @@ export function snapshotOf(toplevel: string): Snapshot {
 		standards: roundChecks(toplevel, base).map((c) => ({ id: c.id, text: read(join(dir, reportFile(c.id))), fixesAfter: fixesSince(git, state.briefs?.[briefKey('standards', c.id)]?.head) })),
 		repro: Object.fromEntries((read(join(toplevel, '.wf', 'checks.log')) ?? '').split('\n').flatMap((l) => { try { const c = JSON.parse(l); return c.row === 'repro' && c.token ? [[c.token as string, c.result as string]] : []; } catch { /* a line cut off mid-write: skipped, the rest still read */ return []; } })),
 		checks: (read(join(toplevel, '.wf', 'checks.log')) ?? '').split('\n').filter(Boolean).flatMap((l) => { try { return [JSON.parse(l) as { row: number | string | null; result: string }]; } catch { /* a line cut off mid-write: skipped, the rest still read */ return []; } }).filter((c) => c.row !== 'repro' && c.row !== 'suites').map((c) => ({ ...c, row: c.row == null ? null : Number(c.row) })),
+		commitContent,
 	};
 }
 
@@ -376,8 +396,10 @@ export async function runNext() {
 	let { say, effects } = nextAction(snapshotOf(toplevel));
 	for (const e of effects) {
 		if (e.step) await runStep(e.step, { quiet: true });
-		else if (e.revise !== undefined) writeState(toplevel, reviseState(readState(toplevel)!, e.revise));
-		else writeState(toplevel, addQuestion(readState(toplevel)!, e.ask));
+		// From the state under the write lock: a brief or question another command recorded meanwhile
+		// is kept (issue #107).
+		else if (e.revise !== undefined) { const text = e.revise; writeState(toplevel, (state) => reviseState(state, text)); }
+		else writeState(toplevel, (state) => addQuestion(state, e.ask));
 	}
 	// A question just recorded is printed as an open one, with the q<n> that `wf decide --q` takes.
 	if (effects.some((e) => e.ask)) {

@@ -110,7 +110,7 @@ export function runShow(argv: string[]): void {
 		}
 		console.log(`setup: ${cmd} → ${/HTTP \d+/.exec(r.stdout)?.[0] ?? 'ok'}`);
 	}
-	if (setups.length) writeState(toplevel, { t2_setup: setups[0].token });
+	if (setups.length) writeState(toplevel, () => ({ t2_setup: setups[0].token }));
 	if (!opensWindows()) {
 		const branch = spawnSync('git', ['-C', toplevel, 'rev-parse', '--abbrev-ref', 'HEAD'], { encoding: 'utf8' }).stdout.trim();
 		const slug = slugForBranch(branch);
