@@ -11,7 +11,7 @@
 // reads the old state and blocks at its write; the parent releases the mutate child only once the
 // command is ready, so the read is over before the competing write lands.
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -108,19 +108,29 @@ const spawnKid = (m: string, d: string, a = '', input = '', token = 'READY'): Ki
 	return { ready, done };
 };
 // Run a competing writer holding the lock while `start` begins the real command(s) under test: start
-// the writer, wait for the command to be ready, give it a margin to finish its read (after READY it
-// spawns `git rev-parse --show-toplevel`, which is the slow part under load), then let the writer
-// land. The margin scales with a measured spawn so a loaded machine gets a bigger one. The command is
-// blocked at its write the whole time, so its read is of the old state.
+// the writer, wait for the command to be ready, then wait — deterministically, not on a sleep — until
+// the command is contending for the state lock. Reaching the lock proves its read is already over
+// (readState happens before writeState), so the competing write can land without the command ever
+// reading the new state. A margin sleep was not enough under the full suite's load (the review saw the
+// arm red once and green once at the same HEAD); a test-only signal is the proof, a sleep is not.
+const lockTemps = (d: string) => {
+	const wf = join(d, '.wf');
+	return existsSync(wf) ? readdirSync(wf).filter((n) => /^state\.json\.lock\..*\.tmp$/.test(n)) : [];
+};
+const waitForContention = async (d: string) => {
+	const deadline = Date.now() + 20_000;
+	while (Date.now() < deadline) {
+		if (lockTemps(d).length) return;
+		await sleep(2);
+	}
+	throw new Error('the command under test never contended for the state lock');
+};
 const raceWith = async (d: string, kind: string, start: () => Kid[]) => {
-	const t0 = Date.now();
-	execFileSync('git', ['-C', d, 'rev-parse', '--show-toplevel'], { encoding: 'utf8' });
-	const marginMs = Math.max(1500, (Date.now() - t0) * 10);
 	const holder = spawnKid('mutate', d, kind, '', 'HELD');
 	await holder.ready;
 	const kids = start();
 	await Promise.all(kids.map((k) => k.ready));
-	await sleep(marginMs);
+	await waitForContention(d);
 	writeFileSync(join(d, '.go'), '');
 	await holder.done;
 	return Promise.all(kids.map((k) => k.done));
@@ -222,6 +232,26 @@ const planText = '# plan\n\n## Commits\n\n| 1 | do it | a.ts | x |\n';
 	const cls = spawnSync(process.execPath, [join(WF_ROOT, 'src', 'gates', 'classify.ts'), '--json'], { cwd: d, encoding: 'utf8' });
 	const text = `${cls.stdout ?? ''}${cls.stderr ?? ''}`;
 	check('classify reports corrupt state instead of falling back to the base branch', cls.status !== 0 && text.includes('corrupt round state'), `status ${cls.status} ${text.slice(0, 200)}`);
+	rmSync(d, { recursive: true, force: true });
+}
+
+// ── classify: a missing contract-path list is one actionable line, never an uncaught stack (R-9).
+{
+	const d = tempRepo();
+	const cls = spawnSync(process.execPath, [join(WF_ROOT, 'src', 'gates', 'classify.ts'), '--json', '--base', 'HEAD'], { cwd: d, encoding: 'utf8' });
+	const text = `${cls.stdout ?? ''}${cls.stderr ?? ''}`;
+	check('R-9: classify without contract-paths.txt prints one line, no stack', cls.status === 2 && /contract-paths\.txt is missing/.test(text) && !/\bat file:/.test(text), `status ${cls.status} ${text.slice(0, 200)}`);
+	rmSync(d, { recursive: true, force: true });
+}
+
+// ── a version-less legacy round is refused by the handoff hook before it writes (R-5).
+{
+	const d = tempRepo();
+	putState(d, { round: 'r', folder: 'round', step: 'build' });
+	const hook = await spawnKid('hook', d, '', JSON.stringify({ hook_event_name: 'SubagentStop', agent_type: 'wf:round-worker' })).done;
+	const st = readStateFile(d);
+	check('R-5: the handoff hook blocks a version-less state instead of writing it', hook.out.includes('"decision":"block"') && /older wf/.test(hook.out), hook.out.slice(0, 200));
+	check('R-5: the blocked hook left the legacy state unmutated', st.handoff_sent_back === undefined, JSON.stringify(st));
 	rmSync(d, { recursive: true, force: true });
 }
 

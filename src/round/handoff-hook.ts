@@ -11,7 +11,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { agreementGap, agreementPath, ASSESSMENT_FILE, assessmentGap, consequential, section } from './agreement.ts';
-import { CorruptStateError, readState, writeState } from './state.ts';
+import { CorruptStateError, legacyStateGap, readState, writeState } from './state.ts';
 import type { State } from './state.ts';
 
 type HookInput = { cwd?: string; stop_hook_active?: boolean; agent_type?: string; hook_event_name?: string; tool_input?: { subagent_type?: string } };
@@ -82,6 +82,16 @@ export async function runHandoff(argv: string[]): Promise<void> {
 		if (input.stop_hook_active || !/round-worker/.test(input.agent_type ?? '')) return;
 		const state = readState(toplevel);
 		if (!state) return;
+		// A state from the old runtime is refused before the hook writes anything (finish-before-release,
+		// #110): the handoff hook is the one producer that runs outside the dispatcher's guard.
+		const legacy = legacyStateGap(state);
+		if (legacy) {
+			const reason = `wf handoff: ${legacy}`;
+			process.stdout.write(JSON.stringify(input.hook_event_name === 'PreToolUse'
+				? { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } }
+				: { decision: 'block', reason }));
+			return;
+		}
 		const folder = state.folder ?? null;
 		const agreementFile = agreementPath(toplevel, state.class ?? null, folder);
 		const read = (name: string) => (folder && existsSync(join(toplevel, folder, name)) ? readFileSync(join(toplevel, folder, name), 'utf8') : null);

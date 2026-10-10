@@ -170,6 +170,16 @@ const approve = (dir: string, klass: 'B', agreement: string) => {
 	check('no-case check: a product change with no case and no project check refuses (no empty green)', empty.code === 1 && empty.out.includes('COULD NOT RUN'), empty.out);
 	const line = JSON.parse(readFileSync(join(dir, '.wf/checks.log'), 'utf8').trim().split('\n').at(-1)!);
 	check('no-case check: the refusal is recorded red, not green', line.result === 'red', JSON.stringify(line));
+	// R-1: a committed-only product change must be seen too (a clean tree after a commit)
+	writeFileSync(join(dir, 'src/Committed.svelte'), 'y\n');
+	execFileSync('git', ['-C', dir, '-c', 'user.name=t', '-c', 'user.email=t@t', 'add', 'src/Committed.svelte']);
+	execFileSync('git', ['-C', dir, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'add committed product']);
+	const committedOnly = cli(dir, 'check');
+	check('R-1: a committed-only product change with no case refuses (no empty green)', committedOnly.code === 1 && committedOnly.out.includes('COULD NOT RUN'), committedOnly.out);
+	const cline = JSON.parse(readFileSync(join(dir, '.wf/checks.log'), 'utf8').trim().split('\n').at(-1)!);
+	check('R-1: the committed-only refusal is recorded red, not green', cline.result === 'red', JSON.stringify(cline));
+	const fenceCommitted = cli(dir, 'check', '--case', 'src/Page.spec.ts::sidebar renders@42');
+	check('R-1: a committed product change outside the named case is fenced', fenceCommitted.code === 1 && fenceCommitted.out.includes('fence: src/Committed.svelte'), fenceCommitted.out);
 	rmSync(dir, { recursive: true, force: true });
 }
 
@@ -202,12 +212,15 @@ const approve = (dir: string, klass: 'B', agreement: string) => {
 	rmSync(dir, { recursive: true, force: true });
 }
 
-// ── a recorded revision (`wf decide --revise`) reaches a fresh agreement before any build
+// ── a recorded revision (`wf decide --revise`) reaches a fresh agreement before any build, and an
+// unchanged agreement cannot leave the old T1 approval in force (R-3)
 {
 	const { dir } = repo('fix/routeRev', 'A', null);
 	writeFileSync(join(dir, '.wf/state.json'), `${JSON.stringify({ wf_version: 2, round: 'r', id: 'r', folder: 'bug-reports/r', base: 'main', step: 'agree', class: 'A', revisions: [{ text: 'the modal must also close on Escape', at: '2026-10-10T00:00:00Z' }] })}\n`);
 	const rev = cli(dir, 'next');
 	check('revision: a recorded revision dispatches a fresh agreement, not a build', rev.out.startsWith('dispatch agree') && rev.out.includes('asked the agreement to change'), rev.out);
+	const again = cli(dir, 'next');
+	check('R-3: an unchanged agreement after --revise never builds on the old approval', again.out.startsWith('dispatch agree') && state(dir).step !== 'build', again.out);
 	rmSync(dir, { recursive: true, force: true });
 }
 

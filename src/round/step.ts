@@ -92,7 +92,15 @@ export async function runStep(argv: string[], { quiet = false } = {}) {
 	let measured: RoundClass | null = null;
 	if (step === 'classify') {
 		const measureBase = flag('base') ?? prev.base ?? null;
-		const out = execFileSync('node', [CLASSIFY, '--json', ...(measureBase ? ['--base', measureBase] : [])], { encoding: 'utf8' });
+		// A missing contract-path list makes classify exit 2 with one line; report that line, not a stack.
+		let out: string;
+		try {
+			out = execFileSync('node', [CLASSIFY, '--json', ...(measureBase ? ['--base', measureBase] : [])], { encoding: 'utf8' });
+		} catch (e) {
+			const said = ((e as { stderr?: string }).stderr ?? '').trim();
+			console.error(said || `wf step classify: ${(e as Error).message}`);
+			process.exit(2);
+		}
 		measured = JSON.parse(out).class as RoundClass;
 		const kept = higherClass(assertedClass ?? prev.class ?? null, measured);
 		if ((assertedClass ?? prev.class) && kept !== measured) console.error(`wf step classify: paths measure ${measured}, keeping asserted ${kept} (a class never downgrades)`);
@@ -104,9 +112,12 @@ export async function runStep(argv: string[], { quiet = false } = {}) {
 			const klass: RoundClass | null = step === 'classify'
 				? higherClass(assertedClass ?? current.class ?? null, measured as RoundClass)
 				: assertedClass ?? current.class ?? null;
-			if (step === 'build' && consequential(klass)) {
+			// A consequential round's T1 approval is re-asserted at every step that moves the work forward
+			// (build, assess, review): an agent running `wf step assess` directly cannot advance past a
+			// changed `## Agreed` on the old approval (#111.4).
+			if ((step === 'build' || step === 'assess' || step === 'review') && consequential(klass)) {
 				const reason = t1Gap(toplevel, { ...current, class: klass });
-				if (reason) throw new StepGateError(`class ${klass} round, ${reason} — T1 (wf agree) must approve the agreement material that is about to be built`);
+				if (reason) throw new StepGateError(`class ${klass} round, ${reason} — T1 (wf agree) must approve the agreement material ${step === 'build' ? 'that is about to be built' : `before \`${step}\``}`);
 			}
 			// A build needs an agreement to build from. Class A's is TICKET.md; B/C's is AGREEMENT.md.
 			if (step === 'build') {

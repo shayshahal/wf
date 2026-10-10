@@ -432,7 +432,7 @@ const approve = async (repo: string, branch: string) => {
 // a push hook that mutates after approval cannot keep the approval and reach a merge.
 {
 	const branch = 'feat/106hk';
-	const { repo, git } = cliRepo(branch);
+	const { repo } = cliRepo(branch);
 	const bare = mkdtempSync(join(tmpdir(), 'wf-bare-'));
 	execFileSync('git', ['init', '-q', '--bare', bare], { encoding: 'utf8' });
 	// A github.com origin deliver can pin, with git's transport rewritten to the local bare repo (#108):
@@ -440,9 +440,8 @@ const approve = async (repo: string, branch: string) => {
 	execFileSync('git', ['-C', repo, 'remote', 'add', 'origin', 'https://github.com/o/r.git'], { encoding: 'utf8' });
 	execFileSync('git', ['-C', repo, 'config', `url.${pathToFileURL(bare).href}.insteadOf`, 'https://github.com/o/r.git'], { encoding: 'utf8' });
 	writeFileSync(join(repo, folder, 'PLAN.md'), '# plan\n\n## Commits\n\n| # | message | files | check |\n|---|---|---|---|\n| 1 | fix(x): one | src/x.ts | — |\n');
-	writeFileSync(join(repo, 'src/x.ts'), 'b\n');
-	git('add', '-A');
-	git('commit', '-q', '-m', 'fix(x): one');
+	// The round is docs-only for `wf check` (no product change in the diff), so deliver reaches the push;
+	// the hook below mutates a product file after the approval, which the approval recheck must catch.
 	await withStack(branch, async () => {
 		await approve(repo, branch);
 	});

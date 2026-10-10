@@ -16,7 +16,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { refuseCaller } from '../refusal.ts';
-import { addQuestion, blockedQuestion, reviseState } from './ask.ts';
+import { addQuestion, blockedQuestion, openRevisions } from './ask.ts';
 import { agreementClass, agreementGap, agreementPath, agreementSha, AGREEMENT_FILE, AGREEMENT_REVIEW_FILE, ASSESSMENT_FILE, assessmentGap, assessmentHead, assessmentMaterial, assessmentVerdict, caseFiles, consequential, REVIEW_FILE, verificationCases } from './agreement.ts';
 import { baseBranch, contractPaths as contractPathsFile } from '../project.ts';
 import { classFromFiles } from '../gates/classify.ts';
@@ -56,14 +56,15 @@ export type Snapshot = {
 	note: { file: string; text: string | null } | null;
 	models?: Models;
 	contractPaths?: string | null;
-	revisions?: { text: string; at: string }[];
-	revisionsDispatched?: number;
+	folder?: string | null;
+	filesChanged?: string[];
+	revisions?: { text: string; at: string; sha?: string | null }[];
 	blockedAnswered?: number;
 	history?: { step: string; at: string }[];
 	repairs?: number;
 };
 export type Effect =
-	| { step?: string[]; ask?: { to: string; text: string; dflt: string | null; source: string }; revise?: string; repair?: true; revisionsDispatched?: number; blockedAnswered?: number };
+	| { step?: string[]; ask?: { to: string; text: string; dflt: string | null; source: string }; repair?: true; blockedAnswered?: number };
 
 // Pure: the ids of the tracker note's `## <id>` sections not yet marked ` (posted)`.
 export function unpostedSections(note: string | null): string[] {
@@ -79,9 +80,6 @@ export function nextAction(s: Snapshot): { say: string; effects: Effect[] } {
 		const model = s.models ? ` (model: ${modelFor(phase, s.models)})` : '';
 		return act(`dispatch ${phase}${model}: run \`${wf} brief ${phase}\` in this worktree and do exactly what it prints${again ? ` (again: ${again})` : ''}`);
 	};
-	// T1 binds the agreement's agreed material sha. A progress edit to `## Verification`/`## Units`
-	// does not change the sha; a change to `## Observed`/`## Agreed` (or `## Intent`) does.
-	const t1Approved = s.t1.sha !== null && s.t1.reviewed === s.t1.sha && s.t1.verdict === 'approved';
 	const open = s.questions ?? [];
 
 	if (open.length) return act(open.map((q) => `wait ${q.to}: q${q.n} ${q.text}${q.default ? ` (default: ${q.default})` : ''}`).join('\n'));
@@ -95,16 +93,38 @@ export function nextAction(s: Snapshot): { say: string; effects: Effect[] } {
 	}
 	// T2 is local, before anything leaves the machine; the approval is the merge.
 	if (s.step === 'pr') return act(`deliver: T2 approved — \`${wf} deliver\` (push, PR, merge, the tracker note), then \`${wf} next\``);
-	// T1 stays live after the build starts: a build or progress edit that changes the agreement's
-	// agreed material, or a `wf decide --revise` recorded while a build runs, sends the round back to a
-	// fresh agreement/T1 rather than riding the old approval (#111.4). Progress (`## Verification`,
-	// `## Units`) does not change the material sha, so it does not renew T1.
-	if (s.step === 'build' || s.step === 'assess' || s.step === 'review') {
-		const pending = (s.revisions ?? []).slice(s.revisionsDispatched ?? 0);
-		if (pending.length) {
-			effects.push({ step: ['agree', '--waiting-on', 'user'], revisionsDispatched: (s.revisions ?? []).length });
-			return dispatch('agree', `the person asked the agreement to change: ${pending.map((r) => r.text).join(' · ')}`);
+
+	// The class is measured from what the round actually does — a declared `Class:` line, a verification
+	// case, or a changed file that reaches a contract path. It runs at every working step, so an A round
+	// that edits a contract path without a case (or opens a worktree measured A on an empty diff) cannot
+	// keep skipping T1 (#111.4). A class never downgrades; `wf new --class C` stays C. A check round
+	// answers a question, not a build, so it is exempt.
+	if (!s.check) {
+		const cases = verificationCases(s.files.agreement);
+		const files = [...cases.flatMap((c) => caseFiles(c)), ...(s.filesChanged ?? [])];
+		const byFiles = s.contractPaths ? classFromFiles(files, s.contractPaths) : 'A';
+		const planned = higherClass(higherClass(s.klass, agreementClass(s.files.agreement) ?? 'A'), byFiles);
+		if (planned !== (s.klass ?? 'A')) {
+			effects.push({ step: ['classify', '--class', planned] });
+			return act(`classify: the round measures class ${planned} (a declared Class:, a case, or a changed file on a contract path) — \`${wf} next\` takes T1 next`);
 		}
+	}
+
+	// `wf decide --revise` records the agreement's material sha at the time. The revision is open until
+	// that sha moves (a fresh agreement the person can approve); while it is open the round cannot build
+	// on the old T1, so the agree session is dispatched again (#111.4).
+	const pending = openRevisions(s.revisions ?? [], s.t1.sha);
+	if (pending.length) {
+		if (s.step !== 'agree') effects.push({ step: ['agree', '--waiting-on', 'user'] });
+		return dispatch('agree', `the person asked the agreement to change: ${pending.map((r) => r.text).join(' · ')}`);
+	}
+
+	// T1 binds the agreement's agreed material sha. A progress edit to `## Verification`/`## Units`
+	// does not change the sha; a change to `## Observed`/`## Agreed` (or `## Intent`) does.
+	const t1Approved = s.t1.sha !== null && s.t1.reviewed === s.t1.sha && s.t1.verdict === 'approved';
+	// T1 stays live after the build starts: a build or progress edit that changes the agreed material
+	// sends the round back to a fresh T1 rather than riding the old approval (#111.4).
+	if (s.step === 'build' || s.step === 'assess' || s.step === 'review') {
 		if (consequential(s.klass) && !t1Approved) {
 			const why = s.t1.reviewed === null ? `no ${AGREEMENT_REVIEW_FILE} yet` : s.t1.reviewed !== s.t1.sha ? 'the agreed material changed since T1' : `T1 verdict is ${s.t1.verdict ?? 'pending'}`;
 			effects.push({ step: ['agree', '--waiting-on', 'user'] });
@@ -127,24 +147,6 @@ export function nextAction(s: Snapshot): { say: string; effects: Effect[] } {
 			if (!/^## Repro[ \t]*$/m.test((s.files.agreement ?? '').replace(/\r\n/g, '\n'))) return dispatch('agree', `no \`## Repro\` in ${consequential(s.klass) ? 'AGREEMENT.md' : 'TICKET.md'} yet`);
 			if (step !== 'agree') effects.push({ step: ['agree', '--waiting-on', 'user'] });
 			return act(`check: run \`${wf} check --repro\` (it says whether the ticket reproduces), then \`${wf} next\`. Go on: \`${wf} step build\` and set the started status; stop: \`WF_FORCE_REAP=1 ${wf} reap ${s.branch}\``);
-		}
-		// The class is measured, not assumed: a declared `Class:` line, or a verification case whose
-		// files reach a contract path, moves an A round to B, so the T1 gate cannot be skipped by how
-		// the worktree was opened (#111.4). A class never downgrades; `wf new --class C` stays C.
-		const cases = verificationCases(s.files.agreement);
-		const byFiles = s.contractPaths ? classFromFiles(cases.flatMap((c) => caseFiles(c)), s.contractPaths) : 'A';
-		const planned = higherClass(higherClass(s.klass, agreementClass(s.files.agreement) ?? 'A'), byFiles);
-		if (planned !== (s.klass ?? 'A')) {
-			effects.push({ step: ['classify', '--class', planned] });
-			return act(`classify: the agreement measures class ${planned} (declared, or a case on a contract path) — \`${wf} next\` takes T1 next`);
-		}
-		// `wf decide --revise`, or a T1 that asked for changes, sends the round back to a fresh
-		// agreement: the person's ruling must reach the working session before any build.
-		const revised = (s.revisions ?? []).slice(s.revisionsDispatched ?? 0);
-		if (revised.length) {
-			if (step !== 'agree') effects.push({ step: ['agree', '--waiting-on', 'user'] });
-			effects.push({ revisionsDispatched: (s.revisions ?? []).length });
-			return dispatch('agree', `the person asked the agreement to change: ${revised.map((r) => r.text).join(' · ')}`);
 		}
 		if (consequential(s.klass)) {
 			const gap = agreementGap(s.files.agreement, s.klass, s.branch);
@@ -191,15 +193,22 @@ export function nextAction(s: Snapshot): { say: string; effects: Effect[] } {
 		const verdict = assessmentVerdict(s.files.assessment);
 		const material = assessmentMaterial(s.files.assessment);
 		if (material) {
-			// One contextual escalation, recorded so it cannot repeat: a `--revise` answer moves the round
-			// back to agree (its revision is dispatched there); any other answer is the person's decision
-			// to carry on, and T2 reads it beside the assessment.
+			// One contextual escalation, recorded so it cannot repeat. A material change is outside the
+			// agreement, so only an explicit `accept` carries it into T2; any other answer (hold, end, no,
+			// looks fine, fix) is not an acceptance and returns to the build, where `wf decide --revise`
+			// renews the agreement (#111.4).
 			const source = `ASSESSMENT.md#${measured ?? 'unknown'}#material`;
-			if (!(s.answered ?? []).some((q) => q.source === source)) {
+			const ruling = (s.answered ?? []).find((q) => q.source === source);
+			if (!ruling) {
 				const q = `the assessment found a material change outside the agreement: ${material}. Renew the agreement (\`${wf} decide --revise "<the renewed behavior>"\`, then a fresh T1), or hold/end the round`;
 				effects.push({ ask: { to: 'user', text: q, dflt: null, source } });
 				return act(`wait user: ${q}`);
 			}
+			if (!/^\s*accept\b/i.test(ruling.answer ?? '')) {
+				effects.push({ step: ['build'] });
+				return dispatch('build', 'the assessment found a material change outside the agreement and the ruling is not an acceptance — bring the work within the agreement, or `wf decide --revise` to renew it');
+			}
+			// Accepted explicitly: T2 reads the acceptance beside the assessment, never in silence.
 		}
 		if (verdict === 'blocked') {
 			// Unmet intent or a still-reproducing symptom: never silently passed to T2 (#113.4, #75).
@@ -207,7 +216,7 @@ export function nextAction(s: Snapshot): { say: string; effects: Effect[] } {
 			const source = `ASSESSMENT.md#${measured ?? 'unknown'}`;
 			const ruling = (s.answered ?? []).find((q) => q.source === source);
 			if (!ruling) {
-				const unmet = (s.files.assessment ?? '').replace(/\r\n/g, '\n').split('\n').filter((l) => /^(not met:|differs:|still reproduces:)/i.test(l.trim())).map((l) => l.trim()).join(' · ');
+				const unmet = (s.files.assessment ?? '').replace(/\r\n/g, '\n').split('\n').filter((l) => /(not met:|differs:|still reproduces:)/i.test(l)).map((l) => l.trim().replace(/^-\s*"[^"]*":\s*/, '')).join(' · ');
 				const q = `fix or accept: ${unmet || 'ASSESSMENT.md is blocked'}`;
 				effects.push({ ask: { to: 'user', text: q, dflt: null, source } });
 				return act(`wait user: ${q}`);
@@ -276,6 +285,12 @@ export function snapshotOf(toplevel: string): Snapshot {
 	const base = git('merge-base', state.base ?? `origin/${baseBranch}`, 'HEAD');
 	const agreementReview = read(join(dir, AGREEMENT_REVIEW_FILE)) ?? '';
 	const checksLog = read(join(toplevel, '.wf', 'checks.log')) ?? '';
+	// The round's changed files (base→worktree, committed and uncommitted, plus untracked), with the
+	// round's own paperwork removed: what the class measurement reads to see contract work a case does
+	// not name (#111.4).
+	const folderPrefix = (state.folder ?? '').replace(/\\/g, '/').replace(/\/?$/, '/');
+	const filesChanged = [...new Set([...git('diff', '--name-only', base).split('\n'), ...git('ls-files', '--others', '--exclude-standard').split('\n')].map((l) => l.trim()).filter(Boolean))]
+		.filter((f) => !f.startsWith('.wf/') && !(folderPrefix && f.startsWith(folderPrefix)));
 	return {
 		branch,
 		entry: seams.entry.replace(/\\/g, '/'),
@@ -285,7 +300,6 @@ export function snapshotOf(toplevel: string): Snapshot {
 		questions: state.questions ?? [],
 		answered: state.answered ?? [],
 		revisions: state.revisions ?? [],
-		revisionsDispatched: state.revisions_dispatched ?? 0,
 		blockedAnswered: state.blocked_answered ?? 0,
 		history: state.history ?? [],
 		repairs: state.repairs ?? 0,
@@ -307,6 +321,8 @@ export function snapshotOf(toplevel: string): Snapshot {
 		note: state.note ? { file: state.note, text: read(join(toplevel, state.note)) } : null,
 		models: seams.models,
 		contractPaths: read(join(toplevel, contractPathsFile)),
+		folder: state.folder ?? null,
+		filesChanged,
 	};
 }
 
@@ -322,9 +338,7 @@ export async function runNext() {
 		// A repair attempt is counted against the assessment it answered; the assessment's own `head:`
 		// makes a stale count harmless (the next assessment is of a new HEAD).
 		if (e.repair) writeState(toplevel, (s) => ({ repairs: (s.repairs ?? 0) + 1 }));
-		if (e.revisionsDispatched !== undefined) writeState(toplevel, () => ({ revisions_dispatched: e.revisionsDispatched }));
 		if (e.blockedAnswered !== undefined) writeState(toplevel, () => ({ blocked_answered: e.blockedAnswered }));
-		if (e.revise !== undefined) { const text = e.revise; writeState(toplevel, (state) => reviseState(state, text)); }
 		if (e.ask) writeState(toplevel, (state) => addQuestion(state, e.ask!));
 	}
 	if (effects.some((e) => e.ask)) {

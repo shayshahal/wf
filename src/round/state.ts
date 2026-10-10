@@ -43,12 +43,10 @@ export type State = {
 	handoff_sent_back?: string;
 	questions?: Question[];
 	answered?: Question[];
-	// Answers that say the agreement must change (`wf decide --revise`, ask.ts): `wf next` sends the
-	// round back to agree until a new agreement material sha is approved (agree.ts).
-	revisions?: { text: string; at: string }[];
-	// How many revisions `wf next` has already dispatched to a fresh agreement, so the same revision is
-	// not dispatched twice while the working session rewrites it (next.ts).
-	revisions_dispatched?: number;
+	// Answers that say the agreement must change (`wf decide --revise`, ask.ts): each carries the
+	// agreement material sha at the moment it was recorded, so it is open until that sha moves. `wf next`
+	// sends the round back to agree while any is open (agree.ts).
+	revisions?: { text: string; at: string; sha?: string | null }[];
 	// The BLOCKED.md question whose `## Answer` a build has already resumed from, so a build that comes
 	// back still blocked asks the person again instead of looping (next.ts).
 	blocked_answered?: number;

@@ -12,6 +12,7 @@ import { refuseCaller } from '../refusal.ts';
 import { appendDecision, agreementPathOf, notifyAdapters } from './step.ts';
 import { stepHistory } from './friction.ts';
 import { people } from '../project.ts';
+import { agreementSha } from './agreement.ts';
 import { readState, roundFile, toplevelOf, writeState } from './state.ts';
 import type { Question, State } from './state.ts';
 
@@ -135,7 +136,8 @@ export async function runDecide(argv: string[]): Promise<void> {
 	const agreement = agreementPathOf(toplevel, state);
 	if (!(state.questions ?? []).length) {
 		if (a.revise) {
-			const next = writeState(toplevel, (state) => reviseState(state, answer));
+			const sha = agreementSha(toplevel, state.class ?? null, state.folder ?? null);
+			const next = writeState(toplevel, (state) => reviseState(state, answer, sha));
 			console.log('the round is back at agree: `wf next` sends it to a fresh agreement and T1 with this answer');
 			await notifyAdapters(next);
 			return;
@@ -174,7 +176,7 @@ export async function runDecide(argv: string[]): Promise<void> {
 			const result = closeQuestion(current, target, undefined, answer);
 			decided.question = result.question;
 			const said = revisionText(result.question, answer);
-			return a.revise ? reviseState(result.state, said) : result.state;
+			return a.revise ? reviseState(result.state, said, agreementSha(toplevel, result.state.class ?? null, result.state.folder ?? null)) : result.state;
 		});
 	} catch (e) {
 		console.error(`wf decide: ${(e as Error).message}`);
@@ -200,9 +202,18 @@ export async function runDecide(argv: string[]): Promise<void> {
 // Pure: the text `wf decide --revise --q` records in state.revisions for an answered question.
 export const revisionText = (question: Pick<Question, 'text' | 'default'>, answer: string) => `${question.text}${question.default ? ` (default: ${question.default})` : ''} → ${answer}`.trim();
 
-// Pure: the state sent back to agree with `text`, an answer saying the agreement must change.
-export function reviseState(state: State, text: string, now = new Date().toISOString()): State {
-	return { ...state, step: 'agree', waiting_on: state.questions?.[0]?.to ?? null, since: now, history: stepHistory(state.history, 'agree', now), revisions: [...(state.revisions ?? []), { text: text.trim(), at: now }] };
+// Pure: the state sent back to agree with `text`, an answer saying the agreement must change. `sha` is
+// the agreement's material sha at the moment the revision was recorded: the revision is answered only
+// when that sha moves, so a session that writes nothing cannot leave the old T1 approval in force.
+export function reviseState(state: State, text: string, sha: string | null, now = new Date().toISOString()): State {
+	return { ...state, step: 'agree', waiting_on: state.questions?.[0]?.to ?? null, since: now, history: stepHistory(state.history, 'agree', now), revisions: [...(state.revisions ?? []), { text: text.trim(), at: now, sha }] };
+}
+
+// Pure: the revisions a fresh agreement has not answered yet — those whose recorded material sha still
+// matches the agreement as it stands. A revision recorded before the sha was tracked has none and is
+// left open. `wf next` dispatches `agree` while any is open, so the round cannot build on the old T1.
+export function openRevisions(revisions: { text: string; at: string; sha?: string | null }[] = [], currentSha: string | null) {
+	return revisions.filter((r) => r.sha === undefined || r.sha === currentSha);
 }
 
 // Pure: the revisions a fresh agreement has not answered yet. A revision is answered when the agreed

@@ -1,6 +1,6 @@
 // ask.selfcheck.ts — node ask.selfcheck.ts → exit 0 when green.
 // Pure arms: a question opens, the round waits on its person, an answer closes it, the gate holds.
-import { addQuestion, appendAnswer, blockedQuestion, closeQuestion, openQuestionGate, parseArgs, pendingRevisions, questionLines, reviseState } from './ask.ts';
+import { addQuestion, appendAnswer, blockedQuestion, closeQuestion, openQuestionGate, openRevisions, parseArgs, pendingRevisions, questionLines, reviseState } from './ask.ts';
 
 let failures = 0;
 const check = (name: string, cond: boolean, detail: unknown = '') =>
@@ -54,11 +54,12 @@ check('no questions → no lines', questionLines(base).length === 0 && questionL
 // wf decide --revise: an answer that says the agreement must change, from any step (BJEW-461).
 const t2 = '2026-09-24T10:00:00.000Z';
 const implementing = { ...base, step: 'implement', history: [{ step: 'implement', at: t }] };
-const sent = reviseState(implementing, '  the confirm opens behind the modal ', t2);
-check('the round goes back to agree, with the answer kept (trimmed)', sent.step === 'agree' && sent.revisions?.length === 1 && sent.revisions[0].text === 'the confirm opens behind the modal' && sent.revisions[0].at === t2 && sent.history?.at(-1)?.step === 'agree', JSON.stringify(sent));
-check('a second answer is added, not replacing the first', reviseState(sent, 'and again', t2).revisions?.length === 2);
-check('an open question still holds the round on its person', reviseState({ ...implementing, questions: [{ n: 5, to: 'einat', text: 'x', asked: t }] }, 'y', t2).waiting_on === 'einat');
+const sent = reviseState(implementing, '  the confirm opens behind the modal ', 'sha-a', t2);
+check('the round goes back to agree, with the answer kept (trimmed)', sent.step === 'agree' && sent.revisions?.length === 1 && sent.revisions[0].text === 'the confirm opens behind the modal' && sent.revisions[0].at === t2 && sent.revisions[0].sha === 'sha-a' && sent.history?.at(-1)?.step === 'agree', JSON.stringify(sent));
+check('a second answer is added, not replacing the first', reviseState(sent, 'and again', 'sha-b', t2).revisions?.length === 2);
+check('an open question still holds the round on its person', reviseState({ ...implementing, questions: [{ n: 5, to: 'einat', text: 'x', asked: t }] }, 'y', 'sha-c', t2).waiting_on === 'einat');
 check('a revision is pending until a plan brief is newer than it', pendingRevisions(sent.revisions, undefined).length === 1 && pendingRevisions(sent.revisions, t).length === 1 && pendingRevisions(sent.revisions, '2026-09-24T11:00:00.000Z').length === 0 && pendingRevisions(undefined, undefined).length === 0);
+check('R-3: a revision is open while the material sha is unchanged, answered once it moves', openRevisions(sent.revisions, 'sha-a').length === 1 && openRevisions(sent.revisions, 'sha-z').length === 0 && openRevisions(undefined, 'sha-a').length === 0);
 check('--revise is a flag of decide', parseArgs(['--revise', '--q', '2', 'x'], ['q'], ['revise']).revise === true);
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');

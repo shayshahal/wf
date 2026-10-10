@@ -82,7 +82,12 @@ const names = execFileSync("git", ["diff", "--name-only", `${base}...HEAD`], { e
 // went through as A (fix/role-assign-dialog, 2026-09-23).
 const listFile = join(top, contractPathsFile);
 let contractPaths: string;
-try { contractPaths = readFileSync(listFile, "utf8"); } catch { throw new Error(`classify: ${listFile} is missing; the project names its contract paths there`); }
+try { contractPaths = readFileSync(listFile, "utf8"); } catch {
+  // One actionable line, not an uncaught stack (R-9). Never a silent default to class A: a missing
+  // list is a missing fact, and reading every path as A let a B endpoint through (2026-09-23).
+  console.error(`wf classify: ${listFile} is missing — the project names its contract paths there (a missing list is not class A)`);
+  process.exit(2);
+}
 const attributesFile = join(tmpdir(), `wf-class-${process.pid}.gitattributes`);
 writeFileSync(attributesFile, classAttributes(contractPaths));
 const attrRun = names.length ? spawnSync("git", ["-c", `core.attributesFile=${attributesFile.replace(/\\/g, "/")}`, "check-attr", "--stdin", "wf-class"], { input: names.join("\n"), encoding: "utf8" }) : null;

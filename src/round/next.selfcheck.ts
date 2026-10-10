@@ -106,6 +106,9 @@ check('merged with an unposted section → post it first', say(base({ step: 'mer
 check('an A round whose agreement declares Class: B steps classify --class B before any build', steps(base({ klass: 'A', files: { agreement: AGREEMENT, assessment: null, review: null, blocked: null } })).join() === 'classify --class B' && say(base({ klass: 'A', files: { agreement: AGREEMENT, assessment: null, review: null, blocked: null } })).startsWith('classify:'), say(base({ klass: 'A', files: { agreement: AGREEMENT, assessment: null, review: null, blocked: null } })));
 const noClass = AGREEMENT.replace('Class: B\n', '');
 check('a case on a contract path upgrades A→B without a Class: line', steps(base({ klass: 'A', contractPaths: 'src/**', files: { agreement: noClass, assessment: null, review: null, blocked: null } })).join() === 'classify --class B', say(base({ klass: 'A', contractPaths: 'src/**', files: { agreement: noClass, assessment: null, review: null, blocked: null } })));
+check('R-4: a changed file on a contract path upgrades A→B with no case and no Class: line', steps(base({ klass: 'A', contractPaths: 'src/**', filesChanged: ['src/Deep.svelte'], files: { agreement: TICKET, assessment: null, review: null, blocked: null } })).join() === 'classify --class B', say(base({ klass: 'A', contractPaths: 'src/**', filesChanged: ['src/Deep.svelte'], files: { agreement: TICKET, assessment: null, review: null, blocked: null } })));
+check('R-4: the actual diff is measured at step build too, not only at classify/agree', steps(base({ klass: 'A', step: 'build', contractPaths: 'src/**', filesChanged: ['src/Deep.svelte'], files: { agreement: TICKET, assessment: null, review: null, blocked: null } })).join() === 'classify --class B');
+check('R-4: a round-paperwork-only change is not a contract-path change (control)', say(base({ klass: 'A', step: 'build', contractPaths: 'src/**', filesChanged: [], files: { agreement: TICKET, assessment: null, review: null, blocked: null } })).startsWith('dispatch build'));
 check('a B round with an approved agreement stays B (never downgrades)', steps(base({ klass: 'B', files: { agreement: AGREEMENT, assessment: null, review: null, blocked: null }, t1: { sha: 's1', reviewed: 's1', verdict: 'approved' } })).join() === 'build');
 
 // ── T1 stays live after the build starts: a changed agreed material (or a recorded revision) sends the
@@ -116,11 +119,14 @@ check('B/C assess: a changed ## Agreed sends back to T1 too', say(liveB({ step: 
 check('B/C review: a changed ## Agreed sends back to T1 too', say(liveB({ step: 'review', t1: { sha: 's2', reviewed: 's1', verdict: 'approved' } })).startsWith('wait user: T1'));
 check('B/C build: an approved agreement at the same sha builds (progress does not renew T1)', say(liveB({ step: 'build', t1: { sha: 's1', reviewed: 's1', verdict: 'approved' } })) === 'dispatch build: run `node C:/wf/wf.mjs brief build` in this worktree and do exactly what it prints');
 
-// ── a recorded revision (`wf decide --revise`) reaches a fresh agreement before any build
-const revised = liveB({ step: 'agree', revisions: [{ text: 'the header must also show the count', at: 't' }] });
+// ── a recorded revision (`wf decide --revise`) reaches a fresh agreement before any build, and an
+// unchanged agreement cannot leave the old T1 approval in force
+const revised = liveB({ step: 'agree', revisions: [{ text: 'the header must also show the count', at: 't', sha: 's1' }], t1: { sha: 's1', reviewed: 's1', verdict: 'approved' } });
 check('a recorded revision dispatches a fresh agreement before build', say(revised).startsWith('dispatch agree') && say(revised).includes('asked the agreement to change'), say(revised));
-check('a revision already dispatched does not dispatch twice', !say({ ...revised, revisionsDispatched: 1 }).startsWith('dispatch agree'));
-const revisedA = base({ step: 'agree', klass: 'A', revisions: [{ text: 'change x', at: 't' }], files: { agreement: TICKET, assessment: null, review: null, blocked: null } });
+check('a revision whose material sha moved is answered (no re-dispatch)', !say({ ...revised, t1: { sha: 's2', reviewed: 's2', verdict: 'approved' } }).startsWith('dispatch agree'));
+check('R-3: an unchanged agreement after --revise cannot build on the old T1', say({ ...revised, step: 'build' }).startsWith('dispatch agree') && steps({ ...revised, step: 'build' }).join() === 'agree --waiting-on user', say({ ...revised, step: 'build' }));
+check('R-3: an unchanged agreement after --revise also refuses at assess', say({ ...revised, step: 'assess' }).startsWith('dispatch agree'));
+const revisedA = base({ step: 'agree', klass: 'A', revisions: [{ text: 'change x', at: 't', sha: null }], files: { agreement: TICKET, assessment: null, review: null, blocked: null } });
 check('a revision on a class A round also dispatches a fresh agreement', say(revisedA).startsWith('dispatch agree'));
 
 // ── an answered BLOCKED.md resumes the build once; the same answer never loops
@@ -135,9 +141,15 @@ check('an assessment with no head: line is refused', say(base({ step: 'assess', 
 const cleanNotMet = base({ step: 'assess', files: { agreement: null, assessment: ASSESS({ verdict: 'clean', intent: '- "x": not met: the modal still jumps' }), review: null, blocked: null } });
 check('a clean assessment that states an unmet item is refused', say(cleanNotMet).startsWith('dispatch assess') && say(cleanNotMet).includes('says clean but states an unmet item'), say(cleanNotMet));
 
-// ── the material and repair-cap escalations are recorded, so the same question cannot repeat
-const materialAnswered = { ...material, answered: [{ n: 1, to: 'user', text: 'the assessment found a material change', source: asks(material)[0].source, answer: 'carry on, it is within the agreement', asked: 't', answered: 't' }] };
-check('an answered material escalation does not repeat', asks(materialAnswered).length === 0 && say(materialAnswered).startsWith('review: T2'), say(materialAnswered));
+// ── the material and repair-cap escalations are recorded, so the same question cannot repeat, and a
+// material change needs an EXPLICIT accept to reach T2 (R-2): hold/end/no/looks fine/fix do not
+const materialAnswered = { ...material, answered: [{ n: 1, to: 'user', text: 'the assessment found a material change', source: asks(material)[0].source, answer: 'accept: ship it', asked: 't', answered: 't' }] };
+check('an explicit accept of a material change opens T2', asks(materialAnswered).length === 0 && say(materialAnswered).startsWith('review: T2'), say(materialAnswered));
+for (const answer of ['hold the round until n', 'end it, drop this round', 'no', 'looks fine, carry on', 'fix: tighten the API']) {
+	const ruled = { ...material, answered: [{ n: 1, to: 'user', text: 'the assessment found a material change', source: asks(material)[0].source, answer, asked: 't', answered: 't' }] };
+	check(`R-2: a material answer "${answer}" does not open T2 (it returns to build)`, asks(ruled).length === 0 && !say(ruled).startsWith('review: T2') && steps(ruled).join() === 'build', say(ruled));
+}
+check('R-6: the fix-or-accept question names the unmet finding', asks(blocked)[0].text.includes('not met: the modal still jumps'), asks(blocked)[0].text);
 const spentAnswered = { ...spent, answered: [{ n: 1, to: 'user', text: 'x', source: asks(spent)[0].source, answer: 'accept: it is a separate ticket', asked: 't', answered: 't' }] };
 check('an answered repair-cap escalation does not repeat', asks(spentAnswered).length === 0 && say(spentAnswered).startsWith('review: T2'), say(spentAnswered));
 
