@@ -4,18 +4,20 @@
 import assert from 'node:assert/strict';
 import { reviewFiles } from './review.ts';
 import { beforeAfterPage, captionFor, proofPairs } from './review-format.ts';
-import { asBuiltFile, commentLine, foldFeedbackLine, lastField, pageLine, planBody, planPage, renderHeader, renderSkeleton, readVerdict, roundArtifacts, specShaFor } from './review-format.ts';
+import { commentLine, foldFeedbackLine, lastField, pageLine, planBody, planPage, renderHeader, renderSkeleton, readVerdict, roundArtifacts } from './review-format.ts';
 import { appendDecision, STEPS, t1Gap } from '../round/step.ts';
-import { forT1Offset, forT1Section } from './design.ts';
+import { agreedOffset, agreedSection } from './agree.ts';
+import { agreementSha } from '../round/agreement.ts';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join as pjoin } from 'node:path';
-// A temp worktree with SPEC.md = 'x'; `review` is the SPEC-REVIEW.md text, with `<real>` replaced by the true sha.
+// A temp worktree with AGREEMENT.md = the observed/agreed material; `review` is AGREEMENT-REVIEW.md's
+// text, with `<real>` replaced by the true agreement sha.
 function t1GapFor(review: string | null) {
   const d = mkdtempSync(pjoin(tmpdir(), 'wf-t1-'));
-  writeFileSync(pjoin(d, 'SPEC.md'), 'x');
-  if (review !== null) writeFileSync(pjoin(d, 'SPEC-REVIEW.md'), review.replace('<real>', specShaFor(d)!));
-  const out = t1Gap(d);
+  writeFileSync(pjoin(d, 'AGREEMENT.md'), '## Observed\n- x — `a.ts:1`\n\n## Agreed\n- behavior\n');
+  if (review !== null) writeFileSync(pjoin(d, 'AGREEMENT-REVIEW.md'), review.replace('<real>', agreementSha(d, 'B', null)!));
+  const out = t1Gap(d, { class: 'B' });
   rmSync(d, { recursive: true });
   return out;
 }
@@ -68,23 +70,21 @@ check('skeleton verdict is not a real verdict', readVerdict(skel) === null, skel
 const targetLine = { ...annotate, decision: "lgtm", target: { review: { base: "dev", changedFiles: 124 } } };
 check('fold records what plannotator actually reviewed', foldFeedbackLine(targetLine).includes("reviewed: dev (124 files)"));
 check('lastField takes the newest dated section', lastField('base: dev\nverdict: approved\n## 2\nbase: tools/wf-runtime\n', 'base') === 'tools/wf-runtime');
-check('the as-built file counts uncommitted: the as-built phase does not commit it (TJEW-670.11)', asBuiltFile(reviewFiles(['a.ts'], 'bug-reports/r/proof/CALL-STACK-AS-BUILT.md', true)) === 'bug-reports/r/proof/CALL-STACK-AS-BUILT.md' && asBuiltFile(reviewFiles(['a.ts'], 'bug-reports/r/proof/CALL-STACK-AS-BUILT.md', false)) === null && reviewFiles(['bug-reports/r/proof/CALL-STACK-AS-BUILT.md'], 'bug-reports/r/proof/CALL-STACK-AS-BUILT.md', true).length === 1);
-check('as-built file found anywhere in the diff', asBuiltFile(['x.ts', 'bug-reports/r/proof/CALL-STACK-AS-BUILT.md']) === 'bug-reports/r/proof/CALL-STACK-AS-BUILT.md');
-check('header lists the as-built file first under look at', renderHeader({ round: 'r', klass: 'B', base: 'dev', urls: 'b2b:   http://localhost:1\n', files: ['packages/frontend/b2b/src/routes/(auth)/login/+page.svelte', 'bug-reports/r/proof/CALL-STACK-AS-BUILT.md'] }).match(/^look at: .*$/m)![0].includes('CALL-STACK-AS-BUILT'));
-check('t1Gap null when SPEC-REVIEW approves the current sha', t1GapFor('spec-sha: <real>\nverdict: approved\n') === null);
-check('t1Gap names a re-spec', /is of sha256:0ld, SPEC.md is now sha256:/.test(t1GapFor('spec-sha: sha256:0ld\nverdict: approved\n')!));
-check('t1Gap names a changes-requested verdict', /verdict is changes-requested/.test(t1GapFor('spec-sha: <real>\nverdict: changes-requested\n')!));
-check('forT1Section extracts only the T1 section', forT1Section('# S\n## For T1\na\nb\n\n## As-is\nx\n') === '## For T1\na\nb\n');
-check('forT1Section null on the older shape', forT1Section('# S\n## As-is\nx\n') === null);
-check('forT1Offset: `## For T1` starts at line 3, so a page block carries its SPEC.md line, not its line in the extract', forT1Offset('# S\n\n## For T1\n\nthe count is read\n') === 2, String(forT1Offset('# S\n\n## For T1\n\nthe count is read\n')));
-check('t1Gap names a missing review', t1GapFor(null) === 'no SPEC-REVIEW.md');
+check('the assessment file counts uncommitted: the assessment phase does not commit it', reviewFiles(['a.ts'], 'bug-reports/r/ASSESSMENT.md', true).includes('bug-reports/r/ASSESSMENT.md') && reviewFiles(['a.ts'], 'bug-reports/r/ASSESSMENT.md', true).length === 2 && reviewFiles(['bug-reports/r/ASSESSMENT.md'], 'bug-reports/r/ASSESSMENT.md', true).length === 1);
+check('t1Gap null when AGREEMENT-REVIEW approves the current material sha', t1GapFor('agreement-sha: <real>\nverdict: approved\n') === null);
+check('t1Gap names a re-agreement', /is of 0ld, the agreement is now [0-9a-f]/.test(t1GapFor('agreement-sha: 0ld\nverdict: approved\n')!));
+check('t1Gap names a changes-requested verdict', /verdict is changes-requested/.test(t1GapFor('agreement-sha: <real>\nverdict: changes-requested\n')!));
+check('agreedSection extracts Observed + Agreed, not the verification cases', agreedSection('# A\n## Observed\no\n\n## Agreed\na\n\n## Verification\n|1|\n', 'B') === '## Observed\no\n\n## Agreed\na');
+check('agreedSection for class A is the Intent', agreedSection('# T\n## Intent\ni\n\n## Thread\nx\n', 'A') === '## Intent\ni');
+check('agreedOffset: `## Observed` starts at line 3, so a page block carries its agreement line', agreedOffset('# A\n\n## Observed\n\nthe fact\n', 'B') === 2, String(agreedOffset('# A\n\n## Observed\n\nthe fact\n', 'B')));
+check('t1Gap names a missing review', t1GapFor(null) === 'no AGREEMENT-REVIEW.md');
 check('last verdict line wins', readVerdict(`${skel}\n## 2026-09-18\n\nc.ts:1 — x\nverdict: approved`) === 'approved');
 
 assert.throws(() => resolveWorktree('no-such-round-xyz'), /candidates:/);
 check('resolveWorktree throws with candidates on a bogus name', true);
 
 // step.ts: the round's phases, and `wf decide` writing into PLAN.md § Decisions.
-check('STEPS carry research and plan before design', STEPS.join(' ') === 'classify research plan design implement review pr merged held', STEPS.join(' '));
+check('STEPS are the smaller route', STEPS.join(' ') === 'classify agree build assess review pr merged held', STEPS.join(' '));
 const planNoSection = '# p\n\n## Asks\nnone\n';
 check('decide creates ## Decisions when there is none', appendDecision(planNoSection, 'use 30 days', '2026-09-22') === '# p\n\n## Asks\nnone\n\n## Decisions\n- 2026-09-22 use 30 days\n', JSON.stringify(appendDecision(planNoSection, 'use 30 days', '2026-09-22')));
 const twice = appendDecision(appendDecision(planNoSection, 'a', '2026-09-22'), 'b', '2026-09-23');

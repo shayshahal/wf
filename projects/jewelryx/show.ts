@@ -12,6 +12,7 @@ import { dirname, join } from 'node:path';
 import { opensWindows } from '../../src/worktrees/editor.ts';
 import { writeCloneLaunch } from '../../src/worktrees/new.ts';
 import { readState, roundOf, toplevelOf, writeState } from '../../src/round/state.ts';
+import { agreementPath, agreementSha } from '../../src/round/agreement.ts';
 import { basePortForBranch, slugForBranch } from '../../src/worktrees/worktree.ts';
 import { logins, stackUrls } from './index.ts';
 import type { Origins, SeedRole } from './index.ts';
@@ -85,14 +86,14 @@ export function runShow(argv: string[]): void {
 	if (!line) {
 		const state = readState(toplevel);
 		const { folder } = roundOf(state, toplevel);
-		const plan = folder && join(toplevel, folder, 'PLAN.md');
-		const text = plan && existsSync(plan) ? readFileSync(plan, 'utf8') : null;
+		const agreement = folder && agreementPath(toplevel, state?.class ?? null, folder);
+		const text = agreement && existsSync(agreement) ? readFileSync(agreement, 'utf8') : null;
 		line = text && openLineOf(text);
-		// Once per plan: a second `wf show` would make the data twice.
-		const token = state?.briefs?.plan?.token ?? 'plan';
+		// Once per agreement: a second `wf show` would make the data twice.
+		const token = agreementSha(toplevel, state?.class ?? null, folder) ?? 'plan';
 		if (state?.t2_setup !== token) setups = setupLinesOf(text).map((cmd) => ({ cmd, token }));
 		if (!line) {
-			console.error('wf show: no `open:` line under PLAN.md ## T2 walk — pass it: wf show b2b /catalog as buyer mobile');
+			console.error('wf show: no `open:` line under the agreement\'s ## T2 walk — pass it: wf show b2b /catalog as buyer mobile');
 			process.exit(2);
 		}
 	}
@@ -105,7 +106,7 @@ export function runShow(argv: string[]): void {
 		const args = setupArgs(cmd);
 		const r = args && spawnSync(process.execPath, args, { cwd: toplevel, encoding: 'utf8' });
 		if (!r || r.status !== 0) {
-			console.error(`wf show: setup "${cmd}" ${r ? `failed:\n${`${r.stdout}${r.stderr}`.trim().slice(0, 600)}` : 'is not `api <fn> <json> as <buyer|seller|admin>`'}\nFix it in PLAN.md ## T2 walk, then wf show again.`);
+			console.error(`wf show: setup "${cmd}" ${r ? `failed:\n${`${r.stdout}${r.stderr}`.trim().slice(0, 600)}` : 'is not `api <fn> <json> as <buyer|seller|admin>`'}\nFix it in the agreement's ## T2 walk, then wf show again.`);
 			process.exit(1);
 		}
 		console.log(`setup: ${cmd} → ${/HTTP \d+/.exec(r.stdout)?.[0] ?? 'ok'}`);

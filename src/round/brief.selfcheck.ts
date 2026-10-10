@@ -1,13 +1,12 @@
 // brief.selfcheck.ts — node brief.selfcheck.ts → exit 0 when green.
-// runBrief in a temp round, with the stack plugged in: a brief that is held back by a stack that does
-// not answer (and then cut off by its caller) is not counted as an agent; one that goes out is.
+// The handoff a brief ends with, the stale-dispatch guard, and a real `wf brief build` in a temp
+// round: no token, no per-commit bookkeeping.
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { briefCount, runBrief } from './brief.ts';
+import { briefGap, handoffText, runBrief } from './brief.ts';
 
-// Lines are printed once stdout is back: the arms below mute it.
 let failures = 0;
 const lines: string[] = [];
 const check = (name: string, cond: boolean, detail = '') => {
@@ -15,55 +14,37 @@ const check = (name: string, cond: boolean, detail = '') => {
 	if (!cond) failures++;
 };
 
+// ── pure: the handoff note and the dispatch guard
+check('a build brief ends with the step transition, not a token', handoffText('build', 'bug-reports/r', 'A').includes('wf step assess') && !handoffText('build', 'bug-reports/r', 'A').includes('<!-- brief:'), handoffText('build', 'bug-reports/r', 'A'));
+check('an assess brief ends by naming ASSESSMENT.md', handoffText('assess', 'bug-reports/r', 'A').includes('ASSESSMENT.md'));
+check('a class A agree brief names TICKET.md', handoffText('agree', 'bug-reports/r', 'A').includes('TICKET.md'));
+check('a class B agree brief names AGREEMENT.md', handoffText('agree', 'bug-reports/r', 'B').includes('AGREEMENT.md'));
+check('a brief wf next is not dispatching is refused with the line', (briefGap(['build'], 'dispatch brief: x') ?? '').includes('not dispatching'));
+check('a brief wf next is dispatching is accepted', briefGap(['build'], 'dispatch build: run `wf brief build`') === null && briefGap(['build'], 'dispatch build (model: m): run `wf brief build`') === null);
+
+// ── real: runBrief build in a temp round
 const dir = realpathSync(mkdtempSync(join(tmpdir(), 'wf-brief-')));
 const git = (...args: string[]) => execFileSync('git', ['-C', dir, '-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { encoding: 'utf8' });
 git('init', '-q', '-b', 'fix/r');
 git('commit', '-q', '--allow-empty', '-m', 'base');
 mkdirSync(join(dir, '.wf'));
 mkdirSync(join(dir, 'bug-reports', 'r'), { recursive: true });
-writeFileSync(join(dir, 'bug-reports', 'r', 'TICKET.md'), '# X-1\n\n## Intent\n\n> the order cancel confirm stays open — Shay\n');
-writeFileSync(join(dir, '.wf', 'state.json'), JSON.stringify({ round: 'fix/r', id: 'X-1', folder: 'bug-reports/r', step: 'research', class: 'A', base: 'HEAD' }));
-const briefs = () => JSON.parse(readFileSync(join(dir, '.wf', 'state.json'), 'utf8')).briefs?.research as { count: number } | undefined;
-
-// JX-1221 (2026-10-07): validate's count is per validated tree. Six briefs over heads A, A, A, B, B, then C.
-const at = (head: string, count: number) => ({ head, count });
-const v = (head: string, last: { head?: string; count?: number } | undefined) => briefCount({ phase: 'validate', fresh: false, again: false, last, lastValidate: last, head });
-check('a validate on the same head counts on: the second agent of that tree', v('A', at('A', 1)) === 2);
-check('an --answer on the same head counts too', v('A', at('A', 2)) === 3);
-check('count 6 on head A, a validate on head B is a first', v('B', at('A', 6)) === 1);
-check('the new head counts on from there', v('B', at('B', 1)) === 2);
-check('a record with no head counts as before', v('B', { count: 3 }) === 4);
-check('other phases ignore the head', briefCount({ phase: 'plan', fresh: false, again: false, last: at('A', 1), lastValidate: at('A', 6), head: 'B' }) === 2);
+writeFileSync(join(dir, 'bug-reports', 'r', 'TICKET.md'), '# X-1\n\n## Intent\n\n- the modal keeps its scroll position — Shay\n');
+writeFileSync(join(dir, '.wf', 'state.json'), JSON.stringify({ wf_version: 2, round: 'fix/r', id: 'X-1', folder: 'bug-reports/r', step: 'build', class: 'A', base: 'HEAD' }));
 
 const cwd = process.cwd();
 const write = process.stdout.write;
 const error = console.error;
 let out = '';
 process.chdir(dir);
-// runBrief ends the process on a refusal: print whatever was checked, and what it said.
 process.on('exit', () => { process.stdout.write = write; console.log(lines.join('\n')); });
 try {
-	// Muted: the brief is the prompt, and the stack line goes to stderr.
 	process.stdout.write = ((s: string) => { out += s; return true; }) as typeof process.stdout.write;
 	console.error = () => {};
-	const never = () => new Promise<string>(() => {});
-	void runBrief(['research'], { stack: never });
-	await new Promise((r) => setTimeout(r, 300));
-	check('a brief held back by a stack that does not answer is not recorded (nor printed)', briefs() === undefined && out === '', `${JSON.stringify(briefs())} ${out.length} bytes`);
-
-	await runBrief(['research'], { stack: () => Promise.resolve('wf serve: the stack answers') });
-	check('the brief that went out is the round\'s first agent', briefs()?.count === 1 && out.includes('<!-- brief: '), `${JSON.stringify(briefs())}`);
-
-	await runBrief(['research'], { stack: () => Promise.reject(new Error('wf serve: the stack did not answer within 180 s')) });
-	check('a stack that gave up does not stop the brief, which then counts as the second agent', briefs()?.count === 2, JSON.stringify(briefs()));
-
-	// wf decide --research: the next research is a new first agent, and its prompt carries the request.
-	const stateFile = join(dir, '.wf', 'state.json');
-	const saved = JSON.parse(readFileSync(stateFile, 'utf8'));
-	writeFileSync(stateFile, JSON.stringify({ ...saved, researchRequests: [{ text: 'the three duplicate wishlist rows on QA', at: new Date(Date.now() + 1000).toISOString() }] }));
-	out = '';
-	await runBrief(['research'], { stack: () => Promise.resolve('wf serve: the stack answers') });
-	check('a research asked for again is the first agent of its ask, and its prompt says what to measure', briefs()?.count === 1 && out.includes('## This is a second research') && out.includes('- the three duplicate wishlist rows on QA'), `${JSON.stringify(briefs())} ${out.slice(-600)}`);
+	await runBrief(['build'], { stack: () => Promise.resolve('wf serve: the stack answers') });
+	check('wf brief build prints the build prompt (the agreement, the cases)', out.includes('X-1 — build') && out.includes('the modal keeps its scroll position') && out.includes('wf step assess'), out.slice(0, 400));
+	check('the build brief mints no token', !out.includes('<!-- brief: '));
+	check('the brief does not count per-commit state', JSON.parse(readFileSync(join(dir, '.wf', 'state.json'), 'utf8')).briefs === undefined);
 } finally {
 	process.stdout.write = write;
 	console.error = error;

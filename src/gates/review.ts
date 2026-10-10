@@ -10,14 +10,12 @@ import { openFile, openInEditor, opensWindows } from '../worktrees/editor.ts';
 import { baseBranch } from '../project.ts';
 import { ensureServers } from '../worktrees/serve.ts';
 import { resolveWorktree } from '../worktrees/worktree.ts';
-import { appendDatedSection, approvalContentGap, asBuiltFile, beforeAfterPage, captionFor, devUrlsFor, foldFeedbackLine, lastField, needsFreshReviewHeader, planPage, proofPairs, readVerdict, renderHeader, renderSkeleton, roundArtifacts, specShaFor } from './review-format.ts';
+import { appendDatedSection, approvalContentGap, beforeAfterPage, captionFor, devUrlsFor, foldFeedbackLine, lastField, needsFreshReviewHeader, planPage, proofPairs, readVerdict, renderHeader, renderSkeleton, roundArtifacts } from './review-format.ts';
 import { approvalIdentity, approvalPaperworkExcluded, trackerNotePath } from './content-identity.ts';
 import type { ContentIdentity } from './content-identity.ts';
 import { seams } from '../seams.ts';
 import { manualCheck } from './check.ts';
-import { planCommitRows } from '../round/prompt.ts';
-import { reportFile, roundChecks, summaryLines } from './standards.ts';
-import { CRITIQUE_FILE, critiqueLines } from './critique.ts';
+import { agreementPath, ASSESSMENT_FILE, caseFiles, verificationCases } from '../round/agreement.ts';
 import { roundFile } from '../round/state.ts';
 import type { State } from '../round/state.ts';
 import { runStep } from '../round/step.ts';
@@ -81,11 +79,10 @@ function dirtyProduct(worktree: string, folder: string | null, notePath: string 
   return dirty.filter((p) => !approvalPaperworkExcluded(p, folder, notePath) && !(folder && (p === folder || p.startsWith(`${folder}/`))));
 }
 
-// Pure: the files T2 is shown, with the as-built call stack when it is in the worktree. The as-built
-// phase does not commit it (only wf deliver commits the round folder), so the diff alone never had
-// it, and the gate below refused every class B round (TJEW-670.11, 2026-09-28).
-export function reviewFiles(diff: string[], asBuilt: string, onDisk: boolean) {
-  return onDisk && !diff.includes(asBuilt) ? [asBuilt, ...diff] : diff;
+// Pure: the files T2 is shown. The round folder's ASSESSMENT.md is read as a file, not through the
+// diff; a diff git cannot take already stopped T2 above.
+export function reviewFiles(diff: string[], assessment: string, onDisk: boolean) {
+  return onDisk && !diff.includes(assessment) ? [assessment, ...diff] : diff;
 }
 
 // The round's before/after page (.wf/before-after.html, outside the round folder: deliver commits that
@@ -95,7 +92,7 @@ function writeBeforeAfter(worktree: string, round: string) {
   const proof = folder ? join(worktree, folder, 'proof') : null;
   const pairs = proof && existsSync(proof) ? proofPairs(readdirSync(proof)) : [];
   if (!pairs.length) return null;
-  const texts = ['RESEARCH.md', 'VALIDATION.md'].map((f) => (existsSync(join(worktree, folder!, f)) ? readFileSync(join(worktree, folder!, f), 'utf8') : ''));
+  const texts = [agreementPath(worktree, readState(worktree).class ?? null, folder), 'ASSESSMENT.md'].map((f) => (f && existsSync(join(worktree, f)) ? readFileSync(join(worktree, f), 'utf8') : ''));
   const captions = Object.fromEntries((pairs.flatMap((p) => [p.before, p.after]).filter(Boolean) as string[]).map((n) => [n, captionFor(n, texts)]));
   const file = join(worktree, '.wf', 'before-after.html');
   mkdirSync(dirname(file), { recursive: true });
@@ -103,57 +100,46 @@ function writeBeforeAfter(worktree: string, round: string) {
   return file;
 }
 
-// The plan as a page (.wf/PLAN.html): what the diff is judged against, with its Build views drawn
-// (SHOW-ME.md, review-format.ts planPage). Null when the round has no PLAN.md.
-function writePlan(worktree: string, round: string) {
+// The agreement as a page (.wf/AGREEMENT.html): what the diff is judged against, with its Build views
+// drawn (SHOW-ME.md, review-format.ts planPage). Null when the round has no agreement file.
+function writeAgreement(worktree: string, round: string) {
   const state = readState(worktree);
   const folder = state.folder;
   if (!folder) return null;
-  const plan = join(worktree, folder, 'PLAN.md');
-  if (!existsSync(plan)) return null;
-  const file = join(worktree, '.wf', 'PLAN.html');
+  const agreement = agreementPath(worktree, state.class ?? null, folder);
+  if (!existsSync(agreement)) return null;
+  const file = join(worktree, '.wf', 'AGREEMENT.html');
   mkdirSync(dirname(file), { recursive: true });
   writeFileSync(file, planPage({
-    title: `PLAN — ${round}`,
-    meta: [`class ${state.class ?? '—'} · base ${state.base ?? baseBranch}`, 'the plan the diff is judged against — the markdown is the file of record'],
-    section: readFileSync(plan, 'utf8'),
+    title: `Agreement — ${round}`,
+    meta: [`class ${state.class ?? '—'} · base ${state.base ?? baseBranch}`, 'the agreement the diff is judged against — the markdown is the file of record'],
+    section: readFileSync(agreement, 'utf8'),
     artifacts: roundArtifacts(join(worktree, folder), join(worktree, '.wf')),
   }));
   return file;
 }
 
-// The header's standards lines: each rule that covers the diff and what its report says.
-function standardsFor(worktree: string): string[] {
+// The header's assessment line: the one final assessment's verdict (#113), read from ASSESSMENT.md.
+function assessmentFor(worktree: string): string[] {
   const folder = readState(worktree).folder ?? '';
-  try {
-    return summaryLines(roundChecks(worktree).map((c) => {
-      const file = [folder, reportFile(c.id)].filter(Boolean).join('/');
-      return { id: c.id, file, text: existsSync(join(worktree, file)) ? readFileSync(join(worktree, file), 'utf8') : null };
-    }));
-  } catch (e) {
-    // The header says the reports could not be read, rather than showing no standards at all.
-    return [`standards: could not be read: ${e instanceof Error ? e.message.split('\n')[0] : String(e)}`];
-  }
+  const file = [folder, ASSESSMENT_FILE].filter(Boolean).join('/');
+  if (!existsSync(join(worktree, file))) return [`assessment: no ${file} yet — the assessment phase writes it before T2`];
+  const text = readFileSync(join(worktree, file), 'utf8');
+  const verdict = /^Verdict:[ \t]*(\w+)/m.exec(text)?.[1] ?? 'unknown';
+  return [`assessment: ${verdict} (${file})`];
 }
 
-// The header's critique line: a dispute between validate and its critic still open after the last
-// exchange (critique.ts); none when they settled.
-function critiqueFor(worktree: string): string[] {
-  const state = readState(worktree);
-  const file = [state.folder, CRITIQUE_FILE].filter(Boolean).join('/');
-  return critiqueLines(existsSync(join(worktree, file)) ? readFileSync(join(worktree, file), 'utf8') : null, file, state.briefs?.critique?.exchange ?? null);
-}
-
-// The rows whose proof is a person looking (check cell `manual: …`, prompts/plan.md): T2 reads each
-// as a `manual:` line beside the diff, so a commit whose only proof is a screen is not left to the one
-// T2-walk screen. `wf check` gated the commit itself (the fence and the project's checks).
+// The cases whose proof is a person looking (check cell `manual: …`, prompts/agree.md): T2 reads each
+// as a `manual:` line beside the diff. `wf check` gated the build itself (the fence and the project's
+// checks).
 function manualFor(worktree: string): string[] {
-  const folder = readState(worktree).folder;
-  const plan = folder && join(worktree, folder, 'PLAN.md');
-  if (!plan || !existsSync(plan)) return [];
-  return planCommitRows(readFileSync(plan, 'utf8')).flatMap((r) => {
-    const text = manualCheck(r.check);
-    return text ? [`manual: row ${r.n} — ${text}`] : [];
+  const state = readState(worktree);
+  const folder = state.folder;
+  const agreement = folder && agreementPath(worktree, state.class ?? null, folder);
+  if (!agreement || !existsSync(agreement)) return [];
+  return verificationCases(readFileSync(agreement, 'utf8')).flatMap((c) => {
+    const text = manualCheck(c.check);
+    return text ? [`manual: case ${c.n} — ${text}`] : [];
   });
 }
 
@@ -168,12 +154,8 @@ export async function runReview(argv: string[]) {
   const base = bi === -1 ? (persistedBase(worktree) ?? baseBranch) : (argv[bi + 1] ?? usage());
   // The stored class is the asserted one (B/C never downgrade); the measurement is only a fallback.
   const klass = readState(worktree).class ?? classify(worktree, base);
-  const asBuilt = [readState(worktree).folder, 'proof', 'CALL-STACK-AS-BUILT.md'].filter(Boolean).join('/');
-  const files = reviewFiles(changedFiles(worktree, base), asBuilt, existsSync(join(worktree, asBuilt)));
-  if ((klass === 'B' || klass === 'C') && !asBuiltFile(files)) {
-    console.error(`wf review: class ${klass} round without ${asBuilt} — the as-built phase writes it before T2 (the contract change is what T2 reads first); wf next dispatches it`);
-    process.exit(2);
-  }
+  const assessmentRel = [readState(worktree).folder, ASSESSMENT_FILE].filter(Boolean).join('/');
+  const files = reviewFiles(changedFiles(worktree, base), assessmentRel, existsSync(join(worktree, assessmentRel)));
   await inWorktree(worktree, round, 'review');
   // T2 sees the committed diff, so uncommitted product cannot be approved: it was never shown. Refuse
   // before the stack is started, so a dirty tree does not wait on servers it will not use (#106 review).
@@ -192,19 +174,19 @@ export async function runReview(argv: string[]) {
     console.log(`before/after: ${beforeAfter}`);
     openFile(beforeAfter);
   }
-  const planHtml = writePlan(worktree, round);
-  if (planHtml) {
-    console.log(`plan: ${planHtml}`);
-    openFile(planHtml);
+  const agreementHtml = writeAgreement(worktree, round);
+  if (agreementHtml) {
+    console.log(`agreement: ${agreementHtml}`);
+    openFile(agreementHtml);
   }
-  const standards = [...critiqueFor(worktree), ...standardsFor(worktree)];
+  const standards = assessmentFor(worktree);
   const manual = manualFor(worktree);
   // The identities the verdict is bound to, computed once at open and printed in every header this run
   // writes. T2 computes them again at --done; a change since makes the approval stale (content-identity.ts).
   const identity = currentIdentity(worktree);
   const contentSha = identity.worktree;
   const headSha = identity.head;
-  const header = () => renderHeader({ round, klass, base, specSha: specShaFor(worktree), contentSha, headSha, urls: devUrlsFor(worktree), files, beforeAfter, standards, manual });
+  const header = () => renderHeader({ round, klass, base, contentSha, headSha, urls: devUrlsFor(worktree), files, beforeAfter, standards, manual });
   const file = roundFile(worktree, 'REVIEW.md');
   const previous = existsSync(file) ? readFileSync(file, 'utf8') : null;
   // First review: the skeleton. Re-opened after the implementation moved (no review screen to append
@@ -214,7 +196,7 @@ export async function runReview(argv: string[]) {
   // HEAD (#106 final review). Same worktree and HEAD: nothing, the verdict stands.
   const previousBinding = previous === null ? null : { contentSha: lastField(previous, 'content-sha'), headSha: lastField(previous, 'head-sha') };
   if (previous === null || (!seams.reviewUI?.available() && needsFreshReviewHeader(previousBinding, contentSha, headSha))) {
-    appendDatedSection(file, renderSkeleton({ round, klass, base, specSha: specShaFor(worktree), contentSha, headSha, urls: devUrlsFor(worktree), files, beforeAfter, standards, manual }));
+    appendDatedSection(file, renderSkeleton({ round, klass, base, contentSha, headSha, urls: devUrlsFor(worktree), files, beforeAfter, standards, manual }));
   }
   // The machine's review screen when it has one (seams.reviewUI: plannotator on Shay's), else an editor.
   if (!seams.reviewUI?.available()) {
@@ -265,7 +247,7 @@ async function runReviewDone(worktree: string, round: string) {
     }
   }
   if (verdict === 'approved') await inWorktree(worktree, round, 'pr');
-  else if (verdict === 'changes-requested') await inWorktree(worktree, round, 'implement');
+  else if (verdict === 'changes-requested') await inWorktree(worktree, round, 'build');
   else {
     console.error(`review was dismissed — re-run wf review ${round}`);
     process.exit(2);

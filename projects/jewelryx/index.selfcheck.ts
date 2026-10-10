@@ -5,7 +5,7 @@
 import { strandedTestDatabases, worktreeDatabase } from './db.ts';
 import { devCommands } from './dev.ts';
 import { includedFiles, sanitizeEnv } from './env.ts';
-import { handoffGap } from '../../src/round/handoff.ts';
+import { agreementGap } from '../../src/round/agreement.ts';
 import { checks, directUrls, pageOf, planGap, setup, stackUrls, teardown, trackerNote } from './index.ts';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -93,12 +93,11 @@ check('and still against the round stack', spec?.env?.B2B_URL === direct.b2b && 
 rmSync(stackTree, { recursive: true, force: true });
 
 // ── the oracle guard, where wf meets it: the plan's hand-off, and a row's check on a real branch
-const planWith = (files: string) => ['# plan', '## Commits', '| # | message | files | check |', '|---|---|---|---|', `| 1 | test(verification): x | ${files} | verification/tests/x.spec.ts |`, '<!-- brief: aa -->'].join('\n');
-const brief = { token: 'aa' };
-check('handoff: a fix/ plan row with a verification/ file is not a handoff, wherever wf asks (next, the stop hook, the implement brief)', handoffGap('plan', planWith('verification/tests/x.spec.ts'), brief, undefined, 'fix/bjew-617-x')?.includes('oracle-guard') === true);
-check('handoff: the same plan on a verification/ branch, or with no branch known, is one', handoffGap('plan', planWith('verification/tests/x.spec.ts'), brief, undefined, 'verification/x') === null && handoffGap('plan', planWith('verification/tests/x.spec.ts'), brief) === null);
-check('handoff: a fix/ plan that stays in the product is one', handoffGap('plan', planWith('packages/backend/app/x.py'), brief, undefined, 'fix/x') === null);
-check('planGap is what handoff asks', planGap({ branch: 'feat/x', rows: [{ n: 1, message: 'm', files: ['verification/a.ts'] }] }) !== null);
+const agreementWith = (files: string) => ['# r — agreement', 'Class: B', '## Observed', '- x — `a.ts:1`', '## Agreed', 'Behavior.', '## Verification', '| # | case | files | check |', '|---|---|---|---|', `| 1 | test(verification): x | ${files} | verification/tests/x.spec.ts |`].join('\n');
+check('agreement: a fix/ case with a verification/ file is refused (the oracle guard)', agreementGap(agreementWith('verification/tests/x.spec.ts'), 'B', 'fix/bjew-617-x')?.includes('oracle-guard') === true);
+check('agreement: the same case on a verification/ branch, or with no branch known, is accepted', agreementGap(agreementWith('verification/tests/x.spec.ts'), 'B', 'verification/x') === null && agreementGap(agreementWith('verification/tests/x.spec.ts'), 'B') === null);
+check('agreement: a fix/ case that stays in the product is accepted', agreementGap(agreementWith('packages/backend/app/x.py'), 'B', 'fix/x') === null);
+check('planGap is what the agreement gap asks', planGap({ branch: 'feat/x', rows: [{ n: 1, message: 'm', files: ['verification/a.ts'] }] }) !== null);
 {
   const repo = mkdtempSync(join(tmpdir(), 'wf-oracle-'));
   const git = (...args: string[]) => execFileSync('git', ['-C', repo, '-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });

@@ -86,9 +86,10 @@ check('a worktree with no state is not a round', !all.join('|').includes('wt-bar
 check('no rounds → no lines', allLines({ paths: [bare], readState: readAll, detailFor: () => '', now }).length === 0);
 check('liveRounds counts everything but merged and held', liveRounds({ paths: [old, mine, mid, bare], readState: readAll }).map((r) => r.state.id).join() === 'BJEW-1,BJEW-2', JSON.stringify(liveRounds({ paths: [old, mine, mid, bare], readState: readAll }).map((r) => r.state.id)));
 mkdirSync(join(old, 'bug-reports', 'BJEW-1'), { recursive: true });
-writeFileSync(join(old, 'bug-reports', 'BJEW-1', 'PLAN.md'), '# p\n\n## Commits\n| # | m | f | c |\n| 1 | a | b | c |\n| 2 | a | b | c |\n');
-check('real detail for implement counts the PLAN.md rows', realDetailFor(old, readAll(old)!) === 'commit 2 of 2', realDetailFor(old, readAll(old)!));
-check('real detail for plan counts PLAN.md lines', realDetailFor(old, { ...readAll(old), step: 'plan' }) === 'PLAN.md 6 lines', realDetailFor(old, { ...readAll(old), step: 'plan' }));
+writeFileSync(join(old, 'bug-reports', 'BJEW-1', 'TICKET.md'), '# t\n\n## Intent\n- x\n\n## Verification\n| # | case | files | check |\n|---|---|---|---|\n| 1 | a | b | c |\n| 2 | a | b | c |\n');
+const ticketText = readFileSync(join(old, 'bug-reports', 'BJEW-1', 'TICKET.md'), 'utf8').replace(/\r\n/g, '\n').trimEnd();
+check('real detail for agree counts the agreement lines', realDetailFor(old, { ...readAll(old), step: 'agree' }) === `TICKET.md ${ticketText.split('\n').length} lines`, realDetailFor(old, { ...readAll(old), step: 'agree' }));
+check('real detail for build counts the verification cases', realDetailFor(old, { ...readAll(old), step: 'build' }) === '2 verification cases', realDetailFor(old, { ...readAll(old), step: 'build' }));
 
 // What still runs in a worktree (seams.processCwds): its own folder and below, nothing beside it.
 const cwds = ['C:\\Users\\S\\wt\\fix-a\\', 'C:\\Users\\S\\wt\\fix-a\\packages\\backend\\', 'C:\\Users\\S\\wt\\fix-ab\\', 'C:\\Users\\S\\'];

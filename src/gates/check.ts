@@ -45,8 +45,9 @@ import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { baseBranch, checks, redBaseEvidence, reproFailure, suites } from '../project.ts';
-import { planCommitRows, rowFiles } from '../round/prompt.ts';
-import type { PlanRow } from '../round/prompt.ts';
+import { caseFiles, verificationCases } from '../round/agreement.ts';
+import { agreementPath } from '../round/agreement.ts';
+import type { VerificationCase } from '../round/agreement.ts';
 import { readState, roundOf, toplevelOf } from '../round/state.ts';
 import { ensureServers } from '../worktrees/serve.ts';
 import { worktreeContentSha } from './content-identity.ts';
@@ -169,15 +170,15 @@ export function targetGap(target: CheckTarget | null): string | null {
 // Pure: the files the red-base run takes back to HEAD — the row's changed files without the test the
 // row names (it stays, so it runs against the tree without the fix) and without the round's own
 // paperwork. Empty when the row only edits its test: there is no fix to take away.
-export function redBaseFiles({ changed, row, folder, testPath }: { changed: string[]; row: Pick<PlanRow, 'files'> | null; folder: string | null; testPath: string }): string[] {
+export function redBaseFiles({ changed, row, folder, testPath }: { changed: string[]; row: Pick<VerificationCase, 'files'> | null; folder: string | null; testPath: string }): string[] {
 	if (!row || !testPath) return [];
-	const allowed = new Set(rowFiles(row));
+	const allowed = new Set(caseFiles(row));
 	return changed.filter((f) => allowed.has(f) && f !== testPath && !isRoundPaperwork(f, folder));
 }
 
 // Pure: the row's red-base run — the project's task that carries the row's own test, and the files
 // to take back to HEAD for it — or null when the row has no test task, or only its test to revert.
-export function redBaseRun({ tasks, changed, row, folder }: { tasks: CheckTask[]; changed: string[]; row: Pick<PlanRow, 'files' | 'check'> | null; folder: string | null }): { task: CheckTask; revert: string[] } | null {
+export function redBaseRun({ tasks, changed, row, folder }: { tasks: CheckTask[]; changed: string[]; row: Pick<VerificationCase, 'files' | 'check'> | null; folder: string | null }): { task: CheckTask; revert: string[] } | null {
 	const task = tasks.find((t) => t.redBase && !t.missing);
 	if (!task) return null;
 	const revert = redBaseFiles({ changed, row, folder, testPath: checkCellTarget(row?.check)?.file ?? '' });
@@ -202,7 +203,7 @@ export function withFixReverted<T>(toplevel: string, paths: string[], run: () =>
 	}
 }
 
-// `command: <line>` under `## Repro` in RESEARCH.md.
+// `command: <line>` under `## Repro` in the round agreement (TICKET.md for class A, AGREEMENT.md for B/C).
 export function reproCommand(text: string) {
 	const body = text.replace(/\r\n/g, '\n');
 	const section = /^## Repro[ \t]*\n([\s\S]*?)(?=^## |(?![\s\S]))/m.exec(body);
@@ -407,10 +408,10 @@ export async function runRepro() {
 	const toplevel = toplevelOf();
 	const state = readState(toplevel);
 	const { folder } = roundOf(state, toplevel);
-	const research = join(toplevel, folder ?? '', 'RESEARCH.md');
+	const research = agreementPath(toplevel, state?.class ?? null, folder);
 	const repro = existsSync(research) ? reproCommand(readFileSync(research, 'utf8')) : null;
 	if (!repro) {
-		console.error('check --repro: RESEARCH.md ## Repro has no `command:` line yet: write it first');
+		console.error(`check --repro: ${research.split(/[\\/]/).pop()} ## Repro has no \`command:\` line yet: write it first`);
 		process.exit(1);
 	}
 	await stackOrExit(toplevel);
@@ -432,7 +433,7 @@ export async function runRepro() {
 	// A repro that rewrites the tree measures bytes other than the ones it was handed: no verdict binds.
 	// An unreadable before/after snapshot is refused too, not counted as no change.
 	const gap = identityGap(start, end);
-	appendFileSync(join(toplevel, '.wf', 'checks.log'), `${checkRunLine({ ts: new Date().toISOString(), row: 'repro', rowCheck: null, tasks, result: gap ?? verdict.result, token: state?.briefs?.research?.token, content: end })}\n`);
+	appendFileSync(join(toplevel, '.wf', 'checks.log'), `${checkRunLine({ ts: new Date().toISOString(), row: 'repro', rowCheck: null, tasks, result: gap ?? verdict.result, content: end })}\n`);
 	if (gap === 'unavailable') {
 		console.error('check --repro: could not read the implementation before and after the repro (git could not compute the tree); refusing to record a verdict.');
 		process.exit(1);
@@ -457,32 +458,47 @@ export async function runRepro() {
 	console.log(`\nthe last run, for RESEARCH.md's red output:\n${runs.at(-1)!.output.split('\n').filter((l) => l.trim()).slice(-10).join('\n')}`);
 }
 
-export async function runCheck() {
+export async function runCheck(argv: string[] = []) {
 	const toplevel = toplevelOf();
 	const state = readState(toplevel);
 	const { folder } = roundOf(state, toplevel);
 	const changed = changedFiles(toplevel);
 	const ran: CheckRun[] = [];
 	const start = contentOf(toplevel, folder);
+	// The verification cases of the round's agreement (TICKET.md for class A, AGREEMENT.md for B/C).
+	// No per-commit bookkeeping (#112): `--case N` names one, else the single case whose files this
+	// diff touches, else the single case. `--case "<path>::<id>@<line>"` names a raw cell (class A).
+	const agreementFile = agreementPath(toplevel, state?.class ?? null, folder);
+	const cases = verificationCases(existsSync(agreementFile) ? readFileSync(agreementFile, 'utf8') : '');
+	const caseIdx = argv.indexOf('--case');
+	const caseArg = caseIdx >= 0 ? argv[caseIdx + 1] : null;
+	let row: VerificationCase | null = null;
+	if (caseArg != null) row = /^\d+$/.test(caseArg) ? cases.find((c) => c.n === Number(caseArg)) ?? null : { n: 0, line: '', message: caseArg, files: '', check: caseArg };
+	else {
+		const matching = cases.filter((c) => caseFiles(c).some((f) => changed.includes(f)));
+		row = matching.length === 1 ? matching[0] : cases.length === 1 ? cases[0] : null;
+	}
+	if (caseArg != null && /^\d+$/.test(caseArg) && !row) {
+		console.error(`check: the agreement has no verification case ${caseArg} (cases: ${cases.map((c) => c.n).join(', ') || 'none'})`);
+		process.exit(1);
+	}
 	const logRun = (result: string, cause?: RedCause) => {
 		mkdirSync(join(toplevel, '.wf'), { recursive: true });
-		appendFileSync(join(toplevel, '.wf', 'checks.log'), `${checkRunLine({ ts: new Date().toISOString(), row: state?.commit ?? null, rowCheck: row?.check ?? null, tasks: ran, result, cause, content: contentOf(toplevel, folder) })}\n`);
+		appendFileSync(join(toplevel, '.wf', 'checks.log'), `${checkRunLine({ ts: new Date().toISOString(), row: row?.n ?? null, rowCheck: row?.check ?? null, tasks: ran, result, cause, content: contentOf(toplevel, folder) })}\n`);
 	};
-	let row: PlanRow | null = null;
-	if (state?.commit && folder && existsSync(join(toplevel, folder, 'PLAN.md'))) {
-		row = planCommitRows(readFileSync(join(toplevel, folder, 'PLAN.md'), 'utf8')).find((r) => r.n === Number(state.commit)) ?? null;
-		const violations = fenceViolations(changed, rowFiles(row), folder);
-		if (violations.length) {
-			for (const f of violations) console.error(`fence: ${f} is not in PLAN.md row ${state.commit}`);
-			const fence = { label: 'fence', exit: 1 };
-			ran.push(fence);
-			logRun('red', redCause(fence));
-			process.exit(1);
-		}
+	// Scopeprot: a changed product/test file outside the agreement's cases is refused; a round's added
+	// helper belongs in a case's `files` cell, which is mutable working detail (no renewed T1).
+	const allowed = row ? caseFiles(row) : cases.flatMap((c) => caseFiles(c));
+	const violations = allowed.length ? fenceViolations(changed, allowed, folder) : [];
+	if (violations.length) {
+		for (const f of violations) console.error(`fence: ${f} is not in the agreement's verification cases`);
+		const fence = { label: 'fence', exit: 1 };
+		ran.push(fence);
+		logRun('red', redCause(fence));
+		process.exit(1);
 	}
-	const research = join(toplevel, folder ?? '', 'RESEARCH.md');
-	const repro = existsSync(research) ? reproCommand(readFileSync(research, 'utf8')) : null;
-	const reproOnly = row ? isReproOnly(rowFiles(row), folder) : false;
+	const repro = existsSync(agreementFile) ? reproCommand(readFileSync(agreementFile, 'utf8')) : null;
+	const reproOnly = row ? isReproOnly(caseFiles(row), folder) : false;
 	const target = checkCellTarget(row?.check);
 	let served = false;
 	const tasks = buildTasks({ row, projectTasks: (t) => checks({ toplevel, changed, target: t }), repro, reproOnly });
@@ -637,10 +653,10 @@ export async function runCheck() {
 		logRun('changed');
 		process.exit(1);
 	}
-	// Resolve a block before recording green: the renamed file is trailing paperwork, and computing the
-	// identity after it keeps the recorded line equal to the tree the next `wf next` sees (#106).
-	const blocked = folder && state?.commit ? join(toplevel, folder, 'BLOCKED.md') : null;
-	if (blocked && existsSync(blocked)) renameSync(blocked, join(toplevel, folder!, resolvedBlockedName(state!.commit!, readdirSync(join(toplevel, folder!)))));
+	// Resolve a block before recording green: the renamed file is trailing paperwork (a block the build
+	// got past becomes its record). The case number names it when there is one.
+	const blocked = folder ? join(toplevel, folder, 'BLOCKED.md') : null;
+	if (blocked && existsSync(blocked)) renameSync(blocked, join(toplevel, folder!, resolvedBlockedName(row?.n ?? 0, readdirSync(join(toplevel, folder!)))));
 	logRun('green');
 }
 

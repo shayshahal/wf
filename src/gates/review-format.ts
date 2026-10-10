@@ -99,14 +99,15 @@ export function lookAtLines(urls: string | null, files: string[], pageFor: (file
 // (content-identity.ts), the two lines that bind the verdict to the code T2 judged — deliver pushes
 // HEAD, so both must match. Absent on a SPEC review and on reviews from before #106 (2026-10-09),
 // which approvalContentGap refuses.
-export type ReviewHeader = { round: string; klass?: string; base?: string | null; specSha?: string | null; contentSha?: string | null; headSha?: string | null; date?: string; urls?: string | null; files?: string[]; beforeAfter?: string | null; standards?: string[]; manual?: string[] };
-export function renderHeader({ round, klass = '—', base = null, specSha = null, contentSha = null, headSha = null, date = today(), urls = null, files = [], beforeAfter = null, standards = [], manual = [] }: ReviewHeader) {
+export type ReviewHeader = { round: string; klass?: string; base?: string | null; specSha?: string | null; agreementSha?: string | null; contentSha?: string | null; headSha?: string | null; date?: string; urls?: string | null; files?: string[]; beforeAfter?: string | null; standards?: string[]; manual?: string[] };
+export function renderHeader({ round, klass = '—', base = null, specSha = null, agreementSha = null, contentSha = null, headSha = null, date = today(), urls = null, files = [], beforeAfter = null, standards = [], manual = [] }: ReviewHeader) {
   return [
     `# Review — ${round}`,
     ``,
     `round: ${round}`,
     `class: ${klass}`,
-    `base: ${base ?? 'n/a (SPEC review)'}`,
+    `base: ${base ?? 'n/a (agreement review)'}`,
+    ...(agreementSha ? [`agreement-sha: ${agreementSha}`] : []),
     `spec-sha: ${specSha ?? 'n/a'}`,
     ...(contentSha ? [`content-sha: ${contentSha}`] : []),
     ...(headSha ? [`head-sha: ${headSha}`] : []),

@@ -122,8 +122,8 @@ writeFileSync(join(ROOT, 'harness.mjs'), HARNESS);
 type RemotePr = { number: number; url: string; state: string; headRefOid: string | null; headRefName: string; baseRefName: string; isCrossRepository: boolean };
 type Remote = { prs: Record<string, RemotePr[]>; create: number; edit: number; merge: number; lists?: string[][]; creates?: string[][]; edits?: string[][]; merges?: string[][] };
 
-const PLAN = ['# BJEW-1 — plan', 'Class: A', 'Cause: c', 'Approach: a', '## Commits', '| # | message | files | check |', '|---|---|---|---|', '| 1 | fix(x): y | a.ts | — |'].join('\n');
-const VALIDATION = ['# BJEW-1 — validation', 'Verdict: matches plan', '', '## Intent', '- the thing: met: before: broken, after: fixed'].join('\n');
+const TICKET = ['# BJEW-1 — the thing', '## Intent', '', '- the thing', '', '## Verification', '| # | case | files | check |', '|---|---|---|---|', '| 1 | fix(x): y | a.ts | — |'].join('\n');
+const ASSESSMENT = ['# BJEW-1 — assessment', 'Verdict: clean', '', '## Intent', '- the thing: met: a.ts:1 \u00b7 before: broken \u00b7 after: fixed'].join('\n');
 
 // A temporary repository with a local bare origin, on the round's branch, its folder and its state at
 // step pr with T2 approved: exactly where `wf deliver` runs.
@@ -147,9 +147,8 @@ function makeRepo(name: string) {
 	must(['push', '-q', '-u', 'origin', 'dev'], work);
 	must(['checkout', '-qb', BRANCH], work);
 	mkdirSync(join(work, FOLDER), { recursive: true });
-	writeFileSync(join(work, FOLDER, 'TICKET.md'), '# BJEW-1 — the thing\n');
-	writeFileSync(join(work, FOLDER, 'PLAN.md'), PLAN);
-	writeFileSync(join(work, FOLDER, 'VALIDATION.md'), VALIDATION);
+	writeFileSync(join(work, FOLDER, 'TICKET.md'), TICKET);
+	writeFileSync(join(work, FOLDER, 'ASSESSMENT.md'), ASSESSMENT);
 	mkdirSync(join(work, '.wf'), { recursive: true });
 	const state = { round: BRANCH, class: 'A', id: 'BJEW-1', ids: ['BJEW-1'], folder: FOLDER, base: 'dev', step: 'pr', made_by: 'kit' };
 	writeFileSync(join(work, '.wf', 'state.json'), JSON.stringify(state, null, 2) + '\n');
@@ -251,7 +250,7 @@ function attempt(f: Fixture, mode = 'ok') {
 {
 	const f = makeRepo('round-folder-committed');
 	must(['add', '--', FOLDER, `:(exclude)${FOLDER}/REVIEW.md`], f.work);
-	must(['commit', '-qm', `docs(BJEW-1): round folder: ticket, research, plan, validation, repro`], f.work);
+	must(['commit', '-qm', `docs(BJEW-1): round folder: ticket, agreement, assessment, repro`], f.work);
 	must(['push', '-q', 'origin', `HEAD:refs/heads/${BRANCH}`], f.work);
 	setRemote(f, empty());
 	const r = attempt(f);

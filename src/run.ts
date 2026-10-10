@@ -39,7 +39,7 @@ export const wantsHelp = (argv: string[]) => argv[0] === 'help' || argv.some((a)
 async function usage() {
 	const { commands } = await import('./project.ts');
 	const own = Object.keys({ ...commands, ...seams.commands });
-	return `usage: wf <new|serve|next|brief|notes|handoff|step|prompt|check|standards|models|deliver|ask|decide|status|reap|classify|design|review${own.map((c) => `|${c}`).join('')}> [...]`;
+	return `usage: wf <new|serve|next|brief|notes|handoff|step|prompt|check|models|deliver|ask|decide|status|reap|classify|agree|review${own.map((c) => `|${c}`).join('')}> [...]`;
 }
 
 export async function run(argv: string[], pieces: Partial<Seams> = {}) {
@@ -55,9 +55,14 @@ export async function run(argv: string[], pieces: Partial<Seams> = {}) {
 	await logRefusals(argv);
 	// The hooks run whichever wf the plugin carries; the env's own commands are not a round's.
 	if (!['handoff', 'hook', 'update'].includes(cmd)) {
-		const { CorruptStateError, entryGap, readState, toplevelOf } = await import('./round/state.ts');
+		const { CorruptStateError, entryGap, legacyStateGap, readState, toplevelOf } = await import('./round/state.ts');
 		let gap = null;
-		try { gap = entryGap(readState(toplevelOf()), seams.madeBy); } catch (e) {
+		try {
+			const state = readState(toplevelOf());
+			// A state from the old runtime is refused before any mutating command reads it (finish-before-
+			// release, #110). `status` and `next` may still report it; every other command refuses.
+			if (!['status', 'next'].includes(cmd)) gap = legacyStateGap(state) ?? entryGap(state, seams.madeBy);
+		} catch (e) {
 			// A state file that is not the round's is the round's: report it and stop, instead of running
 			// the command as if there were no round here (issue #107).
 			if (e instanceof CorruptStateError) { console.error(`wf: ${e.message}`); process.exit(1); }
@@ -99,13 +104,10 @@ export async function run(argv: string[], pieces: Partial<Seams> = {}) {
 		const { runCheck, runRepro, runSuites } = await import('./gates/check.ts');
 		if (rest.includes('--repro')) await runRepro();
 		else if (rest.includes('--suites')) await runSuites();
-		else await runCheck();
+		else await runCheck(rest);
 	} else if (cmd === 'models') {
 		const { runModels } = await import('./models.ts');
 		runModels(seams.models, seams.resolveModel);
-	} else if (cmd === 'standards') {
-		const { runStandards } = await import('./gates/standards.ts');
-		runStandards();
 	} else if (cmd === 'deliver') {
 		const { runDeliver } = await import('./gates/deliver.ts');
 		await runDeliver();
@@ -123,9 +125,9 @@ export async function run(argv: string[], pieces: Partial<Seams> = {}) {
 		// (its standalone guard keys on argv[1], which is wf.mjs here) and exited 0 (2026-10-09).
 		const { runClassify } = await import('./gates/classify.ts');
 		runClassify(rest);
-	} else if (cmd === 'design') {
-		const { runDesign } = await import('./gates/design.ts');
-		await runDesign(rest);
+	} else if (cmd === 'agree') {
+		const { runAgree } = await import('./gates/agree.ts');
+		await runAgree(rest);
 	} else if (cmd === 'review') {
 		const { runReview } = await import('./gates/review.ts');
 		await runReview(rest);

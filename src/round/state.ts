@@ -10,7 +10,6 @@ import { randomUUID } from 'node:crypto';
 import { linkSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { roundsDir } from '../project.ts';
-import { traceStateWrite } from './state-trace.ts';
 
 export type RoundClass = 'A' | 'B' | 'C';
 // A question `wf ask` opened; `wf decide` moves it to `answered` with its answer (ask.ts).
@@ -23,7 +22,10 @@ export type Brief = { token: string; at: string; count: number; head?: string; s
 spec?: string | null };
 // .wf/state.json. Every field is optional: each command writes only its own (writeState merges),
 // and a hand-cut worktree has only what `wf step` wrote.
+// `wf_version` is the runtime that wrote the state (2 = the smaller route, #110/#111). A state from
+// an older runtime is refused before mutation, never silently reinterpreted (finish-before-release).
 export type State = {
+	wf_version?: number;
 	round?: string;
 	class?: RoundClass | null;
 	base?: string | null;
@@ -40,20 +42,18 @@ export type State = {
 	entry?: string;
 	check?: boolean;
 	commit?: number;
+	// How many autonomous repairs an assessment has already sent back to build (#113.3): bounded by
+	// MAX_REPAIRS in next.ts. Reset is not needed — the assessment's `head:` names the tree it judged.
+	repairs?: number;
+	// The step a round-worker was sent back for by `wf handoff check` (handoff-hook.ts): one hand-back
+	// per step, so a hook loop cannot burn the agent.
+	handoff_sent_back?: string;
 	questions?: Question[];
 	answered?: Question[];
-	// Answers that say the plan must change (`wf decide --revise`, ask.ts): `wf next` sends the round
-	// to `plan --revise` until a plan brief is newer than the answer.
+	// Answers that say the agreement must change (`wf decide --revise`, ask.ts): `wf next` sends the
+	// round back to agree until a new agreement material sha is approved (agree.ts).
 	revisions?: { text: string; at: string }[];
-	// What research must now measure (`wf decide --research`, ask.ts): `wf next` dispatches a fresh
-	// research until a research brief is newer than the request, and its prompt carries them all.
-	researchRequests?: { text: string; at: string }[];
 	last_question?: number;
-	briefs?: Record<string, Brief>;
-	// How many agents each phase has had, over the whole round: every brief it sent, in a field nothing
-	// voids (`briefs` loses every `implement *` key on a plan --revise, on purpose). This is what `wf
-	// reap`'s line reports as `agents:`; a round from before the field falls back to the surviving briefs.
-	briefCounts?: Record<string, number>;
 	// The validation token whose T2 setup `wf show` already ran (projects/jewelryx/show.ts).
 	t2_setup?: string;
 	// The tracker note `wf deliver` wrote, from the worktree's top: `wf next` reads which of its
@@ -63,6 +63,24 @@ export type State = {
 
 export function toplevelOf(cwd = process.cwd()): string {
 	return execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8', cwd }).trim();
+}
+
+// The runtime that reads and writes a round's state. A state from an older one is refused before any
+// command mutates it (finish-before-release, #110): the new route cannot read the old fields, and a
+// silent reinterpretation would corrupt a half-finished round. A genuine read-only inspection may
+// still report it; every mutating command refuses (run.ts).
+export const WF_STATE_VERSION = 2;
+// The steps the smaller route removed (#111/#112/#113). A round parked at one is an old round: it must
+// finish on the installed wf that made it, and this wf refuses to reinterpret it.
+const OLD_ROUTE_STEPS = ['research', 'plan', 'design', 'implement'];
+export function legacyStateGap(state: State | null): string | null {
+	if (!state) return null;
+	if (state.wf_version === WF_STATE_VERSION) return null;
+	if (typeof state.wf_version === 'number') return `this round's state names wf version ${state.wf_version}, not ${WF_STATE_VERSION} — finish it on that wf, then start a new round`;
+	// No version field: an old round is one parked at a step this route removed; a hand-cut worktree or
+	// a round from before `wf step` has no step and is let through to fail on its own.
+	if (state.step && OLD_ROUTE_STEPS.includes(state.step)) return `this round's state is from an older wf (step "${state.step}", no wf_version): finish it on the installed wf that made it, then start a new round — this wf refuses to reinterpret old state (finish-before-release, #110)`;
+	return null;
 }
 
 export function stateFile(toplevel: string) {
@@ -132,9 +150,8 @@ export function roundFile(toplevel: string, name: string) {
 // write replace a whole collection from a read that predated it, which is the lost update this fixes.
 // `writeState` refuses a copied `State` object outright, so that shape cannot come back by accident.
 // The updater is handed its own copy of `current`: a callback that mutates it cannot rewrite the
-// snapshot state-trace.ts compares against, and cannot smuggle the mutation into the write.
-// An updater still replaces the field it returns whole — intentional: `wf brief plan --revise` voids
-// implement briefs (briefsAfter), `wf new` writes `ids` as a list.
+// snapshot state.ts keeps, and cannot smuggle the mutation into the write.
+// An updater still replaces the field it returns whole.
 //
 // A write is serialized against every other wf process on this worktree with .wf/state.json.lock, and
 // the new state replaces the old with one rename: a reader sees the old state or the new one, never a
@@ -345,15 +362,14 @@ export function writeState(toplevel: string, update: StateUpdater): State {
 	try {
 		const release = acquireStateLock(toplevel);
 		try {
-			// What is on disk now, kept: state-trace.ts compares it against what this write leaves behind,
-			// since `briefs` is the one field a write replaces whole. The updater gets its own copy, so a
-			// callback that mutates it cannot rewrite this snapshot and blind that comparison.
+			// The updater gets its own copy of `current`: a callback that mutates it cannot rewrite the
+			// snapshot state.ts keeps, and cannot smuggle the mutation into the write.
 			const before = readState(toplevel);
 			const current = before ?? {};
 			const patch = update(structuredClone(current));
 			const state: State = { ...current, ...patch };
 			writeStateFileAtomically(toplevel, state);
-			traceStateWrite(toplevel, { before, after: state, patch: Object.keys(patch) });
+
 			return state;
 		} finally {
 			release();

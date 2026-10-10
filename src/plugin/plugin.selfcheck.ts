@@ -4,10 +4,9 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { WF_ROOT } from '../paths.ts';
-import { forkGap, lastBrief, stopGap } from '../round/handoff-hook.ts';
+import { forkGap, stopGap } from '../round/handoff-hook.ts';
 import { claudeAgent, pluginFiles } from './plugin.ts';
-import type { Snapshot } from '../round/next.ts';
-import type { Brief } from '../round/state.ts';
+import type { State } from '../round/state.ts';
 
 let failures = 0;
 const check = (name: string, cond: unknown, detail = '') =>
@@ -52,20 +51,19 @@ check('wf\'s texts dispatch only wf\'s own agents', dispatched.length > 0 && dis
 const general = texts.filter(({ text }) => /\bscout\b|`(planner|worker|reviewer)`/i.test(text)).map(({ file }) => file);
 check('wf\'s texts name none of pi\'s general agents', general.length === 0, general.join());
 
-// ── the hooks
-check('the last brief is the most recent one', lastBrief({ research: { at: '2026-09-27T10:00' } as Brief, 'implement 2': { at: '2026-09-27T11:00' } as Brief })?.key === 'implement 2' && lastBrief({ 'implement 2': { at: 'x' } as Brief })!.n === 2);
-const snap = (patch: object) => ({ briefs: {}, files: {}, subjects: [], checks: [], ...patch }) as unknown as Snapshot;
-check('a research agent ending with no RESEARCH.md is sent back', stopGap(snap({ briefs: { research: { token: 'aa11', at: '1' } } }))?.startsWith('no RESEARCH.md'));
-check('ending with the handoff is allowed', stopGap(snap({ briefs: { research: { token: 'aa11', at: '1' } }, files: { research: '## Repro\ncommand: x\n<!-- brief: aa11 -->' } })) === null);
-const plan = '## Commits\n| # | message | files | check |\n| 1 | fix(x): one | a.ts | repro |\n';
-check('implement ending with no commit is sent back', stopGap(snap({ briefs: { 'implement 1': { at: '1' } }, files: { plan } }))?.startsWith('commit 1 is not made'));
-check('implement ending with BLOCKED.md, or with its row done, is allowed', stopGap(snap({ briefs: { 'implement 1': { at: '1' } }, files: { plan, blocked: 'Question: x' } })) === null && stopGap(snap({ briefs: { 'implement 1': { at: '1' } }, files: { plan }, subjects: ['fix(x): one'], checks: [{ row: 1, result: 'green', rowCheck: 'repro' }] })) === null);
-check('a standards brief\'s key keeps its rule id whole', lastBrief({ 'standards api/errors': { at: '1' } as Brief })?.arg === 'api/errors' && lastBrief({ 'standards api/errors': { at: '1' } as Brief })?.n === null);
-const critic = (critique: string | null) => snap({ briefs: { critique: { token: 'ee55', at: '1' } }, files: { critique } });
-check('a critic ending without CRITIQUE.md, or with a verdict its rows do not come to, is sent back', stopGap(critic(null))?.startsWith('no CRITIQUE.md') && stopGap(critic('## Rows\n- DISAGREE_CONCERN · x — y\n\nVerdict: AGREE\n<!-- brief: ee55 -->'))?.includes('its rows come to DISAGREE_CONCERN') && stopGap(critic('## Rows\n- AGREE · x\n\nVerdict: AGREE\n<!-- brief: ee55 -->')) === null);
-const rule = (text: string | null) => snap({ briefs: { 'standards perf': { token: 'dd44', at: '1' } }, standards: [{ id: 'perf', text, fixesAfter: 0 }] });
-check('a standards agent ending without its report is sent back, naming the file', stopGap(rule(null))?.startsWith('no standards/perf.md') && stopGap(rule('Result: pass\n## Issues\nnone\n<!-- brief: dd44 -->')) === null);
+// ── the hooks: the round-worker is sent back once per step while its phase owes a handoff
+const st = (patch: Partial<State>): State => ({ step: 'agree', class: 'A', folder: 'bug-reports/r', ...patch });
+const noFiles = { agreement: null, assessment: null, blocked: false, commits: false };
+check('an agree worker ending with no TICKET.md is sent back', (stopGap(st({}), noFiles) ?? '').includes('TICKET.md'));
+check('agree with ## Intent is allowed', stopGap(st({}), { ...noFiles, agreement: '# t\n## Intent\n- x\n' }) === null);
+check('a B/C agree with a complete agreement is allowed', stopGap(st({ class: 'B' }), { ...noFiles, agreement: '## Observed\n- x\n\n## Agreed\n- y\n\n## Verification\n| # | case | files | check |\n|---|---|---|---|\n| 1 | a | a.ts | a.ts::a@1 |\n' }) === null);
+check('a B/C agree missing ## Agreed is sent back', (stopGap(st({ class: 'B' }), { ...noFiles, agreement: '## Observed\n- x\n' }) ?? '').includes('## Agreed'));
+check('a build worker ending with no commit is sent back to finish', (stopGap(st({ step: 'build' }), noFiles) ?? '').includes('wf step assess'));
+check('a build worker with a commit, or BLOCKED.md, is allowed', stopGap(st({ step: 'build' }), { ...noFiles, commits: true }) === null && stopGap(st({ step: 'build' }), { ...noFiles, blocked: true }) === null);
+check('an assess worker with no ASSESSMENT.md is sent back', (stopGap(st({ step: 'assess' }), { ...noFiles, commits: true }) ?? '').includes('ASSESSMENT.md'));
+check('an assess worker with no verdict is sent back', (stopGap(st({ step: 'assess' }), { ...noFiles, assessment: '## Intent\n- x\n', commits: true }) ?? '').includes('Verdict'));
+check('an assess worker with a valid assessment is allowed', stopGap(st({ step: 'assess' }), { ...noFiles, assessment: 'Verdict: clean\nhead: h\n## Intent\n- "x": met: a.ts:1 · before: r · after: g\n', commits: true }) === null);
+check('one hand-back per step: the marker stops a loop', stopGap(st({ step: 'agree', handoff_sent_back: 'agree' }), noFiles) === null);
 check('a fork is refused, any other agent is not', forkGap({ tool_input: { subagent_type: 'fork' } })?.startsWith('no forks') && forkGap({ tool_input: { subagent_type: 'wf:round-worker' } }) === null);
-
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');
 process.exit(failures ? 1 : 0);

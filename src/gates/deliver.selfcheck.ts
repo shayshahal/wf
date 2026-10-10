@@ -22,7 +22,7 @@ const plan = [
 	' +    send_otp_code()            ← str → bool',
 	' ~    auth.py:599                bool CAPTURED instead of discarded',
 	'',
-	'## Commits',
+	'## Verification',
 	'| # | message | files | check |',
 	'|---|---|---|---|',
 	'| 1 | fix(auth): x | packages/backend/app/api/auth.py | repro |',
@@ -57,7 +57,7 @@ const validation = [
 	'## Live',
 	'VERIFIED — the code arrives',
 ].join('\n');
-const commitLines = ['- abc1234 fix(auth): x', '- def5678 docs(BJEW-1): round folder: ticket, research, plan, validation, repro'];
+const commitLines = ['- abc1234 fix(auth): x', '- def5678 docs(BJEW-1): round folder: ticket, agreement, assessment, repro'];
 const body = prBody({ ticket, plan, commitLines, validation, planPath: 'bug-reports/bjew-1/PLAN.md' });
 const visible = body.slice(0, body.indexOf('<details>'));
 
@@ -65,7 +65,7 @@ check('the PR title is the ticket\u2019s own title', prTitle({ ticket, plan, com
 check('with no TICKET.md the title is the newest commit, never the oldest', prTitle({ ticket: '', plan, commitLines }) === 'fix(auth): x');
 check('the body leads with the round folder, then Intent and the plan\u2019s header', body.startsWith('Round folder: `bug-reports/bjew-1/`\n\n## Intent\n\n- Shay, 2026-01-01: "the code never arrives"\n\n## Approach\n\nClass: A\nCause: the send result'));
 check('the commits are one line each, joined to the pushed hash, with no files cell', body.includes('| 1 | abc1234 | fix(auth): x | repro |') && !body.includes('packages/backend/app/api/auth.py'));
-check('a commit no row names is listed too, and the Row N: instructions are not', body.includes('| — | def5678 | docs(BJEW-1): round folder: ticket, research, plan, validation, repro | — |') && !body.includes('Row 1: commit only auth.py'));
+check('a commit no row names is listed too, and the Row N: instructions are not', body.includes('| — | def5678 | docs(BJEW-1): round folder: ticket, agreement, assessment, repro | — |') && !body.includes('Row 1: commit only auth.py'));
 check('the T2 walk and Not doing are there, as the plan wrote them', body.includes('## T2 walk\n\nopen: /login') && body.includes('## Not doing\n\n- the SMS provider'));
 check('VALIDATION.md\u2019s verdict, suites and as-built sections are there', body.includes('## Validation\n\nVerdict: matches plan\n\ngreen: abc123 — backend pytest') && body.includes('### Unplanned\n\nnone') && body.includes('### Intent\n\n- "the code never arrives": met') && body.includes('### Live\n\nVERIFIED — the code arrives'));
 check('the call stack and the plan history are folded, not cut', body.includes('<summary>Build — the call stack (3 lines)</summary>') && body.includes('+    send_otp_code()') && body.includes('<summary>Plan history — 2 revisions, 1 decisions</summary>'));
@@ -77,7 +77,7 @@ check('an empty PLAN.md gives a table of the pushed commits alone', JSON.stringi
 // body says where the round folder's own text is.
 const row = (n: number) => `| ${n} | feat(x): row ${n} | a.ts | node --test |`;
 const bigTicket = ['# JX-1 — a big round', '', '## Intent', '- the ask'].join('\n');
-const bigPlan = ['# JX-1 — plan', 'Class: A', 'Cause: c', 'Approach: a', '## Build', 'b'.repeat(40000), '', '## Commits', '| # | message | files | check |', ...Array.from({ length: 18 }, (_, i) => row(i + 1)), '', '## Not doing', 'nothing else', '', '## T2 walk', 'open: /users/1', '', '## Decisions', 'd'.repeat(30000)].join('\n');
+const bigPlan = ['# JX-1 — plan', 'Class: A', 'Cause: c', 'Approach: a', '## Build', 'b'.repeat(40000), '', '## Verification', '| # | message | files | check |', ...Array.from({ length: 18 }, (_, i) => row(i + 1)), '', '## Not doing', 'nothing else', '', '## T2 walk', 'open: /users/1', '', '## Decisions', 'd'.repeat(30000)].join('\n');
 const bigCommits = Array.from({ length: 18 }, (_, i) => `- c${i}abcd feat(x): row ${i + 1}`);
 const bigValidation = `# JX-1 — validation\nVerdict: matches plan\n\n## Suites\ngreen\n\n## Unplanned\n${'u'.repeat(2000)}\n\n## Live\n${'l'.repeat(2000)}`;
 const fit = prBody({ ticket: bigTicket, plan: bigPlan, commitLines: bigCommits, validation: bigValidation, planPath: 'bug-reports/jx-1/PLAN.md' });

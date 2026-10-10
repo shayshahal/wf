@@ -30,13 +30,12 @@ const WF_METADATA = [
 	'.wf/state.json.lock.acquiring',
 	'.wf/checks.log',
 	'.wf/events.log',
-	'.wf/state-writes.log',
 	'.wf/serve.pid',
 	'.wf/logs',
 	'.wf/before-after.html',
-	'.wf/PLAN.html',
-	'.wf/SPEC-T1.md',
-	'.wf/SPEC-T1.html',
+	'.wf/AGREEMENT.html',
+	'.wf/AGREEMENT-T1.md',
+	'.wf/AGREEMENT-T1.html',
 ];
 
 // wf's own atomic writes, and the token each writes after `<pid>`:

@@ -139,18 +139,22 @@ function runCli(scenario: Scenario) {
     const shim = process.platform === 'win32' ? `@node "${join(stubDir, 'stub.cjs').replace(/\\/g, '/')}" %*\r\n` : `#!/bin/sh\nexec node "${join(stubDir, 'stub.cjs')}" "$@"\n`;
     writeFileSync(join(repo, 'tools', process.platform === 'win32' ? 'uv.cmd' : 'uv'), shim, { mode: 0o755 });
   }
-  const plan = [
-    '# BJEW-109 — plan',
+  const ticket = [
+    '# BJEW-109 — ticket',
     '',
-    '## Commits',
-    '| # | message | files | check |',
+    '## Intent',
+    '',
+    '- the price is wrong',
+    '',
+    '## Verification',
+    '| # | case | files | check |',
     '|---|---------|-------|-------|',
     `| 1 | fix: pricing | ${scenario.files.map((f) => `\`${f}\``).join(' ')} | \`${scenario.cell}\` |`,
     '',
   ].join('\n');
-  writeFileSync(join(repo, 'bug-reports', 'BJEW-109', 'PLAN.md'), plan);
+  writeFileSync(join(repo, 'bug-reports', 'BJEW-109', 'TICKET.md'), ticket);
   mkdirSync(join(repo, '.wf'), { recursive: true });
-  writeFileSync(join(repo, '.wf', 'state.json'), `${JSON.stringify({ id: 'BJEW-109', folder: 'bug-reports/BJEW-109', base: 'main', commit: 1 })}\n`);
+  writeFileSync(join(repo, '.wf', 'state.json'), `${JSON.stringify({ wf_version: 2, id: 'BJEW-109', folder: 'bug-reports/BJEW-109', base: 'main', step: 'build', class: 'A' })}\n`);
   writeFileSync(scenarioPath, JSON.stringify({ fixedMarker: 'FIXED', current: scenario.current ?? { code: 0, out: passOut }, reverted: scenario.reverted }));
   try {
     const path = scenario.runnerInRepo ? `${join(repo, 'tools')}${delimiter}${toolPath}` : `${stubDir}${delimiter}${process.env.PATH ?? ''}`;

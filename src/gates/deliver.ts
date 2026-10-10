@@ -17,9 +17,8 @@ import { refuseCaller } from '../refusal.ts';
 import { seams } from '../seams.ts';
 import { runCheck } from './check.ts';
 import { baseBranch, trackerNote } from '../project.ts';
-import { planCommitRows } from '../round/prompt.ts';
+import { agreementPath, assessmentGap, ASSESSMENT_FILE, TICKET_FILE, verificationCases } from '../round/agreement.ts';
 import { openQuestionGate } from '../round/ask.ts';
-import { handoffGap } from '../round/handoff.ts';
 import { readVerdict, approvalBinding, approvalContentGap } from './review-format.ts';
 import { headContentSha, trackerNotePath, worktreeContentSha } from './content-identity.ts';
 import type { ContentIdentity } from './content-identity.ts';
@@ -60,17 +59,17 @@ export function prTitle({ ticket, plan, commitLines }: Pick<PrSources, 'ticket' 
 	return h1Of(ticket) || commitLines.at(0)?.replace(/^- \w+ /, '') || h1Of(plan) || 'round';
 }
 
-// Pure: PLAN.md's `## Commits` as the PR lists it — one line per commit. The `files` cell goes (a row
-// listed every file it touched: 3,055 characters in one cell on JX-1221) and so do the `Row N:` build
-// instructions that follow the table. The hash comes from the pushed commits, matched by message; a
-// commit no row names (deliver's own round-folder commit) is listed after them, oldest last.
+// Pure: the agreement's `## Verification` as the PR lists it — one line per case. The `files` cell
+// goes and so do any build instructions that follow the table. The hash comes from the pushed
+// commits, matched by message; a commit no case names (deliver's own round-folder commit) is listed
+// after them, oldest last.
 export function prCommitRows(planText: string, commitLines: string[]) {
 	const hashOf = new Map<string, string>();
 	for (const line of commitLines) {
 		const m = /^- (\w+) (.+)$/.exec(line);
 		if (m) hashOf.set(m[2], m[1]);
 	}
-	const rows = planCommitRows(planText);
+	const rows = verificationCases(planText);
 	const named = new Set(rows.map((r) => r.message));
 	return [
 		...rows.map((r) => `| ${r.n} | ${hashOf.get(r.message) ?? '—'} | ${r.message} | ${r.check || '—'} |`),
@@ -531,9 +530,9 @@ export async function runDeliver() {
 	const { id, folder } = roundOf(state, toplevel);
 	const branch = git(toplevel, ['rev-parse', '--abbrev-ref', 'HEAD']);
 	const head = git(toplevel, ['rev-parse', 'HEAD']);
-	const plan = join(toplevel, folder ?? '', 'PLAN.md');
+	const plan = agreementPath(toplevel, state?.class ?? null, folder);
 	if (!folder || !existsSync(plan)) {
-		console.error(`wf deliver: no ${folder ?? 'round folder'}/PLAN.md`);
+		console.error(`wf deliver: no agreement file in ${folder ?? 'the round folder'}`);
 		process.exit(2);
 	}
 	// The id names the commit and the tracker note: without it they said docs(null) and `## null`.
@@ -576,15 +575,15 @@ export async function runDeliver() {
 		console.error(`wf deliver: ${t2}`);
 		process.exit(2);
 	}
-	// The PR carries VALIDATION.md: it must be the answer to the last validate brief, with a verdict.
-	const validationFile = join(toplevel, folder, 'VALIDATION.md');
-	const vGap = handoffGap('validate', existsSync(validationFile) ? readFileSync(validationFile, 'utf8') : null, state?.briefs?.validate);
+	// The PR carries the assessment: it must be the completed final assessment, with a verdict (#113).
+	const validationFile = join(toplevel, folder, ASSESSMENT_FILE);
+	const vGap = assessmentGap(existsSync(validationFile) ? readFileSync(validationFile, 'utf8') : null);
 	if (vGap) {
 		console.error(`wf deliver: ${vGap}`);
 		process.exit(2);
 	}
 	const planText = readFileSync(plan, 'utf8');
-	const rows = planCommitRows(planText);
+	const rows = verificationCases(planText);
 	// The GitHub repository this delivery addresses: origin's own identity, from origin's configured
 	// urls and pushurls, and the push urls git resolves those to. gh without --repo asks whatever
 	// repository it infers from this folder, so a second remote or a fork could receive the branch or
@@ -616,8 +615,7 @@ export async function runDeliver() {
 		await finishDelivery({ toplevel, state, folder, ids: state?.ids ?? [id], url: resume.url, because: 'was already merged' });
 		return;
 	}
-	if (rows.length) writeState(toplevel, () => ({ commit: rows.at(-1)!.n }));
-	await runCheck(); // exits 1 with the failure; silent when the last row's check is green
+	await runCheck([]); // exits 1 with the failure; silent when the matching case is green
 	requireApprovedContent('the last check');
 
 	// The round folder ships with the PR (dev keeps every round's evidence), except
@@ -632,7 +630,7 @@ export async function runDeliver() {
 		git(toplevel, ['add', ...keep]);
 		// Pathspec, not a bare commit: a product file staged for another purpose is not swept into the
 		// round-folder commit and pushed under an approval that never covered it (#106 review).
-		git(toplevel, ['commit', '-q', '-m', `docs(${id}): round folder: ticket, research, plan, validation, repro`, ...keep]);
+		git(toplevel, ['commit', '-q', '-m', `docs(${id}): round folder: ticket, agreement, assessment, repro`, ...keep]);
 	}
 	requireApprovedContent('the round-folder commit');
 	// gh pr create cannot push without a terminal; push first (BJEW-603, the first real deliver).
@@ -642,8 +640,8 @@ export async function runDeliver() {
 		console.error(`FAILED: git push\n${output}`.trimEnd());
 		if (hookRefused(output)) {
 			appendFileSync(reviewFile, refusedPushSection(output, new Date().toISOString().slice(0, 10)));
-			await runStep(['implement']);
-			console.error(`wf deliver: the pre-push hook refused the push. ${folder}/REVIEW.md now asks for the fix (verdict: changes-requested); the round is back at implement. \`wf next\` dispatches it, then T2 again.`);
+			await runStep(['build']);
+			console.error(`wf deliver: the pre-push hook refused the push. ${folder}/REVIEW.md now asks for the fix (verdict: changes-requested); the round is back at build. \`wf next\` dispatches it, then T2 again.`);
 		}
 		process.exit(1);
 	}
@@ -656,12 +654,12 @@ export async function runDeliver() {
 		process.exit(1);
 	}
 	const body = join(tmpdir(), `wf-pr-${Date.now()}.md`);
-	// VALIDATION.md is the read-only validate agent's verdict (wf prompt validate); first thing T2 reads.
-	const validationPath = join(toplevel, folder, 'VALIDATION.md');
+	// The assessment is the read-only final assessment (#113); first thing T2 reads.
+	const validationPath = join(toplevel, folder, ASSESSMENT_FILE);
 	const validation = existsSync(validationPath) ? readFileSync(validationPath, 'utf8') : '';
-	const ticketPath = join(toplevel, folder, 'TICKET.md');
+	const ticketPath = join(toplevel, folder, TICKET_FILE);
 	const ticket = existsSync(ticketPath) ? readFileSync(ticketPath, 'utf8') : '';
-	writeFileSync(body, prBody({ ticket, plan: planText, commitLines, validation, planPath: `${folder}/PLAN.md` }));
+	writeFileSync(body, prBody({ ticket, plan: planText, commitLines, validation, planPath: `${folder}/${agreementPath(toplevel, state?.class ?? null, folder).split(/[\\/]/).pop()}` }));
 	const title = prTitle({ ticket, plan: planText, commitLines });
 	// An open PR is this delivery's own: edit its body, never create a second one (issue 108).
 	const url = resume.do === 'resume' ? resume.url : null;

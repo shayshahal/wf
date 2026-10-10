@@ -35,7 +35,7 @@ if (mode === 'step') {
 	process.chdir(dir);
 	const { runStep } = await import('./step.ts');
 	process.stdout.write('READY\n');
-	await runStep([arg || 'plan', '--round', 'r']);
+	await runStep([arg || 'agree', '--round', 'r']);
 	process.exit(0);
 }
 if (mode === 'ask') {
@@ -134,12 +134,12 @@ const planText = '# plan\n\n## Commits\n\n| 1 | do it | a.ts | x |\n';
 	const d = tempRepo();
 	putState(d, { round: 'r', folder: 'round', step: 'plan', questions: [q5], last_question: 5 });
 	mkdirSync(join(d, 'round'), { recursive: true });
-	writeFileSync(join(d, 'round', 'PLAN.md'), planText);
+	writeFileSync(join(d, 'round', 'TICKET.md'), planText);
 	const [r] = await raceWith(d, 'close-open', () => [spawnKid('decide', d, 'the answer for q5')]);
 	const st = readStateFile(d);
 	check('a decide whose question lost the race refuses cleanly', r.code === 2 && /no open question q5/.test(r.err), `code ${r.code} err ${r.err.slice(0, 200)}`);
 	check('the refused decide does not answer the new question with q5\'s words', (st.answered ?? []).length === 1 && st.answered![0].answer === 'x', JSON.stringify(st.answered));
-	check('the refused decide leaves PLAN.md as it was', readFileSync(join(d, 'round', 'PLAN.md'), 'utf8') === planText);
+	check('the refused decide leaves PLAN.md as it was', readFileSync(join(d, 'round', 'TICKET.md'), 'utf8') === planText);
 	rmSync(d, { recursive: true, force: true });
 }
 
@@ -150,7 +150,7 @@ const planText = '# plan\n\n## Commits\n\n| 1 | do it | a.ts | x |\n';
 	const d = tempRepo();
 	putState(d, { round: 'r', folder: 'round', step: 'plan', questions: [q5], last_question: 5 });
 	mkdirSync(join(d, 'round'), { recursive: true });
-	writeFileSync(join(d, 'round', 'PLAN.md'), planText);
+	writeFileSync(join(d, 'round', 'TICKET.md'), planText);
 	const [decide, ask] = await raceWith(d, 'hold', () => [spawnKid('decide', d, 'the answer for q5'), spawnKid('ask', d, 'a second question')]);
 	const st = readStateFile(d);
 	const answered5 = (st.answered ?? []).filter((q) => q.n === 5);
@@ -158,7 +158,7 @@ const planText = '# plan\n\n## Commits\n\n| 1 | do it | a.ts | x |\n';
 	check('a competing ask and decide both succeed', decide.code === 0 && ask.code === 0, `decide ${decide.code}: ${decide.err.slice(0, 80)} | ask ${ask.code}: ${ask.err.slice(0, 80)}`);
 	check('the decide answers q5 once with its own words', answered5.length === 1 && answered5[0].answer === 'the answer for q5', JSON.stringify(st.answered));
 	check('the ask question is opened once and left open', open.length === 1 && open[0] === 6 && (st.questions ?? [])[0].text === 'a second question', JSON.stringify(st.questions));
-	check('PLAN.md carries q5 once', (readFileSync(join(d, 'round', 'PLAN.md'), 'utf8').match(/the q5 question/g) ?? []).length === 1, readFileSync(join(d, 'round', 'PLAN.md'), 'utf8'));
+	check('PLAN.md carries q5 once', (readFileSync(join(d, 'round', 'TICKET.md'), 'utf8').match(/the q5 question/g) ?? []).length === 1, readFileSync(join(d, 'round', 'TICKET.md'), 'utf8'));
 	rmSync(d, { recursive: true, force: true });
 }
 
@@ -168,7 +168,7 @@ const planText = '# plan\n\n## Commits\n\n| 1 | do it | a.ts | x |\n';
 	const d = tempRepo();
 	putState(d, { round: 'r', folder: 'round', step: 'plan', questions: [q5, { n: 6, to: 'user', text: 'the q6 question', asked: '2026-10-09T00:00:30.000Z' }], last_question: 6 });
 	mkdirSync(join(d, 'round'), { recursive: true });
-	writeFileSync(join(d, 'round', 'PLAN.md'), planText);
+	writeFileSync(join(d, 'round', 'TICKET.md'), planText);
 	const r = await spawnKid('decide', d, 'an answer with no --q').done;
 	const st = readStateFile(d);
 	check('decide with two open and no --q refuses, naming both', r.code === 2 && /2 questions are open — name one with --q: q5, q6/.test(r.err), `code ${r.code} err ${r.err.slice(0, 200)}`);
@@ -179,8 +179,8 @@ const planText = '# plan\n\n## Commits\n\n| 1 | do it | a.ts | x |\n';
 // ── runStep: a concurrent classify upgrade (class B) and a base another command wrote are kept.
 {
 	const d = tempRepo();
-	putState(d, { round: 'r', folder: 'round', step: 'plan', class: 'A', base: 'b0' });
-	const [r] = await raceWith(d, 'class', () => [spawnKid('step', d, 'plan')]);
+	putState(d, { round: 'r', folder: 'round', step: 'agree', class: 'A', base: 'b0' });
+	const [r] = await raceWith(d, 'class', () => [spawnKid('step', d, 'agree')]);
 	const st = readStateFile(d);
 	check('runStep keeps a concurrent class upgrade (B, not the pre-lock A)', st.class === 'B', `code ${r.code} class ${st.class}`);
 	check('runStep keeps a base another command wrote', st.base === 'b1', `base ${st.base}`);
@@ -191,13 +191,13 @@ const planText = '# plan\n\n## Commits\n\n| 1 | do it | a.ts | x |\n';
 // the write will leave, so it refuses instead of writing the stale A and bypassing T1.
 {
 	const d = tempRepo();
-	putState(d, { round: 'r', folder: 'round', step: 'plan', class: 'A' });
+	putState(d, { round: 'r', folder: 'round', step: 'agree', class: 'A' });
 	mkdirSync(join(d, 'round'), { recursive: true });
-	writeFileSync(join(d, 'round', 'PLAN.md'), planText);
-	const [r] = await raceWith(d, 'class', () => [spawnKid('step', d, 'implement')]);
+	writeFileSync(join(d, 'round', 'TICKET.md'), planText);
+	const [r] = await raceWith(d, 'class', () => [spawnKid('step', d, 'build')]);
 	const st = readStateFile(d);
-	check('an implement whose class became B refuses T1 instead of writing the stale A', r.code === 2 && /T1 \(wf design\) must approve/.test(r.err), `code ${r.code} err ${r.err.slice(0, 200)}`);
-	check('the refused implement keeps the concurrent class B and the plan step', st.class === 'B' && st.step === 'plan', JSON.stringify(st));
+	check('an implement whose class became B refuses T1 instead of writing the stale A', r.code === 2 && /T1 \(wf agree\) must approve/.test(r.err), `code ${r.code} err ${r.err.slice(0, 200)}`);
+	check('the refused build keeps the concurrent class B and the agree step', st.class === 'B' && st.step === 'agree', JSON.stringify(st));
 	rmSync(d, { recursive: true, force: true });
 }
 

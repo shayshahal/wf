@@ -1,17 +1,15 @@
 #!/usr/bin/env node
-// ask.ts — wf ask / wf decide: a question to a person is a record in .wf/state.json, not a chat
-// line. A question that lived only in a session's chat died with the session (2026-09-23: a pane
-// closed with its question to Shay unanswered). Idea from firstmate: obligations are closed by
-// records, not by recollection.
-//   wf ask "<question>" [--to shay|<the project's people>] [--default "<default>"]   → q<n>, waiting_on = --to
+// ask.ts — wf ask / wf decide: a question to a person is a record in .wf/state.json, not a chat line.
+// A question that lived only in a session's chat died with the session (2026-09-23). Idea from
+// firstmate: obligations are closed by records, not by recollection.
+//   wf ask "<question>" [--to shay|<the project's people>] [--default "<default>"]   → q<n>
 //   wf ask --blocked [--to …]                                            → the Question line of BLOCKED.md
 //   wf decide [--q <n>] "<answer, their words>"                          → closes q<n>
-//   wf decide --revise [--q <n>] "<what the plan must now do>"            → the same, and the round goes back to `plan --revise`
-//   wf decide --research [--q <n>] "<what research must now measure>"    → the same, and `wf next` dispatches a fresh research with it
+//   wf decide --revise [--q <n>] "<what the agreement must now do>"      → the same, and back to `agree`
 // `wf prompt` and `wf deliver` refuse while a question is open (openQuestionGate).
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { refuseCaller } from '../refusal.ts';
-import { appendDecision, notifyAdapters, planPath } from './step.ts';
+import { appendDecision, agreementPathOf, notifyAdapters } from './step.ts';
 import { stepHistory } from './friction.ts';
 import { people } from '../project.ts';
 import { readState, roundFile, toplevelOf, writeState } from './state.ts';
@@ -20,7 +18,6 @@ import type { Question, State } from './state.ts';
 const PEOPLE = ['user', ...people];
 
 // Pure: the state with one more open question. The round now waits on the oldest open question's person.
-// Numbers only go up (last_question): "q1" in chat names one question for the whole round.
 export function addQuestion(state: State, { to, text, dflt = null, source = null }: { to: string; text: string; dflt?: string | null; source?: string | null }, now = new Date().toISOString()): State & { questions: Question[] } {
 	const questions: Question[] = [...(state.questions ?? [])];
 	const n = Math.max(state.last_question ?? 0, ...questions.map((q) => q.n)) + 1;
@@ -29,8 +26,6 @@ export function addQuestion(state: State, { to, text, dflt = null, source = null
 }
 
 // Pure: the state without question n, and the question. With one question open, n may be omitted.
-// The question moves to `answered` with its answer: `wf next` acts on a ruling (fix or accept) and
-// knows which Asks it has put already.
 export function closeQuestion(state: State, n: number | null, now = new Date().toISOString(), answer: string | null = null): { question: Question; state: State & { questions: Question[]; answered: Question[] } } {
 	const open = state.questions ?? [];
 	if (n == null && open.length > 1) throw new Error(`${open.length} questions are open — name one with --q: ${open.map((q) => `q${q.n}`).join(', ')}`);
@@ -48,12 +43,12 @@ export function openQuestionGate(state: State | null): string | null {
 	return `${open.length} open question${open.length > 1 ? 's' : ''} — ${open.map((q) => `q${q.n} → ${q.to}: ${q.text}`).join(' | ')}. Their answer → \`wf decide\` first.`;
 }
 
-// Pure: the one-line Question of a BLOCKED.md (prompts/implement.md).
+// Pure: the one-line Question of a BLOCKED.md (prompts/build.md).
 export function blockedQuestion(text: string): string | null {
 	return text.replace(/\r\n/g, '\n').match(/^Question:[ \t]*(.+)$/m)?.[1].trim() || null;
 }
 
-// Pure: BLOCKED.md with the answer under `## Answer`, which the next implement agent follows.
+// Pure: BLOCKED.md with the answer under `## Answer`, which the next build agent follows.
 export function appendAnswer(blockedText: string, answer: string, date = new Date().toISOString().slice(0, 10)) {
 	const body = blockedText.replace(/\r\n/g, '\n').trimEnd();
 	const line = `${date} ${answer.trim()}`;
@@ -65,8 +60,6 @@ export function questionLines(state: State | null): string[] {
 	return (state?.questions ?? []).map((q) => `? q${q.n} → ${q.to}: ${q.text}${q.default ? ` (default: ${q.default})` : ''}`);
 }
 
-// Pure: flags that take a value, boolean flags, the rest as words. An unknown flag throws: `--q2 x`
-// once closed the only open question with the answer "x".
 export type Args<V extends string, B extends string> = { positionals: string[] } & { [K in V]?: string } & { [K in B]?: true };
 
 export function parseArgs<V extends string, B extends string = never>(argv: string[], valued: readonly V[], booleans: readonly B[] = []): Args<V, B> {
@@ -132,47 +125,30 @@ export async function runAsk(argv: string[]): Promise<void> {
 }
 
 export async function runDecide(argv: string[]): Promise<void> {
-	const a = parse('decide', argv, ['q'], ['revise', 'research']);
+	const a = parse('decide', argv, ['q'], ['revise']);
 	const answer = a.positionals.join(' ').trim();
 	if (!answer) {
-		console.error('usage: wf decide [--revise | --research] [--q <n>] "<the answer, in their words>"');
+		console.error('usage: wf decide [--revise] [--q <n>] "<the answer, in their words>"');
 		refuseCaller();
 	}
 	const { toplevel, state } = roundState('decide');
-	const refusal = a.revise && a.research ? '--revise and --research are two ways on: name one' : a.research ? researchGap(state) : null;
-	if (refusal) {
-		console.error(`wf decide: ${refusal}`);
-		process.exit(2);
-	}
-	const plan = planPath(toplevel, state);
+	const agreement = agreementPathOf(toplevel, state);
 	if (!(state.questions ?? []).length) {
 		if (a.revise) {
-			// Nothing was asked and nothing is recorded in PLAN.md: the revised plan carries the answer.
 			const next = writeState(toplevel, (state) => reviseState(state, answer));
-			console.log('the round is back at plan: `wf next` dispatches plan --revise with this answer');
+			console.log('the round is back at agree: `wf next` sends it to a fresh agreement and T1 with this answer');
 			await notifyAdapters(next);
 			return;
 		}
-		if (a.research) {
-			const next = writeState(toplevel, (state) => researchState(state, answer));
-			console.log(RESEARCH_SAID);
-			await notifyAdapters(next);
-			return;
-		}
-		// No question open: a decision nobody was asked for, recorded where the implementer reads it.
-		if (!existsSync(plan)) {
-			console.error(`wf decide: no ${plan} to record it in`);
+		// No question open: a decision nobody was asked for, recorded where the build reads it.
+		if (!existsSync(agreement)) {
+			console.error(`wf decide: no ${agreement} to record it in`);
 			process.exit(2);
 		}
-		writeFileSync(plan, appendDecision(readFileSync(plan, 'utf8'), answer));
-		console.log(`recorded in ${plan} § Decisions`);
+		writeFileSync(agreement, appendDecision(readFileSync(agreement, 'utf8'), answer));
+		console.log(`recorded in ${agreement} § Decisions`);
 		return;
 	}
-	// The question this decision answers is bound once, by number: --q names it, and with no --q only a
-	// single open question can be meant (two open need --q). Binding the number (not "the first open
-	// question") means the close under the write lock below finds that question or refuses — another
-	// command that closed it and opened a new one meanwhile cannot make this answer land on the new
-	// question (issue #107).
 	const open = state.questions ?? [];
 	if (a.q == null && open.length > 1) {
 		console.error(`wf decide: ${open.length} questions are open — name one with --q: ${open.map((q) => `q${q.n}`).join(', ')}`);
@@ -183,19 +159,14 @@ export async function runDecide(argv: string[]): Promise<void> {
 		console.error(`wf decide: --q ${a.q} is not a question number`);
 		process.exit(2);
 	}
-	// Where the answer is read is checked before the state is written: a missing PLAN.md refuses while
-	// the question is still open, instead of closing it with nowhere to record the answer.
+	// Where the answer is read is checked before the state is written: a missing agreement refuses
+	// while the question is still open, instead of closing it with nowhere to record the answer.
 	const blocked = open.find((q) => q.n === target)?.source?.startsWith('BLOCKED.md') ?? false;
-	if (!blocked && !existsSync(plan)) {
-		console.error(`wf decide: no ${plan} to record q${target}'s answer in`);
+	const assessmentSource = open.find((q) => q.n === target)?.source?.startsWith('ASSESSMENT.md') ?? false;
+	if (!blocked && !assessmentSource && !existsSync(agreement)) {
+		console.error(`wf decide: no ${agreement} to record q${target}'s answer in`);
 		process.exit(2);
 	}
-	// Close against the state under the write lock, and record the question the lock-side close
-	// actually moved to `answered` — never one picked from the pre-lock read. If that question is gone
-	// (another command closed it), the updater throws and neither the state nor PLAN.md is touched.
-	// State and PLAN.md are two files with no shared transaction: the state write lands first, so the
-	// remaining gap is a PLAN.md that disappears between the check above and the write below — the
-	// answer is then in state only. That is the one pre-existing cross-file edge left.
 	let next: State;
 	const decided = { question: null as Question | null };
 	try {
@@ -203,122 +174,46 @@ export async function runDecide(argv: string[]): Promise<void> {
 			const result = closeQuestion(current, target, undefined, answer);
 			decided.question = result.question;
 			const said = revisionText(result.question, answer);
-			return a.revise ? reviseState(result.state, said) : a.research ? researchState(result.state, said) : result.state;
+			return a.revise ? reviseState(result.state, said) : result.state;
 		});
 	} catch (e) {
 		console.error(`wf decide: ${(e as Error).message}`);
 		process.exit(2);
 	}
 	const question = decided.question as Question;
-	if (question.source?.startsWith('BLOCKED.md')) {
+	if (blocked) {
 		const file = roundFile(toplevel, 'BLOCKED.md');
 		writeFileSync(file, appendAnswer(readFileSync(file, 'utf8'), answer));
 		console.log(`q${question.n} closed · answer in ${file} § Answer`);
+	} else if (assessmentSource) {
+		// An assessment ruling (fix or accept) stays in state: ASSESSMENT.md is the assessment's, not
+		// the person's, and `wf next` reads the ruling from `answered` (next.ts).
+		console.log(`q${question.n} closed · ruling recorded`);
 	} else {
-		writeFileSync(plan, appendDecision(readFileSync(plan, 'utf8'), `${question.text} → ${question.to}: ${answer}`));
-		console.log(`q${question.n} closed · recorded in ${plan} § Decisions`);
+		writeFileSync(agreement, appendDecision(readFileSync(agreement, 'utf8'), `${question.text} → ${question.to}: ${answer}`));
+		console.log(`q${question.n} closed · recorded in ${agreement} § Decisions`);
 	}
-	if (a.revise) console.log('the round is back at plan: `wf next` dispatches plan --revise with this answer');
-	if (a.research) console.log(RESEARCH_SAID);
+	if (a.revise) console.log('the round is back at agree: `wf next` sends it to a fresh agreement and T1 with this answer');
 	await notifyAdapters(next);
 }
 
 // Pure: the text `wf decide --revise --q` records in state.revisions for an answered question.
 export const revisionText = (question: Pick<Question, 'text' | 'default'>, answer: string) => `${question.text}${question.default ? ` (default: ${question.default})` : ''} → ${answer}`.trim();
 
-// Pure: whether `wf decide --revise --q` sent this answered question back to plan. Nothing else links
-// a revision to its question, and the text is built from both (revisionText).
-export const wentThroughPlan = (question: Question, revisions: { text: string }[] = []) => revisions.some((r) => r.text === revisionText(question, (question.answer ?? '').trim()));
-
-// Pure: which fix rulings still owe a fix(review) commit, and how many fix(review) commits rulings used.
-// A ruling is met by whichever comes first after it was answered: a revision (it went through plan, and
-// the plan's row builds it) or a fix(review) commit (each commit meets one ruling). `fixAt` is the commit
-// times (ms) of the fix(review) commits that are not a PLAN.md row's. JX-1221, 2026-10-08: q9 was answered
-// `fix` after four plan rows whose messages start with fix(review): — counted by subject alone they met it,
-// and `wf next` dispatched validate, which asked fix-or-accept again. q4's answer was built by row 5 after a
-// separate `wf decide --revise` with no --q, so only the order in time tells that it is met. A ruling with no
-// answered time is met by its own `--revise --q` text (wentThroughPlan) or by any commit, as a count.
-export function rulingsOwed(rulings: Question[], revisions: { text: string; at: string }[] = [], fixAt: number[] = []) {
-	const ms = (t: string | undefined) => Date.parse(t ?? '') || 0;
-	const free = [...fixAt].sort((a, b) => a - b);
-	let used = 0;
-	const owed: Question[] = [];
-	for (const q of [...rulings].sort((a, b) => ms(a.answered) - ms(b.answered))) {
-		if (wentThroughPlan(q, revisions)) continue;
-		if (!q.answered) {
-			if (free.length) { free.shift(); used++; } else owed.push(q);
-			continue;
-		}
-		const from = ms(q.answered);
-		const rev = Math.min(Infinity, ...revisions.map((r) => ms(r.at)).filter((t) => t >= from));
-		const i = free.findIndex((t) => t >= from);
-		if (rev !== Infinity && (i < 0 || rev <= free[i])) continue;
-		if (i < 0) { owed.push(q); continue; }
-		free.splice(i, 1);
-		used++;
-	}
-	return { owed, used };
-}
-
-// Pure: how many of the revisions answered a T2 changes-requested. A revision's plan entry (reviseState
-// stamps it at the revision's own `at`) answers the review when walking back from it, over `implement`
-// and `pr` entries only, reaches `review`. Two ways a changes-requested sends the round on: `wf review
-// --done` (history: review, implement) and `wf deliver`'s refused push, which comes after the approval
-// (review, pr, and `implement` after it when deliver's step wrote it). A plan entry behind another plan
-// entry is a second revision of the same stretch: the review was answered once. JX-1221: 2026-10-07 "the
-// code is fine, I don't like the design, make 3 iterations" was built, and `wf next` dispatched
-// fix-review on the same REVIEW.md comment, over and over; 2026-10-08 the hook's refusal was answered
-// by `wf decide --revise` (review, pr, plan), was not counted, and fix-review was owed again.
-// A revise from step `pr` with no refused push (an approved round changed its mind) counts too: its
-// review has no changes-requested to answer, which t2Fixes' floor at 0 absorbs.
-export function t2Revisions(history: { step: string; at: string }[] = [], revisions: { at: string }[] = []) {
-	const answersReview = (i: number) => {
-		let j = i - 1;
-		while (j >= 0 && (history[j].step === 'implement' || history[j].step === 'pr')) j--;
-		return j >= 0 && j < i - 1 && history[j].step === 'review';
-	};
-	return revisions.filter((r) => history.some((h, i) => h.step === 'plan' && h.at === r.at && answersReview(i))).length;
-}
-
-// Pure: the state sent back to plan with `text`, an answer saying the plan must change. `wf next`
-// answers it with `plan --revise` until a plan brief is newer than the answer (pendingRevisions).
-// BJEW-461, 2026-10-06: the plan's Ask "if the close comes from elsewhere" had `return to plan` as
-// its default, so answering `default` was never acted on (overruledAsks ignores a default), and
-// from the implement step nothing led back to plan.
+// Pure: the state sent back to agree with `text`, an answer saying the agreement must change.
 export function reviseState(state: State, text: string, now = new Date().toISOString()): State {
-	return { ...state, step: 'plan', waiting_on: state.questions?.[0]?.to ?? null, since: now, history: stepHistory(state.history, 'plan', now), revisions: [...(state.revisions ?? []), { text: text.trim(), at: now }] };
+	return { ...state, step: 'agree', waiting_on: state.questions?.[0]?.to ?? null, since: now, history: stepHistory(state.history, 'agree', now), revisions: [...(state.revisions ?? []), { text: text.trim(), at: now }] };
 }
 
-const RESEARCH_SAID = 'the round is back at research: `wf next` dispatches a fresh research with this answer';
-
-// Pure: null, or why the round cannot go back to research: once it has gone to plan, the plan and
-// the briefs after it were built on the research that is now doubted, and nothing here voids them.
-export function researchGap(state: State | null): string | null {
-	const step = state?.step;
-	if (!step || step === 'classify' || step === 'research') return null;
-	return `the round is at ${step}, past research: research again is for a round that has not gone to plan (a plan that must change: \`wf decide --revise\`)`;
+// Pure: the revisions a fresh agreement has not answered yet. A revision is answered when the agreed
+// material's sha changes and T1 approves it; while the step is still `agree` it stays pending.
+export function pendingRevisions(revisions: { text: string; at: string }[] = [], answeredAt: string | undefined) {
+	return revisions.filter((r) => !answeredAt || r.at > answeredAt);
 }
 
-// Pure: the state sent back to research with `text`, what research must now measure. `wf next`
-// answers it with a fresh research until a research brief is newer than the request. BJEW-669,
-// 2026-10-06: research was green on seeded data, the orchestrator then found the cause in QA's
-// database, and `wf next` still offered only plan or reap: the repro verdict is keyed by the research
-// brief's token, which TICKET.md's new facts do not change.
-export function researchState(state: State, text: string, now = new Date().toISOString()): State {
-	return { ...state, step: 'research', waiting_on: state.questions?.[0]?.to ?? null, since: now, history: stepHistory(state.history, 'research', now), researchRequests: [...(state.researchRequests ?? []), { text: text.trim(), at: now }] };
-}
-
-// Pure: the revisions no plan brief has answered yet.
-export function pendingRevisions(revisions: { text: string; at: string }[] = [], planBriefAt: string | undefined) {
-	return revisions.filter((r) => !planBriefAt || r.at > planBriefAt);
-}
-
-// Pure: the plan's Asks (sources PLAN.md#<token>:<i>, for the plan briefed with `token`) whose
-// answer is not their default. The plan was written for the default, so each one sends it back
-// to be revised before anything is built (BJEW-562, 2026-09-27: q1 "also drop the pink
-// background? default: no" answered yes, and wf next dispatched the build of the plan as written).
-// The default is `default` or the default's own words, as the question tool's option gives them.
-export function overruledAsks(answered: Question[] = [], token: string | undefined): Question[] {
+// Pure: the Asks a person answered against the default the agreement was written for. `wf next` sends
+// those back to agree before a build (a default is what the agreement assumed).
+export function overruledAsks(answered: Question[] = [], _token?: string | undefined): Question[] {
 	const same = (a: string, b: string) => a.trim().replace(/\.$/, '').toLowerCase() === b.trim().replace(/\.$/, '').toLowerCase();
-	return answered.filter((q) => q.source?.startsWith(`PLAN.md#${token}:`) && !same(q.answer ?? '', 'default') && !(q.default && same(q.answer ?? '', q.default)));
+	return answered.filter((q) => q.default && !same(q.answer ?? '', 'default') && !same(q.answer ?? '', q.default));
 }
