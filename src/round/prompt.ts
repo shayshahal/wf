@@ -71,7 +71,7 @@ export function composePrompt(argv: string[]) {
 	let template = readFileSync(join(templatesDir, `${phase}.md`), 'utf8');
 	// agree: the round's name tells the agent which file holds the agreement.
 	if (phase === 'agree') {
-		const overruled = overruledAsks(state?.answered, undefined);
+		const overruled = overruledAsks(state?.answered);
 		const revisions = pendingRevisions(state?.revisions, undefined);
 		vars.revisions = [...overruled.map((q) => `- q${q.n}: ${q.text}${q.default ? ` (default: ${q.default})` : ''} → ${q.answer}`), ...revisions.map((r) => `- ${r.text}`)].join('\n');
 	}

@@ -139,7 +139,8 @@ check('expect-red: a repro that passes before the fix is its own finding', expec
 // A repro run that never started is not stable or green either: `wf check --repro` records it outside.
 check('a repro run that never started is outside, not stable or green', reproVerdict([run('', null), run('', null), run('', null)], 'bug-reports/r').result === 'outside');
 check('a repro that only ever crashes is outside, never stable', reproVerdict([run('Error: boom\n    at C:\\wt\\x\\bug-reports\\r\\repro\\throw.mjs:1:1', 1, false)], 'bug-reports/r').result === 'outside');
-check('the checks.log line carries the research token when it has one', JSON.parse(checkRunLine({ ts: 't', row: 'repro', rowCheck: null, tasks: [], result: 'stable', token: 'abc' })).token === 'abc' && !('token' in JSON.parse(checkRunLine({ ts: 't', row: 1, rowCheck: null, tasks: [], result: 'green' }))));
+const reproLog = JSON.parse(checkRunLine({ ts: 't', row: 'repro', rowCheck: null, tasks: [], result: 'stable', content: 'tree:measured' }));
+check('the repro log names measured content, never a retired research handoff token', reproLog.content === 'tree:measured' && !('token' in reproLog));
 
 // wf check --suites: one line, the head it measured, a red suite's output tail.
 const sl = JSON.parse(suitesLine({ ts: 't', head: 'abc', runs: [{ label: 'suite one', exit: 0, output: 'x\n3201 passed' }, { label: 'suite two', exit: 1, output: `${'line\n'.repeat(60)}FAIL src/x.test.ts` }] }));

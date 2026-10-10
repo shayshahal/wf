@@ -7,7 +7,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { nextAction, lastSuites, unpostedSections } from './next.ts';
+import { nextAction, unpostedSections } from './next.ts';
 import type { Snapshot } from './next.ts';
 import { readState, legacyStateGap } from './state.ts';
 import { WF_ROOT } from '../paths.ts';
@@ -46,7 +46,7 @@ const base = (patch: Partial<Snapshot> = {}): Snapshot => ({
 	branch: 'fix/r', entry: 'C:/wf/wf.mjs', step: 'classify', klass: 'A', check: false, questions: [], answered: [],
 	files: { agreement: null, assessment: null, review: null, blocked: null },
 	t1: { sha: null, reviewed: null, verdict: null },
-	commits: [], checks: [], repro: {}, head: 'H4', suites: null, note: null, repairs: 0,
+	head: 'H4', note: null, repairs: 0,
 	...patch,
 });
 const say = (s: Snapshot) => nextAction(s).say;
@@ -155,7 +155,6 @@ const spentAnswered = { ...spent, answered: [{ n: 1, to: 'user', text: 'x', sour
 check('an answered repair-cap escalation does not repeat', asks(spentAnswered).length === 0 && say(spentAnswered).startsWith('review: T2'), say(spentAnswered));
 
 // ── helpers
-check('lastSuites reads the latest whole-suite line', JSON.stringify(lastSuites('{"row":"suites","ts":"t1","head":"h","result":"green"}\n')) === JSON.stringify({ ts: 't1', head: 'h', result: 'green' }));
 check('unpostedSections names the sections without (posted)', unpostedSections('## A (posted)\n## B\n').join() === 'B');
 
 // ── the version guard: an old round state is refused, not reinterpreted

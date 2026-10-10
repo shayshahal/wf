@@ -275,8 +275,8 @@ export function redCause(task: { exit: number | null }): RedCause {
 // Pure: the checks.log line for one run. `cause` only on a red: green has no cause to give. `content`
 // is the implementationContentSha the run finished on (content-identity.ts) — recorded so a green
 // names what it measured, never the bytes a mutating task replaced before the run ended (#106).
-export function checkRunLine({ ts, row, rowCheck, tasks, result, cause, token, content }: { ts: string; row: number | string | null; rowCheck: string | null; tasks: CheckRun[]; result: string; cause?: RedCause; token?: string; content?: string }) {
-	return JSON.stringify({ ts, row, rowCheck, tasks, result, ...(cause ? { cause } : {}), ...(token ? { token } : {}), ...(content ? { content } : {}) });
+export function checkRunLine({ ts, row, rowCheck, tasks, result, cause, content }: { ts: string; row: number | string | null; rowCheck: string | null; tasks: CheckRun[]; result: string; cause?: RedCause; content?: string }) {
+	return JSON.stringify({ ts, row, rowCheck, tasks, result, ...(cause ? { cause } : {}), ...(content ? { content } : {}) });
 }
 
 // The row identity a run measured, or undefined when git cannot read the tree: the log line still

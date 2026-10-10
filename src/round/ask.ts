@@ -226,7 +226,7 @@ export function pendingRevisions(revisions: { text: string; at: string }[] = [],
 
 // Pure: the Asks a person answered against the default the agreement was written for. `wf next` sends
 // those back to agree before a build (a default is what the agreement assumed).
-export function overruledAsks(answered: Question[] = [], _token?: string | undefined): Question[] {
+export function overruledAsks(answered: Question[] = []): Question[] {
 	const same = (a: string, b: string) => a.trim().replace(/\.$/, '').toLowerCase() === b.trim().replace(/\.$/, '').toLowerCase();
 	return answered.filter((q) => q.default && !same(q.answer ?? '', 'default') && !same(q.answer ?? '', q.default));
 }

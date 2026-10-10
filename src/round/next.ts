@@ -36,7 +36,6 @@ export const MAX_REPAIRS = 2;
 //   step: classify | agree | build | assess | review | pr | merged | held
 //   files: { agreement, assessment, review, blocked } (text or null)
 //   t1: agreement material sha, AGREEMENT-REVIEW.md's `agreement-sha` and verdict
-//   checks: .wf/checks.log lines; suites: the last whole-suite measurement
 //   repairs: autonomous repairs already attempted for the current assessment
 export type Snapshot = {
 	branch: string;
@@ -48,11 +47,7 @@ export type Snapshot = {
 	answered: Question[];
 	files: Record<'agreement' | 'assessment' | 'review' | 'blocked', string | null>;
 	t1: { sha: string | null; reviewed: string | null; verdict: string | null };
-	commits: { subject: string; at: string }[];
-	checks: { row: number | string | null; result: string; rowCheck?: string | null; content?: string }[];
-	repro: Record<string, string>;
 	head: string;
-	suites: { ts: string; head: string; result: 'green' | 'red' } | null;
 	note: { file: string; text: string | null } | null;
 	models?: Models;
 	contractPaths?: string | null;
@@ -60,7 +55,6 @@ export type Snapshot = {
 	filesChanged?: string[];
 	revisions?: { text: string; at: string; sha?: string | null }[];
 	blockedAnswered?: number;
-	history?: { step: string; at: string }[];
 	repairs?: number;
 };
 export type Effect =
@@ -258,28 +252,9 @@ export function nextAction(s: Snapshot): { say: string; effects: Effect[] } {
 	return act(`wait user: step "${step}" has no next action`);
 }
 
-/** Read the latest whole-suite measurement; ignore malformed or incomplete log entries. */
-export function lastSuites(checksLog: string): NonNullable<Snapshot['suites']> | null {
-	let last: NonNullable<Snapshot['suites']> | null = null;
-	for (const l of checksLog.split('\n')) {
-		try {
-			const c: unknown = JSON.parse(l);
-			if (typeof c === 'object' && c !== null && 'row' in c && c.row === 'suites' && 'head' in c && typeof c.head === 'string' && c.head && 'ts' in c && typeof c.ts === 'string' && 'result' in c && (c.result === 'green' || c.result === 'red')) last = { ts: c.ts, head: c.head, result: c.result };
-		} catch { /* a line cut off mid-write, or the blank last line: skipped */ }
-	}
-	return last;
-}
-
 // ── the shell ────────────────────────────────────────────────────────────────
 
 const read = (file: string) => (existsSync(file) ? readFileSync(file, 'utf8') : null);
-
-function commitsSince(git: (...args: string[]) => string, base: string): { subject: string; at: string }[] {
-	return git('log', '--reverse', '--format=%cI%x09%s', `${base}..HEAD`).split('\n').filter(Boolean).map((line) => {
-		const tab = line.indexOf('\t');
-		return { subject: line.slice(tab + 1), at: line.slice(0, tab) };
-	});
-}
 
 export function snapshotOf(toplevel: string): Snapshot {
 	const state = readState(toplevel) ?? {};
@@ -290,7 +265,6 @@ export function snapshotOf(toplevel: string): Snapshot {
 	// actionable line before this; the snapshot falls back to HEAD so a pure caller still builds.
 	const { base } = resolveRoundBase(toplevel, state);
 	const agreementReview = read(join(dir, AGREEMENT_REVIEW_FILE)) ?? '';
-	const checksLog = read(join(toplevel, '.wf', 'checks.log')) ?? '';
 	// The round's changed files (base→worktree, committed and uncommitted, plus untracked), with the
 	// round's own paperwork removed: what the class measurement reads to see contract work a case does
 	// not name (#111.4).
@@ -307,10 +281,8 @@ export function snapshotOf(toplevel: string): Snapshot {
 		answered: state.answered ?? [],
 		revisions: state.revisions ?? [],
 		blockedAnswered: state.blocked_answered ?? 0,
-		history: state.history ?? [],
 		repairs: state.repairs ?? 0,
 		head: git('rev-parse', 'HEAD'),
-		suites: lastSuites(checksLog),
 		files: {
 			// The agreement is AGREEMENT.md when the working session wrote one (it decided the work is
 			// consequential), else the class A ticket. Reading it here is what lets `wf next` measure the
@@ -321,9 +293,6 @@ export function snapshotOf(toplevel: string): Snapshot {
 			blocked: read(join(dir, 'BLOCKED.md')),
 		},
 		t1: { sha: agreementSha(toplevel, state.class ?? null, state.folder ?? null), reviewed: lastField(agreementReview, 'agreement-sha'), verdict: readVerdict(agreementReview) },
-		commits: commitsSince(git, base ?? 'HEAD'),
-		checks: checksLog.split('\n').filter(Boolean).flatMap((l) => { try { return [JSON.parse(l) as { row: number | string | null; result: string }]; } catch { /* a line cut off mid-write: skipped, the rest still read */ return []; } }).filter((c) => c.row !== 'repro' && c.row !== 'suites').map((c) => ({ ...c, row: c.row == null ? null : Number(c.row) })),
-		repro: Object.fromEntries(checksLog.split('\n').flatMap((l) => { try { const c = JSON.parse(l); return c.row === 'repro' && c.token ? [[c.token as string, c.result as string]] : []; } catch { /* a line cut off mid-write: skipped, the rest still read */ return []; } })),
 		note: state.note ? { file: state.note, text: read(join(toplevel, state.note)) } : null,
 		models: seams.models,
 		contractPaths: read(join(toplevel, contractPathsFile)),

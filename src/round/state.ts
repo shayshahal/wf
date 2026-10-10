@@ -53,7 +53,7 @@ export type State = {
 	// back still blocked asks the person again instead of looping (next.ts).
 	blocked_answered?: number;
 	last_question?: number;
-	// The validation token whose T2 setup `wf show` already ran (projects/jewelryx/show.ts).
+	// The agreement material sha whose project T2 setup `wf show` already ran.
 	t2_setup?: string;
 	// The tracker note `wf deliver` wrote, from the worktree's top: `wf next` reads which of its
 	// sections are posted (src/round/next.ts, unpostedSections).
