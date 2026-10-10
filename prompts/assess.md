@@ -7,7 +7,7 @@ whole.
 ## The agreement
 
 {{agreement}}
-{{decisions}}
+
 ## What to write
 
 - `Verdict: clean | repair | blocked`

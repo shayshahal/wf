@@ -151,6 +151,10 @@ type GitRun = (args: string[]) => string;
 // `R ` renamed), never trimmed: staged and unstaged must stay distinguishable (2026-10-10 review,
 // r9-final-edges).
 export type PorcelainEntry = { status: string; path: string };
+// One entry in the round's diff: a worktree change (porcelain's XY, vs HEAD) or a committed change
+// with no worktree change (`committed: true`, git's name-status letter, vs the round's base). The
+// committed half is what porcelain alone never lists (#114 closure, F3).
+export type DiffEntry = PorcelainEntry & { committed?: true };
 // One `wf check` line: `row` is a case number or `'suites'`/`'repro'`; `content` is the row-scope
 // identity the run measured (content-identity.ts), what a binding compares the tree against.
 export type EvidenceLine = { row: string | number | null; result: string; content?: string };
@@ -165,10 +169,12 @@ export type T1Fact = { sha: string | null; reviewed: string | null; verdict: str
 export type T2Fact = { verdict: string | null; contentSha: string | null; headSha: string | null; fresh: boolean | null };
 export type RoundInspect = {
   agreement: { file: string; sha: string | null; exists: boolean };
-  // `files` null = git could not read the worktree (UNKNOWN, never an empty-as-clean list); `error`
-  // and `statError` are wf's own reasons, one per attempt, so a base git cannot resolve never drops
-  // the listing and never claims clean (2026-10-10 review, P1-1).
-  diff: { base: string | null; stat: string | null; files: PorcelainEntry[] | null; error: string | null; statError: string | null };
+  // `files` null = git could not read the worktree (UNKNOWN, never an empty-as-clean list); it is the
+  // whole base..worktree change set — committed (name-status vs base) + staged + unstaged + untracked
+  // — so a clean worktree ahead of base is not shown as `(clean)` (#114 closure, F3). `error` and
+  // `statError` are wf's own reasons, one per attempt, so a base git cannot resolve never drops the
+  // listing and never claims clean (2026-10-10 review, P1-1).
+  diff: { base: string | null; stat: string | null; files: DiffEntry[] | null; error: string | null; statError: string | null };
   evidence: { case: EvidenceLine | null; suites: EvidenceLine | null; binding: EvidenceBinding };
   facts: {
     assessment: { verdict: string | null; head: string | null } | null;
@@ -178,7 +184,9 @@ export type RoundInspect = {
     t2: T2Fact | null;
     decisions: { text: string; at: string }[];
   };
-  refs: { session: State['session'] | null; artifacts: string[]; guidance: string[] };
+  // `openedBy` is `state.opened_by`, the opener `wf new` recorded (seams.opener), as the reference a
+  // reader can follow; null when nobody was recorded (#114 closure, F4).
+  refs: { session: State['session'] | null; openedBy: Record<string, string> | null; artifacts: string[]; guidance: string[] };
 };
 
 // Pure: `git status --porcelain -z` as entries. The `-z` contract is one NUL-separated record per
@@ -194,6 +202,31 @@ export function porcelainEntries(out: string): PorcelainEntry[] {
     const status = rec.slice(0, 2);
     entries.push({ status, path: rec.slice(3) });
     if (status[0] === 'R' || status[0] === 'C') i++; // its original path is the next NUL field
+  }
+  return entries;
+}
+
+// Pure: the committed half of the round's diff, `git diff --name-status -z <base> HEAD` as entries.
+// `-z` never quotes, so a Hebrew/spaced/renamed path arrives as its real bytes; a rename/copy record
+// carries its original path before its destination, which is skipped. The status is git's name-status
+// letter (`M`, `A`, `D`, `R100`) from the base, which porcelain (vs HEAD) cannot see.
+export function nameStatusEntries(out: string): DiffEntry[] {
+  const fields = out.split('\0');
+  const entries: DiffEntry[] = [];
+  for (let i = 0; i < fields.length; i++) {
+    const status = fields[i];
+    if (!/^[A-Z]\d*$/.test(status)) continue;
+    if (status[0] === 'R' || status[0] === 'C') {
+      const dest = fields[i + 2];
+      if (dest === undefined) continue;
+      entries.push({ status, path: dest, committed: true });
+      i += 2;
+    } else {
+      const path = fields[i + 1];
+      if (path === undefined) continue;
+      entries.push({ status, path, committed: true });
+      i++;
+    }
   }
   return entries;
 }
@@ -257,10 +290,16 @@ export function inspectRound({ path, state, git, guidance = [], wfRoot = WF_ROOT
   const agreementName = agreementFile(klass);
   const agreement = { file: [folder, agreementName].filter(Boolean).join('/'), sha: agreementSha(path, klass, state.folder ?? null), exists: existsSync(agreementPath(path, klass, state.folder ?? null)) };
   const base = state.base ?? null;
-  // Two independent attempts: a base git cannot resolve must not take the worktree listing with it.
+  // Three independent attempts: a base git cannot resolve must not take the worktree listing with it.
   const statusOut = attempt(() => git(['status', '--porcelain', '-z']));
   const statOut = attempt(() => git(['diff', '--stat', base ?? 'HEAD']));
-  const files = statusOut === null ? null : porcelainEntries(statusOut);
+  // The committed set (base..HEAD): porcelain is vs HEAD, so without this a clean worktree ahead of
+  // base had 0 entries beside a non-empty stat, reading as no diff (#114 closure, F3).
+  const nameStatusOut = attempt(() => git(['diff', '--name-status', '-z', base ?? 'HEAD', 'HEAD']));
+  const working = statusOut === null ? null : porcelainEntries(statusOut);
+  const committed = nameStatusOut === null ? [] : nameStatusEntries(nameStatusOut);
+  // A file carries its worktree XY when it has one; only a committed-only file is added.
+  const files = working === null ? null : [...committed.filter((c) => !working.some((w) => w.path === c.path)), ...working];
   const diff: RoundInspect['diff'] = {
     base,
     stat: statOut === null ? null : lastStatLine(statOut),
@@ -293,7 +332,7 @@ export function inspectRound({ path, state, git, guidance = [], wfRoot = WF_ROOT
       t2: t2Fact(t2Text, path, state.folder ?? null),
       decisions: state.decisions ?? [],
     },
-    refs: { session: state.session ?? null, artifacts, guidance: [...guidance, join(wfRoot, 'projects', projectName, 'ROUND.md')] },
+    refs: { session: state.session ?? null, openedBy: state.opened_by ?? null, artifacts, guidance: [...guidance, join(wfRoot, 'projects', projectName, 'ROUND.md')] },
   };
 }
 
@@ -358,8 +397,13 @@ export function formatInspect(i: RoundInspect): string {
     out.push(`  diff: unknown${d.error ? ` — ${d.error}` : ''}`);
   } else {
     const n = d.files.length;
-    out.push(`  diff: ${n} entr${n === 1 ? 'y' : 'ies'} vs ${d.base ?? 'HEAD'}${n === 0 && !d.statError ? ' (clean)' : ''}`);
-    for (const f of d.files.slice(0, 20)) out.push(`      ${f.status} ${f.path}`);
+    const withCommitted = d.files.filter((f) => f.committed).length;
+    const clean = n === 0 && !d.statError;
+    // A committed-only change is not a clean worktree ahead of base; name the working tree's state
+    // instead of reading the whole branch as empty (#114 closure, F3).
+    const workingClean = !clean && n > 0 && withCommitted === n;
+    out.push(`  diff: ${n} entr${n === 1 ? 'y' : 'ies'} vs ${d.base ?? 'HEAD'}${clean ? ' (clean)' : workingClean ? ' (working tree clean)' : ''}`);
+    for (const f of d.files.slice(0, 20)) out.push(`      ${f.status} ${f.path}${f.committed ? ' (committed)' : ''}`);
     if (n > 20) out.push(`      … ${n - 20} more`);
     if (d.stat) out.push(`      ${d.stat}`);
     else if (d.statError) out.push(`      diff stat unavailable — ${d.statError}`);
@@ -371,7 +415,10 @@ export function formatInspect(i: RoundInspect): string {
   // well as in the build brief (`wf brief`), so a correction does not need the agreement opened.
   for (const d of i.facts.decisions) out.push(`  decision: ${d.at.slice(0, 10)} ${d.text}`);
   const s = i.refs.session;
-  out.push(`  refs: session ${s ? `${s.harness} ${s.id.slice(0, 12)}${s.transcript ? ` (${s.transcript})` : ''} at ${s.step ?? '?'}` : 'none'} · ${i.refs.artifacts.length} artifact${i.refs.artifacts.length === 1 ? '' : 's'} · guidance ${i.refs.guidance.join(', ')}`);
+  // The opener `wf new` recorded, as it was written (a reference a reader can follow): pane/session
+  // keys, never a fabricated `claude --resume` id (#114 closure, F4).
+  const o = i.refs.openedBy;
+  out.push(`  refs: session ${s ? `${s.harness} ${s.id.slice(0, 12)}${s.transcript ? ` (${s.transcript})` : ''} at ${s.step ?? '?'}` : 'none'} · ${i.refs.artifacts.length} artifact${i.refs.artifacts.length === 1 ? '' : 's'}${o ? ` · opened by ${Object.entries(o).map(([k, v]) => `${k}=${v}`).join(', ')}` : ''} · guidance ${i.refs.guidance.join(', ')}`);
   return out.join('\n');
 }
 

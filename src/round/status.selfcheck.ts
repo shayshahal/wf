@@ -1,10 +1,11 @@
 // status.selfcheck.ts — node status.selfcheck.ts → exit 0 when green.
 // Two fake worktrees, stubbed list + gh via inject, assert mine-first ordering and the ← YOU marker.
+import { execFileSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { plug } from '../seams.ts';
-import { allLines, collectRows, formatRow, liveRounds, prLabel, formatAgeSince, processesIn, realDetailFor, inspectRound, porcelainEntries, lastEvidence, evidenceBinding, formatInspect } from './status.ts';
+import { allLines, collectRows, formatRow, liveRounds, prLabel, formatAgeSince, processesIn, realDetailFor, inspectRound, porcelainEntries, nameStatusEntries, lastEvidence, evidenceBinding, formatInspect } from './status.ts';
 import { agreementSha } from './agreement.ts';
 import type { Question, State } from './state.ts';
 
@@ -135,6 +136,36 @@ check('a base git cannot resolve keeps the listing and names its own reason, nev
 check('git that cannot read the worktree reads diff as unknown, not empty', (() => { const d = inspectRound({ path: ir, state: irState, git: () => { throw new Error('no git'); }, identity: fakeIdentity }).diff; return d.files === null && d.error === 'git could not read this worktree'; })());
 check('the inspect block names the agreement, diff, evidence, facts and refs', ['agreement:', 'diff:', 'evidence:', 'facts:', 'refs:'].every((k) => formatInspect(insp).includes(`  ${k}`)), formatInspect(insp));
 check('the inspect block shows the recorded local feedback', formatInspect(insp).includes('decision: 2026-10-10 keep it'), formatInspect(insp));
+check('inspect exposes the opener as the recorded reference, absent when none', inspectRound({ path: ir, state: { ...irState, opened_by: { pane: 'abc123', session: 'sess-9' } }, git: gitFake, identity: fakeIdentity }).refs.openedBy?.pane === 'abc123' && insp.refs.openedBy === null && !formatInspect(insp).includes('opened by'), JSON.stringify(insp.refs));
+check('the inspect block names the opener when it is there', formatInspect(inspectRound({ path: ir, state: { ...irState, opened_by: { pane: 'abc123', session: 'sess-9' } }, git: gitFake, identity: fakeIdentity })).includes('opened by pane=abc123, session=sess-9'));
+check('name-status lists the committed change set, a rename by its destination, -z unquoted', JSON.stringify(nameStatusEntries('A\0committed.txt\0R100\0old.ts\0new.ts\0M\0עברית.ts\0')) === JSON.stringify([{ status: 'A', path: 'committed.txt', committed: true }, { status: 'R100', path: 'new.ts', committed: true }, { status: 'M', path: 'עברית.ts', committed: true }]));
+
+// Committed work vs base: porcelain is vs HEAD, so the listing must also enumerate the base..HEAD
+// change set or a clean worktree ahead of base reads as 0 entries/clean (2026-10-10 closure, F3).
+// Real git in a throwaway repo, the same inspectRound path the CLI runs.
+{
+  const repo = mkdtempSync(join(tmpdir(), 'wf-status-diff-'));
+  const git = (...args: string[]) => execFileSync('git', ['-C', repo, '-c', 'core.autocrlf=false', '-c', 'user.name=t', '-c', 'user.email=t@e.invalid', ...args], { encoding: 'utf8' }).trim();
+  try {
+    git('init', '-q', '-b', 'main');
+    git('config', 'core.autocrlf', 'false');
+    writeFileSync(join(repo, 'base.txt'), 'base\n'); git('add', '-A'); git('commit', '-qm', 'base');
+    git('checkout', '-qb', 'fix/x');
+    const folder = 'bug-reports/x';
+    mkdirSync(join(repo, folder), { recursive: true });
+    mkdirSync(join(repo, '.wf'), { recursive: true });
+    writeFileSync(join(repo, folder, 'AGREEMENT.md'), '# AGREEMENT\n\n## Observed\n- x\n\n## Agreed\n- y\n\n## Verification\n\n| # | case | files | check |\n|---|---|---|---|\n| 1 | a | b | c |\n');
+    writeFileSync(join(repo, '.wf', 'state.json'), JSON.stringify({ wf_version: 2, round: 'fix/x', id: 'x', folder, class: 'B', step: 'review', base: 'main' }));
+    writeFileSync(join(repo, 'committed.txt'), 'committed\n');
+    git('add', '-A'); git('commit', '-qm', 'the whole round committed, worktree clean');
+    const st = JSON.parse(readFileSync(join(repo, '.wf', 'state.json'), 'utf8')) as State;
+    const realGit = (args: string[]) => execFileSync('git', ['-C', repo, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    const d = inspectRound({ path: repo, state: st, git: realGit, identity: fakeIdentity }).diff;
+    check('a clean worktree ahead of base lists the committed file, not 0 entries as clean', d.files?.some((f) => f.path === 'committed.txt' && f.committed) === true, JSON.stringify(d));
+    const line = formatInspect(inspectRound({ path: repo, state: st, git: realGit, identity: fakeIdentity }));
+    check('the committed-only diff does not read 0 entries/(clean), it names the clean working tree', /diff: \d+ entr/.test(line) && !/diff: 0 entr/.test(line) && !/\(clean\)/.test(line) && /working tree clean/.test(line) && /committed\.txt \(committed\)/.test(line), line);
+  } finally { rmSync(repo, { recursive: true, force: true }); }
+}
 rmSync(root, { recursive: true, force: true });
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');
 process.exit(failures ? 1 : 0);

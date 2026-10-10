@@ -7,7 +7,7 @@ verification case passes and you run `wf step assess`.
 ## The agreed material
 
 {{agreement}}
-{{decisions}}
+
 ## The verification cases
 
 {{cases}}

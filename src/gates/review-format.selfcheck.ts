@@ -20,6 +20,16 @@ check('the bullet after the continuation is still a list item', wrapped.includes
 const after = agreementBody('- one\n\nplain text\n');
 check('a blank line closes the list and the next line is a paragraph', after.includes('</ul>') && after.includes('<p class="wf-src-3" id="wf-src-3">plain text</p>'), after);
 
+// A nested bullet is its own list inside the parent item, not flattened into the parent's text
+// (2026-10-10 closure, F7): the hierarchy a comment (and a reader) needs survives the render.
+const nested = agreementBody('- top item\n  - nested a\n  - nested b\n- second\n');
+check('a nested bullet opens a list inside the parent item', nested.includes('<li class="wf-src-1" id="wf-src-1">top item\n<ul>'), nested);
+check('each nested bullet is its own item, tagged with its own line', nested.includes('<li class="wf-src-2" id="wf-src-2">nested a</li>\n<li class="wf-src-3" id="wf-src-3">nested b</li>'), nested);
+check('the nested list closes inside the parent, before the next top-level item', nested.includes('<li class="wf-src-3" id="wf-src-3">nested b</li>\n</ul></li>\n<li class="wf-src-4" id="wf-src-4">second</li>'), nested);
+check('a comment on a nested bullet folds onto its own line', pageLine({ elementSelector: '#wf-src-2', elementPath: 'body > ul > li#wf-src-1 > ul > li#wf-src-2' }) === 2);
+const deeper = agreementBody('- top\n  - a\n    - deeper\n  - b\n');
+check('a deeper bullet nests inside its parent bullet, not beside it', deeper.includes('<li class="wf-src-2" id="wf-src-2">a\n<ul>\n<li class="wf-src-3" id="wf-src-3">deeper</li>\n</ul></li>\n<li class="wf-src-4" id="wf-src-4">b</li>'), deeper);
+
 // Diff fences colour by marker; hostile text is escaped, never markup.
 const diff = agreementBody('```diff\n+ added\n- removed\n~ changed\n context\n```\n');
 check('diff markers colour add/del/chg/ctx', ['add', 'del', 'chg', 'ctx'].every((c) => diff.includes(`class="${c}"`)), diff);
