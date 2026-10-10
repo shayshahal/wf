@@ -307,7 +307,7 @@ const approve = async (repo: string, branch: string) => {
 	rmSync(repo, { recursive: true, force: true });
 }
 
-// a staged product change is not swept into the round-folder commit.
+// a staged (reverse-index) product change is refused by `wf check` before any commit (N-2, #106/#109).
 {
 	const branch = 'feat/106s';
 	const { repo, git } = cliRepo(branch);
@@ -321,14 +321,14 @@ const approve = async (repo: string, branch: string) => {
 		const ok = await runCli(repo, ['review', branch, '--done']);
 		check('the staged arm: approved and eligible first', ok.status === 0, ok.out);
 	});
-	// Stage EVIL, restore the working tree to the approved bytes.
+	// Stage EVIL, restore the working tree to the approved bytes: the index differs, the worktree is HEAD.
 	writeFileSync(join(repo, 'src/x.ts'), 'evil\n');
 	git('add', 'src/x.ts');
 	writeFileSync(join(repo, 'src/x.ts'), 'a\n');
-	const delivered = await runCli(repo, ['deliver'], fakeGhEnv('staged')); // the transport is nowhere: the push fails, but the round-folder commit already ran
-	const lastFiles = execFileSync('git', ['-C', repo, 'show', '--name-only', '--format=', 'HEAD'], { encoding: 'utf8' }).split('\n').filter(Boolean);
-	check('the round-folder commit carries only the round folder, not the staged product', lastFiles.length > 0 && lastFiles.every((f) => f.startsWith(`${folder}/`)), `${delivered.out}\n${lastFiles.join(',')}`);
-	check('deliver did not refuse the staged change as swept (it was not)', !delivered.out.includes('changed the implementation T2 approved') || delivered.out.includes('the push hook'), delivered.out);
+	const delivered = await runCli(repo, ['deliver'], fakeGhEnv('staged'));
+	check('a staged (reverse-index) product change is refused by wf check before any commit (N-2)', delivered.status === 1 && delivered.out.includes('COULD NOT RUN'), delivered.out);
+	const committed = execFileSync('git', ['-C', repo, 'show', 'HEAD:src/x.ts'], { encoding: 'utf8' });
+	check('the staged product was not committed (no round-folder commit swept it)', committed === 'a\n', `${delivered.out}\nHEAD:src/x.ts = ${JSON.stringify(committed)}`);
 	rmSync(repo, { recursive: true, force: true });
 }
 

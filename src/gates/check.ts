@@ -48,7 +48,7 @@ import { baseBranch, checks, redBaseEvidence, reproFailure, suites } from '../pr
 import { caseFiles, verificationCases } from '../round/agreement.ts';
 import { agreementPath } from '../round/agreement.ts';
 import type { VerificationCase } from '../round/agreement.ts';
-import { readState, roundOf, toplevelOf } from '../round/state.ts';
+import { readState, resolveRoundBase, roundOf, toplevelOf } from '../round/state.ts';
 import { ensureServers } from '../worktrees/serve.ts';
 import { worktreeContentSha } from './content-identity.ts';
 
@@ -464,13 +464,25 @@ export async function runCheck(argv: string[] = []) {
 	const toplevel = toplevelOf();
 	const state = readState(toplevel);
 	const { folder } = roundOf(state, toplevel);
-	// The round's base, so a committed-only change is part of the diff (R-1, #109). spawnSync, not
-	// execFileSync: a missing base ref is a real answer (no committed range), not a thrown surprise.
-	const baseRun = spawnSync('git', ['-C', toplevel, 'merge-base', state?.base ?? `origin/${baseBranch}`, 'HEAD'], { encoding: 'utf8' });
-	const base = baseRun.status === 0 ? (baseRun.stdout ?? '').trim() : null;
-	const changed = changedFiles(toplevel, base);
 	const ran: CheckRun[] = [];
 	const start = contentOf(toplevel, folder);
+	let row: VerificationCase | null = null;
+	const logRun = (result: string, cause?: RedCause) => {
+		mkdirSync(join(toplevel, '.wf'), { recursive: true });
+		appendFileSync(join(toplevel, '.wf', 'checks.log'), `${checkRunLine({ ts: new Date().toISOString(), row: row?.n ?? null, rowCheck: row?.check ?? null, tasks: ran, result, cause, content: contentOf(toplevel, folder) })}\n`);
+	};
+	// The round's base, so a committed-only change is part of the diff (R-1, #109). A base ref that does
+	// not resolve leaves the committed range unknown: refuse with one actionable line rather than bless
+	// a committed product change the check cannot see (N-1, fail closed).
+	const { ref, base } = resolveRoundBase(toplevel, state);
+	if (!base) {
+		const said = { label: 'base', exit: null, missing: `the round's base \`${ref}\` does not resolve — fetch it, or start the round with \`wf new --base <ref>\`` };
+		console.error(`COULD NOT RUN: ${said.missing}`);
+		ran.push(said);
+		logRun('red', redCause(said));
+		process.exit(1);
+	}
+	const changed = changedFiles(toplevel, base);
 	// The verification cases of the round's agreement (TICKET.md for class A, AGREEMENT.md for B/C).
 	// No per-commit bookkeeping (#112): `--case N` names one, else the single case whose files this
 	// diff touches, else the single case. `--case "<path>::<id>@<line>"` names a raw cell (class A).
@@ -478,7 +490,6 @@ export async function runCheck(argv: string[] = []) {
 	const cases = verificationCases(existsSync(agreementFile) ? readFileSync(agreementFile, 'utf8') : '');
 	const caseIdx = argv.indexOf('--case');
 	const caseArg = caseIdx >= 0 ? argv[caseIdx + 1] : null;
-	let row: VerificationCase | null = null;
 	if (caseArg != null) row = /^\d+$/.test(caseArg) ? cases.find((c) => c.n === Number(caseArg)) ?? null : { n: 0, line: '', message: caseArg, files: checkCellTarget(caseArg)?.file ?? '', check: caseArg };
 	else {
 		const matching = cases.filter((c) => caseFiles(c).some((f) => changed.includes(f)));
@@ -488,10 +499,6 @@ export async function runCheck(argv: string[] = []) {
 		console.error(`check: the agreement has no verification case ${caseArg} (cases: ${cases.map((c) => c.n).join(', ') || 'none'})`);
 		process.exit(1);
 	}
-	const logRun = (result: string, cause?: RedCause) => {
-		mkdirSync(join(toplevel, '.wf'), { recursive: true });
-		appendFileSync(join(toplevel, '.wf', 'checks.log'), `${checkRunLine({ ts: new Date().toISOString(), row: row?.n ?? null, rowCheck: row?.check ?? null, tasks: ran, result, cause, content: contentOf(toplevel, folder) })}\n`);
-	};
 	// Scopeprot: a changed product/test file outside the agreement's cases is refused; a round's added
 	// helper belongs in a case's `files` cell, which is mutable working detail (no renewed T1).
 	const allowed = row ? caseFiles(row) : cases.flatMap((c) => caseFiles(c));
@@ -508,15 +515,13 @@ export async function runCheck(argv: string[] = []) {
 	const target = checkCellTarget(row?.check);
 	let served = false;
 	const tasks = buildTasks({ row, projectTasks: (t) => checks({ toplevel, changed, target: t }), repro, reproOnly });
-	// Nothing to run is not a green: a case-less or fence-only run with a product file changed
-	// (committed on the branch, or in the worktree) and no project check would log a pass that measured
-	// nothing (#109). A docs-only diff has nothing to check; a staged-only change (the index differs but
-	// the worktree equals HEAD) is left to deliver's round-folder commit scoping (#106). A raw
+	// Nothing to run is not a green: a case-less or fence-only run with a product file changed and no
+	// project check would log a pass that measured nothing (#109). `changed` is the same list the fence
+	// uses (committed vs base, worktree, index, untracked), so a committed-only or reverse-index (index
+	// changed, worktree back at HEAD) product change is refused too (N-2, #106: a plain `git commit`
+	// commits the index, so it is not left to deliver). A docs-only diff has nothing to check. A raw
 	// `--case "<path>::<id>@<line>"` gets its file from the cell above, so its fence and red-base run.
-	const gitNames = (args: string[]) => execFileSync('git', ['-C', toplevel, ...args], { encoding: 'utf8' }).split('\n').map((l) => l.trim()).filter(Boolean);
-	const committed = base ? gitNames(['diff', '--name-only', `${base}...HEAD`]) : [];
-	const worktreeDirty = [...gitNames(['diff', '--name-only', 'HEAD']), ...gitNames(['ls-files', '--others', '--exclude-standard'])];
-	const productChanged = [...new Set([...committed, ...worktreeDirty])].filter((f) => !isRoundPaperwork(f, folder));
+	const productChanged = changed.filter((f) => !isRoundPaperwork(f, folder));
 	if (!tasks.length && productChanged.length) {
 		const nothing = { label: 'check', exit: null, missing: 'the agreement declares no verification case and the project has no check for this diff — name one: wf check --case "<path>::<test id>@<line>"' };
 		console.error(`COULD NOT RUN: ${nothing.missing}`);

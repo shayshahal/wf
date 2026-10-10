@@ -12,7 +12,7 @@
 //   wait <person>: <what they owe>        tell them, verbatim; their answer → wf decide, then wf next
 //   review | deliver | check | done        the orchestrator runs it, then wf next
 // It does the bookkeeping itself (the step, a question the round now waits on).
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { refuseCaller } from '../refusal.ts';
@@ -24,7 +24,7 @@ import { lastField, readVerdict } from '../gates/review-format.ts';
 import { seams } from '../seams.ts';
 import { modelFor } from '../models.ts';
 import type { Models } from '../models.ts';
-import { readState, toplevelOf, writeState } from './state.ts';
+import { readState, resolveRoundBase, toplevelOf, writeState } from './state.ts';
 import type { Question, RoundClass } from './state.ts';
 import { higherClass, notifyAdapters, runStep } from './step.ts';
 
@@ -116,7 +116,11 @@ export function nextAction(s: Snapshot): { say: string; effects: Effect[] } {
 	const pending = openRevisions(s.revisions ?? [], s.t1.sha);
 	if (pending.length) {
 		if (s.step !== 'agree') effects.push({ step: ['agree', '--waiting-on', 'user'] });
-		return dispatch('agree', `the person asked the agreement to change: ${pending.map((r) => r.text).join(' · ')}`);
+		// A revision with no recorded sha is a malformed state (the producer always writes one); keep it
+		// open and say so, never discharge the requested change silently (N-6).
+		const malformed = pending.filter((r) => r.sha === undefined).length;
+		const note = malformed ? ` — ${malformed} revision(s) have no recorded agreement sha: .wf/state.json is malformed, fix or delete them` : '';
+		return dispatch('agree', `the person asked the agreement to change: ${pending.map((r) => r.text).join(' · ')}${note}`);
 	}
 
 	// T1 binds the agreement's agreed material sha. A progress edit to `## Verification`/`## Units`
@@ -194,19 +198,19 @@ export function nextAction(s: Snapshot): { say: string; effects: Effect[] } {
 		const material = assessmentMaterial(s.files.assessment);
 		if (material) {
 			// One contextual escalation, recorded so it cannot repeat. A material change is outside the
-			// agreement, so only an explicit `accept` carries it into T2; any other answer (hold, end, no,
-			// looks fine, fix) is not an acceptance and returns to the build, where `wf decide --revise`
-			// renews the agreement (#111.4).
+			// agreement, so only an explicit `accept` (the literal word, case-insensitive) carries it into
+			// T2; any other answer returns to the build, where `wf decide --revise` renews the agreement
+			// (#111.4). The question offers only the paths the code takes (N-5): accept, or --revise.
 			const source = `ASSESSMENT.md#${measured ?? 'unknown'}#material`;
 			const ruling = (s.answered ?? []).find((q) => q.source === source);
 			if (!ruling) {
-				const q = `the assessment found a material change outside the agreement: ${material}. Renew the agreement (\`${wf} decide --revise "<the renewed behavior>"\`, then a fresh T1), or hold/end the round`;
+				const q = `the assessment found a material change outside the agreement: ${material}. Answer \`accept\` to carry it into T2, or \`${wf} decide --revise "<the renewed behavior>"\` to renew the agreement (then a fresh T1)`;
 				effects.push({ ask: { to: 'user', text: q, dflt: null, source } });
 				return act(`wait user: ${q}`);
 			}
 			if (!/^\s*accept\b/i.test(ruling.answer ?? '')) {
 				effects.push({ step: ['build'] });
-				return dispatch('build', 'the assessment found a material change outside the agreement and the ruling is not an acceptance — bring the work within the agreement, or `wf decide --revise` to renew it');
+				return dispatch('build', 'the assessment found a material change outside the agreement and the ruling is not `accept` — bring the work within the agreement, or `wf decide --revise` to renew it');
 			}
 			// Accepted explicitly: T2 reads the acceptance beside the assessment, never in silence.
 		}
@@ -217,7 +221,7 @@ export function nextAction(s: Snapshot): { say: string; effects: Effect[] } {
 			const ruling = (s.answered ?? []).find((q) => q.source === source);
 			if (!ruling) {
 				const unmet = (s.files.assessment ?? '').replace(/\r\n/g, '\n').split('\n').filter((l) => /(not met:|differs:|still reproduces:)/i.test(l)).map((l) => l.trim().replace(/^-\s*"[^"]*":\s*/, '')).join(' · ');
-				const q = `fix or accept: ${unmet || 'ASSESSMENT.md is blocked'}`;
+				const q = `fix or accept: ${unmet || 'ASSESSMENT.md is blocked'} — answer \`accept\` to carry it into T2, or say how to fix it`;
 				effects.push({ ask: { to: 'user', text: q, dflt: null, source } });
 				return act(`wait user: ${q}`);
 			}
@@ -235,7 +239,7 @@ export function nextAction(s: Snapshot): { say: string; effects: Effect[] } {
 				const source = `ASSESSMENT.md#${measured ?? 'unknown'}`;
 				const ruling = (s.answered ?? []).find((q) => q.source === source);
 				if (!ruling) {
-					const q = `${MAX_REPAIRS} autonomous repairs did not clear ASSESSMENT.md: read its findings and rule — accept into T2, or say what to change (\`${wf} decide --revise …\`)`;
+					const q = `${MAX_REPAIRS} autonomous repairs did not clear ASSESSMENT.md: read its findings and rule — answer \`accept\` to carry it into T2, or say how to fix it (\`${wf} decide --revise …\` renews the agreement)`;
 					effects.push({ ask: { to: 'user', text: q, dflt: null, source } });
 					return act(`wait user: ${q}`);
 				}
@@ -282,14 +286,16 @@ export function snapshotOf(toplevel: string): Snapshot {
 	const dir = join(toplevel, state.folder ?? '');
 	const git = (...args: string[]) => execFileSync('git', ['-C', toplevel, ...args], { encoding: 'utf8' }).trim();
 	const branch = git('rev-parse', '--abbrev-ref', 'HEAD');
-	const base = git('merge-base', state.base ?? `origin/${baseBranch}`, 'HEAD');
+	// A base ref that does not resolve leaves the committed range unknown. `runNext` refuses with one
+	// actionable line before this; the snapshot falls back to HEAD so a pure caller still builds.
+	const { base } = resolveRoundBase(toplevel, state);
 	const agreementReview = read(join(dir, AGREEMENT_REVIEW_FILE)) ?? '';
 	const checksLog = read(join(toplevel, '.wf', 'checks.log')) ?? '';
 	// The round's changed files (base→worktree, committed and uncommitted, plus untracked), with the
 	// round's own paperwork removed: what the class measurement reads to see contract work a case does
 	// not name (#111.4).
 	const folderPrefix = (state.folder ?? '').replace(/\\/g, '/').replace(/\/?$/, '/');
-	const filesChanged = [...new Set([...git('diff', '--name-only', base).split('\n'), ...git('ls-files', '--others', '--exclude-standard').split('\n')].map((l) => l.trim()).filter(Boolean))]
+	const filesChanged = [...new Set([...git('diff', '--name-only', base ?? 'HEAD').split('\n'), ...git('ls-files', '--others', '--exclude-standard').split('\n')].map((l) => l.trim()).filter(Boolean))]
 		.filter((f) => !f.startsWith('.wf/') && !(folderPrefix && f.startsWith(folderPrefix)));
 	return {
 		branch,
@@ -315,7 +321,7 @@ export function snapshotOf(toplevel: string): Snapshot {
 			blocked: read(join(dir, 'BLOCKED.md')),
 		},
 		t1: { sha: agreementSha(toplevel, state.class ?? null, state.folder ?? null), reviewed: lastField(agreementReview, 'agreement-sha'), verdict: readVerdict(agreementReview) },
-		commits: commitsSince(git, base),
+		commits: commitsSince(git, base ?? 'HEAD'),
 		checks: checksLog.split('\n').filter(Boolean).flatMap((l) => { try { return [JSON.parse(l) as { row: number | string | null; result: string }]; } catch { /* a line cut off mid-write: skipped, the rest still read */ return []; } }).filter((c) => c.row !== 'repro' && c.row !== 'suites').map((c) => ({ ...c, row: c.row == null ? null : Number(c.row) })),
 		repro: Object.fromEntries(checksLog.split('\n').flatMap((l) => { try { const c = JSON.parse(l); return c.row === 'repro' && c.token ? [[c.token as string, c.result as string]] : []; } catch { /* a line cut off mid-write: skipped, the rest still read */ return []; } })),
 		note: state.note ? { file: state.note, text: read(join(toplevel, state.note)) } : null,
@@ -328,9 +334,17 @@ export function snapshotOf(toplevel: string): Snapshot {
 
 export async function runNext() {
 	const toplevel = toplevelOf();
-	if (!readState(toplevel)?.folder) {
+	const state = readState(toplevel);
+	if (!state?.folder) {
 		console.error('wf next: no round here — run it in the round\'s worktree (wf new <branch> --id <id> makes one)');
 		refuseCaller();
+	}
+	// A base ref that does not resolve leaves the round's committed diff unknown; report one actionable
+	// line instead of a raw git fatal (N-1).
+	const { ref, base } = resolveRoundBase(toplevel, state);
+	if (!base) {
+		console.error(`wf next: the round's base \`${ref}\` does not resolve — fetch it, or start the round with \`wf new --base <ref>\``);
+		process.exit(2);
 	}
 	let { say, effects } = nextAction(snapshotOf(toplevel));
 	for (const e of effects) {

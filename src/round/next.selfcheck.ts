@@ -80,7 +80,7 @@ check('an intent line without a verdict is not a clean assessment', say(base({ s
 const repair = base({ step: 'assess', repairs: 0, files: { agreement: null, assessment: ASSESS({ verdict: 'repair' }), review: null, blocked: null } });
 check('a repair assessment returns to build, counted', repairs(repair) === 1 && steps(repair).join() === 'build' && say(repair).includes('repair 1 of 2'), say(repair));
 const spent = base({ step: 'assess', repairs: 2, files: { agreement: null, assessment: ASSESS({ verdict: 'repair' }), review: null, blocked: null } });
-check('two unsuccessful repairs: one contextual escalation, not another build', repairs(spent) === 0 && steps(spent).length === 0 && asks(spent).length === 1 && asks(spent)[0].source.startsWith('ASSESSMENT.md#'), say(spent));
+check('two unsuccessful repairs: one contextual escalation, not another build', repairs(spent) === 0 && steps(spent).length === 0 && asks(spent).length === 1 && asks(spent)[0].source.startsWith('ASSESSMENT.md#') && asks(spent)[0].text.includes('answer `accept`'), say(spent));
 
 // blocked: unmet intent / still-reproducing symptom cannot pass to T2 silently
 const blocked = base({ step: 'assess', files: { agreement: null, assessment: ASSESS({ verdict: 'blocked', intent: '- "x": not met: the modal still jumps' }), review: null, blocked: null } });
@@ -92,7 +92,8 @@ check('a fix ruling returns to build, not an endless question', steps(toFix).joi
 
 // material change: one renewed-agreement escalation
 const material = base({ step: 'assess', files: { agreement: null, assessment: ASSESS({ material: 'the round also changes the API shape' }), review: null, blocked: null } });
-check('a material change is one renewed-agreement escalation, not a repair', asks(material).length === 1 && asks(material)[0].text.includes('Renew the agreement') && repairs(material) === 0, say(material));
+check('a material change is one renewed-agreement escalation, not a repair', asks(material).length === 1 && asks(material)[0].text.includes('Answer `accept`') && asks(material)[0].text.includes('--revise') && repairs(material) === 0, say(material));
+check('N-5: the material question offers only accept and --revise, not hold/end', !/hold\/end|hold or end/i.test(asks(material)[0].text), asks(material)[0].text);
 
 // ── T2 / delivery
 check('an open question holds the round before anything else', say(base({ step: 'assess', questions: [{ n: 3, to: 'einat', text: 'which label?', asked: 't' }] })) === 'wait einat: q3 which label?');
@@ -149,7 +150,7 @@ for (const answer of ['hold the round until n', 'end it, drop this round', 'no',
 	const ruled = { ...material, answered: [{ n: 1, to: 'user', text: 'the assessment found a material change', source: asks(material)[0].source, answer, asked: 't', answered: 't' }] };
 	check(`R-2: a material answer "${answer}" does not open T2 (it returns to build)`, asks(ruled).length === 0 && !say(ruled).startsWith('review: T2') && steps(ruled).join() === 'build', say(ruled));
 }
-check('R-6: the fix-or-accept question names the unmet finding', asks(blocked)[0].text.includes('not met: the modal still jumps'), asks(blocked)[0].text);
+check('R-6: the fix-or-accept question names the unmet finding and the literal accept', asks(blocked)[0].text.includes('not met: the modal still jumps') && asks(blocked)[0].text.includes('answer `accept`'), asks(blocked)[0].text);
 const spentAnswered = { ...spent, answered: [{ n: 1, to: 'user', text: 'x', source: asks(spent)[0].source, answer: 'accept: it is a separate ticket', asked: 't', answered: 't' }] };
 check('an answered repair-cap escalation does not repeat', asks(spentAnswered).length === 0 && say(spentAnswered).startsWith('review: T2'), say(spentAnswered));
 

@@ -170,7 +170,14 @@ const approve = (dir: string, klass: 'B', agreement: string) => {
 	check('no-case check: a product change with no case and no project check refuses (no empty green)', empty.code === 1 && empty.out.includes('COULD NOT RUN'), empty.out);
 	const line = JSON.parse(readFileSync(join(dir, '.wf/checks.log'), 'utf8').trim().split('\n').at(-1)!);
 	check('no-case check: the refusal is recorded red, not green', line.result === 'red', JSON.stringify(line));
-	// R-1: a committed-only product change must be seen too (a clean tree after a commit)
+	rmSync(dir, { recursive: true, force: true });
+}
+
+// ── R-1/N-2: a committed-only or reverse-index product change is seen (its own clean fixture, so no
+// other untracked file can make the refusal pass for the wrong reason)
+{
+	const { dir } = repo('fix/routeCommit', 'A', null);
+	writeFileSync(join(dir, '.wf/state.json'), `${JSON.stringify({ wf_version: 2, round: 'r', id: 'r', folder: 'bug-reports/r', base: 'main', step: 'build', class: 'A' })}\n`);
 	writeFileSync(join(dir, 'src/Committed.svelte'), 'y\n');
 	execFileSync('git', ['-C', dir, '-c', 'user.name=t', '-c', 'user.email=t@t', 'add', 'src/Committed.svelte']);
 	execFileSync('git', ['-C', dir, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'add committed product']);
@@ -180,8 +187,29 @@ const approve = (dir: string, klass: 'B', agreement: string) => {
 	check('R-1: the committed-only refusal is recorded red, not green', cline.result === 'red', JSON.stringify(cline));
 	const fenceCommitted = cli(dir, 'check', '--case', 'src/Page.spec.ts::sidebar renders@42');
 	check('R-1: a committed product change outside the named case is fenced', fenceCommitted.code === 1 && fenceCommitted.out.includes('fence: src/Committed.svelte'), fenceCommitted.out);
+	// N-2: the index differs while the worktree is back at HEAD (a plain `git commit` would commit it)
+	writeFileSync(join(dir, 'src/Committed.svelte'), 'z\n');
+	execFileSync('git', ['-C', dir, '-c', 'user.name=t', '-c', 'user.email=t@t', 'add', 'src/Committed.svelte']);
+	execFileSync('git', ['-C', dir, '-c', 'user.name=t', '-c', 'user.email=t@t', 'restore', '--source=HEAD', '--worktree', '--', 'src/Committed.svelte']);
+	const reverse = cli(dir, 'check');
+	check('N-2: a reverse-index product change (index differs, worktree at HEAD) refuses', reverse.code === 1 && reverse.out.includes('COULD NOT RUN'), reverse.out);
 	rmSync(dir, { recursive: true, force: true });
 }
+
+// ── N-1: an unresolved base fails closed with one actionable line, never an empty green or a git fatal
+{
+	const { dir } = repo('fix/routeBase', 'A', null);
+	writeFileSync(join(dir, '.wf/state.json'), `${JSON.stringify({ wf_version: 2, round: 'r', id: 'r', folder: 'bug-reports/r', base: 'origin/does-not-exist', step: 'build', class: 'A' })}\n`);
+	writeFileSync(join(dir, 'src/Committed.svelte'), 'y\n');
+	execFileSync('git', ['-C', dir, '-c', 'user.name=t', '-c', 'user.email=t@t', 'add', 'src/Committed.svelte']);
+	execFileSync('git', ['-C', dir, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'committed product']);
+	const checkRun = cli(dir, 'check');
+	check('N-1: an unresolved base refuses wf check with one actionable line', checkRun.code === 1 && checkRun.out.includes('does not resolve') && checkRun.out.includes('COULD NOT RUN'), checkRun.out);
+	const nextRun = cli(dir, 'next');
+	check('N-1: an unresolved base refuses wf next with one actionable line, no git fatal', nextRun.code === 2 && nextRun.out.includes('does not resolve') && !nextRun.out.includes('fatal:'), nextRun.out);
+	rmSync(dir, { recursive: true, force: true });
+}
+
 
 // ── the class is measured: a ticket declaring Class: B upgrades A→B before any build (T1 cannot be
 // skipped by how the worktree was opened)

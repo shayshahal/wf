@@ -31,7 +31,7 @@ if (mode === 'writer' || mode === 'spam') {
 	for (let i = 0; (mode === 'spam' ? !existsSync(stop) : i < Number(childIters)) && i < 100_000; i++) {
 		// note is padding, so a writer that lost atomicity would be read mid-file; revisions is the nested
 		// collection a competing writer must not erase.
-		writeState(childDir, (s) => { nap(); return { note: 'x'.repeat(1_000_000), revisions: [...(s.revisions ?? []), { text: `${childKey}${i}`, at }] }; });
+		writeState(childDir, (s) => { nap(); return { note: 'x'.repeat(1_000_000), revisions: [...(s.revisions ?? []), { text: `${childKey}${i}`, at, sha: null }] }; });
 	}
 	process.exit(0);
 }
@@ -43,7 +43,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const self = fileURLToPath(import.meta.url);
 const tempDir = () => mkdtempSync(join(tmpdir(), 'wf-state-'));
 const at = '2026-10-09T00:00:00.000Z';
-const rev = (text: string) => ({ text, at });
+const rev = (text: string) => ({ text, at, sha: null });
 const spawnWriter = (m: string, dir: string, key: string, iters: number, napMs = 1) =>
 	spawn(process.execPath, [self, m, dir, key, String(iters), String(napMs)], { stdio: ['ignore', 'ignore', 'pipe'] });
 const stderrOf = (c: ReturnType<typeof spawnWriter>) => { const out = { text: '' }; c.stderr?.on('data', (d: Buffer) => { out.text += d; }); return out; };

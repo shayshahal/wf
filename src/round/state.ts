@@ -5,11 +5,11 @@
 // writeState serializes every read-modify-write against the other wf processes on this worktree and
 // replaces the file with one rename; readState tells a missing round (null) from a corrupt one (it
 // throws). See the comments on writeState and CorruptStateError (issue #107).
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { linkSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { roundsDir } from '../project.ts';
+import { baseBranch, roundsDir } from '../project.ts';
 
 export type RoundClass = 'A' | 'B' | 'C';
 // A question `wf ask` opened; `wf decide` moves it to `answered` with its answer (ask.ts).
@@ -45,8 +45,10 @@ export type State = {
 	answered?: Question[];
 	// Answers that say the agreement must change (`wf decide --revise`, ask.ts): each carries the
 	// agreement material sha at the moment it was recorded, so it is open until that sha moves. `wf next`
-	// sends the round back to agree while any is open (agree.ts).
-	revisions?: { text: string; at: string; sha?: string | null }[];
+	// sends the round back to agree while any is open (agree.ts). `sha` is required: the only producer
+	// (ask.ts `reviseState`) always writes it (`null` at worst), so a revision without one is a malformed
+	// state, not a migration (N-6).
+	revisions?: { text: string; at: string; sha: string | null }[];
 	// The BLOCKED.md question whose `## Answer` a build has already resumed from, so a build that comes
 	// back still blocked asks the person again instead of looping (next.ts).
 	blocked_answered?: number;
@@ -60,6 +62,16 @@ export type State = {
 
 export function toplevelOf(cwd = process.cwd()): string {
 	return execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8', cwd }).trim();
+}
+
+// The ref a round's committed diff is measured against: the round's own base, else the project's
+// origin base branch. `base` is the merge-base with HEAD, or null when the ref does not resolve — the
+// round's committed range is then unknown, and every caller must fail closed rather than bless a
+// committed product change it cannot see (N-1, #109).
+export function resolveRoundBase(toplevel: string, state: State | null): { ref: string; base: string | null } {
+	const ref = state?.base ?? `origin/${baseBranch}`;
+	const run = spawnSync('git', ['-C', toplevel, 'merge-base', ref, 'HEAD'], { encoding: 'utf8' });
+	return { ref, base: run.status === 0 ? (run.stdout ?? '').trim() : null };
 }
 
 // The runtime that reads and writes a round's state. A state from an older one is refused before any

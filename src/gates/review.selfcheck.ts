@@ -71,6 +71,10 @@ const targetLine = { ...annotate, decision: "lgtm", target: { review: { base: "d
 check('fold records what plannotator actually reviewed', foldFeedbackLine(targetLine).includes("reviewed: dev (124 files)"));
 check('lastField takes the newest dated section', lastField('base: dev\nverdict: approved\n## 2\nbase: tools/wf-runtime\n', 'base') === 'tools/wf-runtime');
 check('the assessment file counts uncommitted: the assessment phase does not commit it', reviewFiles(['a.ts'], 'bug-reports/r/ASSESSMENT.md', true).includes('bug-reports/r/ASSESSMENT.md') && reviewFiles(['a.ts'], 'bug-reports/r/ASSESSMENT.md', true).length === 2 && reviewFiles(['bug-reports/r/ASSESSMENT.md'], 'bug-reports/r/ASSESSMENT.md', true).length === 1);
+// N-4: review.ts's own changedFiles(worktree, base) (review.ts:44) has always taken the base; the T2
+// file list is that committed diff plus the round's ASSESSMENT.md, so the check.ts signature change
+// does not touch it. The list is the public composition, tested here.
+check('N-4: the T2 file list is the committed diff plus the round assessment', JSON.stringify(reviewFiles(['src/Page.svelte', 'src/Other.svelte'], 'bug-reports/r/ASSESSMENT.md', true)) === JSON.stringify(['bug-reports/r/ASSESSMENT.md', 'src/Page.svelte', 'src/Other.svelte']) && JSON.stringify(reviewFiles([], 'bug-reports/r/ASSESSMENT.md', false)) === JSON.stringify([]));
 check('t1Gap null when AGREEMENT-REVIEW approves the current material sha', t1GapFor('agreement-sha: <real>\nverdict: approved\n') === null);
 check('t1Gap names a re-agreement', /is of 0ld, the agreement is now [0-9a-f]/.test(t1GapFor('agreement-sha: 0ld\nverdict: approved\n')!));
 check('t1Gap names a changes-requested verdict', /verdict is changes-requested/.test(t1GapFor('agreement-sha: <real>\nverdict: changes-requested\n')!));

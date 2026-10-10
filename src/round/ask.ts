@@ -210,8 +210,10 @@ export function reviseState(state: State, text: string, sha: string | null, now 
 }
 
 // Pure: the revisions a fresh agreement has not answered yet — those whose recorded material sha still
-// matches the agreement as it stands. A revision recorded before the sha was tracked has none and is
-// left open. `wf next` dispatches `agree` while any is open, so the round cannot build on the old T1.
+// matches the agreement as it stands. A revision without a recorded sha is a malformed state (the only
+// producer, `reviseState`, always writes one) and is kept open, never silently discharged: a requested
+// change must not vanish because its record is incomplete. `wf next` dispatches `agree` while any is
+// open, so the round cannot build on the old T1.
 export function openRevisions(revisions: { text: string; at: string; sha?: string | null }[] = [], currentSha: string | null) {
 	return revisions.filter((r) => r.sha === undefined || r.sha === currentSha);
 }
