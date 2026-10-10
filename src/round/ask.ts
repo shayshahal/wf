@@ -218,12 +218,6 @@ export function openRevisions(revisions: { text: string; at: string; sha?: strin
 	return revisions.filter((r) => r.sha === undefined || r.sha === currentSha);
 }
 
-// Pure: the revisions a fresh agreement has not answered yet. A revision is answered when the agreed
-// material's sha changes and T1 approves it; while the step is still `agree` it stays pending.
-export function pendingRevisions(revisions: { text: string; at: string }[] = [], answeredAt: string | undefined) {
-	return revisions.filter((r) => !answeredAt || r.at > answeredAt);
-}
-
 // Pure: the Asks a person answered against the default the agreement was written for. `wf next` sends
 // those back to agree before a build (a default is what the agreement assumed).
 export function overruledAsks(answered: Question[] = []): Question[] {

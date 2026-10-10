@@ -13,8 +13,8 @@ import { WF_HOME, WF_ROOT } from '../paths.ts';
 import { anchorToolPaths } from '../plugin/anchor.ts';
 import { seams } from '../seams.ts';
 import { basePortForBranch } from '../worktrees/worktree.ts';
-import { agreementFile, agreementPath, ASSESSMENT_FILE, caseFiles, consequential, section, TICKET_FILE, verificationCases } from './agreement.ts';
-import { openQuestionGate, overruledAsks, pendingRevisions } from './ask.ts';
+import { agreementFile, agreementPath, agreementSha, ASSESSMENT_FILE, caseFiles, consequential, section, TICKET_FILE, verificationCases } from './agreement.ts';
+import { openQuestionGate, openRevisions, overruledAsks } from './ask.ts';
 import { guidanceSection, notesFor, readNotes } from './guidance.ts';
 import { readState, roundOf, toplevelOf } from './state.ts';
 
@@ -72,7 +72,7 @@ export function composePrompt(argv: string[]) {
 	// agree: the round's name tells the agent which file holds the agreement.
 	if (phase === 'agree') {
 		const overruled = overruledAsks(state?.answered);
-		const revisions = pendingRevisions(state?.revisions, undefined);
+		const revisions = openRevisions(state?.revisions, agreementSha(toplevel, klass, folder));
 		vars.revisions = [...overruled.map((q) => `- q${q.n}: ${q.text}${q.default ? ` (default: ${q.default})` : ''} → ${q.answer}`), ...revisions.map((r) => `- ${r.text}`)].join('\n');
 	}
 	// build: the verification cases and, after a `repair` assessment, its findings.

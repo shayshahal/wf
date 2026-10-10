@@ -95,7 +95,8 @@ export async function runStep(argv: string[], { quiet = false } = {}) {
 		// A missing contract-path list makes classify exit 2 with one line; report that line, not a stack.
 		let out: string;
 		try {
-			out = execFileSync('node', [CLASSIFY, '--json', ...(measureBase ? ['--base', measureBase] : [])], { encoding: 'utf8' });
+			// Capture stderr explicitly: execFileSync otherwise prints it before the catch reports it again.
+			out = execFileSync('node', [CLASSIFY, '--json', ...(measureBase ? ['--base', measureBase] : [])], { encoding: 'utf8', stdio: 'pipe' });
 		} catch (e) {
 			const said = ((e as { stderr?: string }).stderr ?? '').trim();
 			console.error(said || `wf step classify: ${(e as Error).message}`);

@@ -211,6 +211,9 @@ const approve = (dir: string, klass: 'B', agreement: string) => {
 	const briefRun = cli(dir, 'brief', 'build');
 	check('N-1: direct wf brief refuses an unresolved base before emitting a build prompt', briefRun.code === 2 && briefRun.out.includes('does not resolve') && !briefRun.out.includes('## Handoff'), briefRun.out);
 	check('N-1: the refused brief leaves round state unchanged', readFileSync(join(dir, '.wf/state.json'), 'utf8') === beforeBrief);
+	const classified = cli(dir, 'step', 'classify');
+	check('base: wf step classify reports one actionable refusal without a fatal or stack', classified.code === 2 && classified.out.includes('does not resolve') && classified.out.trim().split('\n').length === 1, classified.out);
+	check('base: a refused class measurement leaves round state unchanged', readFileSync(join(dir, '.wf/state.json'), 'utf8') === beforeBrief);
 	rmSync(dir, { recursive: true, force: true });
 }
 
@@ -267,6 +270,22 @@ const approve = (dir: string, klass: 'B', agreement: string) => {
 	check('revision: a recorded revision dispatches a fresh agreement, not a build', rev.out.startsWith('dispatch agree') && rev.out.includes('asked the agreement to change'), rev.out);
 	const again = cli(dir, 'next');
 	check('R-3: an unchanged agreement after --revise never builds on the old approval', again.out.startsWith('dispatch agree') && state(dir).step !== 'build', again.out);
+	rmSync(dir, { recursive: true, force: true });
+}
+
+// ── agreement prompts use the same open-revision facts as dispatch, never old brief timestamps
+{
+	const { dir } = repo('fix/routeRevisionPrompt', 'A', null);
+	writeFileSync(join(dir, 'bug-reports/r/TICKET.md'), TICKET.replace('scroll position', 'old symptom'));
+	const oldSha = agreementSha(dir, 'A', 'bug-reports/r');
+	writeFileSync(join(dir, 'bug-reports/r/TICKET.md'), TICKET);
+	const currentSha = agreementSha(dir, 'A', 'bug-reports/r');
+	writeFileSync(join(dir, '.wf/state.json'), `${JSON.stringify({ wf_version: 2, round: 'r', id: 'r', folder: 'bug-reports/r', base: 'main', step: 'agree', class: 'A', revisions: [
+		{ text: 'discharged-revision-marker', at: '2026-10-10T02:00:00Z', sha: oldSha },
+		{ text: 'open-revision-marker', at: '2026-10-10T01:00:00Z', sha: currentSha },
+	] })}\n`);
+	const prompt = cli(dir, 'prompt', 'agree');
+	check('revision prompt: only the current-material request is pending, regardless of timestamps', prompt.code === 0 && prompt.out.includes('open-revision-marker') && !prompt.out.includes('discharged-revision-marker'), prompt.out);
 	rmSync(dir, { recursive: true, force: true });
 }
 

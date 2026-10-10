@@ -12,13 +12,13 @@
 //   wait <person>: <what they owe>        tell them, verbatim; their answer → wf decide, then wf next
 //   review | deliver | check | done        the orchestrator runs it, then wf next
 // It does the bookkeeping itself (the step, a question the round now waits on).
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { refuseCaller } from '../refusal.ts';
 import { addQuestion, blockedQuestion, openRevisions } from './ask.ts';
 import { agreementClass, agreementGap, agreementPath, agreementSha, AGREEMENT_FILE, AGREEMENT_REVIEW_FILE, ASSESSMENT_FILE, assessmentGap, assessmentHead, assessmentMaterial, assessmentVerdict, caseFiles, consequential, REVIEW_FILE, verificationCases } from './agreement.ts';
-import { baseBranch, contractPaths as contractPathsFile } from '../project.ts';
+import { contractPaths as contractPathsFile } from '../project.ts';
 import { classFromFiles } from '../gates/classify.ts';
 import { changedFiles } from '../gates/check.ts';
 import { lastField, readVerdict } from '../gates/review-format.ts';
