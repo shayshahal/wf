@@ -207,6 +207,10 @@ const approve = (dir: string, klass: 'B', agreement: string) => {
 	check('N-1: an unresolved base refuses wf check with one actionable line', checkRun.code === 1 && checkRun.out.includes('does not resolve') && checkRun.out.includes('COULD NOT RUN'), checkRun.out);
 	const nextRun = cli(dir, 'next');
 	check('N-1: an unresolved base refuses wf next with one actionable line, no git fatal', nextRun.code === 2 && nextRun.out.includes('does not resolve') && !nextRun.out.includes('fatal:'), nextRun.out);
+	const beforeBrief = readFileSync(join(dir, '.wf/state.json'), 'utf8');
+	const briefRun = cli(dir, 'brief', 'build');
+	check('N-1: direct wf brief refuses an unresolved base before emitting a build prompt', briefRun.code === 2 && briefRun.out.includes('does not resolve') && !briefRun.out.includes('## Handoff'), briefRun.out);
+	check('N-1: the refused brief leaves round state unchanged', readFileSync(join(dir, '.wf/state.json'), 'utf8') === beforeBrief);
 	rmSync(dir, { recursive: true, force: true });
 }
 

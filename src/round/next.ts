@@ -261,15 +261,19 @@ export function snapshotOf(toplevel: string): Snapshot {
 	const dir = join(toplevel, state.folder ?? '');
 	const git = (...args: string[]) => execFileSync('git', ['-C', toplevel, ...args], { encoding: 'utf8' }).trim();
 	const branch = git('rev-parse', '--abbrev-ref', 'HEAD');
-	// A base ref that does not resolve leaves the committed range unknown. `runNext` refuses with one
-	// actionable line before this; the snapshot falls back to HEAD so a pure caller still builds.
-	const { base } = resolveRoundBase(toplevel, state);
+	// 2026-10-10: `wf brief` read this snapshot directly and bypassed runNext's base refusal, emitting
+	// a build prompt with the committed range unknown. Both callers must refuse at the shared reader.
+	const { ref, base } = resolveRoundBase(toplevel, state);
+	if (!base) {
+		console.error(`wf next: the round's base \`${ref}\` does not resolve — fetch it, or start the round with \`wf new --base <ref>\``);
+		process.exit(2);
+	}
 	const agreementReview = read(join(dir, AGREEMENT_REVIEW_FILE)) ?? '';
 	// The round's changed files (base→worktree, committed and uncommitted, plus untracked), with the
 	// round's own paperwork removed: what the class measurement reads to see contract work a case does
 	// not name (#111.4).
 	const folderPrefix = (state.folder ?? '').replace(/\\/g, '/').replace(/\/?$/, '/');
-	const filesChanged = [...new Set([...git('diff', '--name-only', base ?? 'HEAD').split('\n'), ...git('ls-files', '--others', '--exclude-standard').split('\n')].map((l) => l.trim()).filter(Boolean))]
+	const filesChanged = [...new Set([...git('diff', '--name-only', base).split('\n'), ...git('ls-files', '--others', '--exclude-standard').split('\n')].map((l) => l.trim()).filter(Boolean))]
 		.filter((f) => !f.startsWith('.wf/') && !(folderPrefix && f.startsWith(folderPrefix)));
 	return {
 		branch,
@@ -307,13 +311,6 @@ export async function runNext() {
 	if (!state?.folder) {
 		console.error('wf next: no round here — run it in the round\'s worktree (wf new <branch> --id <id> makes one)');
 		refuseCaller();
-	}
-	// A base ref that does not resolve leaves the round's committed diff unknown; report one actionable
-	// line instead of a raw git fatal (N-1).
-	const { ref, base } = resolveRoundBase(toplevel, state);
-	if (!base) {
-		console.error(`wf next: the round's base \`${ref}\` does not resolve — fetch it, or start the round with \`wf new --base <ref>\``);
-		process.exit(2);
 	}
 	let { say, effects } = nextAction(snapshotOf(toplevel));
 	for (const e of effects) {
