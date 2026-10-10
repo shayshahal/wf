@@ -157,13 +157,15 @@ const approve = (dir: string, klass: 'B', agreement: string) => {
 	rmSync(dir, { recursive: true, force: true });
 }
 
-// ── a raw `--case` names its file, so the fence and the executed-proof run on the class A alternative
+// ── raw assertion selection never bypasses an explicit ticket table's round scope
 {
 	const { dir } = repo('fix/routeRaw', 'A', null);
+	writeFileSync(join(dir, 'bug-reports/r/TICKET.md'), `${TICKET}\n## Verification\n| # | case | files | check |\n|---|---|---|---|\n| 1 | modal | src/Page.svelte | src/Page.spec.ts::sidebar renders@42 |\n`);
 	writeFileSync(join(dir, '.wf/state.json'), `${JSON.stringify({ wf_version: 2, round: 'r', id: 'r', folder: 'bug-reports/r', base: 'main', step: 'build', class: 'A' })}\n`);
 	writeFileSync(join(dir, 'src/Other.svelte'), 'x\n');
 	const fenced = cli(dir, 'check', '--case', 'src/Page.spec.ts::sidebar renders@42');
-	check('raw --case: a change outside the named file is fenced', fenced.code === 1 && fenced.out.includes('fence: src/Other.svelte'), fenced.out);
+	check('raw --case: a change outside the declared ticket scope is fenced', fenced.code === 1 && fenced.out.includes('fence: src/Other.svelte'), fenced.out);
+	writeFileSync(join(dir, 'bug-reports/r/TICKET.md'), TICKET);
 	// no case at all, a product file changed, no project check: refuse rather than log an empty green
 	writeFileSync(join(dir, '.wf/state.json'), `${JSON.stringify({ wf_version: 2, round: 'r', id: 'r', folder: 'bug-reports/r', base: 'main', step: 'build', class: 'A' })}\n`);
 	const empty = cli(dir, 'check');
@@ -185,8 +187,10 @@ const approve = (dir: string, klass: 'B', agreement: string) => {
 	check('R-1: a committed-only product change with no case refuses (no empty green)', committedOnly.code === 1 && committedOnly.out.includes('COULD NOT RUN'), committedOnly.out);
 	const cline = JSON.parse(readFileSync(join(dir, '.wf/checks.log'), 'utf8').trim().split('\n').at(-1)!);
 	check('R-1: the committed-only refusal is recorded red, not green', cline.result === 'red', JSON.stringify(cline));
+	writeFileSync(join(dir, 'bug-reports/r/TICKET.md'), `${TICKET}\n## Verification\n| # | case | files | check |\n|---|---|---|---|\n| 1 | modal | src/Page.svelte | src/Page.spec.ts::sidebar renders@42 |\n`);
 	const fenceCommitted = cli(dir, 'check', '--case', 'src/Page.spec.ts::sidebar renders@42');
-	check('R-1: a committed product change outside the named case is fenced', fenceCommitted.code === 1 && fenceCommitted.out.includes('fence: src/Committed.svelte'), fenceCommitted.out);
+	check('R-1: raw selection still fences committed changes outside declared ticket scope', fenceCommitted.code === 1 && fenceCommitted.out.includes('fence: src/Committed.svelte'), fenceCommitted.out);
+	writeFileSync(join(dir, 'bug-reports/r/TICKET.md'), TICKET);
 	// N-2: the index differs while the worktree is back at HEAD (a plain `git commit` would commit it)
 	writeFileSync(join(dir, 'src/Committed.svelte'), 'z\n');
 	execFileSync('git', ['-C', dir, '-c', 'user.name=t', '-c', 'user.email=t@t', 'add', 'src/Committed.svelte']);

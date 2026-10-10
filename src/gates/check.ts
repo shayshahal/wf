@@ -547,7 +547,9 @@ export async function runCheck(argv: string[] = []) {
 	}
 	const caseIdx = argv.indexOf('--case');
 	const caseArg = caseIdx >= 0 ? argv[caseIdx + 1] : null;
-	if (caseArg != null) row = /^\d+$/.test(caseArg) ? cases.find((c) => c.n === Number(caseArg)) ?? null : { n: 0, line: '', message: caseArg, files: checkCellTarget(caseArg)?.file ?? '', check: caseArg };
+	// An ordinary raw case binds one assertion to the current implementation, not just its test
+	// file (2026-10-10 review). A declared table still owns the round's scope fence below.
+	if (caseArg != null) row = /^\d+$/.test(caseArg) ? cases.find((c) => c.n === Number(caseArg)) ?? null : { n: 0, line: '', message: caseArg, files: [...changed, checkCellTarget(caseArg)?.file ?? ''].join(' '), check: caseArg };
 	else {
 		const matching = cases.filter((c) => caseFiles(c).some((f) => changed.includes(f)));
 		row = matching.length === 1 ? matching[0] : cases.length === 1 ? cases[0] : null;
