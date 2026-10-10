@@ -1,13 +1,11 @@
 // review-format.ts — the REVIEW-FORMAT.md contract in code, shared by T1 (SPEC-REVIEW.md)
 // and T2 (REVIEW.md): foldFeedbackLine(jsonLine) + renderHeader/renderSkeleton (pure),
-// plus worktree IO helpers (specShaFor, devUrlsFor, appendDatedSection).
-import { createHash } from 'node:crypto';
+// plus worktree IO helpers (devUrlsFor, appendDatedSection).
 import { appendFileSync, existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { relative } from 'node:path';
 import { pageOf, stackUrls } from '../project.ts';
 import type { ContentIdentity } from './content-identity.ts';
 import { basePortForBranch, listWorktrees, slugForBranch, urlLines } from '../worktrees/worktree.ts';
-import { roundFile } from '../round/state.ts';
 
 export const VERDICTS = ['approved', 'changes-requested', 'dismissed'];
 // Plannotator's annotate surface says `approved`; its review surface says `lgtm` (measured 0.27.16,
@@ -362,12 +360,6 @@ export function approvalContentGap(reviewText: string, current: ContentIdentity)
   if (contentSha !== current.worktree) return `the working tree changed after T2 approved it (REVIEW.md: ${contentSha}, this tree: ${current.worktree}) — a product, test or repro change invalidates the approval; re-run \`wf review <round>\` and T2`;
   if (headSha !== current.head && contentSha !== current.head) return `the committed implementation changed after T2 approved it (REVIEW.md: ${headSha}, HEAD: ${current.head}) — deliver pushes HEAD, so a change it carries is not the approved code; re-run \`wf review <round>\` and T2`;
   return null;
-}
-
-export function specShaFor(worktree: string) {
-  const f = roundFile(worktree, 'SPEC.md');
-  if (!existsSync(f)) return null;
-  return `sha256:${createHash('sha256').update(readFileSync(f, 'utf8').replace(/\r\n/g, '\n')).digest('hex')}`;
 }
 
 // The worktree's stack names for the header. A detached worktree has no branch, so return null

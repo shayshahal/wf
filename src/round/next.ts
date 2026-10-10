@@ -17,7 +17,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { refuseCaller } from '../refusal.ts';
 import { addQuestion, blockedQuestion, reviseState } from './ask.ts';
-import { agreementGap, agreementPath, agreementSha, AGREEMENT_REVIEW_FILE, ASSESSMENT_FILE, assessmentGap, assessmentHead, assessmentMaterial, assessmentVerdict, caseFiles, consequential, REVIEW_FILE, verificationCases } from './agreement.ts';
+import { agreementGap, agreementPath, agreementSha, AGREEMENT_REVIEW_FILE, ASSESSMENT_FILE, assessmentGap, assessmentHead, assessmentMaterial, assessmentVerdict, consequential, REVIEW_FILE } from './agreement.ts';
 import { baseBranch, contractPaths as contractPathsFile } from '../project.ts';
 import { lastField, readVerdict } from '../gates/review-format.ts';
 import { seams } from '../seams.ts';
@@ -263,6 +263,3 @@ export async function runNext() {
 	}
 	console.log(say);
 }
-
-// Re-exported so a resume or a status can name the agreement's verification cases.
-export { caseFiles, verificationCases };
