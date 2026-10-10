@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // state.ts — <git-toplevel>/.wf/state.json, the one file a round's commands share.
-// step.ts owns round/class/base/step/waiting_on/since; `wf new --id` adds id + folder;
-// `wf prompt implement N` adds commit (the row `wf check` fences against).
+// step.ts owns wf_version/round/class/base/step/waiting_on/since; `wf new --id` adds id + folder;
+// `wf ask`/`wf decide` own questions/answered/revisions; `wf next` owns repairs.
 // writeState serializes every read-modify-write against the other wf processes on this worktree and
 // replaces the file with one rename; readState tells a missing round (null) from a corrupt one (it
 // throws). See the comments on writeState and CorruptStateError (issue #107).
@@ -38,7 +38,6 @@ export type State = {
 	opened_by?: Record<string, string>;
 	entry?: string;
 	check?: boolean;
-	commit?: number;
 	// How many autonomous repairs an assessment has already sent back to build (#113.3): bounded by
 	// MAX_REPAIRS in next.ts. Reset is not needed — the assessment's `head:` names the tree it judged.
 	repairs?: number;

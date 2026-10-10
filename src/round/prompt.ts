@@ -13,7 +13,7 @@ import { WF_HOME, WF_ROOT } from '../paths.ts';
 import { anchorToolPaths } from '../plugin/anchor.ts';
 import { seams } from '../seams.ts';
 import { basePortForBranch } from '../worktrees/worktree.ts';
-import { agreementFile, agreementPath, AGREEMENT_FILE, ASSESSMENT_FILE, caseFiles, consequential, section, TICKET_FILE, verificationCases } from './agreement.ts';
+import { agreementFile, agreementPath, ASSESSMENT_FILE, caseFiles, consequential, section, TICKET_FILE, verificationCases } from './agreement.ts';
 import { openQuestionGate, overruledAsks, pendingRevisions } from './ask.ts';
 import { guidanceSection, notesFor, readNotes } from './guidance.ts';
 import { readState, roundOf, toplevelOf } from './state.ts';
@@ -60,7 +60,7 @@ export function composePrompt(argv: string[]) {
 	const intent = ticketIntent(ticket);
 	if (!intent) throw new Error(`${phase}: ${folder}/TICKET.md has no \`## Intent\` — the requester's words, verbatim and attributed`);
 	const agreementText = existsSync(agreementPath(toplevel, klass, folder)) ? readFileSync(agreementPath(toplevel, klass, folder), 'utf8') : '';
-	const vars: PromptVars = { round: id, folder, base: state?.base ?? `origin/${baseBranch}`, intent, agreement: agreedMaterial(agreementText, klass) };
+	const vars: PromptVars = { round: id, folder, base: state?.base ?? `origin/${baseBranch}`, intent, agreement: agreedMaterial(agreementText, klass), file: agreementFile(klass) };
 	// The project's direct URLs, {{<app>}}: Node on Windows cannot resolve *.localhost.
 	try {
 		const base = basePortForBranch(execFileSync('git', ['-C', toplevel, 'rev-parse', '--abbrev-ref', 'HEAD'], { encoding: 'utf8' }).trim());
@@ -69,8 +69,6 @@ export function composePrompt(argv: string[]) {
 	let template = readFileSync(join(templatesDir, `${phase}.md`), 'utf8');
 	// agree: the round's name tells the agent which file holds the agreement.
 	if (phase === 'agree') {
-		const file = agreementFile(klass);
-		vars.file = file;
 		const overruled = overruledAsks(state?.answered, undefined);
 		const revisions = pendingRevisions(state?.revisions, undefined);
 		vars.revisions = [...overruled.map((q) => `- q${q.n}: ${q.text}${q.default ? ` (default: ${q.default})` : ''} → ${q.answer}`), ...revisions.map((r) => `- ${r.text}`)].join('\n');
@@ -89,7 +87,7 @@ export function composePrompt(argv: string[]) {
 	// The project's notes for this phase: what its repo, apps and tests look like.
 	const notes = join(WF_ROOT, 'projects', projectName, 'prompts', `${phase}.md`);
 	if (existsSync(notes)) template += `\n${readFileSync(notes, 'utf8')}`;
-	if (phase === 'assess') vars.agreementFile = consequential(klass) ? AGREEMENT_FILE : TICKET_FILE;
+	if (phase === 'assess') vars.agreementFile = vars.file;
 	const wf = `node ${seams.entry.replace(/\\/g, '/')}`;
 	const text = anchorToolPaths(renderPrompt(template, vars).replace(/`wf /g, `\`${wf} `), WF_HOME, projectName)
 		+ guidanceSection(notesFor(readNotes(toplevel, guidance), files));

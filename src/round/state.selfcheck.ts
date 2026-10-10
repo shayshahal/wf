@@ -72,11 +72,11 @@ rmSync(bad, { recursive: true, force: true });
 // ── merge, and the updater that sees the state under the lock
 const dir = tempDir();
 writeState(dir, () => ({ round: 'r', revisions: [rev('a')] }));
-writeState(dir, () => ({ commit: 2 }));
-check('an update keeps the fields it does not return', readState(dir)?.round === 'r' && readState(dir)?.commit === 2);
+writeState(dir, () => ({ repairs: 2 }));
+check('an update keeps the fields it does not return', readState(dir)?.round === 'r' && readState(dir)?.repairs === 2);
 const seen: { state?: State } = {};
 writeState(dir, (s) => { seen.state = s; return { id: 'round-id' }; });
-check('the updater is handed the state as it is on disk', seen.state?.commit === 2 && seen.state?.revisions?.[0]?.text === 'a');
+check('the updater is handed the state as it is on disk', seen.state?.repairs === 2 && seen.state?.revisions?.[0]?.text === 'a');
 check('the fields it returns merge over that state', readState(dir)?.round === 'r' && readState(dir)?.id === 'round-id');
 // The stale copy a caller used to hold: it read early, another write landed, and writing its map back
 // would erase that write. The write shape has no parameter for that copy; an updater is handed the
@@ -92,9 +92,9 @@ rmSync(dir, { recursive: true, force: true });
 // snapshot state-trace compares against, nor smuggle the mutation into the write.
 const mutable = tempDir();
 writeState(mutable, () => ({ round: 'keep', revisions: [rev('a')] }));
-writeState(mutable, (s) => { s.round = 'MUTATED'; (s.revisions as { text: string; at: string }[]).push(rev('z')); return { commit: 5 }; });
+writeState(mutable, (s) => { s.round = 'MUTATED'; (s.revisions as { text: string; at: string }[]).push(rev('z')); return { repairs: 5 }; });
 const kept = readState(mutable)!;
-check('an updater that mutates what it was handed cannot change the write', kept.round === 'keep' && kept.revisions?.length === 1 && kept.commit === 5, JSON.stringify(kept));
+check('an updater that mutates what it was handed cannot change the write', kept.round === 'keep' && kept.revisions?.length === 1 && kept.repairs === 5, JSON.stringify(kept));
 rmSync(mutable, { recursive: true, force: true });
 
 // The old write shape: an object (a copied map) instead of an updater is refused, and the state on

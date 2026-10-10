@@ -36,9 +36,9 @@ const seqOf = (s: State, o?: { progress?: number; msg?: string }) => reportsFor(
 const T2: State = { id: '662', step: 'review', waiting_on: 'user' };
 const MERGED: State = { id: '662', step: 'merged' };
 const HELD: State = { id: '662', step: 'held' };
-const CI: State = { id: '662', step: 'implement', waiting_on: 'ci', commit: 4 };
-const QUESTION: State = { id: '662', step: 'implement', waiting_on: 'einat', questions: [{ n: 3, to: 'einat', text: 'ship it?', asked: '2026-10-08T00:00:00Z' }] };
-const ANSWERED: State = { id: '662', step: 'implement', waiting_on: null, answered: [{ n: 3, to: 'einat', text: 'ship it?', asked: '2026-10-08T00:00:00Z', answer: 'yes', answered: '2026-10-08T01:00:00Z' }] };
+const CI: State = { id: '662', step: 'build', waiting_on: 'ci', repairs: 4 };
+const QUESTION: State = { id: '662', step: 'build', waiting_on: 'einat', questions: [{ n: 3, to: 'einat', text: 'ship it?', asked: '2026-10-08T00:00:00Z' }] };
+const ANSWERED: State = { id: '662', step: 'build', waiting_on: null, answered: [{ n: 3, to: 'einat', text: 'ship it?', asked: '2026-10-08T00:00:00Z', answer: 'yes', answered: '2026-10-08T01:00:00Z' }] };
 
 // The one arm that is about framing: the bytes a T2 gate puts on the wire, whole.
 eq('T2 gate: the exact bytes',
