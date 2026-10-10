@@ -17,7 +17,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { refuseCaller } from '../refusal.ts';
 import { addQuestion, blockedQuestion, reviseState } from './ask.ts';
-import { agreementClass, agreementGap, agreementPath, agreementSha, AGREEMENT_REVIEW_FILE, ASSESSMENT_FILE, assessmentGap, assessmentHead, assessmentMaterial, assessmentVerdict, caseFiles, consequential, REVIEW_FILE, verificationCases } from './agreement.ts';
+import { agreementClass, agreementGap, agreementPath, agreementSha, AGREEMENT_FILE, AGREEMENT_REVIEW_FILE, ASSESSMENT_FILE, assessmentGap, assessmentHead, assessmentMaterial, assessmentVerdict, caseFiles, consequential, REVIEW_FILE, verificationCases } from './agreement.ts';
 import { baseBranch, contractPaths as contractPathsFile } from '../project.ts';
 import { classFromFiles } from '../gates/classify.ts';
 import { lastField, readVerdict } from '../gates/review-format.ts';
@@ -292,7 +292,10 @@ export function snapshotOf(toplevel: string): Snapshot {
 		head: git('rev-parse', 'HEAD'),
 		suites: lastSuites(checksLog),
 		files: {
-			agreement: read(agreementPath(toplevel, state.class ?? null, state.folder ?? null)),
+			// The agreement is AGREEMENT.md when the working session wrote one (it decided the work is
+			// consequential), else the class A ticket. Reading it here is what lets `wf next` measure the
+			// declared `Class:` and the case files before the stored class catches up (#111.4).
+			agreement: read(join(dir, AGREEMENT_FILE)) ?? read(agreementPath(toplevel, state.class ?? null, state.folder ?? null)),
 			assessment: read(join(dir, ASSESSMENT_FILE)),
 			review: read(join(dir, REVIEW_FILE)),
 			blocked: read(join(dir, 'BLOCKED.md')),
