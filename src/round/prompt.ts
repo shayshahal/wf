@@ -63,6 +63,12 @@ export function composePrompt(argv: string[]) {
 	if (!intent) throw new Error(`${phase}: ${folder}/TICKET.md has no \`## Intent\` — the requester's words, verbatim and attributed`);
 	const agreementText = existsSync(agreementPath(toplevel, klass, folder)) ? readFileSync(agreementPath(toplevel, klass, folder), 'utf8') : '';
 	const vars: PromptVars = { round: id, folder, base: state?.base ?? `origin/${baseBranch}`, intent, agreement: agreedMaterial(agreementText, klass), file: agreementFile(klass), assessment: '' };
+	if (phase === 'build' || phase === 'assess') {
+		// 2026-10-10 review: assessment rulings live in state, not the agreement's Decisions. Project
+		// their exact question, source and answer into both workers; a new HEAD does not erase direction.
+		const rulings = (state?.answered ?? []).filter((q) => q.source?.startsWith('ASSESSMENT.md#') && q.answer != null);
+		if (rulings.length) vars.agreement += `\n\n## Recorded assessment rulings\n\n${rulings.map((q) => `- q${q.n} (${q.source}): ${q.text}\n  ${q.to}: ${q.answer}`).join('\n')}`;
+	}
 	// The project's direct URLs, {{<app>}}: Node on Windows cannot resolve *.localhost.
 	try {
 		const base = basePortForBranch(execFileSync('git', ['-C', toplevel, 'rev-parse', '--abbrev-ref', 'HEAD'], { encoding: 'utf8' }).trim());

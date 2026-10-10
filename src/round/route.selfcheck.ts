@@ -132,6 +132,13 @@ const approve = (dir: string, klass: 'B', agreement: string) => {
 	writeFileSync(join(dir, 'bug-reports/r/ASSESSMENT.md'), assess('blocked', '- "x": not met: the modal still jumps').replace('## Intent', 'blocker: the required account is unavailable; the owner must grant access\n## Intent'));
 	const blocked = cli(dir, 'next');
 	check('assessment: a genuine blocker asks one contextual ruling, never T2', blocked.out.includes('fix or accept:') && blocked.out.includes('owner must grant access') && state(dir).step === 'assess' && (state(dir).questions ?? []).length === 1, blocked.out);
+	const correction = 'fix: preserve DIAMOND_SIDEBAR and change only value(); use the existing account';
+	cli(dir, 'decide', '--q', '1', correction);
+	const ruled = cli(dir, 'next');
+	const brief = cli(dir, 'brief', 'build');
+	check('assessment ruling: the fresh build receives the exact correction and original blocker context', ruled.out.includes('dispatch build') && brief.code === 0 && brief.out.includes(correction) && brief.out.includes('owner must grant access') && brief.out.includes('ASSESSMENT.md#'), brief.out);
+	const assessPrompt = cli(dir, 'prompt', 'assess');
+	check('assessment ruling: the independent assessor receives the same recorded direction', assessPrompt.code === 0 && assessPrompt.out.includes(correction) && assessPrompt.out.includes('ASSESSMENT.md#'), assessPrompt.out);
 	rmSync(dir, { recursive: true, force: true });
 }
 
