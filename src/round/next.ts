@@ -253,9 +253,9 @@ export async function runNext() {
 		if (e.step) await runStep(e.step, { quiet: true });
 		// A repair attempt is counted against the assessment it answered; the assessment's own `head:`
 		// makes a stale count harmless (the next assessment is of a new HEAD).
-		else if (e.repair) writeState(toplevel, (s) => ({ repairs: (s.repairs ?? 0) + 1 }));
-		else if (e.revise !== undefined) { const text = e.revise; writeState(toplevel, (state) => reviseState(state, text)); }
-		else writeState(toplevel, (state) => addQuestion(state, e.ask!));
+		if (e.repair) writeState(toplevel, (s) => ({ repairs: (s.repairs ?? 0) + 1 }));
+		if (e.revise !== undefined) { const text = e.revise; writeState(toplevel, (state) => reviseState(state, text)); }
+		if (e.ask) writeState(toplevel, (state) => addQuestion(state, e.ask!));
 	}
 	if (effects.some((e) => e.ask)) {
 		await notifyAdapters(readState(toplevel)!);
