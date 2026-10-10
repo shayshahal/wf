@@ -22,6 +22,8 @@ verification case passes and you run `wf step assess`.
 - Run `wf check` (or `wf check --case "<path>::<test id>@<line>"` on a class A round). It refuses
   edits outside the round, protected-test changes, and a verification that does not really execute
   the named assertion. A green run is not proof that a specific assertion line ran.
+- Run `wf check --suites` on the committed HEAD: the whole suites the round's diff reaches, so a test
+  no case touched cannot break unseen. The assessment reads its result from `.wf/checks.log`.
 - When every case passes and the tree is committed, run `wf step assess`.
 
 {{assessment}}
