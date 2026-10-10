@@ -227,6 +227,20 @@ const approve = (dir: string, klass: 'B', agreement: string) => {
 	rmSync(dir, { recursive: true, force: true });
 }
 
+// ── class measurement sees the index too: a restored worktree must not hide a contract edit
+{
+	const { dir, git } = repo('fix/routeIndexClass', 'A', null);
+	writeFileSync(join(dir, '.wf/state.json'), `${JSON.stringify({ wf_version: 2, round: 'r', id: 'r', folder: 'bug-reports/r', base: 'main', step: 'build', class: 'A' })}\n`);
+	mkdirSync(join(dir, 'docs/agents'), { recursive: true });
+	writeFileSync(join(dir, 'docs/agents/contract-paths.txt'), 'src/**\n');
+	writeFileSync(join(dir, 'src/Page.svelte'), 'changed contract\n');
+	git('add', 'src/Page.svelte');
+	git('restore', '--source=HEAD', '--worktree', '--', 'src/Page.svelte');
+	const measured = cli(dir, 'next');
+	check('class measured: an index-only contract edit upgrades A to B before build dispatch', measured.code === 0 && state(dir).class === 'B' && !measured.out.includes('dispatch build'), measured.out);
+	rmSync(dir, { recursive: true, force: true });
+}
+
 // ── an answered BLOCKED.md resumes the build once; the same answer never loops
 {
 	const { dir } = repo('fix/routeBlk', 'A', null);

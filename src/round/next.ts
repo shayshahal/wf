@@ -20,6 +20,7 @@ import { addQuestion, blockedQuestion, openRevisions } from './ask.ts';
 import { agreementClass, agreementGap, agreementPath, agreementSha, AGREEMENT_FILE, AGREEMENT_REVIEW_FILE, ASSESSMENT_FILE, assessmentGap, assessmentHead, assessmentMaterial, assessmentVerdict, caseFiles, consequential, REVIEW_FILE, verificationCases } from './agreement.ts';
 import { baseBranch, contractPaths as contractPathsFile } from '../project.ts';
 import { classFromFiles } from '../gates/classify.ts';
+import { changedFiles } from '../gates/check.ts';
 import { lastField, readVerdict } from '../gates/review-format.ts';
 import { seams } from '../seams.ts';
 import { modelFor } from '../models.ts';
@@ -269,11 +270,11 @@ export function snapshotOf(toplevel: string): Snapshot {
 		process.exit(2);
 	}
 	const agreementReview = read(join(dir, AGREEMENT_REVIEW_FILE)) ?? '';
-	// The round's changed files (base→worktree, committed and uncommitted, plus untracked), with the
-	// round's own paperwork removed: what the class measurement reads to see contract work a case does
-	// not name (#111.4).
+	// 2026-10-10: worktree-vs-base missed an index-only contract edit restored in the worktree. Use
+	// the check fence's committed + worktree + index + untracked set, so class and scope see the same
+	// work (#111.4); only the round's own paperwork is removed for class measurement.
 	const folderPrefix = (state.folder ?? '').replace(/\\/g, '/').replace(/\/?$/, '/');
-	const filesChanged = [...new Set([...git('diff', '--name-only', base).split('\n'), ...git('ls-files', '--others', '--exclude-standard').split('\n')].map((l) => l.trim()).filter(Boolean))]
+	const filesChanged = changedFiles(toplevel, base)
 		.filter((f) => !f.startsWith('.wf/') && !(folderPrefix && f.startsWith(folderPrefix)));
 	return {
 		branch,
