@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { plug } from '../seams.ts';
-import { allLines, collectRows, formatRow, liveRounds, prLabel, formatAgeSince, processesIn, realDetailFor } from './status.ts';
+import { allLines, collectRows, formatRow, liveRounds, prLabel, formatAgeSince, processesIn, realDetailFor, inspectRound, porcelainEntries, lastEvidence, formatInspect } from './status.ts';
 import type { Question, State } from './state.ts';
 
 let failures = 0;
@@ -97,6 +97,31 @@ check('procs: the worktree and below, from a process block, with backslashes and
 check('procs: a sibling whose name starts the same is not inside', processesIn('C:/Users/S/wt/fix-ab', cwds, true) === 1);
 check('procs: case-blind on Windows only', processesIn('c:/users/s/wt/fix-a', cwds, true) === 2 && processesIn('c:/users/s/wt/fix-a', cwds, false) === 0);
 check('procs: shown in the row when counted, absent when not', formatRow({ path: 'p', state: null, pr: '-', stack: null, processes: 3 }).endsWith(' · 3 procs') && !formatRow({ path: 'p', state: null, pr: '-', stack: null }).includes('procs'));
+
+// The inspect block (#114): the in-flight diff, evidence, facts and references, from injected git.
+const ir = join(root, 'wt-inspect');
+const irFolder = join(ir, 'bug-reports', 'BJEW-9');
+mkdirSync(join(ir, '.wf'), { recursive: true });
+mkdirSync(irFolder, { recursive: true });
+writeFileSync(join(irFolder, 'AGREEMENT.md'), '# a\n\n## Observed\n- x at `a.ts:1`\n\n## Agreed\n- do it\n\n## Verification\n| # | case | files | check |\n|---|---|---|---|\n| 1 | a | b | c |\n');
+writeFileSync(join(irFolder, 'ASSESSMENT.md'), 'Verdict: repair\nhead: abcd1234\n\n## Intent\nmet: before: 1 after: 2\n');
+writeFileSync(join(irFolder, 'AGREEMENT-REVIEW.md'), 'agreement-sha: deadbeef\n\nverdict: approved\n');
+writeFileSync(join(irFolder, 'option-a.html'), '<p>x</p>\n');
+writeFileSync(join(ir, '.wf', 'checks.log'), '{"row":1,"result":"red"}\nnot json\n{"row":3,"result":"green","content":"run 3"}\n');
+const irState: State = { wf_version: 2, class: 'B', folder: 'bug-reports/BJEW-9', step: 'build', base: 'dev', questions: [{ n: 1, to: 'user', text: 'hide or delete?', asked: '2026-10-10T00:00:00Z' }], session: { harness: 'pi', id: 'sess-1234567890', transcript: 'C:/t/s.jsonl', step: 'build', at: '2026-10-10T01:00:00Z' }, decisions: [{ text: 'keep it', at: '2026-10-10T00:30:00Z' }] };
+const gitFake = (args: string[]) => args[0] === 'status' ? ' M packages/x.ts\n?? bug-reports/BJEW-9/new.md\n' : ' packages/x.ts | 5 +++--\n 2 files changed, 5 insertions(+), 2 deletions(-)\n';
+check('porcelain: staged/unstaged/untracked and a rename\'s new path', JSON.stringify(porcelainEntries('M  a.ts\n M b.ts\n?? c.ts\nR  old.ts -> new.ts\n')) === JSON.stringify([{ status: 'M', path: 'a.ts' }, { status: 'M', path: 'b.ts' }, { status: '??', path: 'c.ts' }, { status: 'R', path: 'new.ts' }]));
+check('last evidence skips a line cut mid-write', JSON.stringify(lastEvidence('{"row":1,"result":"red"}\nnot json\n')) === JSON.stringify({ row: 1, result: 'red' }));
+const insp = inspectRound({ path: ir, state: irState, git: gitFake, guidance: ['docs/agents'], wfRoot: '/wf' });
+check('inspect names the agreement for the class', insp.agreement.file === 'bug-reports/BJEW-9/AGREEMENT.md' && insp.agreement.exists && !!insp.agreement.sha, JSON.stringify(insp.agreement));
+check('inspect lists the in-flight diff (staged, unstaged, untracked)', insp.diff.files.map((f) => `${f.status} ${f.path}`).join() === 'M packages/x.ts,?? bug-reports/BJEW-9/new.md', JSON.stringify(insp.diff.files));
+check('inspect carries the diff stat summary', (insp.diff.stat ?? '').includes('2 files changed'), String(insp.diff.stat));
+check('inspect reads the latest check evidence', insp.evidence?.row === 3 && insp.evidence?.result === 'green' && insp.evidence?.content === 'run 3', JSON.stringify(insp.evidence));
+check('inspect facts: assessment verdict + head, T1, questions, decisions', insp.facts.assessment?.verdict === 'repair' && insp.facts.assessment?.head === 'abcd1234' && insp.facts.t1.verdict === 'approved' && insp.facts.questions[0]?.n === 1 && insp.facts.decisions[0]?.text === 'keep it', JSON.stringify(insp.facts));
+check('inspect says blocked only when BLOCKED.md is there', insp.facts.blocked === false && (writeFileSync(join(irFolder, 'BLOCKED.md'), 'Question: x\n'), inspectRound({ path: ir, state: irState, git: gitFake }).facts.blocked === true));
+check('inspect references the session, artifacts and guidance', insp.refs.session?.id === 'sess-1234567890' && insp.refs.artifacts.includes('option-a.html') && insp.refs.guidance.includes('docs/agents') && insp.refs.guidance.some((g) => g.endsWith('ROUND.md')), JSON.stringify(insp.refs));
+check('inspect survives git that cannot read the worktree', inspectRound({ path: ir, state: irState, git: () => { throw new Error('no git'); } }).diff.files.length === 0);
+check('the inspect block names the agreement, diff, evidence, facts and refs', ['agreement:', 'diff:', 'evidence:', 'facts:', 'refs:'].every((k) => formatInspect(insp).includes(`  ${k}`)), formatInspect(insp));
 rmSync(root, { recursive: true, force: true });
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');
 process.exit(failures ? 1 : 0);

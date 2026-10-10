@@ -9,7 +9,6 @@ import { WF_ROOT } from './paths.ts';
 import { CLAUDE_CODE_MODELS } from './models.ts';
 import type { Models } from './models.ts';
 import type { ReviewFeedback } from './gates/review-format.ts';
-import type { State } from './round/state.ts';
 
 // One step `wf reap` runs: a command, a folder removed in-process, or a function run in-process
 // (its arguments never pass through the shell).
@@ -36,7 +35,6 @@ export type Seams = {
 	createWorktree: ((o: { branch: string; base: string; log: string }) => Worktree | Promise<Worktree>) | null;
 	removalPlan: ((o: { branch: string; path: string; slug: string; pid: number }) => RemovalStep[] | Promise<RemovalStep[]>) | null;
 	reviewUI: ReviewUI | null;
-	notify: ((state: State) => unknown)[];
 	commands: Record<string, Command>;
 	models: Models;
 	resolveModel: ((model: string) => string | null) | null;
@@ -62,8 +60,6 @@ export const seams: Seams = {
 	// { available(), annotate({ worktree, file, since }), reviewDiff({ worktree, base, diffType, since }) }
 	// → the one feedback line T1/T2 fold, or null. Without one, T1/T2 open the file in an editor.
 	reviewUI: null,
-	// (state) => void, after every `wf step`; best effort, a failing one never fails the command.
-	notify: [],
 	// wf subcommands the env adds: name → (argv) => void.
 	commands: {},
 	// The model each effort level runs on (models.ts): what `wf next` names in a dispatch, and what

@@ -1,6 +1,6 @@
 // run.ts — the dispatcher: run(argv, pieces). wf.mjs calls it with the kit's defaults, an env's
 // entry with its own pieces plugged into the seams (seams.ts).
-// Commands: next, brief, step, status, new, serve, check, standards, models, classify, design + review
+// Commands: next, brief, step, status, new, serve, check, models, classify, agree + review
 // (human touchpoints), the project's own (project.ts commands: JewelryX's seed, show) and the env's.
 import { plug, seams } from './seams.ts';
 import type { Command, Seams } from './seams.ts';

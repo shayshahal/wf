@@ -1,20 +1,24 @@
 #!/usr/bin/env node
-// status.ts — wf status [--json]: one table row per git worktree:
+// status.ts — wf status [--json|--inspect]: one table row per git worktree:
 // round · class · step · waiting_on · age · PR#/state · stack <url>|:port ✓|✗. waiting_on=shay first, marked ← YOU.
+// `--inspect` adds, for each round, what is on it now (#114): the agreement, the in-flight diff
+// (staged + unstaged + untracked), the last check evidence, the facts and the session/artifact refs.
 // `wf status --all` is the morning screen instead: every worktree that holds a round,
 // one line each, grouped waiting on you / running / held. No LLM, no network but `gh pr view`.
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { questionLines } from './ask.ts';
-import { agreementPath, verificationCases } from './agreement.ts';
+import { agreementFile, agreementPath, agreementSha, AGREEMENT_REVIEW_FILE, ASSESSMENT_FILE, assessmentHead, assessmentVerdict, verificationCases } from './agreement.ts';
 import { seams } from '../seams.ts';
-import { stackUrls } from '../project.ts';
+import { lastField, readVerdict } from '../gates/review-format.ts';
+import { WF_ROOT } from '../paths.ts';
+import { guidance as guidanceDir, name as projectName, stackUrls } from '../project.ts';
 import { basePortForBranch, listWorktrees, portsAndSlugsForBranches, slugForBranch } from '../worktrees/worktree.ts';
 import type { State } from './state.ts';
 
 export type PullRequest = { headRefName: string; number: number; isDraft: boolean; reviewDecision: string | null; statusCheckRollup: { conclusion?: string; state?: string; status?: string }[] | null };
-export type StatusRow = { path: string; state: State | null; pr: string; stack: { port: number; up: boolean; name: string | null } | null; processes?: number };
+export type StatusRow = { path: string; state: State | null; pr: string; stack: { port: number; up: boolean; name: string | null } | null; processes?: number; inspect?: RoundInspect };
 type ReadState = (path: string) => State | null;
 type DetailFor = (path: string, state: State) => string | null | undefined;
 type BasePortFor = (branch: string) => number | Promise<number>;
@@ -134,6 +138,103 @@ export function formatRow(r: StatusRow, now = Date.now()): string {
   return `${s.round} · ${s.class ?? '—'} · ${s.step} · ${s.waiting_on ?? '—'} · ${formatAgeSince(s.since, now)} · ${r.pr}${stack}${you}`;
 }
 
+// ── what is on the round now: the inspect block ──────────────────────────────
+// The round's own work, discoverable during implementation (`wf status --inspect`, #114): the working
+// agreement, the in-flight diff (staged, unstaged and untracked — what the build has now, not only
+// what it committed), the last check evidence, the recorded facts (assessment, blocked, questions,
+// T1) and references to the session/artifacts/guidance. References, never copies: the agreement file
+// and the session are named, not reproduced (DIRECTION, records). Pure: `git` is injected.
+type GitRun = (args: string[]) => string;
+export type PorcelainEntry = { status: string; path: string };
+export type RoundInspect = {
+  agreement: { file: string; sha: string | null; exists: boolean };
+  diff: { base: string | null; stat: string | null; files: PorcelainEntry[] };
+  evidence: { row: string | number | null; result: string; content?: string } | null;
+  facts: {
+    assessment: { verdict: string | null; head: string | null } | null;
+    blocked: boolean;
+    questions: { n: number; to: string; text: string }[];
+    t1: { sha: string | null; reviewed: string | null; verdict: string | null };
+    decisions: { text: string; at: string }[];
+  };
+  refs: { session: State['session'] | null; artifacts: string[]; guidance: string[] };
+};
+
+// Pure: `git status --porcelain` as entries. The first two columns are the index and worktree codes
+// (`M ` staged, ` M` unstaged, `MM` both, `??` untracked, `R ` renamed), so one list is the whole
+// in-flight change, committed or not. A rename lists `old -> new`; the new path is the file.
+export function porcelainEntries(out: string): PorcelainEntry[] {
+  return out.split('\n').filter((l) => l.length > 2).map((l) => {
+    const status = l.slice(0, 2).trim() || '??';
+    const rest = l.slice(3);
+    const arrow = rest.indexOf(' -> ');
+    const path = (arrow === -1 ? rest : rest.slice(arrow + 4)).replace(/^"|"$/g, '').trim();
+    return { status, path };
+  });
+}
+
+// Pure: the trailing summary line of `git diff --stat`, or null when there is no diff.
+export const lastStatLine = (out: string): string | null => out.split('\n').map((s) => s.trim()).filter(Boolean).at(-1) ?? null;
+
+// Pure: the last check a round ran — every checks.log line but the whole-suite measurement, which is
+// not a case (`friction.ts`). Reads the last parsed line, so a line cut off mid-write is skipped.
+export function lastEvidence(checksLog: string): RoundInspect['evidence'] {
+  for (const line of checksLog.split('\n').reverse()) {
+    if (!line.trim()) continue;
+    try {
+      const c = JSON.parse(line) as { row?: string | number | null; result?: unknown; content?: unknown };
+      return { row: c.row ?? null, result: String(c.result ?? ''), ...(c.content ? { content: String(c.content) } : {}) };
+    } catch { /* a line cut off mid-write: skipped, the earlier one is the round's */ }
+  }
+  return null;
+}
+
+export function inspectRound({ path, state, git, guidance = [], wfRoot = WF_ROOT }: { path: string; state: State; git: GitRun; guidance?: string[]; wfRoot?: string }): RoundInspect {
+  const klass = state.class ?? null;
+  const folder = state.folder ?? '';
+  const agreementName = agreementFile(klass);
+  const agreement = { file: [folder, agreementName].filter(Boolean).join('/'), sha: agreementSha(path, klass, state.folder ?? null), exists: existsSync(agreementPath(path, klass, state.folder ?? null)) };
+  const base = state.base ?? null;
+  let diff: RoundInspect['diff'] = { base, stat: null, files: [] };
+  try {
+    diff = { base, stat: lastStatLine(git(['diff', '--stat', base ?? 'HEAD'])), files: porcelainEntries(git(['status', '--porcelain'])) };
+  } catch { /* git cannot read this worktree: the facts and references below are still the round's */ }
+  const checksLog = (() => { try { return readFileSync(join(path, '.wf', 'checks.log'), 'utf8'); } catch { /* no checks run here: the inspect block says evidence: none */ return ''; } })();
+  const assessmentText = (() => { try { return readFileSync(join(path, folder, ASSESSMENT_FILE), 'utf8'); } catch { /* no assessment yet: facts.assessment is null */ return null; } })();
+  const reviewText = (() => { try { return readFileSync(join(path, folder, AGREEMENT_REVIEW_FILE), 'utf8'); } catch { /* T1 has not run: its fields read as null */ return null; } })();
+  const artifacts = (() => { try { return readdirSync(join(path, folder)).filter((f) => f.endsWith('.html')).sort(); } catch { /* no round folder (or none of it readable): no artifacts to reference */ return []; } })();
+  return {
+    agreement,
+    diff,
+    evidence: lastEvidence(checksLog),
+    facts: {
+      assessment: assessmentText ? { verdict: assessmentVerdict(assessmentText), head: assessmentHead(assessmentText) } : null,
+      blocked: existsSync(join(path, folder, 'BLOCKED.md')),
+      questions: (state.questions ?? []).map((q) => ({ n: q.n, to: q.to, text: q.text })),
+      t1: { sha: agreement.sha, reviewed: lastField(reviewText ?? '', 'agreement-sha'), verdict: readVerdict(reviewText ?? '') },
+      decisions: state.decisions ?? [],
+    },
+    refs: { session: state.session ?? null, artifacts, guidance: [...guidance, join(wfRoot, 'projects', projectName, 'ROUND.md')] },
+  };
+}
+
+// Pure: the inspect block for a person. One line per fact, references as paths.
+export function formatInspect(i: RoundInspect): string {
+  const out: string[] = [];
+  out.push(`  agreement: ${i.agreement.file}${i.agreement.exists ? '' : ' (absent)'}${i.agreement.sha ? ` · sha ${i.agreement.sha.slice(0, 12)}` : ''}`);
+  const changes = i.diff.files.map((f) => `${f.status} ${f.path}`);
+  out.push(`  diff: ${i.diff.files.length} entr${i.diff.files.length === 1 ? 'y' : 'ies'} vs ${i.diff.base ?? 'HEAD'}${changes.length ? '' : ' (clean)'}`);
+  for (const c of changes.slice(0, 20)) out.push(`      ${c}`);
+  if (changes.length > 20) out.push(`      … ${changes.length - 20} more`);
+  if (i.diff.stat) out.push(`      ${i.diff.stat}`);
+  out.push(`  evidence: ${i.evidence ? `row ${i.evidence.row ?? '?'} ${i.evidence.result}${i.evidence.content ? ` · ${i.evidence.content}` : ''}` : 'none'}`);
+  const a = i.facts.assessment;
+  out.push(`  facts: ${a ? `assessment ${a.verdict ?? '?'} (head ${a.head ? a.head.slice(0, 10) : '?'})` : 'no assessment'}${i.facts.blocked ? ' · blocked' : ''} · ${i.facts.questions.length} open question${i.facts.questions.length === 1 ? '' : 's'}${i.facts.t1.reviewed ? ` · T1 ${i.facts.t1.verdict ?? 'pending'}` : ''}`);
+  const s = i.refs.session;
+  out.push(`  refs: session ${s ? `${s.harness} ${s.id.slice(0, 12)}${s.transcript ? ` (${s.transcript})` : ''} at ${s.step ?? '?'}` : 'none'} · ${i.refs.artifacts.length} artifact${i.refs.artifacts.length === 1 ? '' : 's'} · guidance ${i.refs.guidance.join(', ')}`);
+  return out.join('\n');
+}
+
 // 1-second HEAD probe of the server on the worktree's base port. Any answer (even 5xx) is up; only refusal/timeout is down.
 export async function realProbeStack(port: number): Promise<boolean> {
   try {
@@ -186,7 +287,7 @@ export function realDetailFor(path: string, state: State): string {
   return '';
 }
 
-export async function runStatus(argv: string[], inject: { paths?: string[]; readState?: ReadState; detailFor?: DetailFor; now?: number; pullRequests?: PullRequest[]; basePortFor?: BasePortFor; probeStack?: ProbeStack; slugFor?: SlugFor; cwds?: string[] | null } = {}): Promise<void> {
+export async function runStatus(argv: string[], inject: { paths?: string[]; readState?: ReadState; detailFor?: DetailFor; now?: number; pullRequests?: PullRequest[]; basePortFor?: BasePortFor; probeStack?: ProbeStack; slugFor?: SlugFor; cwds?: string[] | null; git?: (path: string, args: string[]) => string } = {}): Promise<void> {
   const paths = inject.paths ?? realWorktrees();
   if (argv.includes('--all')) {
     const lines = allLines({ paths, readState: inject.readState ?? realReadState, detailFor: inject.detailFor ?? realDetailFor, now: inject.now ?? Date.now() });
@@ -208,6 +309,11 @@ export async function runStatus(argv: string[], inject: { paths?: string[]; read
   });
   const cwds = inject.cwds !== undefined ? inject.cwds : seams.processCwds?.() ?? null;
   if (cwds) for (const r of rows) r.processes = processesIn(r.path, cwds);
+  if (argv.includes('--inspect')) {
+    const git = inject.git ?? ((path: string, args: string[]) => execFileSync('git', ['-C', path, ...args], { encoding: 'utf8' }));
+    const guidance = [guidanceDir, 'AGENTS.md'];
+    for (const r of rows) if (r.state) r.inspect = inspectRound({ path: r.path, state: r.state, git: (args) => git(r.path, args), guidance });
+  }
   if (argv.includes('--json')) console.log(JSON.stringify(rows, null, 2));
-  else for (const r of rows) console.log(formatRow(r, inject.now));
+  else for (const r of rows) console.log(argv.includes('--inspect') && r.inspect ? `${formatRow(r, inject.now)}\n${formatInspect(r.inspect)}` : formatRow(r, inject.now));
 }

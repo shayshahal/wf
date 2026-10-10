@@ -33,6 +33,10 @@ export type State = {
 	made_by?: string;
 	// Who opened the worktree (seams.opener, at `wf new`), so a tool beside wf can show which agent it belongs to.
 	opened_by?: Record<string, string>;
+	// The harness session working this round now, as a reference (round/session.ts): recorded when a
+	// phase reads its brief or a Claude hook fires, so a resumed session picks the work up without a
+	// hand-typed transcript path. A reference, never the transcript's content.
+	session?: { harness: string; id: string; transcript: string | null; step: string | null; at: string };
 	entry?: string;
 	check?: boolean;
 	// How many autonomous repairs an assessment has already sent back to build (#113.3): bounded by
@@ -52,6 +56,10 @@ export type State = {
 	// The BLOCKED.md question whose `## Answer` a build has already resumed from, so a build that comes
 	// back still blocked asks the person again instead of looping (next.ts).
 	blocked_answered?: number;
+	// Local corrections `wf decide` recorded where the build reads them (the agreement's
+	// `## Decisions`): the round's explicit fact, so a resumed build's brief carries them without a
+	// renewed agreement (#114). A correction that changes agreed behavior is `revisions` instead.
+	decisions?: { text: string; at: string }[];
 	last_question?: number;
 	// The agreement material sha whose project T2 setup `wf show` already ran.
 	t2_setup?: string;

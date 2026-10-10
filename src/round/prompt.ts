@@ -63,6 +63,10 @@ export function composePrompt(argv: string[]) {
 	if (!intent) throw new Error(`${phase}: ${folder}/TICKET.md has no \`## Intent\` — the requester's words, verbatim and attributed`);
 	const agreementText = existsSync(agreementPath(toplevel, klass, folder)) ? readFileSync(agreementPath(toplevel, klass, folder), 'utf8') : '';
 	const vars: PromptVars = { round: id, folder, base: state?.base ?? `origin/${baseBranch}`, intent, agreement: agreedMaterial(agreementText, klass), file: agreementFile(klass), assessment: '' };
+	// Owner feedback `wf decide` recorded in the agreement's `## Decisions`: it reaches the build and
+	// the assessment as context, so a local correction does not need a renewed agreement or T1 (#114).
+	const decisions = (section(agreementText, 'Decisions') ?? '').trim();
+	vars.decisions = decisions ? `\n## Decisions (owner feedback)\n\nAnswers this round's person gave through \`wf decide\`. They rank beside the agreed material, not below it.\n\n${decisions}\n` : '';
 	// The project's direct URLs, {{<app>}}: Node on Windows cannot resolve *.localhost.
 	try {
 		const base = basePortForBranch(execFileSync('git', ['-C', toplevel, 'rev-parse', '--abbrev-ref', 'HEAD'], { encoding: 'utf8' }).trim());

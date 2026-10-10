@@ -12,9 +12,13 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { agreementGap, agreementPath, ASSESSMENT_FILE, assessmentGap, consequential, section } from './agreement.ts';
 import { CorruptStateError, legacyStateGap, readState, writeState } from './state.ts';
+import { hookSession, recordSession } from './session.ts';
 import type { State } from './state.ts';
 
-type HookInput = { cwd?: string; stop_hook_active?: boolean; agent_type?: string; hook_event_name?: string; tool_input?: { subagent_type?: string } };
+// Everything the hook contract hands us that wf reads. `session_id`/`transcript_path` are the session's
+// own reference (Claude Code 2.1.132): recorded so a round can be resumed in the session that ran it,
+// and dropped for nothing else — the metadata travels with the hook, wf keeps only the reference.
+type HookInput = { cwd?: string; session_id?: string; transcript_path?: string; stop_hook_active?: boolean; agent_type?: string; hook_event_name?: string; tool_input?: { subagent_type?: string } };
 
 // Pure: null when the round-worker may end, else what its phase still owes. Keyed on the round's step,
 // which is the phase it is at; the sent-back marker holds it to one hand-back per *visit* to the step
@@ -76,6 +80,9 @@ export async function runHandoff(argv: string[]): Promise<void> {
 		return;
 	}
 	if (!toplevel) return;
+	// The Claude session that is running this round, as a fact beside the step: a resumed session (or
+	// the person) can find it again. A host without `session_id` records nothing, never a guess.
+	recordSession(toplevel, hookSession(input), readState(toplevel)?.step ?? null);
 	if (argv[0] === 'check') {
 		// Once per step: a second hand-back or stop goes through, and wf next redispatches (a hook loop
 		// would burn the agent).
