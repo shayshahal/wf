@@ -10,7 +10,7 @@
 //             edits the repro runs it too, and it must be red: that run is the round's before-the-fix
 //             measurement, its output kept in checks.log (TJEW-670: the repro was fixed in a row
 //             checked `—`, and two of four subitems never had a red run)
-//   red-base — the case's own test, run with the change taken back to HEAD: it must fail on the
+//   red-base — the case's own test, run with the change taken back to the round base: it must fail on the
 //             framework assertion at the origin the case's check cell names (`path::test id@<line>`),
 //             or the test cannot show the defect it claims to prove (a test that passes with and
 //             without the fix is not proof, process/PRACTICES.md). An exit code is not that proof, and
@@ -42,8 +42,8 @@
 // that, never the commit message: "the check was run"
 // is then observed, not claimed (llm-as-a-verifier: trust observed output, not narration).
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
-import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync } from 'node:fs';
-import { basename, join } from 'node:path';
+import { appendFileSync, cpSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { basename, dirname, join } from 'node:path';
 import { baseBranch, checks, redBaseEvidence, reproFailure, suites } from '../project.ts';
 import { caseFiles, verificationCases } from '../round/agreement.ts';
 import { agreementPath } from '../round/agreement.ts';
@@ -169,7 +169,7 @@ export function targetGap(target: CheckTarget | null): string | null {
 	return null;
 }
 
-// Pure: the files the red-base run takes back to HEAD — the row's changed files without the test the
+// Pure: the files the red-base run takes back to the round base — the row's changed files without the test the
 // row names (it stays, so it runs against the tree without the fix) and without the round's own
 // paperwork. Empty when the row only edits its test: there is no fix to take away.
 export function redBaseFiles({ changed, row, folder, testPath }: { changed: string[]; row: Pick<VerificationCase, 'files'> | null; folder: string | null; testPath: string }): string[] {
@@ -179,7 +179,7 @@ export function redBaseFiles({ changed, row, folder, testPath }: { changed: stri
 }
 
 // Pure: the row's red-base run — the project's task that carries the row's own test, and the files
-// to take back to HEAD for it — or null when the row has no test task, or only its test to revert.
+// to take back to the round base for it — or null when the row has no test task, or only its test to revert.
 export function redBaseRun({ tasks, changed, row, folder }: { tasks: CheckTask[]; changed: string[]; row: Pick<VerificationCase, 'files' | 'check'> | null; folder: string | null }): { task: CheckTask; revert: string[] } | null {
 	const task = tasks.find((t) => t.redBase && !t.missing);
 	if (!task) return null;
@@ -187,22 +187,72 @@ export function redBaseRun({ tasks, changed, row, folder }: { tasks: CheckTask[]
 	return revert.length ? { task, revert } : null;
 }
 
-// Runs `run()` with `paths` back at HEAD, then puts them back. `git stash push` is the one command
-// that both restores HEAD and keeps the working change — tracked or new, staged or not — so a pop
-// that fails is a refusal naming the stash, never a green.
-export function withFixReverted<T>(toplevel: string, paths: string[], run: () => T): T {
-	const git = (args: string[]) => spawnSync('git', ['-C', toplevel, ...args], { encoding: 'utf8' });
-	const push = git(['stash', 'push', '--include-untracked', '-m', 'wf red-base', '--', ...paths]);
-	if (push.status !== 0) throw new Error(`git stash push: ${(push.stderr || push.stdout).trim()}`);
+/** Red-base I/O failures stay values; a failed restoration retains the owned backup for recovery. */
+export type FixRevertResult<T> =
+	| { ok: true; value: T }
+	| { ok: false; error: { kind: 'backup' | 'base' | 'restore'; message: string; recovery: string | null } };
+
+/** Run selected product files at the round base, preserving working bytes, index and user stashes. */
+export function withFixReverted<T>(toplevel: string, paths: string[], run: () => T, base: string): FixRevertResult<T> {
+	// 2026-10-10 stack review: stash push on a committed fix is a successful no-op; popping it
+	// consumed somebody else's stash. A file backup neither edits the index nor borrows that stack.
+	const backup = join(toplevel, '.wf', 'red-base');
+	const failure = (kind: 'backup' | 'base' | 'restore', cause: unknown): FixRevertResult<T> => ({ ok: false, error: { kind, message: `red-base ${kind} failed: ${cause instanceof Error ? cause.message : String(cause)}`, recovery: existsSync(backup) ? backup : null } });
+	const git = (args: string[]) => spawnSync('git', ['--literal-pathspecs', '-C', toplevel, ...args], { encoding: 'utf8' });
+	if (!paths.length) return failure('base', 'no product files selected');
+	const tree = git(['ls-tree', '-r', '--name-only', '-z', base, '--', ...paths]);
+	if (tree.status !== 0) return failure('base', tree.stderr || tree.stdout || tree.error);
+	const onBase = new Set(tree.stdout.split('\0').filter(Boolean));
+	const saved: { path: string; present: boolean }[] = [];
 	try {
-		return run();
-	} finally {
-		const pop = git(['stash', 'pop']);
-		if (pop.status !== 0) {
-			console.error(`FAILED: git stash pop — the row's changes are in the stash (git stash list): ${(pop.stderr || pop.stdout).trim()}`);
-			process.exit(1);
+		mkdirSync(join(toplevel, '.wf'), { recursive: true });
+		// An interrupted or concurrent proof owns this directory. Never replace its recovery data.
+		mkdirSync(backup);
+		for (const [i, path] of paths.entries()) {
+			const file = join(toplevel, path);
+			const stat = lstatSync(file, { throwIfNoEntry: false });
+			if (stat?.isDirectory()) return failure('backup', `cannot revert a directory: ${path}; no product files changed`);
+			saved.push({ path, present: stat !== undefined });
+			if (stat) cpSync(file, join(backup, String(i)), { preserveTimestamps: true, verbatimSymlinks: true });
 		}
+		// All backups and their path mapping exist before the first product mutation.
+		writeFileSync(join(backup, 'files.json'), JSON.stringify({ base, files: saved }, null, 2));
+	} catch (cause) {
+		return failure('backup', cause);
 	}
+	const measured = (() => {
+		try {
+			for (const path of paths) rmSync(join(toplevel, path), { force: true });
+			if (onBase.size) {
+				const restore = git(['restore', `--source=${base}`, '--worktree', '--', ...onBase]);
+				if (restore.status !== 0) return { kind: 'base' as const, cause: restore.stderr || restore.stdout || restore.error };
+			}
+		} catch (cause) {
+			return { kind: 'base' as const, cause };
+		}
+		try {
+			return { kind: 'measured' as const, value: run() };
+		} catch (cause) {
+			return { kind: 'defect' as const, cause };
+		}
+	})();
+	try {
+		for (const [i, file] of saved.entries()) {
+			const path = join(toplevel, file.path);
+			rmSync(path, { force: true });
+			if (file.present) {
+				mkdirSync(dirname(path), { recursive: true });
+				cpSync(join(backup, String(i)), path, { preserveTimestamps: true, verbatimSymlinks: true });
+			}
+		}
+		// A failed restoration leaves every backup intact, including files already restored.
+		rmSync(backup, { recursive: true });
+	} catch (cause) {
+		return failure('restore', cause);
+	}
+	if (measured.kind === 'defect') throw measured.cause;
+	if (measured.kind === 'base') return failure('base', measured.cause);
+	return { ok: true, value: measured.value };
 }
 
 // `command: <line>` under `## Repro` in the round agreement (TICKET.md for class A, AGREEMENT.md for B/C).
@@ -589,7 +639,7 @@ export async function runCheck(argv: string[] = []) {
 	}
 
 	// Red-base (process/PRACTICES.md, TDD): the row's own test must fail with the row's change taken
-	// back to HEAD, or it cannot show the defect it claims to prove — a test that passes with and
+	// back to the round base, or it cannot show the defect it claims to prove — a test that passes with and
 	// without the fix is not proof (docs/plans/2026-09-27-kit-and-env.md step 4: a jsdom test that
 	// laid nothing out, counted green). The project marks the row's test task (`redBase`); every other
 	// task stays out, because a lint or typecheck red would prove nothing about the test.
@@ -618,22 +668,15 @@ export async function runCheck(argv: string[] = []) {
 				process.exit(1);
 			}
 		}
-		// The stash dance restores the working change whatever the run does; a failure to stash or pop
-		// is the environment, never a green.
-		const run = (() => {
-			try {
-				return withFixReverted(toplevel, revert, () => spawnSync(redTask.cmd!, shellArgv(redTask.args!), { cwd: join(toplevel, redTask.cwd!), env: { ...process.env, ...redTask.env }, encoding: 'utf8', shell: process.platform === 'win32' }));
-			} catch (e) {
-				return e as Error;
-			}
-		})();
-		if (run instanceof Error) {
-			const dead = { label, exit: null, missing: run.message };
+		const reverted = withFixReverted(toplevel, revert, () => spawnSync(redTask.cmd!, shellArgv(redTask.args!), { cwd: join(toplevel, redTask.cwd!), env: { ...process.env, ...redTask.env }, encoding: 'utf8', shell: process.platform === 'win32' }), base);
+		if (!reverted.ok) {
+			const dead = { label, exit: null, missing: `${reverted.error.message}${reverted.error.recovery ? `; inspect the recovery files in ${reverted.error.recovery} before retrying` : ''}` };
 			console.error(`COULD NOT RUN: ${dead.missing}`);
 			ran.push(dead);
 			logRun('red', 'environment');
 			process.exit(1);
 		}
+		const run = reverted.value;
 		const output = `${run.stdout ?? ''}${run.stderr ?? ''}`;
 		// The verdict comes from the full output, before `output` is cut to its tail: the runner's
 		// provenance (the failing test, its error and the assertion origin) must survive in checks.log

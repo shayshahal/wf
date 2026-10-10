@@ -1,11 +1,11 @@
 // check.selfcheck.ts — node check.selfcheck.ts → exit 0 when green.
-// Pure arms only (no git, no runners): the fence, the repro line, and what buildTasks makes of a
-// plan row's check cell. The project's own commands: projects/<name>/checks.selfcheck.ts.
+// Fence/proof syntax and real git red-base recovery; runner argv uses a recording native stub.
+// The project's own commands: projects/<name>/checks.selfcheck.ts.
 import { failedInRepro, failureFrame, failureSignature, reproVerdict } from './check.ts';
 import { checkCellCommand, checkCellPath, checkCellTarget, checkRunLine, buildTasks, expectRedVerdict, fenceViolations, isReproOnly, isRoundPaperwork, manualCheck, redBaseFiles, redBaseRun, redCause, reproCommand, resolvedBlockedName, shellArgUnsafe, shellArgv, suitesLine, targetGap, tokenize, withFixReverted } from './check.ts';
 import type { CheckTarget, CheckTask } from './check.ts';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -153,8 +153,8 @@ check('suites line: a diff that reaches no suite is recorded, with no tasks, so 
 const suitesCause = (runs: { label: string; exit: number | null; output: string }[]) => JSON.parse(suitesLine({ ts: 't', head: 'abc', runs })).cause;
 check('suites line: a runner that never started is the environment', suitesCause([{ label: 'a', exit: null, output: 'spawn failed' }]) === 'environment' && suitesCause([{ label: 'a', exit: 1, output: 'FAIL' }]) === undefined && suitesCause([{ label: 'a', exit: null, output: 'spawn failed' }, { label: 'b', exit: 1, output: 'FAIL' }]) === undefined);
 
-// Red-base: the row's test must fail with the row's change taken back to HEAD. The file set leaves
-// the test in place; the stash dance restores the working change whatever the run does.
+// Red-base: the case's test stays current while its product files return to the round base.
+// Real git checks below cover committed, staged, working and deleted files without borrowing stashes.
 check('the check cell\'s path: the first code span, its last word; — and manual: are fence only', checkCellPath('`vitest run a/x.test.ts` (a note)') === 'a/x.test.ts' && checkCellPath('pytest packages/backend/tests/test_auth.py') === 'packages/backend/tests/test_auth.py' && checkCellPath('— note `x.ts`') === '' && checkCellPath('manual: open /admin/listings') === '' && checkCellPath(undefined) === '' && checkCellCommand('`vitest run a/x.test.ts` (a note)') === 'vitest run a/x.test.ts', JSON.stringify([checkCellPath('`vitest run a/x.test.ts` (a note)'), checkCellPath('— note `x.ts`')]));
 const redRow = { files: 'packages/backend/app/api/auth.py packages/backend/tests/test_auth.py', check: 'packages/backend/tests/test_auth.py' };
 check('red-base keeps the row\'s test and the round paperwork out of the revert', JSON.stringify(redBaseFiles({ changed, row: redRow, folder, testPath: 'packages/backend/tests/test_auth.py' })) === '["packages/backend/app/api/auth.py"]', JSON.stringify(redBaseFiles({ changed, row: redRow, folder, testPath: 'packages/backend/tests/test_auth.py' })));
@@ -171,14 +171,71 @@ redGit(['init', '-q']);
 // Byte-preserving on Windows: the arm is about the stash dance, not about CRLF.
 redGit(['config', 'core.autocrlf', 'false']);
 writeFileSync(join(redRepo, 'product.ts'), 'fixed\n');
-redGit(['add', 'product.ts']);
+writeFileSync(join(redRepo, 'unrelated.txt'), 'untouched\n');
+redGit(['add', 'product.ts', 'unrelated.txt']);
 redGit(['-c', 'user.name=wf', '-c', 'user.email=wf@selfcheck', 'commit', '-q', '-m', 'base']);
+const redBaseHash = redGit(['rev-parse', 'HEAD']).trim();
 writeFileSync(join(redRepo, 'product.ts'), 'fix\n');
-const atBase = withFixReverted(redRepo, ['product.ts'], () => readFileSync(join(redRepo, 'product.ts'), 'utf8'));
-check('red-base runs against HEAD and puts the working change back', atBase === 'fixed\n' && readFileSync(join(redRepo, 'product.ts'), 'utf8') === 'fix\n', JSON.stringify(atBase));
+const atBase = withFixReverted(redRepo, ['product.ts'], () => readFileSync(join(redRepo, 'product.ts'), 'utf8'), redBaseHash);
+check('red-base runs against the round base and puts the working change back', atBase.ok && atBase.value === 'fixed\n' && readFileSync(join(redRepo, 'product.ts'), 'utf8') === 'fix\n', JSON.stringify(atBase));
 writeFileSync(join(redRepo, 'new.ts'), 'new\n');
-const goneAtBase = withFixReverted(redRepo, ['new.ts'], () => existsSync(join(redRepo, 'new.ts')));
-check('red-base takes an untracked row file away for the run and restores it', goneAtBase === false && existsSync(join(redRepo, 'new.ts')));
+const goneAtBase = withFixReverted(redRepo, ['new.ts'], () => existsSync(join(redRepo, 'new.ts')), redBaseHash);
+check('red-base takes an untracked row file away for the run and restores it', goneAtBase.ok && goneAtBase.value === false && existsSync(join(redRepo, 'new.ts')));
+// Published-stack review, 2026-10-10: after commit the old stash dance measured the fixed HEAD,
+// then popped an unrelated stash. Check the measured bytes and the user's actual git state.
+redGit(['add', 'product.ts', 'new.ts']);
+redGit(['-c', 'user.name=wf', '-c', 'user.email=wf@selfcheck', 'commit', '-q', '-m', 'fix']);
+writeFileSync(join(redRepo, 'unrelated.txt'), 'saved unrelated work\n');
+redGit(['stash', 'push', '-q', '-m', 'unrelated work']);
+const unrelatedStash = redGit(['stash', 'list']);
+const committedBase = withFixReverted(redRepo, ['product.ts', 'new.ts'], () => ({ product: readFileSync(join(redRepo, 'product.ts'), 'utf8'), added: existsSync(join(redRepo, 'new.ts')) }), redBaseHash);
+check('red-base takes committed fixes and additions back to the round base', committedBase.ok && committedBase.value.product === 'fixed\n' && !committedBase.value.added, JSON.stringify(committedBase));
+check('red-base leaves an unrelated stash and its working file untouched', redGit(['stash', 'list']) === unrelatedStash && readFileSync(join(redRepo, 'unrelated.txt'), 'utf8') === 'untouched\n');
+check('red-base restores committed product bytes and additions', readFileSync(join(redRepo, 'product.ts'), 'utf8') === 'fix\n' && existsSync(join(redRepo, 'new.ts')));
+redGit(['stash', 'drop', '-q']);
+const noStash = withFixReverted(redRepo, ['product.ts'], () => readFileSync(join(redRepo, 'product.ts'), 'utf8'), redBaseHash);
+check('a committed fix with no stash measures the base and returns normally', noStash.ok && noStash.value === 'fixed\n' && redGit(['stash', 'list']) === '', JSON.stringify(noStash));
+
+writeFileSync(join(redRepo, 'product.ts'), 'staged fix\n');
+writeFileSync(join(redRepo, 'unrelated.txt'), 'unrelated staged\n');
+redGit(['add', 'product.ts', 'unrelated.txt']);
+writeFileSync(join(redRepo, 'product.ts'), 'unstaged fix\n');
+const indexBefore = redGit(['diff', '--cached', '--binary']);
+const workBefore = redGit(['diff', '--binary']);
+const mixedBase = withFixReverted(redRepo, ['product.ts'], () => readFileSync(join(redRepo, 'product.ts'), 'utf8'), redBaseHash);
+check('staged plus unstaged work is measured at base without editing either index entry', mixedBase.ok && mixedBase.value === 'fixed\n' && redGit(['diff', '--cached', '--binary']) === indexBefore && redGit(['diff', '--binary']) === workBefore, JSON.stringify(mixedBase));
+rmSync(join(redRepo, 'product.ts'));
+redGit(['add', 'product.ts']);
+const deletionIndex = redGit(['diff', '--cached', '--binary']);
+const deletedBase = withFixReverted(redRepo, ['product.ts'], () => readFileSync(join(redRepo, 'product.ts'), 'utf8'), redBaseHash);
+check('a staged deletion is present at base, then absent again with its index intact', deletedBase.ok && deletedBase.value === 'fixed\n' && !existsSync(join(redRepo, 'product.ts')) && redGit(['diff', '--cached', '--binary']) === deletionIndex, JSON.stringify(deletedBase));
+
+writeFileSync(join(redRepo, 'product.ts'), 'unstaged fix\n');
+let defectRestored = false;
+try {
+  withFixReverted(redRepo, ['product.ts'], () => { throw new Error('fixture callback defect'); }, redBaseHash);
+} catch (cause) {
+  defectRestored = cause instanceof Error && cause.message === 'fixture callback defect' && readFileSync(join(redRepo, 'product.ts'), 'utf8') === 'unstaged fix\n';
+}
+check('a callback defect propagates only after restoring the original working bytes', defectRestored && !existsSync(join(redRepo, '.wf/red-base')));
+const badBase = withFixReverted(redRepo, ['product.ts'], () => { throw new Error('must not run'); }, 'missing-base');
+check('an unresolved base is a typed refusal and does not mutate the file', !badBase.ok && badBase.error.kind === 'base' && readFileSync(join(redRepo, 'product.ts'), 'utf8') === 'unstaged fix\n');
+const emptyRevert = withFixReverted(redRepo, [], () => { throw new Error('must not run'); }, redBaseHash);
+check('empty revert paths refuse rather than restoring the entire base tree', !emptyRevert.ok && emptyRevert.error.kind === 'base' && readFileSync(join(redRepo, 'product.ts'), 'utf8') === 'unstaged fix\n');
+const restoreFailure = withFixReverted(redRepo, ['product.ts'], () => {
+  rmSync(join(redRepo, 'product.ts'));
+  mkdirSync(join(redRepo, 'product.ts'));
+}, redBaseHash);
+check('a failed restoration retains the original bytes and recovery path mapping', !restoreFailure.ok && restoreFailure.error.kind === 'restore' && restoreFailure.error.recovery === join(redRepo, '.wf/red-base') && readFileSync(join(redRepo, '.wf/red-base/0'), 'utf8') === 'unstaged fix\n' && JSON.parse(readFileSync(join(redRepo, '.wf/red-base/files.json'), 'utf8')).files[0].path === 'product.ts');
+rmSync(join(redRepo, 'product.ts'), { recursive: true });
+writeFileSync(join(redRepo, 'product.ts'), readFileSync(join(redRepo, '.wf/red-base/0')));
+rmSync(join(redRepo, '.wf/red-base'), { recursive: true });
+// Crash recovery is not silently overwritten or mistaken for permission to run another proof.
+const recovery = join(redRepo, '.wf/red-base');
+mkdirSync(recovery);
+writeFileSync(join(recovery, 'files.json'), 'existing recovery authority');
+const held = withFixReverted(redRepo, ['product.ts'], () => { throw new Error('must not run'); }, redBaseHash);
+check('an existing recovery directory refuses before mutation and stays intact', !held.ok && held.error.kind === 'backup' && held.error.recovery === recovery && readFileSync(join(recovery, 'files.json'), 'utf8') === 'existing recovery authority' && readFileSync(join(redRepo, 'product.ts'), 'utf8') === 'unstaged fix\n');
 rmSync(redRepo, { recursive: true, force: true });
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');
