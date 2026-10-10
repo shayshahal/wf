@@ -1,16 +1,17 @@
 #!/usr/bin/env node
-// check.ts — wf check: the implementer's gate (prompts/implement.md step 2).
+// check.ts — wf check: the implementer's gate (prompts/build.md).
 // Silent + exit 0 on green; on red only the failing command and the last 40 lines
 // of its output, exit 1. Everything is derived from the working-tree diff and the
-// PLAN.md row `wf prompt implement N` recorded in .wf/state.json:
-//   fence   — no file outside row N's `files` cell may have changed
-//   project — the project's commands for the changed files and the row's test path (project.ts checks)
+// agreement's `## Verification` cases (TICKET.md for class A, AGREEMENT.md for B/C):
+//   fence   — no file outside the selected case's `files` cell may have changed. A case-less run
+//             with a product file changed and no project check refuses rather than log an empty green
+//   project — the project's commands for the changed files and the case's test path (project.ts checks)
 //   repro   — the case's `check` cell `repro`: the command the agreement records. A case that only
 //             edits the repro runs it too, and it must be red: that run is the round's before-the-fix
 //             measurement, its output kept in checks.log (TJEW-670: the repro was fixed in a row
 //             checked `—`, and two of four subitems never had a red run)
-//   red-base — the row's own test, run with the row's change taken back to HEAD: it must fail on the
-//             framework assertion at the origin the row's check cell names (`path::test id@<line>`),
+//   red-base — the case's own test, run with the change taken back to HEAD: it must fail on the
+//             framework assertion at the origin the case's check cell names (`path::test id@<line>`),
 //             or the test cannot show the defect it claims to prove (a test that passes with and
 //             without the fix is not proof, process/PRACTICES.md). An exit code is not that proof, and
 //             neither is a failure at the line: the project's evidence policy reads the runner's own
@@ -18,27 +19,26 @@
 //             assertion (not a NameError/AttributeError/TypeError raised while evaluating it), the
 //             exact origin frame (not a caller or helper), and the named test. A missing runner, an
 //             import/collection or setup error, a failure in another file, a wrong origin, and a cell
-//             with no id or line all fail the row, which checks.log records as the run's verdict
-//             (#109, 2026-10-09). The same evidence policy must show the row's named test ran and
+//             with no id or line all fail the case, which checks.log records as the run's verdict
+//             (#109, 2026-10-09). The same evidence policy must show the case's named test ran and
 //             passed on the current (with-change) tree too: a skip, a suite total or a pass naming
 //             another case is not a green, so only a real pass shows the fix turns that assertion
-//             green (#109 review, 2026-10-09). A `refactor:` cell is a behavior-preserving row: it
+//             green (#109 review, 2026-10-09). A `refactor:` cell is a behavior-preserving case: it
 //             needs its named test green on both the current and the reverted side, never a
 //             manufactured red. The
 //             project marks that one task (`redBase`, projects/<name>/checks.ts); lint, typecheck and
 //             the hooks stay out of it, because their red would prove nothing about the test.
-// `wf check --suites` (before validate, wf next): the project's whole suites for what the round's diff
-// reaches (project.ts suites), side by side, on a committed HEAD; one checks.log line (row `suites`,
-// the head it measured, each red task's output tail; no tasks when the diff reaches no suite) that
-// validate reads and wf next keys on. Not a commit gate: it measures what the round has done to tests
-// no row touched (2026-10-05: a change broke tests outside its commit checks, unseen until the next
+// `wf check --suites` (the build runs it on the committed HEAD; the assessment reads it): the
+// project's whole suites for what the round's diff reaches (project.ts suites), side by side; one
+// checks.log line (row `suites`, the head it measured, each red task's output tail; no tasks when the
+// diff reaches no suite). Not a commit gate: it measures what the round has done to tests no case
+// touched (2026-10-05: a change broke tests outside its commit checks, unseen until the next
 // day's full-suite run).
 // `wf check --repro` (prompts/agree.md): the agreement's repro, three times; stable only when
 // all three are red at the same place, in the round's repro files. Its line in checks.log (row
-// `repro`, result stable|unstable|green|outside) carries the research brief's token, which `wf next`
-// requires before plan.
-// Every run appends one JSON line to .wf/checks.log (row, the row's check, each task's exit,
-// green|red, and a red's `cause`: `environment` when no task ran at all). The validate agent reads
+// `repro`, result stable|unstable|green|outside) is the finding the check round decides on.
+// Every run appends one JSON line to .wf/checks.log (row, the case's check, each task's exit,
+// green|red, and a red's `cause`: `environment` when no task ran at all). The assessment agent reads
 // that, never the commit message: "the check was run"
 // is then observed, not claimed (llm-as-a-verifier: trust observed output, not narration).
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
@@ -473,7 +473,7 @@ export async function runCheck(argv: string[] = []) {
 	const caseIdx = argv.indexOf('--case');
 	const caseArg = caseIdx >= 0 ? argv[caseIdx + 1] : null;
 	let row: VerificationCase | null = null;
-	if (caseArg != null) row = /^\d+$/.test(caseArg) ? cases.find((c) => c.n === Number(caseArg)) ?? null : { n: 0, line: '', message: caseArg, files: '', check: caseArg };
+	if (caseArg != null) row = /^\d+$/.test(caseArg) ? cases.find((c) => c.n === Number(caseArg)) ?? null : { n: 0, line: '', message: caseArg, files: checkCellTarget(caseArg)?.file ?? '', check: caseArg };
 	else {
 		const matching = cases.filter((c) => caseFiles(c).some((f) => changed.includes(f)));
 		row = matching.length === 1 ? matching[0] : cases.length === 1 ? cases[0] : null;
@@ -502,6 +502,21 @@ export async function runCheck(argv: string[] = []) {
 	const target = checkCellTarget(row?.check);
 	let served = false;
 	const tasks = buildTasks({ row, projectTasks: (t) => checks({ toplevel, changed, target: t }), repro, reproOnly });
+	// Nothing to run is not a green: a case-less class A run with a product file changed in the worktree
+	// and no project check would log a pass that measured nothing (#109). A docs-only diff (only the
+	// round folder's own files) has nothing to check; a staged-only product change is left to deliver's
+	// round-folder commit scoping (#106). A raw `--case "<path>::<id>@<line>"` gets its file from the
+	// cell above, so its fence and red-base run.
+	const gitNames = (args: string[]) => execFileSync('git', ['-C', toplevel, ...args], { encoding: 'utf8' }).split('\n').map((l) => l.trim()).filter(Boolean);
+	const worktreeDirty = [...gitNames(['diff', '--name-only', 'HEAD']), ...gitNames(['ls-files', '--others', '--exclude-standard'])];
+	const productChanged = worktreeDirty.filter((f) => !isRoundPaperwork(f, folder));
+	if (!tasks.length && productChanged.length) {
+		const nothing = { label: 'check', exit: null, missing: 'the agreement declares no verification case and the project has no check for this diff — name one: wf check --case "<path>::<test id>@<line>"' };
+		console.error(`COULD NOT RUN: ${nothing.missing}`);
+		ran.push(nothing);
+		logRun('red', redCause(nothing));
+		process.exit(1);
+	}
 	for (const task of tasks) {
 		const unsafe = task.args ? unsafeArg(task.args) : null;
 		if (task.missing || unsafe) {

@@ -60,8 +60,12 @@ export async function run(argv: string[], pieces: Partial<Seams> = {}) {
 		try {
 			const state = readState(toplevelOf());
 			// A state from the old runtime is refused before any mutating command reads it (finish-before-
-			// release, #110). `status` and `next` may still report it; every other command refuses.
-			if (!['status', 'next'].includes(cmd)) gap = legacyStateGap(state) ?? entryGap(state, seams.madeBy);
+			// release, #110): `wf next` steps the round and records questions, so it refuses too. `status`
+			// and `classify` are read-only and may still inspect an old round. `entryGap` (a round made by
+			// another entry) is not applied to `next`, which a resumed session runs from the same entry.
+			const legacy = ['status', 'classify'].includes(cmd) ? null : legacyStateGap(state);
+			const entry = ['status', 'next'].includes(cmd) ? null : entryGap(state, seams.madeBy);
+			gap = legacy ?? entry;
 		} catch (e) {
 			// A state file that is not the round's is the round's: report it and stop, instead of running
 			// the command as if there were no round here (issue #107).

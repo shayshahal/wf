@@ -49,6 +49,12 @@ export type State = {
 	// Answers that say the agreement must change (`wf decide --revise`, ask.ts): `wf next` sends the
 	// round back to agree until a new agreement material sha is approved (agree.ts).
 	revisions?: { text: string; at: string }[];
+	// How many revisions `wf next` has already dispatched to a fresh agreement, so the same revision is
+	// not dispatched twice while the working session rewrites it (next.ts).
+	revisions_dispatched?: number;
+	// The BLOCKED.md question whose `## Answer` a build has already resumed from, so a build that comes
+	// back still blocked asks the person again instead of looping (next.ts).
+	blocked_answered?: number;
 	last_question?: number;
 	// The validation token whose T2 setup `wf show` already ran (projects/jewelryx/show.ts).
 	t2_setup?: string;
@@ -72,11 +78,13 @@ const OLD_ROUTE_STEPS = ['research', 'plan', 'design', 'implement'];
 export function legacyStateGap(state: State | null): string | null {
 	if (!state) return null;
 	if (state.wf_version === WF_STATE_VERSION) return null;
+	// Any state this runtime did not write is refused before a mutating command touches it: an unknown
+	// version, a versionless old round (even parked at a step the two routes share, like classify or
+	// review), or a hand-edited file. Fresh/absent state is allowed to initialize version 2; a
+	// read-only inspection may still report an old round (run.ts).
 	if (typeof state.wf_version === 'number') return `this round's state names wf version ${state.wf_version}, not ${WF_STATE_VERSION} — finish it on that wf, then start a new round`;
-	// No version field: an old round is one parked at a step this route removed; a hand-cut worktree or
-	// a round from before `wf step` has no step and is let through to fail on its own.
-	if (state.step && OLD_ROUTE_STEPS.includes(state.step)) return `this round's state is from an older wf (step "${state.step}", no wf_version): finish it on the installed wf that made it, then start a new round — this wf refuses to reinterpret old state (finish-before-release, #110)`;
-	return null;
+	const at = state.step && OLD_ROUTE_STEPS.includes(state.step) ? ` (step "${state.step}")` : '';
+	return `this round's state is from an older wf (no wf_version${at}): finish it on the installed wf that made it, then start a new round — this wf refuses to reinterpret old state (finish-before-release, #110)`;
 }
 
 export function stateFile(toplevel: string) {

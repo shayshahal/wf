@@ -101,12 +101,54 @@ check('pr → deliver', say(base({ step: 'pr' })).startsWith('deliver: T2 approv
 check('merged with no note sections left → done and reap', say(base({ step: 'merged', note: { file: 'bug-reports/r/NOTE.md', text: '## JX-1 (posted)\n' } })) === 'done: `node C:/wf/wf.mjs reap fix/r`');
 check('merged with an unposted section → post it first', say(base({ step: 'merged', note: { file: 'bug-reports/r/NOTE.md', text: '## JX-1\n' } })).startsWith('post: JX-1'));
 
+// ── the class is measured from the agreement, not assumed: a declared `Class:` line, or a case whose
+// files reach a contract path, upgrades A→B so T1 cannot be skipped by how the worktree was opened
+check('an A round whose agreement declares Class: B steps classify --class B before any build', steps(base({ klass: 'A', files: { agreement: AGREEMENT, assessment: null, review: null, blocked: null } })).join() === 'classify --class B' && say(base({ klass: 'A', files: { agreement: AGREEMENT, assessment: null, review: null, blocked: null } })).startsWith('classify:'), say(base({ klass: 'A', files: { agreement: AGREEMENT, assessment: null, review: null, blocked: null } })));
+const noClass = AGREEMENT.replace('Class: B\n', '');
+check('a case on a contract path upgrades A→B without a Class: line', steps(base({ klass: 'A', contractPaths: 'src/**', files: { agreement: noClass, assessment: null, review: null, blocked: null } })).join() === 'classify --class B', say(base({ klass: 'A', contractPaths: 'src/**', files: { agreement: noClass, assessment: null, review: null, blocked: null } })));
+check('a B round with an approved agreement stays B (never downgrades)', steps(base({ klass: 'B', files: { agreement: AGREEMENT, assessment: null, review: null, blocked: null }, t1: { sha: 's1', reviewed: 's1', verdict: 'approved' } })).join() === 'build');
+
+// ── T1 stays live after the build starts: a changed agreed material (or a recorded revision) sends the
+// round back to a fresh T1, while a progress edit (same sha) does not
+const liveB = (patch: Partial<Snapshot>) => base({ klass: 'B', files: { agreement: AGREEMENT, assessment: null, review: null, blocked: null }, ...patch });
+check('B/C build: a changed ## Agreed sends back to T1, not build', say(liveB({ step: 'build', t1: { sha: 's2', reviewed: 's1', verdict: 'approved' } })).startsWith('wait user: T1') && steps(liveB({ step: 'build', t1: { sha: 's2', reviewed: 's1', verdict: 'approved' } })).join() === 'agree --waiting-on user');
+check('B/C assess: a changed ## Agreed sends back to T1 too', say(liveB({ step: 'assess', t1: { sha: 's2', reviewed: 's1', verdict: 'approved' } })).startsWith('wait user: T1'));
+check('B/C review: a changed ## Agreed sends back to T1 too', say(liveB({ step: 'review', t1: { sha: 's2', reviewed: 's1', verdict: 'approved' } })).startsWith('wait user: T1'));
+check('B/C build: an approved agreement at the same sha builds (progress does not renew T1)', say(liveB({ step: 'build', t1: { sha: 's1', reviewed: 's1', verdict: 'approved' } })) === 'dispatch build: run `node C:/wf/wf.mjs brief build` in this worktree and do exactly what it prints');
+
+// ── a recorded revision (`wf decide --revise`) reaches a fresh agreement before any build
+const revised = liveB({ step: 'agree', revisions: [{ text: 'the header must also show the count', at: 't' }] });
+check('a recorded revision dispatches a fresh agreement before build', say(revised).startsWith('dispatch agree') && say(revised).includes('asked the agreement to change'), say(revised));
+check('a revision already dispatched does not dispatch twice', !say({ ...revised, revisionsDispatched: 1 }).startsWith('dispatch agree'));
+const revisedA = base({ step: 'agree', klass: 'A', revisions: [{ text: 'change x', at: 't' }], files: { agreement: TICKET, assessment: null, review: null, blocked: null } });
+check('a revision on a class A round also dispatches a fresh agreement', say(revisedA).startsWith('dispatch agree'));
+
+// ── an answered BLOCKED.md resumes the build once; the same answer never loops
+const blockedBuild = base({ step: 'build', files: { agreement: null, assessment: null, review: null, blocked: 'Question: which label?\n' } });
+check('a blocked build with no answer waits on the user', say(blockedBuild) === 'wait user: blocked — which label?');
+const answeredBlocked = { ...blockedBuild, answered: [{ n: 1, to: 'user', text: 'which label?', source: 'BLOCKED.md', answer: 'cancel', asked: 't', answered: 't' }] };
+check('an answered BLOCKED.md resumes the build once', say(answeredBlocked).startsWith('dispatch build') && say(answeredBlocked).includes('answered'), say(answeredBlocked));
+check('the same answer does not resume a second time', say({ ...answeredBlocked, blockedAnswered: 1 }) === 'wait user: blocked — which label?');
+
+// ── the assessment must name the HEAD it judged, and a clean verdict cannot carry an unmet item
+check('an assessment with no head: line is refused', say(base({ step: 'assess', files: { agreement: null, assessment: '# r\nVerdict: clean\n## Intent\n- "x": met: a:1 · before: b · after: c\n', review: null, blocked: null } })).startsWith('dispatch assess') && say(base({ step: 'assess', files: { agreement: null, assessment: '# r\nVerdict: clean\n## Intent\n- "x": met: a:1 · before: b · after: c\n', review: null, blocked: null } })).includes('head:'));
+const cleanNotMet = base({ step: 'assess', files: { agreement: null, assessment: ASSESS({ verdict: 'clean', intent: '- "x": not met: the modal still jumps' }), review: null, blocked: null } });
+check('a clean assessment that states an unmet item is refused', say(cleanNotMet).startsWith('dispatch assess') && say(cleanNotMet).includes('says clean but states an unmet item'), say(cleanNotMet));
+
+// ── the material and repair-cap escalations are recorded, so the same question cannot repeat
+const materialAnswered = { ...material, answered: [{ n: 1, to: 'user', text: 'the assessment found a material change', source: asks(material)[0].source, answer: 'carry on, it is within the agreement', asked: 't', answered: 't' }] };
+check('an answered material escalation does not repeat', asks(materialAnswered).length === 0 && say(materialAnswered).startsWith('review: T2'), say(materialAnswered));
+const spentAnswered = { ...spent, answered: [{ n: 1, to: 'user', text: 'x', source: asks(spent)[0].source, answer: 'accept: it is a separate ticket', asked: 't', answered: 't' }] };
+check('an answered repair-cap escalation does not repeat', asks(spentAnswered).length === 0 && say(spentAnswered).startsWith('review: T2'), say(spentAnswered));
+
 // ── helpers
 check('lastSuites reads the latest whole-suite line', JSON.stringify(lastSuites('{"row":"suites","ts":"t1","head":"h","result":"green"}\n')) === JSON.stringify({ ts: 't1', head: 'h', result: 'green' }));
 check('unpostedSections names the sections without (posted)', unpostedSections('## A (posted)\n## B\n').join() === 'B');
 
 // ── the version guard: an old round state is refused, not reinterpreted
 check('a state with no wf_version is refused with an actionable line', (legacyStateGap({ step: 'implement' }) ?? '').includes('older wf') && (legacyStateGap({ step: 'implement' }) ?? '').includes('wf_version'));
+check('a versionless state at a shared step (classify/review/pr/held/merged) is refused too', ['classify', 'review', 'pr', 'held', 'merged'].every((step) => (legacyStateGap({ step }) ?? '').includes('older wf')));
+check('a versionless state with no step is refused too', (legacyStateGap({ round: 'r' }) ?? '').includes('older wf'));
 check('a state at the current version is accepted', legacyStateGap({ wf_version: 2, step: 'build' }) === null);
 check('no state is not a legacy round', legacyStateGap(null) === null);
 
@@ -132,11 +174,22 @@ const cli = (repo: string, ...args: string[]) => {
 	writeFileSync(join(repo, '.wf', 'state.json'), `${JSON.stringify({ wf_version: 2, round: 'r', id: 'r', folder: 'bug-reports/r', base: 'main', step: 'classify', class: 'A' }, null, 2)}\n`);
 	const next = cli(repo, 'next');
 	check('CLI: an ordinary class A round steps to build and dispatches it', next.code === 0 && next.out.includes('dispatch build') && readState(repo)?.step === 'build', next.out);
+	// the class is measured: a ticket declaring Class: B upgrades the round before any build
+	writeFileSync(join(repo, 'bug-reports/r/TICKET.md'), `${TICKET}\nClass: B\n`);
+	mkdirSync(join(repo, 'docs', 'agents'), { recursive: true });
+	writeFileSync(join(repo, 'docs', 'agents', 'contract-paths.txt'), 'src/**\n');
+	writeFileSync(join(repo, '.wf', 'state.json'), `${JSON.stringify({ wf_version: 2, round: 'r', id: 'r', folder: 'bug-reports/r', base: 'main', step: 'classify', class: 'A' }, null, 2)}\n`);
+	const upgraded = cli(repo, 'next');
+	check('CLI: an agreement declaring Class: B upgrades the round and takes T1', upgraded.code === 0 && readState(repo)?.class === 'B' && upgraded.out.includes('T1'), upgraded.out);
 	// the version guard refuses a mutating command on a legacy state
 	writeFileSync(join(repo, '.wf', 'state.json'), `${JSON.stringify({ round: 'r', id: 'r', folder: 'bug-reports/r', step: 'implement' }, null, 2)}\n`);
 	const refused = cli(repo, 'step', 'build');
 	check('CLI: a legacy state refuses a mutating command before it writes', refused.code === 1 && /older wf/.test(refused.out), refused.out);
 	check('CLI: the refused legacy state was not rewritten', JSON.parse(readFileSync(join(repo, '.wf', 'state.json'), 'utf8')).step === 'implement');
+	// a versionless state parked at a shared step is refused by wf next too (it mutates)
+	writeFileSync(join(repo, '.wf', 'state.json'), `${JSON.stringify({ round: 'r', id: 'r', folder: 'bug-reports/r', step: 'review' }, null, 2)}\n`);
+	const legacyNext = cli(repo, 'next');
+	check('CLI: wf next refuses a versionless state parked at review', legacyNext.code === 1 && /older wf/.test(legacyNext.out), legacyNext.out);
 	rmSync(repo, { recursive: true, force: true });
 }
 

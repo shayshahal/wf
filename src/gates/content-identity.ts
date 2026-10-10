@@ -21,8 +21,8 @@ import { join } from 'node:path';
 import { trackerNote } from '../project.ts';
 
 // wf's own files, by exact path (never the whole .wf folder: a stray executable there stays part of
-// the identity). The names come from state.ts, check.ts, serve.ts, design.ts and review.ts. The lock,
-// its acquisition guard and the state-trace log are state.ts's own (issue #107): a concurrent
+// the identity). The names come from state.ts, check.ts, serve.ts and review.ts. The lock and its
+// acquisition guard are state.ts's own (issue #107): a concurrent
 // writeState leaves them while another command reads the implementation, so they are wf's, not it.
 const WF_METADATA = [
 	'.wf/state.json',

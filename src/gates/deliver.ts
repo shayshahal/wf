@@ -32,7 +32,11 @@ import type { State } from '../round/state.ts';
 // counts UTF-16 units, never fewer than GitHub's characters.
 export const PR_BODY_BUDGET = 60000;
 
-type PrSources = { ticket: string; plan: string; commitLines: string[]; validation: string; planPath?: string; budget?: number };
+type PrSources = { ticket: string; plan: string; commitLines: string[]; validation: string; planPath?: string; folder?: string; budget?: number };
+
+// The `## T2 walk` line of the agreement — a section body, or the `**T2 walk.**` bullet the agreement
+// template writes inside `## Agreed` (both name the same `open:` line).
+const t2WalkOf = (text: string): string => /^(?:-\s*)?(?:\*\*T2 walk\.\*\*\s*)?(open:[^\n]*)$/m.exec(text)?.[1]?.trim() ?? '';
 
 // The `## <name>` sections of a round file, by name. A section runs to the next `## ` or the end.
 function sectionsOf(text: string) {
@@ -80,16 +84,16 @@ export function prCommitRows(planText: string, commitLines: string[]) {
 	];
 }
 
-// Pure: the PR body — the round's own sections in the order a reviewer reads them, not PLAN.md
+// Pure: the PR body — the round's own sections in the order a reviewer reads them, not the agreement
 // verbatim. JX-1221's body was 46,275 characters: 41% of it the commit table's file lists, a preamble
 // of 14 `Revision (…)` paragraphs, and `## Build` — the call stack, the one section that says how —
 // the section the budget cut first, because it sits after the first `## ` and the preamble does not.
-// Intent, Approach, the commits, the T2 walk, Not doing and VALIDATION.md's verdict are the
-// reviewer's minimum and are never cut. The call stack and the plan's history fold under `<details>`;
-// over the budget they go first, then the validation's detail, then the oldest commits — and the body
-// says where the rest is.
-export function prBody({ ticket, plan, commitLines, validation, planPath = 'PLAN.md', budget = PR_BODY_BUDGET }: PrSources) {
-	const folder = planPath.replace(/\/PLAN\.md$/, '');
+// Intent, the agreement's agreed material, the commits, the T2 walk, Not doing and ASSESSMENT.md's
+// verdict are the reviewer's minimum and are never cut. The call stack and the agreement's history
+// fold under `<details>`; over the budget they go first, then the assessment's detail, then the oldest
+// commits — and the body says where the rest is.
+export function prBody({ ticket, plan, commitLines, validation, planPath = 'PLAN.md', folder: roundFolder, budget = PR_BODY_BUDGET }: PrSources) {
+	const folder = roundFolder ?? planPath.replace(/\/[^/]+$/, '');
 	const P = sectionsOf(plan);
 	const K = sectionsOf(ticket);
 	const V = sectionsOf(validation);
@@ -108,6 +112,11 @@ export function prBody({ ticket, plan, commitLines, validation, planPath = 'PLAN
 		.join('\n');
 	const commits = prCommitRows(plan, commitLines);
 	const decisions = P.Decisions ? P.Decisions.split('\n').filter((l) => l.trim().startsWith('- ')).length : 0;
+	// The agreed material a reviewer after the merge must be able to read: the agreement's own behavior
+	// (Observed + Agreed for B/C, Intent for class A). PLAN.md is gone; without this the PR body lost
+	// what the round was agreed to do (#111.2, #113.5).
+	const agreementBody = [P.Observed, P.Agreed].filter(Boolean).join('\n\n').trim() || (P.Intent ?? K.Intent ?? '').trim();
+	const t2Walk = P['T2 walk']?.trim() || t2WalkOf(plan);
 
 	let buildBlock = P.Build ? `<details>\n<summary>Build — the call stack (${P.Build.split('\n').length} lines)</summary>\n\n${P.Build}\n\n</details>\n` : '';
 	let historyBlock = revisions.length || P.Decisions ? `<details>\n<summary>Plan history — ${revisions.length} revisions, ${decisions} decisions</summary>\n\n${[P.Decisions, revisions.join('\n')].filter(Boolean).join('\n\n')}\n\n</details>\n` : '';
@@ -126,17 +135,18 @@ export function prBody({ ticket, plan, commitLines, validation, planPath = 'PLAN
 	const validationBlock = () => {
 		const detail = valDetail.filter(([, body]) => body.trim()).map(([name, body]) => sub(name, body));
 		return [verdict, V.Suites ?? '', ...detail].filter((p) => p.trim()).length
-			? `## Validation\n\n${[verdict, V.Suites ?? '', ...detail].filter((p) => p.trim()).join('\n\n')}\n`
+			? `## Assessment\n\n${[verdict, V.Suites ?? '', ...detail].filter((p) => p.trim()).join('\n\n')}\n`
 			: '';
 	};
 	const assemble = () =>
 		[
-			cut ? `> Shortened: GitHub limits a PR body to 65,536 characters, so the round folder's own text stops here. PLAN.md, VALIDATION.md and the rest are in the branch at \`${planPath}\`.\n` : '',
+			cut ? `> Shortened: GitHub limits a PR body to 65,536 characters, so the round folder's own text stops here. The agreement, ASSESSMENT.md and the rest are in the branch at \`${planPath}\`.\n` : '',
 			`Round folder: \`${folder}/\`\n`,
 			section('Intent', K.Intent),
+			section('Agreement', agreementBody),
 			section('Approach', header.join('\n')),
 			commitsBlock(),
-			section('T2 walk', P['T2 walk']),
+			section('T2 walk', t2Walk),
 			section('Not doing', P['Not doing']),
 			validationBlock(),
 			buildBlock,
@@ -162,7 +172,7 @@ export function prBody({ ticket, plan, commitLines, validation, planPath = 'PLAN
 		() => {
 			const next = valDetail.find(([, body]) => body.trim() && !body.startsWith('(cut here'));
 			if (!next) return false;
-			next[1] = `(cut here, in \`${folder}/VALIDATION.md\`)`;
+			next[1] = `(cut here, in \`${folder}/ASSESSMENT.md\`)`;
 			return true;
 		},
 		// Then the oldest commits, a quarter at a time, never the newest.
@@ -659,7 +669,7 @@ export async function runDeliver() {
 	const validation = existsSync(validationPath) ? readFileSync(validationPath, 'utf8') : '';
 	const ticketPath = join(toplevel, folder, TICKET_FILE);
 	const ticket = existsSync(ticketPath) ? readFileSync(ticketPath, 'utf8') : '';
-	writeFileSync(body, prBody({ ticket, plan: planText, commitLines, validation, planPath: `${folder}/${agreementPath(toplevel, state?.class ?? null, folder).split(/[\\/]/).pop()}` }));
+	writeFileSync(body, prBody({ ticket, plan: planText, commitLines, validation, planPath: `${folder}/${agreementPath(toplevel, state?.class ?? null, folder).split(/[\\/]/).pop()}`, folder }));
 	const title = prTitle({ ticket, plan: planText, commitLines });
 	// An open PR is this delivery's own: edit its body, never create a second one (issue 108).
 	const url = resume.do === 'resume' ? resume.url : null;

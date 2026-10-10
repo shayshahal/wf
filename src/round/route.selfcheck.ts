@@ -55,7 +55,7 @@ function cli(dir: string, ...args: string[]) {
 		return { out: `${err.stdout ?? ''}${err.stderr ?? ''}`, code: err.status ?? 1 };
 	}
 }
-const state = (dir: string) => JSON.parse(readFileSync(join(dir, '.wf/state.json'), 'utf8')) as { step?: string; questions?: unknown[]; repairs?: number };
+const state = (dir: string) => JSON.parse(readFileSync(join(dir, '.wf/state.json'), 'utf8')) as { step?: string; class?: string; questions?: unknown[]; repairs?: number };
 const approve = (dir: string, klass: 'B', agreement: string) => {
 	writeFileSync(join(dir, 'bug-reports/r/AGREEMENT-REVIEW.md'), `agreement-sha: ${agreementSha(dir, klass, 'bug-reports/r')}\nverdict: approved\n`);
 };
@@ -154,6 +154,81 @@ const approve = (dir: string, klass: 'B', agreement: string) => {
 	writeFileSync(join(dir, 'bug-reports/r/ASSESSMENT.md'), `# r — assessment\nVerdict: clean\nhead: ${head}\n## Intent\n- "x": left out: overruled by Shay, 2026-10-10: a separate ticket\n`);
 	const decided = cli(dir, 'next');
 	check('decided exclusion: a left-out line with a reason reaches T2, not a question', decided.out.startsWith('review: T2'), decided.out);
+	rmSync(dir, { recursive: true, force: true });
+}
+
+// ── a raw `--case` names its file, so the fence and the executed-proof run on the class A alternative
+{
+	const { dir } = repo('fix/routeRaw', 'A', null);
+	writeFileSync(join(dir, '.wf/state.json'), `${JSON.stringify({ wf_version: 2, round: 'r', id: 'r', folder: 'bug-reports/r', base: 'main', step: 'build', class: 'A' })}\n`);
+	writeFileSync(join(dir, 'src/Other.svelte'), 'x\n');
+	const fenced = cli(dir, 'check', '--case', 'src/Page.spec.ts::sidebar renders@42');
+	check('raw --case: a change outside the named file is fenced', fenced.code === 1 && fenced.out.includes('fence: src/Other.svelte'), fenced.out);
+	// no case at all, a product file changed, no project check: refuse rather than log an empty green
+	writeFileSync(join(dir, '.wf/state.json'), `${JSON.stringify({ wf_version: 2, round: 'r', id: 'r', folder: 'bug-reports/r', base: 'main', step: 'build', class: 'A' })}\n`);
+	const empty = cli(dir, 'check');
+	check('no-case check: a product change with no case and no project check refuses (no empty green)', empty.code === 1 && empty.out.includes('COULD NOT RUN'), empty.out);
+	const line = JSON.parse(readFileSync(join(dir, '.wf/checks.log'), 'utf8').trim().split('\n').at(-1)!);
+	check('no-case check: the refusal is recorded red, not green', line.result === 'red', JSON.stringify(line));
+	rmSync(dir, { recursive: true, force: true });
+}
+
+// ── the class is measured: a ticket declaring Class: B upgrades A→B before any build (T1 cannot be
+// skipped by how the worktree was opened)
+{
+	const { dir } = repo('fix/routeUp', 'A', null);
+	writeFileSync(join(dir, 'bug-reports/r/TICKET.md'), `${TICKET}\nClass: B\n`);
+	mkdirSync(join(dir, 'docs/agents'), { recursive: true });
+	writeFileSync(join(dir, 'docs/agents/contract-paths.txt'), 'src/**\n');
+	const up = cli(dir, 'next');
+	check('class measured: an A round whose ticket declares Class: B upgrades and takes T1', up.code === 0 && state(dir).class === 'B' && up.out.includes('T1'), up.out);
+	rmSync(dir, { recursive: true, force: true });
+}
+
+// ── an answered BLOCKED.md resumes the build once; the same answer never loops
+{
+	const { dir } = repo('fix/routeBlk', 'A', null);
+	writeFileSync(join(dir, '.wf/state.json'), `${JSON.stringify({ wf_version: 2, round: 'r', id: 'r', folder: 'bug-reports/r', base: 'main', step: 'build', class: 'A' })}\n`);
+	writeFileSync(join(dir, 'bug-reports/r/BLOCKED.md'), 'Question: which label?\n');
+	const wait = cli(dir, 'next');
+	check('blocked: no answer waits on the user', wait.out.includes('wait user: blocked'), wait.out);
+	cli(dir, 'ask', '--blocked');
+	const decided = cli(dir, 'decide', 'cancel the dialog');
+	check('blocked: the answer lands in BLOCKED.md § Answer', decided.out.includes('§ Answer'), decided.out);
+	const resume = cli(dir, 'next');
+	check('blocked: an answered BLOCKED.md resumes the build once', resume.out.includes('dispatch build') && resume.out.includes('answered'), resume.out);
+	const again = cli(dir, 'next');
+	check('blocked: the same answer does not resume twice', again.out.includes('wait user: blocked'), again.out);
+	rmSync(dir, { recursive: true, force: true });
+}
+
+// ── a recorded revision (`wf decide --revise`) reaches a fresh agreement before any build
+{
+	const { dir } = repo('fix/routeRev', 'A', null);
+	writeFileSync(join(dir, '.wf/state.json'), `${JSON.stringify({ wf_version: 2, round: 'r', id: 'r', folder: 'bug-reports/r', base: 'main', step: 'agree', class: 'A', revisions: [{ text: 'the modal must also close on Escape', at: '2026-10-10T00:00:00Z' }] })}\n`);
+	const rev = cli(dir, 'next');
+	check('revision: a recorded revision dispatches a fresh agreement, not a build', rev.out.startsWith('dispatch agree') && rev.out.includes('asked the agreement to change'), rev.out);
+	rmSync(dir, { recursive: true, force: true });
+}
+
+// ── T1 stays live at step build: a build edit to the agreed material returns to T1
+{
+	const { dir } = repo('fix/routeLive', 'B', AGREEMENT);
+	approve(dir, 'B', AGREEMENT);
+	const built = cli(dir, 'next');
+	check('T1 live: an approved agreement builds', built.out.includes('dispatch build') && state(dir).step === 'build', built.out);
+	writeFileSync(join(dir, 'bug-reports/r/AGREEMENT.md'), AGREEMENT.replace('two columns', 'three columns'));
+	const back = cli(dir, 'next');
+	check('T1 live: a changed ## Agreed at step build returns to T1', back.out.includes('wait user: T1') && state(dir).step === 'agree', back.out);
+	rmSync(dir, { recursive: true, force: true });
+}
+
+// ── the version guard covers a versionless state parked at a shared step
+{
+	const { dir } = repo('fix/routeLegacy', 'A', null);
+	writeFileSync(join(dir, '.wf/state.json'), `${JSON.stringify({ round: 'r', id: 'r', folder: 'bug-reports/r', step: 'review' })}\n`);
+	const refused = cli(dir, 'next');
+	check('version guard: a versionless state at review is refused by wf next too', refused.code === 1 && refused.out.includes('older wf'), refused.out);
 	rmSync(dir, { recursive: true, force: true });
 }
 

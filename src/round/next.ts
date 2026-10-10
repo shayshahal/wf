@@ -17,15 +17,16 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { refuseCaller } from '../refusal.ts';
 import { addQuestion, blockedQuestion, reviseState } from './ask.ts';
-import { agreementGap, agreementPath, agreementSha, AGREEMENT_REVIEW_FILE, ASSESSMENT_FILE, assessmentGap, assessmentHead, assessmentMaterial, assessmentVerdict, consequential, REVIEW_FILE } from './agreement.ts';
+import { agreementClass, agreementGap, agreementPath, agreementSha, AGREEMENT_REVIEW_FILE, ASSESSMENT_FILE, assessmentGap, assessmentHead, assessmentMaterial, assessmentVerdict, caseFiles, consequential, REVIEW_FILE, verificationCases } from './agreement.ts';
 import { baseBranch, contractPaths as contractPathsFile } from '../project.ts';
+import { classFromFiles } from '../gates/classify.ts';
 import { lastField, readVerdict } from '../gates/review-format.ts';
 import { seams } from '../seams.ts';
 import { modelFor } from '../models.ts';
 import type { Models } from '../models.ts';
 import { readState, toplevelOf, writeState } from './state.ts';
 import type { Question, RoundClass } from './state.ts';
-import { notifyAdapters, runStep } from './step.ts';
+import { higherClass, notifyAdapters, runStep } from './step.ts';
 
 // How many times a within-agreement finding is repaired autonomously before one contextual escalation
 // (#113.3). An evaluated default, not a universal rule (#110).
@@ -56,11 +57,13 @@ export type Snapshot = {
 	models?: Models;
 	contractPaths?: string | null;
 	revisions?: { text: string; at: string }[];
+	revisionsDispatched?: number;
+	blockedAnswered?: number;
 	history?: { step: string; at: string }[];
 	repairs?: number;
 };
 export type Effect =
-	| { step?: string[]; ask?: { to: string; text: string; dflt: string | null; source: string }; revise?: string; repair?: true };
+	| { step?: string[]; ask?: { to: string; text: string; dflt: string | null; source: string }; revise?: string; repair?: true; revisionsDispatched?: number; blockedAnswered?: number };
 
 // Pure: the ids of the tracker note's `## <id>` sections not yet marked ` (posted)`.
 export function unpostedSections(note: string | null): string[] {
@@ -76,6 +79,9 @@ export function nextAction(s: Snapshot): { say: string; effects: Effect[] } {
 		const model = s.models ? ` (model: ${modelFor(phase, s.models)})` : '';
 		return act(`dispatch ${phase}${model}: run \`${wf} brief ${phase}\` in this worktree and do exactly what it prints${again ? ` (again: ${again})` : ''}`);
 	};
+	// T1 binds the agreement's agreed material sha. A progress edit to `## Verification`/`## Units`
+	// does not change the sha; a change to `## Observed`/`## Agreed` (or `## Intent`) does.
+	const t1Approved = s.t1.sha !== null && s.t1.reviewed === s.t1.sha && s.t1.verdict === 'approved';
 	const open = s.questions ?? [];
 
 	if (open.length) return act(open.map((q) => `wait ${q.to}: q${q.n} ${q.text}${q.default ? ` (default: ${q.default})` : ''}`).join('\n'));
@@ -89,6 +95,22 @@ export function nextAction(s: Snapshot): { say: string; effects: Effect[] } {
 	}
 	// T2 is local, before anything leaves the machine; the approval is the merge.
 	if (s.step === 'pr') return act(`deliver: T2 approved — \`${wf} deliver\` (push, PR, merge, the tracker note), then \`${wf} next\``);
+	// T1 stays live after the build starts: a build or progress edit that changes the agreement's
+	// agreed material, or a `wf decide --revise` recorded while a build runs, sends the round back to a
+	// fresh agreement/T1 rather than riding the old approval (#111.4). Progress (`## Verification`,
+	// `## Units`) does not change the material sha, so it does not renew T1.
+	if (s.step === 'build' || s.step === 'assess' || s.step === 'review') {
+		const pending = (s.revisions ?? []).slice(s.revisionsDispatched ?? 0);
+		if (pending.length) {
+			effects.push({ step: ['agree', '--waiting-on', 'user'], revisionsDispatched: (s.revisions ?? []).length });
+			return dispatch('agree', `the person asked the agreement to change: ${pending.map((r) => r.text).join(' · ')}`);
+		}
+		if (consequential(s.klass) && !t1Approved) {
+			const why = s.t1.reviewed === null ? `no ${AGREEMENT_REVIEW_FILE} yet` : s.t1.reviewed !== s.t1.sha ? 'the agreed material changed since T1' : `T1 verdict is ${s.t1.verdict ?? 'pending'}`;
+			effects.push({ step: ['agree', '--waiting-on', 'user'] });
+			return act(`wait user: T1 on AGREEMENT.md (${why}) — \`${wf} agree ${s.branch}\``);
+		}
+	}
 	const t2 = `review: T2 — see the fix first (the diff, the agreement and ASSESSMENT.md beside it), then \`${wf} review ${s.branch}\`; once it has a verdict, \`${wf} review ${s.branch} --done\``;
 	if (s.step === 'review') {
 		if (readVerdict(s.files.review ?? '') === 'dismissed') return act(`wait user: T2 was closed without a verdict — \`${wf} review ${s.branch}\` again when they are ready`);
@@ -106,14 +128,30 @@ export function nextAction(s: Snapshot): { say: string; effects: Effect[] } {
 			if (step !== 'agree') effects.push({ step: ['agree', '--waiting-on', 'user'] });
 			return act(`check: run \`${wf} check --repro\` (it says whether the ticket reproduces), then \`${wf} next\`. Go on: \`${wf} step build\` and set the started status; stop: \`WF_FORCE_REAP=1 ${wf} reap ${s.branch}\``);
 		}
+		// The class is measured, not assumed: a declared `Class:` line, or a verification case whose
+		// files reach a contract path, moves an A round to B, so the T1 gate cannot be skipped by how
+		// the worktree was opened (#111.4). A class never downgrades; `wf new --class C` stays C.
+		const cases = verificationCases(s.files.agreement);
+		const byFiles = s.contractPaths ? classFromFiles(cases.flatMap((c) => caseFiles(c)), s.contractPaths) : 'A';
+		const planned = higherClass(higherClass(s.klass, agreementClass(s.files.agreement) ?? 'A'), byFiles);
+		if (planned !== (s.klass ?? 'A')) {
+			effects.push({ step: ['classify', '--class', planned] });
+			return act(`classify: the agreement measures class ${planned} (declared, or a case on a contract path) — \`${wf} next\` takes T1 next`);
+		}
+		// `wf decide --revise`, or a T1 that asked for changes, sends the round back to a fresh
+		// agreement: the person's ruling must reach the working session before any build.
+		const revised = (s.revisions ?? []).slice(s.revisionsDispatched ?? 0);
+		if (revised.length) {
+			if (step !== 'agree') effects.push({ step: ['agree', '--waiting-on', 'user'] });
+			effects.push({ revisionsDispatched: (s.revisions ?? []).length });
+			return dispatch('agree', `the person asked the agreement to change: ${revised.map((r) => r.text).join(' · ')}`);
+		}
 		if (consequential(s.klass)) {
 			const gap = agreementGap(s.files.agreement, s.klass, s.branch);
 			if (gap) return dispatch('agree', gap);
-			// T1 approves the agreement's agreed material. `wf decide --revise` sends it back to agree,
-			// and a changes-requested review does too; a progress update to `## Verification` does not
-			// change the material sha and so does not invalidate an approved direction (#111.5).
-			const approved = s.t1.sha !== null && s.t1.reviewed === s.t1.sha && s.t1.verdict === 'approved';
-			if (!approved) {
+			// T1 approves the agreement's agreed material. A progress update to `## Verification` does
+			// not change the material sha and so does not invalidate an approved direction (#111.5).
+			if (!t1Approved) {
 				// A T1 that asked for changes sends the round back to a fresh agreement; otherwise the round
 				// waits on the person at the T1 page.
 				if (s.t1.reviewed === s.t1.sha && s.t1.verdict === 'changes-requested') return dispatch('agree', 'T1 asked for changes (AGREEMENT-REVIEW.md)');
@@ -130,6 +168,13 @@ export function nextAction(s: Snapshot): { say: string; effects: Effect[] } {
 		if (s.files.blocked) {
 			const q = blockedQuestion(s.files.blocked);
 			if (!q) return act(`wait user: BLOCKED.md has no Question: line — read it`);
+			// An answer to the blocked question (`wf decide` writes `## Answer`) resumes the build once;
+			// a build that comes back still blocked asks the person again with a fresh question.
+			const answered = [...(s.answered ?? [])].reverse().find((a) => a.source?.startsWith('BLOCKED.md'));
+			if (answered && answered.n !== s.blockedAnswered) {
+				effects.push({ blockedAnswered: answered.n });
+				return dispatch('build', `the blocked question was answered: ${answered.answer ?? ''}`);
+			}
 			return act(`wait user: blocked — ${q}`);
 		}
 		return dispatch('build');
@@ -142,13 +187,19 @@ export function nextAction(s: Snapshot): { say: string; effects: Effect[] } {
 		const gap = assessmentGap(s.files.assessment);
 		if (gap) return dispatch('assess', gap);
 		const measured = assessmentHead(s.files.assessment);
-		if (measured && measured !== s.head) return dispatch('assess', `ASSESSMENT.md is of ${measured.slice(0, 10)}…, HEAD is ${s.head.slice(0, 10)}…`);
+		if (measured !== s.head) return dispatch('assess', `ASSESSMENT.md is of ${measured?.slice(0, 10) ?? 'no head'}…, HEAD is ${s.head.slice(0, 10)}…`);
 		const verdict = assessmentVerdict(s.files.assessment);
 		const material = assessmentMaterial(s.files.assessment);
 		if (material) {
-			const q = `the assessment found a material change outside the agreement: ${material}. Renew the agreement (\`${wf} decide --revise "<the renewed behavior>"\`, then a fresh T1), or hold/end the round`;
-			effects.push({ ask: { to: 'user', text: q, dflt: null, source: 'ASSESSMENT.md#material' } });
-			return act(`wait user: ${q}`);
+			// One contextual escalation, recorded so it cannot repeat: a `--revise` answer moves the round
+			// back to agree (its revision is dispatched there); any other answer is the person's decision
+			// to carry on, and T2 reads it beside the assessment.
+			const source = `ASSESSMENT.md#${measured ?? 'unknown'}#material`;
+			if (!(s.answered ?? []).some((q) => q.source === source)) {
+				const q = `the assessment found a material change outside the agreement: ${material}. Renew the agreement (\`${wf} decide --revise "<the renewed behavior>"\`, then a fresh T1), or hold/end the round`;
+				effects.push({ ask: { to: 'user', text: q, dflt: null, source } });
+				return act(`wait user: ${q}`);
+			}
 		}
 		if (verdict === 'blocked') {
 			// Unmet intent or a still-reproducing symptom: never silently passed to T2 (#113.4, #75).
@@ -170,12 +221,24 @@ export function nextAction(s: Snapshot): { say: string; effects: Effect[] } {
 		if (verdict === 'repair') {
 			const attempts = s.repairs ?? 0;
 			if (attempts >= MAX_REPAIRS) {
-				const q = `${MAX_REPAIRS} autonomous repairs did not clear ASSESSMENT.md: read its findings and rule — accept into T2, or say what to change (\`${wf} decide --revise …\`)`;
-				effects.push({ ask: { to: 'user', text: q, dflt: null, source: `ASSESSMENT.md#${measured ?? 'unknown'}` } });
-				return act(`wait user: ${q}`);
+				// The bounded repair ran out: one contextual escalation, recorded so it cannot repeat. An
+				// answer that is not `accept` is a ruling to fix (build); `accept` carries into T2.
+				const source = `ASSESSMENT.md#${measured ?? 'unknown'}`;
+				const ruling = (s.answered ?? []).find((q) => q.source === source);
+				if (!ruling) {
+					const q = `${MAX_REPAIRS} autonomous repairs did not clear ASSESSMENT.md: read its findings and rule — accept into T2, or say what to change (\`${wf} decide --revise …\`)`;
+					effects.push({ ask: { to: 'user', text: q, dflt: null, source } });
+					return act(`wait user: ${q}`);
+				}
+				if (!/^\s*accept\b/i.test(ruling.answer ?? '')) {
+					effects.push({ step: ['build'] });
+					return dispatch('build', 'the ruling is to fix the assessment, not accept it');
+				}
+				// Accepted: fall through to T2 with the acceptance beside the assessment.
+			} else {
+				effects.push({ repair: true, step: ['build'] });
+				return dispatch('build', `repair ${attempts + 1} of ${MAX_REPAIRS} for ASSESSMENT.md's findings`);
 			}
-			effects.push({ repair: true, step: ['build'] });
-			return dispatch('build', `repair ${attempts + 1} of ${MAX_REPAIRS} for ASSESSMENT.md's findings`);
 		}
 		return act(t2);
 	}
@@ -222,6 +285,8 @@ export function snapshotOf(toplevel: string): Snapshot {
 		questions: state.questions ?? [],
 		answered: state.answered ?? [],
 		revisions: state.revisions ?? [],
+		revisionsDispatched: state.revisions_dispatched ?? 0,
+		blockedAnswered: state.blocked_answered ?? 0,
 		history: state.history ?? [],
 		repairs: state.repairs ?? 0,
 		head: git('rev-parse', 'HEAD'),
@@ -254,6 +319,8 @@ export async function runNext() {
 		// A repair attempt is counted against the assessment it answered; the assessment's own `head:`
 		// makes a stale count harmless (the next assessment is of a new HEAD).
 		if (e.repair) writeState(toplevel, (s) => ({ repairs: (s.repairs ?? 0) + 1 }));
+		if (e.revisionsDispatched !== undefined) writeState(toplevel, () => ({ revisions_dispatched: e.revisionsDispatched }));
+		if (e.blockedAnswered !== undefined) writeState(toplevel, () => ({ blocked_answered: e.blockedAnswered }));
 		if (e.revise !== undefined) { const text = e.revise; writeState(toplevel, (state) => reviseState(state, text)); }
 		if (e.ask) writeState(toplevel, (state) => addQuestion(state, e.ask!));
 	}

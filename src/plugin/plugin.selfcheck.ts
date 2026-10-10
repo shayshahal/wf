@@ -63,7 +63,8 @@ check('a build worker with a commit, or BLOCKED.md, is allowed', stopGap(st({ st
 check('an assess worker with no ASSESSMENT.md is sent back', (stopGap(st({ step: 'assess' }), { ...noFiles, commits: true }) ?? '').includes('ASSESSMENT.md'));
 check('an assess worker with no verdict is sent back', (stopGap(st({ step: 'assess' }), { ...noFiles, assessment: '## Intent\n- x\n', commits: true }) ?? '').includes('Verdict'));
 check('an assess worker with a valid assessment is allowed', stopGap(st({ step: 'assess' }), { ...noFiles, assessment: 'Verdict: clean\nhead: h\n## Intent\n- "x": met: a.ts:1 · before: r · after: g\n', commits: true }) === null);
-check('one hand-back per step: the marker stops a loop', stopGap(st({ step: 'agree', handoff_sent_back: 'agree' }), noFiles) === null);
+check('one hand-back per visit: the marker stops a loop', stopGap(st({ step: 'agree', since: 't1', handoff_sent_back: 'agree@t1' }), noFiles) === null);
+check('a build that returns after a repair is sent back again (a new visit)', (stopGap(st({ step: 'build', since: 't2', handoff_sent_back: 'build@t1' }), noFiles) ?? '').includes('wf step assess'));
 check('a fork is refused, any other agent is not', forkGap({ tool_input: { subagent_type: 'fork' } })?.startsWith('no forks') && forkGap({ tool_input: { subagent_type: 'wf:round-worker' } }) === null);
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');
 process.exit(failures ? 1 : 0);

@@ -17,9 +17,10 @@ import type { State } from './state.ts';
 type HookInput = { cwd?: string; stop_hook_active?: boolean; agent_type?: string; hook_event_name?: string; tool_input?: { subagent_type?: string } };
 
 // Pure: null when the round-worker may end, else what its phase still owes. Keyed on the round's step,
-// which is the phase it is at; the sent-back marker holds it to one hand-back per step.
+// which is the phase it is at; the sent-back marker holds it to one hand-back per *visit* to the step
+// (`step@since`), so a build that returns after a repair is sent back again (#112).
 export function stopGap(state: State | null, files: { agreement: string | null; assessment: string | null; blocked: boolean; commits: boolean }): string | null {
-	if (!state || state.handoff_sent_back === state.step) return null;
+	if (!state || state.handoff_sent_back === `${state.step ?? ''}@${state.since ?? ''}`) return null;
 	const klass = state.class ?? null;
 	if (state.step === 'agree') {
 		if (!files.agreement) return `write ${consequential(klass) ? 'AGREEMENT.md' : 'TICKET.md'} (its sections) before you end`;
@@ -92,7 +93,7 @@ export async function runHandoff(argv: string[]): Promise<void> {
 			commits,
 		});
 		if (!gap) return;
-		writeState(toplevel, (current) => ({ handoff_sent_back: current.step ?? '' }));
+		writeState(toplevel, (current) => ({ handoff_sent_back: `${current.step ?? ''}@${current.since ?? ''}` }));
 		const out = input.hook_event_name === 'PreToolUse'
 			? { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: `not yet: ${gap}` } }
 			: { decision: 'block', reason: gap };

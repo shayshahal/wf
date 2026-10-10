@@ -251,7 +251,7 @@ const cliRepo = (branch: string) => {
 	writeFileSync(join(repo, folder, 'TICKET.md'), '# 106 - ticket\n\n## Intent\n\n- "x": fix the thing\n');
 	writeFileSync(join(repo, folder, 'ASSESSMENT.md'), '# 106 - assessment\nVerdict: clean\n\nhead: deadbeef\n\n## Intent\n- "x": met: src/x.ts:1 - before: a - after: b\n');
 	mkdirSync(join(repo, '.wf'), { recursive: true });
-	writeFileSync(join(repo, '.wf', 'state.json'), `${JSON.stringify({ round: '106', id: '106', folder, base: 'main', step: 'review', class: 'A' }, null, 2)}\n`);
+	writeFileSync(join(repo, '.wf', 'state.json'), `${JSON.stringify({ wf_version: 2, round: '106', id: '106', folder, base: 'main', step: 'review', class: 'A' }, null, 2)}\n`);
 	return { repo, git };
 };
 const approve = async (repo: string, branch: string) => {
@@ -300,7 +300,7 @@ const approve = async (repo: string, branch: string) => {
 		writeFileSync(join(repo, 'src/x.ts'), 'a\n');
 		const done = await runCli(repo, ['review', branch, '--done']);
 		check('a committed change hidden by a restored worktree → refused', done.status === 2 && done.out.includes('the committed implementation changed after T2 approved it'), done.out);
-		writeFileSync(join(repo, '.wf', 'state.json'), `${JSON.stringify({ round: '106', id: '106', folder, base: 'main', step: 'pr', class: 'A' }, null, 2)}\n`);
+		writeFileSync(join(repo, '.wf', 'state.json'), `${JSON.stringify({ wf_version: 2, round: '106', id: '106', folder, base: 'main', step: 'pr', class: 'A' }, null, 2)}\n`);
 		const delivered = await runCli(repo, ['deliver']);
 		check('deliver refuses it before any remote', delivered.status === 2 && delivered.out.includes('the committed implementation changed after T2 approved it') && !delivered.out.includes('git push'), delivered.out);
 	});
@@ -359,7 +359,7 @@ const approve = async (repo: string, branch: string) => {
 	writeFileSync(join(repo, folder, 'TICKET.md'), `# r\n\n## Intent\n\n- "x": fix the thing\n\n## Verification\n\n| # | case | files | check |\n|---|---|---|---|\n| 1 | fix(x): one | src/x.ts | repro |\n\n## Repro\ncommand: node ${folder}/repro/mutate.mjs\n`);
 
 	writeFileSync(join(repo, folder, 'repro/mutate.mjs'), "import { writeFileSync } from 'node:fs';\nwriteFileSync('src/x.ts', 'mutated\\n');\n");
-	writeFileSync(join(repo, '.wf', 'state.json'), `${JSON.stringify({ round: '106', id: '106', folder, base: 'main', step: 'build', class: 'A' }, null, 2)}\n`);
+	writeFileSync(join(repo, '.wf', 'state.json'), `${JSON.stringify({ wf_version: 2, round: '106', id: '106', folder, base: 'main', step: 'build', class: 'A' }, null, 2)}\n`);
 	const before = worktreeContentSha(repo, folder, null, 'row');
 	await withStack(branch, async () => {
 		const res = await runCli(repo, ['check']);
@@ -446,7 +446,7 @@ const approve = async (repo: string, branch: string) => {
 	await withStack(branch, async () => {
 		await approve(repo, branch);
 	});
-	writeFileSync(join(repo, '.wf', 'state.json'), `${JSON.stringify({ round: '106', id: '106', folder, base: 'main', step: 'pr', class: 'A' }, null, 2)}\n`);
+	writeFileSync(join(repo, '.wf', 'state.json'), `${JSON.stringify({ wf_version: 2, round: '106', id: '106', folder, base: 'main', step: 'pr', class: 'A' }, null, 2)}\n`);
 	const hook = join(repo, '.git', 'hooks', 'pre-push');
 	mkdirSync(join(repo, '.git', 'hooks'), { recursive: true });
 	writeFileSync(hook, '#!/bin/sh\necho h >> src/x.ts\n');

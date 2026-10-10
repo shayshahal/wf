@@ -14,6 +14,8 @@ const plan = '# X\n\n## T2 walk\nopen: `b2b /catalog as buyer mobile`\nZoom on a
 assert.equal(openLineOf(plan), 'b2b /catalog as buyer mobile');
 assert.equal(openLineOf(plan.replace(/\n/g, '\r\n')), 'b2b /catalog as buyer mobile');
 assert.equal(openLineOf('## T2 walk\nZoom.\n## Asks\nopen: b2b /x\n'), null);
+// The agreement template writes the walk as a bullet inside `## Agreed`; the line is read there too.
+assert.equal(openLineOf('## Agreed\n- **T2 walk.** open: `b2b /catalog as buyer mobile`\n'), 'b2b /catalog as buyer mobile');
 const cli = 'docs/agents/verify-jewelryx/control-jewelryx.mjs';
 assert.deepEqual(showArgs(parseOpen('b2b /catalog as seller mobile')!), [cli, 'open', 'b2b', '/catalog', 'as', 'seller', 'mobile', '--headed']);
 assert.deepEqual(showArgs(parseOpen('admin /orders')!), [cli, 'open', 'admin', '/orders', 'as', 'admin', '--headed']);

@@ -136,9 +136,15 @@ export function assessmentMaterial(text: string | null | undefined): string | nu
 	return /^material:[ \t]*(.+)$/m.exec(body)?.[1].trim() || null;
 }
 
-// Pure: null when ASSESSMENT.md is an assessment a T2 can read, else why not.
+// Pure: null when ASSESSMENT.md is an assessment a T2 can read, else why not. The `head:` is what
+// binds it to the tree it judged, so a missing one is refused; a `clean` verdict may not carry an
+// unmet item (`not met:`/`differs:`/`still reproduces:`) — that is a blocked round wearing a clean
+// label (#113.4).
 export function assessmentGap(text: string | null | undefined): string | null {
 	if (text == null) return `no ${ASSESSMENT_FILE}`;
-	if (!assessmentVerdict(text)) return `${ASSESSMENT_FILE} has no \`Verdict: clean | repair | blocked\` line`;
+	const verdict = assessmentVerdict(text);
+	if (!verdict) return `${ASSESSMENT_FILE} has no \`Verdict: clean | repair | blocked\` line`;
+	if (!assessmentHead(text)) return `${ASSESSMENT_FILE} has no \`head: <commit>\` line — the assessment names the tree it judged`;
+	if (verdict === 'clean' && /(not met:|differs:|still reproduces:)/i.test(text)) return `${ASSESSMENT_FILE} says clean but states an unmet item — a clean assessment cannot carry \`not met:\``;
 	return intentGap(text);
 }

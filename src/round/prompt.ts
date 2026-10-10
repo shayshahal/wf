@@ -34,12 +34,14 @@ export const PHASES = ['agree', 'build', 'assess'];
 export const USAGE = 'agree | build | assess';
 
 // Pure: the agreed material a build works from, as the prompt shows it — the `## Observed`/`## Agreed`
-// of a consequential round, the `## Intent` of an ordinary ticket.
+// of a consequential round, the `## Intent` of an ordinary ticket, plus the `## Decisions` a person
+// recorded (wf decide), which bind the build as much as the agreement itself.
 export function agreedMaterial(text: string, klass: string | null): string {
-	if (consequential(klass as 'A' | 'B' | 'C' | null)) {
-		return [section(text, 'Observed'), section(text, 'Agreed')].filter(Boolean).join('\n\n').trim();
-	}
-	return (ticketIntent(text) ?? '').trim();
+	const decisions = section(text, 'Decisions');
+	const body = consequential(klass as 'A' | 'B' | 'C' | null)
+		? [section(text, 'Observed'), section(text, 'Agreed')].filter(Boolean).join('\n\n').trim()
+		: (ticketIntent(text) ?? '').trim();
+	return [body, decisions ? `## Decisions\n${decisions.trimEnd()}` : ''].filter(Boolean).join('\n\n');
 }
 
 // The `{{…}}` a prompt template substitutes; the project's direct URLs add one per app.
@@ -60,7 +62,7 @@ export function composePrompt(argv: string[]) {
 	const intent = ticketIntent(ticket);
 	if (!intent) throw new Error(`${phase}: ${folder}/TICKET.md has no \`## Intent\` — the requester's words, verbatim and attributed`);
 	const agreementText = existsSync(agreementPath(toplevel, klass, folder)) ? readFileSync(agreementPath(toplevel, klass, folder), 'utf8') : '';
-	const vars: PromptVars = { round: id, folder, base: state?.base ?? `origin/${baseBranch}`, intent, agreement: agreedMaterial(agreementText, klass), file: agreementFile(klass) };
+	const vars: PromptVars = { round: id, folder, base: state?.base ?? `origin/${baseBranch}`, intent, agreement: agreedMaterial(agreementText, klass), file: agreementFile(klass), assessment: '' };
 	// The project's direct URLs, {{<app>}}: Node on Windows cannot resolve *.localhost.
 	try {
 		const base = basePortForBranch(execFileSync('git', ['-C', toplevel, 'rev-parse', '--abbrev-ref', 'HEAD'], { encoding: 'utf8' }).trim());

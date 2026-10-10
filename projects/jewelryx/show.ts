@@ -38,10 +38,14 @@ export function parseOpen(line: string | null | undefined): Open | null {
 	return { app: m[1] as Open['app'], path: m[2].startsWith('/') ? m[2] : `/${m[2]}`, as: (m[3] as SeedRole | undefined) ?? (m[1] === 'admin' ? 'admin' : 'buyer'), mobile: Boolean(m[4]) };
 }
 
-// Pure: the `open:` line under `## T2 walk`, or null.
+// Pure: the `open:` line of the agreement — under a `## T2 walk` section, or the `**T2 walk.**` bullet
+// the agreement template writes inside `## Agreed` (both are the same line; the bullet keeps the walk
+// part of the agreed material T1 approves).
 export function openLineOf(planText: string | null): string | null {
-	const walk = /^## T2 walk[ \t]*\n([\s\S]*?)(?=^## |(?![\s\S]))/m.exec((planText ?? '').replace(/\r\n/g, '\n'));
-	const m = walk && /^open:[ \t]*`?([^`\n]+?)`?[ \t]*$/m.exec(walk[1]);
+	const text = (planText ?? '').replace(/\r\n/g, '\n');
+	const walk = /^## T2 walk[ \t]*\n([\s\S]*?)(?=^## |(?![\s\S]))/m.exec(text);
+	const open = /^(?:-\s*)?(?:\*\*T2 walk\.\*\*\s*)?open:[ \t]*`?([^`\n]+?)`?[ \t]*$/m;
+	const m = walk ? open.exec(walk[1]) : open.exec(text);
 	return m ? m[1] : null;
 }
 

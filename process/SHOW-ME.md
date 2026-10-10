@@ -29,9 +29,9 @@ path. This file is the rest, and the rules all of them follow.
 - **`diff` blocks**: `+` added, `-` removed, `~` changed, a leading space unchanged — the same
   markers as the call stack, so a reader learns one grammar.
 - **An HTML artifact is a view, not a second document.** One focused file, in the round folder, for
-  the one question text cannot carry. The markdown stays what binds; `wf design` and `wf review`
-  render the artifact beside the plan (`.wf/SPEC-T1.html`, `.wf/PLAN.html`), and a reader who never
-  opens it loses nothing the plan does not say.
+  the one question text cannot carry. The markdown stays what binds; `wf agree` and `wf review`
+  render the artifact beside the agreement (`.wf/AGREEMENT-T1.html`, `.wf/REVIEW.html`), and a reader
+  who never opens it loses nothing the agreement does not say.
 - **`NOT MEASURED — <why>` is always acceptable. Silence is not** (`PRACTICES.md`): a view asserts a
   shape; a shape nobody measured says so.
 

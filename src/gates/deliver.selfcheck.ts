@@ -63,11 +63,11 @@ const visible = body.slice(0, body.indexOf('<details>'));
 
 check('the PR title is the ticket\u2019s own title', prTitle({ ticket, plan, commitLines }) === 'BJEW-1 — the code never arrives');
 check('with no TICKET.md the title is the newest commit, never the oldest', prTitle({ ticket: '', plan, commitLines }) === 'fix(auth): x');
-check('the body leads with the round folder, then Intent and the plan\u2019s header', body.startsWith('Round folder: `bug-reports/bjew-1/`\n\n## Intent\n\n- Shay, 2026-01-01: "the code never arrives"\n\n## Approach\n\nClass: A\nCause: the send result'));
+check('the body leads with the round folder, then Intent, the agreement and the plan header', body.startsWith('Round folder: `bug-reports/bjew-1/`\n\n## Intent\n\n- Shay, 2026-01-01: "the code never arrives"\n\n## Agreement\n\n- Shay, 2026-01-01: "the code never arrives"\n\n## Approach\n\nClass: A\nCause: the send result'));
 check('the commits are one line each, joined to the pushed hash, with no files cell', body.includes('| 1 | abc1234 | fix(auth): x | repro |') && !body.includes('packages/backend/app/api/auth.py'));
 check('a commit no row names is listed too, and the Row N: instructions are not', body.includes('| — | def5678 | docs(BJEW-1): round folder: ticket, agreement, assessment, repro | — |') && !body.includes('Row 1: commit only auth.py'));
 check('the T2 walk and Not doing are there, as the plan wrote them', body.includes('## T2 walk\n\nopen: /login') && body.includes('## Not doing\n\n- the SMS provider'));
-check('VALIDATION.md\u2019s verdict, suites and as-built sections are there', body.includes('## Validation\n\nVerdict: matches plan\n\ngreen: abc123 — backend pytest') && body.includes('### Unplanned\n\nnone') && body.includes('### Intent\n\n- "the code never arrives": met') && body.includes('### Live\n\nVERIFIED — the code arrives'));
+check('ASSESSMENT.md\u2019s verdict, suites and intent sections are there', body.includes('## Assessment\n\nVerdict: matches plan\n\ngreen: abc123 — backend pytest') && body.includes('### Unplanned\n\nnone') && body.includes('### Intent\n\n- "the code never arrives": met') && body.includes('### Live\n\nVERIFIED — the code arrives'));
 check('the call stack and the plan history are folded, not cut', body.includes('<summary>Build — the call stack (3 lines)</summary>') && body.includes('+    send_otp_code()') && body.includes('<summary>Plan history — 2 revisions, 1 decisions</summary>'));
 check('the revision log is history: not in what the reviewer reads first', !visible.includes('Revision (T2') && !visible.includes('## Revisions'));
 check('a body under the budget is not called shortened', !body.includes('Shortened:') && body.trimEnd().endsWith('</details>'));
@@ -93,7 +93,7 @@ check('a plan still over with the history gone cuts the call stack too', huge.le
 // file and the verdict and the other sections stay.
 const longValidation = `# JX-1 — validation\nVerdict: matches plan\n\n## Unplanned\n${'u'.repeat(62000)}\n\n## Intent\n- the ask: met\n\n## Live\nVERIFIED`;
 const cutValidation = prBody({ ticket, plan, commitLines, validation: longValidation, planPath: 'bug-reports/jx-1/PLAN.md' });
-check('a huge Unplanned is cut with a marker, keeping the verdict and the Intent judgement', cutValidation.length < 65536 && cutValidation.includes('### Unplanned\n\n(cut here, in `bug-reports/jx-1/VALIDATION.md`)') && !cutValidation.includes('uuuuuuuuuu') && cutValidation.includes('Verdict: matches plan') && cutValidation.includes('### Intent\n\n- the ask: met'));
+check('a huge Unplanned is cut with a marker, keeping the verdict and the Intent judgement', cutValidation.length < 65536 && cutValidation.includes('### Unplanned\n\n(cut here, in `bug-reports/jx-1/ASSESSMENT.md`)') && !cutValidation.includes('uuuuuuuuuu') && cutValidation.includes('Verdict: matches plan') && cutValidation.includes('### Intent\n\n- the ask: met'));
 check('a plan that fits is not shortened', !prBody({ ticket, plan, commitLines: ['- a b'], validation: '' }).includes('Shortened:'));
 
 // The commits alone over the budget: the oldest go, a quarter at a time, and the count says how many.
