@@ -1,342 +1,207 @@
 // next.selfcheck.ts — node next.selfcheck.ts → exit 0 when green.
-// Pure arms: wf next's action for each row of what was the round skill's *On each result* table
-// (next.ts nextAction), from a fixture round. Nothing is run.
+// Pure arms: wf next's action for the smaller route (#110-#113) — ordinary (class A), consequential
+// (B/C) with T1, build, one final assessment with bounded repair, unmet-intent T2 refusal and
+// material-change escalation. A real CLI arm builds a temp git repo and drives wf step/next through
+// the ordinary and complex examples (the command path, not only the pure snapshot).
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
-import { lastSuites, nextAction, snapshotOf, unpostedSections } from './next.ts';
+import { join } from 'node:path';
+import { nextAction, unpostedSections } from './next.ts';
 import type { Snapshot } from './next.ts';
-import { contractPaths as contractPathsFile } from '../project.ts';
-import { researchState, revisionText, reviseState } from './ask.ts';
-import { briefsAfter } from './handoff.ts';
-import { writeState } from './state.ts';
-import type { Brief, Question } from './state.ts';
-
-type Fixture = Partial<Omit<Snapshot, 'files' | 'briefs' | 'questions' | 'answered'>> & { files?: Partial<Snapshot['files']>; briefs?: Record<string, Partial<Brief>>; questions?: Partial<Question>[]; answered?: Partial<Question>[] };
+import { readState, legacyStateGap } from './state.ts';
+import { WF_ROOT } from '../paths.ts';
 
 let failures = 0;
 const check = (name: string, cond: boolean, detail = '') =>
 	(console.log(cond ? `  ok   ${name}` : `  FAIL ${name}${detail ? ` — ${detail}` : ''}`) as unknown) || (cond || failures++);
 
-const tok = (t: string) => `\n<!-- brief: ${t} -->\n`;
-const RESEARCH = `# r — research\n## Repro\ncommand: pnpm --dir verification exec playwright test -c ../bug-reports/r/repro/playwright.config.ts\n${tok('aaa111')}`;
-const plan = ({ klass = 'A', asks = 'none', token = 'bbb222', files = 'a.ts', files2 = 'b.ts' } = {}) => `# r — plan\nClass: ${klass}\nCause: x\n\n## Commits\n| # | message | files | check |\n|---|---|---|---|\n| 1 | fix(x): one | ${files} | repro |\n| 2 | fix(x): two | ${files2} | repro |\n\n## Asks\n- ${asks}\n${tok(token)}`;
-const VALID = (v = 'matches plan', t = 'ccc333') => `# r — validation\nVerdict: ${v}\n## Build stack\n- hop 1: differs: returns null\n## Intent\n"one": met: a.ts:1 \u00b7 before: red \u00b7 after: green\n${tok(t)}`;
-// The critic agreed with validation ccc333 (gates/critique.ts): every arm below it is past the critique.
-const CRIT = (v = 'AGREE', t = 'fff666') => `# r — critique of the validation\n\n## Rows\n- ${v === 'AGREE' ? 'AGREE · Verdict: matches plan' : `${v} · hop 1: differs · a.ts:3 — it returns 0`}\n\nVerdict: ${v}\n${tok(t)}`;
-const green = (n: number) => ({ row: n, result: 'green', rowCheck: 'repro' });
-const base = (patch: Fixture = {}) => ({
-	branch: 'fix/r', entry: 'C:/wf/wf.mjs', step: 'classify', klass: 'A', questions: [], answered: [], commit: null,
-	briefs: { research: { token: 'aaa111', count: 1 }, plan: { token: 'bbb222', count: 1 }, validate: { token: 'ccc333', count: 1 }, critique: { token: 'fff666', count: 1, of: 'ccc333', exchange: 1 } },
-	files: { research: null, plan: null, blocked: null, asBuilt: null, validation: null, critique: CRIT(), review: null },
-	t1: { spec: null, reviewed: null, verdict: null }, subjects: [], checks: [], repro: { aaa111: 'stable' }, note: null, ...patch,
-	...(patch.files ? { files: { research: null, plan: null, blocked: null, asBuilt: null, validation: null, critique: CRIT(), review: null, ...patch.files } } : {}),
-}) as Snapshot;
+const AGREEMENT = `# r — agreement
+Class: B
+## Observed
+- the header renders at the top — \`src/Page.svelte:12\`
+## Agreed
+- Behavior: two columns with a sidebar. Excluding: the data shown.
+- Choice: extract DetailsLayout (rejected: absolute-position).
+- Verification: the existing tests pass, plus the sidebar region renders.
+## Verification
+| # | case | files | check |
+|---|---|---|---|
+| 1 | layout: sidebar renders | src/Page.svelte | src/Page.spec.ts::sidebar renders@42 |
+`;
+const TICKET = `# r — ticket
+## Intent
+- "x": the modal keeps its scroll position
+`;
+const ASSESS = (patch: { verdict?: string; head?: string; material?: string; intent?: string } = {}) => `# r — assessment
+Verdict: ${patch.verdict ?? 'clean'}
+head: ${patch.head ?? 'H4'}
+## Intent
+${patch.intent ?? '- "x": met: src/Page.svelte:1 · before: red · after: green'}
+## Agreement
+${patch.material ? `material: ${patch.material}` : '(none)'}
+`;
+
+const base = (patch: Partial<Snapshot> = {}): Snapshot => ({
+	branch: 'fix/r', entry: 'C:/wf/wf.mjs', step: 'classify', klass: 'A', check: false, questions: [], answered: [],
+	files: { agreement: null, assessment: null, review: null, blocked: null },
+	t1: { sha: null, reviewed: null, verdict: null },
+	head: 'H4', note: null, repairs: 0,
+	...patch,
+});
 const say = (s: Snapshot) => nextAction(s).say;
 const steps = (s: Snapshot) => nextAction(s).effects.filter((e) => e.step).map((e) => e.step!.join(' '));
 const asks = (s: Snapshot) => nextAction(s).effects.filter((e) => e.ask).map((e) => e.ask!);
-const done2 = { subjects: ['fix(x): one', 'fix(x): two'], checks: [green(1), green(2)] };
+const repairs = (s: Snapshot) => nextAction(s).effects.filter((e) => e.repair).length;
 
-// ── start → research
-const fresh = base({ briefs: {} });
-check('a new round: dispatch research, through wf brief', say(fresh) === 'dispatch research: run `node C:/wf/wf.mjs brief research` in this worktree and do exactly what it prints', say(fresh));
-check('research briefed, no RESEARCH.md: again, saying why', say(base()).includes('(again: no RESEARCH.md)'));
-check('RESEARCH.md from an earlier brief is not the answer', say(base({ files: { research: RESEARCH.replace('aaa111', 'old999') } })).includes('not the answer to the last brief'));
-check('a phase briefed twice without a handoff goes to the user, not a third agent', say(base({ briefs: { research: { token: 'aaa111', count: 2 } } })).startsWith('wait user: research was briefed 2 times'));
+// ── ordinary (class A): the ticket is the agreement, no T1, straight to build
+check('class A: the ticket is the agreement → step build and dispatch build', steps(base()) .join() === 'build' && say(base()).startsWith('dispatch build'), say(base()));
+check('class A build: one phase, resumed in place (no per-commit dispatch)', say(base({ step: 'build' })) === 'dispatch build: run `node C:/wf/wf.mjs brief build` in this worktree and do exactly what it prints', say(base({ step: 'build' })));
+check('a blocked build waits on the user with the question', say(base({ step: 'build', files: { agreement: null, assessment: null, review: null, blocked: 'Question: which label?\n' } })) === 'wait user: blocked — which label?');
 
-// research finished
-const researched = base({ files: { research: RESEARCH } });
-check('research → wf step plan, dispatch plan', steps(researched).join() === 'plan' && say(researched).startsWith('dispatch plan: run `node C:/wf/wf.mjs brief plan`'), say(researched));
+// ── a check round: it writes ## Repro, then wf check --repro is the answer
+check('a check round with no ## Repro: dispatch agree to write it', say(base({ check: true })).startsWith('dispatch agree') && say(base({ check: true })).includes('no `## Repro`'), say(base({ check: true })));
+check('a check round with ## Repro: run wf check --repro and wait on the user', say(base({ check: true, files: { agreement: TICKET + '\n## Repro\ncommand: yarn repro\n', assessment: null, review: null, blocked: null } })).startsWith('check: run `node C:/wf/wf.mjs check --repro`'), say(base({ check: true })));
 
-// a check (wf new --check): research first, then Shay; his go is `wf step plan`
-check('a check with no RESEARCH.md yet: research, as a round', say(base({ check: true, briefs: {} })).startsWith('dispatch research:'));
-// The repro is a measurement before plan: wf check --repro found it red at one place on every run (TJEW-665).
-check('research in, its repro never found stable for this brief: research again, saying why', say(base({ files: { research: RESEARCH }, repro: {} })) === 'dispatch research: run `node C:/wf/wf.mjs brief research` in this worktree and do exactly what it prints (again: `node C:/wf/wf.mjs check --repro` has not found its repro red at one place on every run)', say(base({ files: { research: RESEARCH }, repro: {} })));
-check('a stable repro from an earlier brief does not count', say(base({ files: { research: RESEARCH }, repro: { old999: 'stable' } })).startsWith('dispatch research:'));
-const notReproduced = base({ files: { research: RESEARCH }, repro: { aaa111: 'green' } });
-check('green on every run: wait on the user, no second research', say(notReproduced).startsWith('wait user: it does not reproduce — `node C:/wf/wf.mjs check --repro` was green on every run') && steps(notReproduced).join() === 'research --waiting-on user', say(notReproduced));
-check('green on every run: the line names the way back to research, beside go on and stop', say(notReproduced).includes('Go on anyway: `node C:/wf/wf.mjs step plan`; new evidence to measure: `node C:/wf/wf.mjs decide --research "<what research must now measure>"`; stop: `WF_FORCE_REAP=1 node C:/wf/wf.mjs reap fix/r`'), say(notReproduced));
-// BJEW-669 (2026-10-06): green on seeded data, then the cause found in QA's database; the repro verdict is keyed by the brief, which new evidence does not change.
-const askedAgain = researchState({ step: 'research', briefs: { research: { token: 'aaa111', count: 1, at: '2026-10-06T10:00:00.000Z' } } }, '  the three duplicate wishlist rows on QA ', '2026-10-06T11:00:00.000Z');
-const evidenced = { ...notReproduced, researchRequests: askedAgain.researchRequests, briefs: { ...notReproduced.briefs, research: { token: 'aaa111', count: 1, at: '2026-10-06T10:00:00.000Z' } } } as Snapshot;
-check('decide --research: a fresh research, though the repro of the old brief is green', say(evidenced) === 'dispatch research: run `node C:/wf/wf.mjs brief research` in this worktree and do exactly what it prints' && !steps(evidenced).length && askedAgain.researchRequests?.[0].text === 'the three duplicate wishlist rows on QA' && askedAgain.step === 'research', say(evidenced));
-const briefedAgain = { ...evidenced, briefs: { ...evidenced.briefs, research: { token: 'ddd444', count: 1, at: '2026-10-06T11:05:00.000Z' } }, files: { ...evidenced.files, research: RESEARCH.replace('aaa111', 'ddd444') }, repro: { aaa111: 'green' } } as Snapshot;
-check('the new research briefed: the old token\'s green does not count, the new brief\'s own verdict does', say(briefedAgain).startsWith('dispatch research:') && steps({ ...briefedAgain, repro: { ddd444: 'stable' } }).join() === 'plan' && steps({ ...briefedAgain, repro: { ddd444: 'green' } }).join() === 'research --waiting-on user' && say({ ...briefedAgain, repro: { ddd444: 'green' } }).startsWith('wait user: it does not reproduce'), say(briefedAgain));
-check('a request already answered by a research brief is not sent again', !say({ ...notReproduced, researchRequests: [{ text: 'x', at: '2026-10-06T09:00:00.000Z' }], briefs: { research: { token: 'aaa111', count: 1, at: '2026-10-06T10:00:00.000Z' } } } as Snapshot).startsWith('dispatch'));
-check('unstable for this brief: research again', say(base({ files: { research: RESEARCH }, repro: { aaa111: 'unstable' } })).startsWith('dispatch research:'));
-// BJEW-461 (2026-10-06): red three times in the shared setup's login, and plan was dispatched.
-const outside = say(base({ files: { research: RESEARCH }, repro: { aaa111: 'outside' } }));
-check('red outside the repro for this brief: no plan; research again once the precondition is fixed', outside.startsWith('dispatch research:') && outside.includes('a precondition (login, setup, data) and not the defect'), outside);
-check('a check round needs no stable repro: green is its answer', say(base({ check: true, files: { research: RESEARCH }, repro: {} })).startsWith('wait user: check'));
-const checked = base({ check: true, files: { research: RESEARCH } });
-check('a check, research in: it waits on the user, no plan', steps(checked).join() === 'research --waiting-on user' && say(checked).startsWith('wait user: check') && say(checked).includes('`node C:/wf/wf.mjs step plan`') && say(checked).includes('WF_FORCE_REAP=1 node C:/wf/wf.mjs reap fix/r'), say(checked));
-check('a check already waiting: the same line, no step again', !steps({ ...checked, step: 'research' }).length && say({ ...checked, step: 'research' }) === say(checked));
-check('a check the user said go to: the plan, as a round', say({ ...checked, step: 'plan' }).startsWith('dispatch plan:'));
+// ── consequential (B/C): one agreement, one T1
+check('B/C with no agreement: dispatch agree with the gap', say(base({ klass: 'B' })).startsWith('dispatch agree') && say(base({ klass: 'B' })).includes('no AGREEMENT.md'), say(base({ klass: 'B' })));
+check('B/C agreement not yet approved: wait on the user for T1 with wf agree', say(base({ klass: 'B', files: { agreement: AGREEMENT, assessment: null, review: null, blocked: null }, t1: { sha: 's1', reviewed: null, verdict: null } })) === 'wait user: T1 on AGREEMENT.md — `node C:/wf/wf.mjs agree fix/r`', say(base({ klass: 'B' })));
+check('B/C T1 approved: step build and dispatch build', steps(base({ klass: 'B', files: { agreement: AGREEMENT, assessment: null, review: null, blocked: null }, t1: { sha: 's1', reviewed: 's1', verdict: 'approved' } })).join() === 'build', say(base({ klass: 'B' })));
+check('B/C T1 changes-requested: dispatch agree again', say(base({ klass: 'B', step: 'agree', files: { agreement: AGREEMENT, assessment: null, review: null, blocked: null }, t1: { sha: 's1', reviewed: 's1', verdict: 'changes-requested' } })).startsWith('dispatch agree'));
+check('B/C a new agreement sha (material changed): T1 again, not approved', say(base({ klass: 'B', step: 'agree', files: { agreement: AGREEMENT, assessment: null, review: null, blocked: null }, t1: { sha: 's2', reviewed: 's1', verdict: 'approved' } })).startsWith('wait user: T1'));
 
-// plan finished, class A
-const planned = base({ step: 'plan', files: { research: RESEARCH, plan: plan() } });
-check('plan, class A → wf step implement, dispatch implement 1', steps(planned).join() === 'implement' && say(planned).startsWith('dispatch implement 1:'), say(planned));
-// The project's rule on the plan's rows (BJEW-617, 2026-10-06): a fix/ plan listing a verification/ file goes back to the plan agent, not on to implement.
-const oraclePlan = base({ step: 'plan', files: { research: RESEARCH, plan: plan().replace('| a.ts |', '| verification/tests/x.spec.ts |') } });
-check('plan: a fix/ row listing a verification/ file is redispatched with the rule of the guard, not built', say(oraclePlan).startsWith('dispatch plan') && say(oraclePlan).includes('oracle-guard') && steps(oraclePlan).length === 0, say(oraclePlan));
+// ── the assessment
+check('no ASSESSMENT.md: dispatch assess', say(base({ step: 'assess' })).startsWith('dispatch assess') && say(base({ step: 'assess' })).includes('no ASSESSMENT.md'), say(base({ step: 'assess' })));
+check('an assessment of an earlier HEAD is re-run', say(base({ step: 'assess', files: { agreement: null, assessment: ASSESS({ head: 'H3' }), review: null, blocked: null } })).startsWith('dispatch assess') && say(base({ step: 'assess', files: { agreement: null, assessment: ASSESS({ head: 'H3' }), review: null, blocked: null } })).includes('HEAD is H4'), say(base({ step: 'assess' })));
+check('clean assessment → T2 review', say(base({ step: 'assess', files: { agreement: null, assessment: ASSESS(), review: null, blocked: null } })).startsWith('review: T2'), say(base({ step: 'assess' })));
+check('an intent line without a verdict is not a clean assessment', say(base({ step: 'assess', files: { agreement: null, assessment: ASSESS({ intent: '- "x": looks fine' }), review: null, blocked: null } })).startsWith('dispatch assess') && say(base({ step: 'assess', files: { agreement: null, assessment: ASSESS({ intent: '- "x": looks fine' }), review: null, blocked: null } })).includes('has no verdict'), say(base({ step: 'assess' })));
 
-// plan, Asks non-empty
-const withAsk = base({ step: 'plan', files: { research: RESEARCH, plan: plan({ asks: 'round to 2 places? — default: 2' }) } });
-check('plan with an Ask: recorded as a question to the user, the round waits', asks(withAsk).length === 1 && asks(withAsk)[0].text === 'round to 2 places?' && asks(withAsk)[0].dflt === '2' && say(withAsk) === 'wait user: round to 2 places? (default: 2)', say(withAsk));
-const answeredAsk = (answer: string, token = 'bbb222') => base({ ...withAsk, answered: [{ n: 1, source: asks(withAsk)[0].source.replace('bbb222', token), text: 'round to 2 places?', default: '2', answer }] });
-check('an Ask answered with its default is not put again: implement', steps(answeredAsk('2')).join() === 'implement' && steps(answeredAsk('default')).join() === 'implement', steps(answeredAsk('2')).join());
-check('an Ask answered against its default: the plan is revised first', say(answeredAsk('3')).startsWith('dispatch plan --revise: run `node C:/wf/wf.mjs brief plan --revise`') && !steps(answeredAsk('3')).includes('implement'), say(answeredAsk('3')));
-const revised = base({ ...answeredAsk('3', 'old000'), files: { research: RESEARCH, plan: plan() } });
-check('once revised (a new plan brief, the answered Asks gone), implement', steps(revised).join() === 'implement', say(revised));
-check('an open question: wait on its person, nothing else', say(base({ ...withAsk, questions: [{ n: 4, to: 'einat', text: 'which label?' }] })) === 'wait einat: q4 which label?');
+// repair: back to build, bounded
+const repair = base({ step: 'assess', repairs: 0, files: { agreement: null, assessment: ASSESS({ verdict: 'repair' }), review: null, blocked: null } });
+check('a repair assessment returns to build, counted', repairs(repair) === 1 && steps(repair).join() === 'build' && say(repair).includes('repair 1 of 2'), say(repair));
+const spent = base({ step: 'assess', repairs: 2, files: { agreement: null, assessment: ASSESS({ verdict: 'repair' }), review: null, blocked: null } });
+check('two unsuccessful repairs: one contextual escalation, not another build', repairs(spent) === 0 && steps(spent).length === 0 && asks(spent).length === 1 && asks(spent)[0].source.startsWith('ASSESSMENT.md#') && asks(spent)[0].text.includes('answer `accept`'), say(spent));
 
-// plan, class B/C → T1
-const planB = base({ step: 'plan', files: { research: RESEARCH, plan: plan({ klass: 'B' }) } });
-check('plan says B: wf step plan --class B, then the design session', steps(planB).join() === 'plan --class B' && say(planB).startsWith('design: start the design session'), say(planB));
-// The class the plan's own files measure, not the one the plan wrote: the gitattributes measurement at
-// `wf new` runs against an empty diff, so before this T1 rested on the agent's `Class:` line.
-const contractPaths = 'packages/backend/app/api/**\n';
-const measuredB = base({ step: 'plan', klass: 'A', contractPaths, files: { research: RESEARCH, plan: plan({ klass: 'A', files: 'packages/backend/app/api/x.py' }) } });
-check('a plan that says A but lists a contract path measures B: step plan --class B, then T1', steps(measuredB).join() === 'plan --class B' && say(measuredB).startsWith('design: start the design session'), say(measuredB));
-check('a plan whose files are outside the contract paths stays A: implement, no T1', steps(base({ step: 'plan', klass: 'A', contractPaths, files: { research: RESEARCH, plan: plan({ klass: 'A' }) } })).join() === 'implement');
-check('no contract-paths file (contractPaths null): nothing is measured', steps(base({ step: 'plan', klass: 'A', contractPaths: null, files: { research: RESEARCH, plan: plan({ klass: 'A', files: 'packages/backend/app/api/x.py' }) } })).join() === 'implement');
-const design = (t1: Snapshot['t1']) => base({ step: 'design', klass: 'B', files: { research: RESEARCH, plan: plan({ klass: 'B' }) }, t1 });
-check('T1 not reviewed yet: wait on the user with wf design', say(design({ spec: 's1', reviewed: null, verdict: null })) === 'wait user: T1 on SPEC.md — `node C:/wf/wf.mjs design fix/r`');
-check('T1 approved the current SPEC.md → wf step implement, implement 1', steps(design({ spec: 's1', reviewed: 's1', verdict: 'approved' })).join() === 'implement' && say(design({ spec: 's1', reviewed: 's1', verdict: 'approved' })).startsWith('dispatch implement 1:'));
-check('T1 annotated → dispatch plan --revise', say(design({ spec: 's1', reviewed: 's1', verdict: 'changes-requested' })).startsWith('dispatch plan --revise: run `node C:/wf/wf.mjs brief plan --revise`'));
-check('SPEC.md revised after its review: T1 again', say(design({ spec: 's2', reviewed: 's1', verdict: 'changes-requested' })).startsWith('wait user: T1'));
-// BJEW-669 (2026-10-06): T1 approved a SPEC whose design replaced the plan's commit 1, and `wf next` still dispatched implement 1.
-const approvedB = { spec: 's1', reviewed: 's1', verdict: 'approved' };
-const planBefore = (spec: string | null) => ({ ...base().briefs, plan: { token: 'bbb222', count: 1, at: '2026-10-06T14:14:42.202Z', spec } });
-const designBriefed = (spec: string | null, t1: Snapshot['t1'] = approvedB, step = 'design') => base({ step, klass: 'B', files: { research: RESEARCH, plan: plan({ klass: 'B' }) }, briefs: planBefore(spec), t1 });
-const stale = designBriefed(null);
-const revise = (s: Snapshot) => nextAction(s).effects.find((e) => e.revise)?.revise;
-check('T1 approved a SPEC the plan was written before: plan --revise first, naming the SPEC, no implement', say(stale).startsWith('dispatch plan --revise: run `node C:/wf/wf.mjs brief plan --revise`') && !steps(stale).includes('implement') && revise(stale)?.includes('T1 approved SPEC.md (s1') === true, say(stale));
-const staleState = reviseState({ step: 'design', briefs: planBefore(null), history: [] }, revise(stale) ?? '', '2026-10-06T14:30:51.805Z');
-check('the revision is pending until a plan brief is newer: plan --revise again, no second revision recorded', say({ ...stale, step: 'plan', revisions: staleState.revisions } as Snapshot).startsWith('dispatch plan --revise:') && !revise({ ...stale, step: 'plan', revisions: staleState.revisions } as Snapshot));
-check('a plan briefed with the SPEC sha (what plan --revise records) goes on to implement, no second revise', say(designBriefed('s1')).startsWith('dispatch implement 1:') && !revise(designBriefed('s1')));
-check('a plan briefed before wf recorded the SPEC sha (no field) is not sent back', say(designBriefed(undefined as unknown as null)).startsWith('dispatch implement 1:'));
-check('a plan revised after T1 annotated it (its brief held a SPEC sha) is not revised again when the new SPEC is approved', say(designBriefed('s1', { spec: 's2', reviewed: 's2', verdict: 'approved' })).startsWith('dispatch implement 1:'));
-// wf decide --revise on a round whose T1 approved the current SPEC: the step is plan, the SPEC has not moved.
-check('plan --revise done on a round whose T1 approved the current SPEC.md: implement, no second design session or T1', steps(designBriefed('s1', approvedB, 'plan')).join() === 'implement' && say(designBriefed('s1', approvedB, 'plan')).startsWith('dispatch implement 1:'), say(designBriefed('s1', approvedB, 'plan')));
-check('a SPEC.md changed since its approval, at step plan: the design session', say(designBriefed('s1', { spec: 's2', reviewed: 's1', verdict: 'approved' }, 'plan')).startsWith('design: start the design session'));
-check('no SPEC.md at step plan: the design session', say(designBriefed('s1', { spec: null, reviewed: null, verdict: null }, 'plan')).startsWith('design: start the design session'));
-check('changes-requested on the current SPEC.md at step plan: still the design session', say(designBriefed('s1', { spec: 's1', reviewed: 's1', verdict: 'changes-requested' }, 'plan')).startsWith('design: start the design session'));
+// blocked: unmet intent / still-reproducing symptom cannot pass to T2 silently
+const blocked = base({ step: 'assess', files: { agreement: null, assessment: ASSESS({ verdict: 'blocked', intent: '- "x": not met: the modal still jumps' }), review: null, blocked: null } });
+check('a blocked assessment asks one fix-or-accept ruling, not T2', asks(blocked).length === 1 && asks(blocked)[0].text.startsWith('fix or accept:') && !say(blocked).startsWith('review: T2'), say(blocked));
+const accepted = { ...blocked, answered: [{ n: 1, to: 'user', text: 'fix or accept: x', source: asks(blocked)[0].source, answer: 'accept: it is a separate ticket', asked: 't', answered: 't' }] };
+check('an explicit accept goes to T2 with the ruling recorded', say(accepted).startsWith('review: T2'), say(accepted));
+const toFix = { ...blocked, answered: [{ n: 1, to: 'user', text: 'fix or accept: x', source: asks(blocked)[0].source, answer: 'fix it', asked: 't', answered: 't' }] };
+check('a fix ruling returns to build, not an endless question', steps(toFix).join() === 'build' && asks(toFix).length === 0, say(toFix));
 
-// implement
-const impl = (patch: Fixture) => base({ step: 'implement', commit: 1, files: { research: RESEARCH, plan: plan(), ...(patch.files ?? {}) }, ...patch, ...(patch.files ? { files: { research: RESEARCH, plan: plan(), ...patch.files } } : {}) });
-check('commit 1 committed with a green check → dispatch implement 2', say(impl({ subjects: ['fix(x): one'], checks: [green(1)] })).startsWith('dispatch implement 2:'));
-check('committed but never green is not done', say(impl({ briefs: { ...base().briefs, 'implement 1': { token: 'x', count: 1 } }, subjects: ['fix(x): one'], checks: [{ row: 1, result: 'red' }] })).startsWith('dispatch implement 1:'));
-check('BLOCKED: its Question recorded for the user, the round waits', asks(impl({ files: { blocked: 'Question: which table?' } }))[0]?.source === 'BLOCKED.md' && say(impl({ files: { blocked: 'Question: which table?' } })) === 'wait user: blocked at commit 1 — which table?');
-check('BLOCKED answered → the same row again, fresh agent', say(impl({ files: { blocked: 'Question: which table?\n\n## Answer\n2026-09-27 orders' } })).startsWith('dispatch implement 1:'));
-// BJEW-461 (2026-10-06): the agent briefed after the answer blocked again, and wf next dispatched it again.
-const answeredBlock = { files: { blocked: 'Question: stop and ask QA?\n\n## Answer\n2026-10-06 default' }, answered: [{ n: 3, to: 'user', text: 'stop and ask QA?', source: 'BLOCKED.md', asked: '2026-10-06T09:04:46Z', answer: 'default', answered: '2026-10-06T09:05:21Z' }] };
-const before = impl({ ...answeredBlock, briefs: { ...base().briefs, 'implement 1': { token: 'aaa', at: '2026-10-06T09:00:00Z', count: 1 } } });
-check('BLOCKED answered after its agent was briefed → that row again, to follow the answer', say(before).startsWith('dispatch implement 1:'));
-const again = impl({ ...answeredBlock, briefs: { ...base().briefs, 'implement 1': { token: '8aba1d', at: '2026-10-06T09:05:34Z', count: 2 } } });
-check('blocked again by the agent that had the answer → no dispatch: the user answers anew, holds or ends the round', say(again).startsWith('wait user: commit 1 is still blocked after the answer: stop and ask QA?') && say(again).includes('step held') && say(again).includes('reap') && asks(again)[0]?.source === 'BLOCKED.md#8aba1d', say(again));
-const reanswered = impl({ ...answeredBlock, answered: [...answeredBlock.answered, { n: 4, to: 'user', text: 'still blocked', source: 'BLOCKED.md#8aba1d', asked: '2026-10-06T09:20:00Z', answer: 'use QA commit abc', answered: '2026-10-06T09:21:00Z' }], briefs: { ...base().briefs, 'implement 1': { token: '8aba1d', at: '2026-10-06T09:05:34Z', count: 2 } } });
-check('a new answer after that → the row again', say(reanswered).startsWith('dispatch implement 1:'), say(reanswered));
-// BJEW-461 (2026-10-06): commit 1 (the repro) was red and committed; the user's measurement said the
-// planned fix (commit 2) was the wrong one, and from implement nothing led back to plan.
-const bjew = { subjects: ['fix(x): one'], checks: [green(1)], briefs: { ...base().briefs, plan: { token: 'bbb222', at: '2026-10-06T08:56:27Z', count: 1 }, 'implement 1': { token: 'i1', at: '2026-10-06T09:14:48Z', count: 3 }, 'implement 2': { token: 'i2', at: '2026-10-06T09:17:35Z', count: 1 } } };
-check('implement, commit 1 done: row 2 again, whatever was said about the plan', say(impl(bjew)).startsWith('dispatch implement 2'), say(impl(bjew)));
-const revisedState = reviseState({ step: 'implement', briefs: bjew.briefs, history: [] }, 'the confirm opens behind the order modal (stacking): plan that fix', '2026-10-06T09:30:00Z');
-const toPlan = base({ ...bjew, step: revisedState.step!, revisions: revisedState.revisions, files: { research: RESEARCH, plan: plan() } });
-check('an answer that revises the plan → dispatch plan --revise, nothing built', say(toPlan).startsWith('dispatch plan --revise: run `node C:/wf/wf.mjs brief plan --revise`') && !steps(toPlan).includes('implement'), say(toPlan));
-check('a revision without its answer in the state is no revision (the old plan stands)', steps(base({ ...bjew, step: 'plan', files: { research: RESEARCH, plan: plan() } })).join() === 'implement');
-const briefedPlan = { ...briefsAfter('plan', ['--revise'], bjew.briefs), plan: { token: 'bbb222', at: '2026-10-06T09:31:00Z', count: 2 } };
-check('the revision voids the implement briefs, not the plan, research or validate ones', Object.keys(briefsAfter('plan', ['--revise'], bjew.briefs)).sort().join() === 'critique,plan,research,validate' && briefsAfter('plan', [], bjew.briefs) === bjew.briefs && briefsAfter('implement', ['2'], bjew.briefs) === bjew.briefs);
-const revisedPlan = base({ ...bjew, briefs: briefedPlan, step: 'plan', revisions: revisedState.revisions, files: { research: RESEARCH, plan: plan() } });
-check('plan briefed after the answer and handed off → implement; the committed row stands, the other is fresh (no "again")', steps(revisedPlan).join() === 'implement' && say(revisedPlan) === 'dispatch implement 2: run `node C:/wf/wf.mjs brief implement 2` in this worktree and do exactly what it prints', say(revisedPlan));
-check('plan briefed after the answer but not handed off → plan again, saying why', say(base({ ...revisedPlan, files: { research: RESEARCH, plan: plan({ token: 'old000' }) } })).includes('not the answer to the last brief'));
-check('last commit, class A → validate', say(impl({ ...done2, files: {} })).startsWith('dispatch validate:'));
-// wf check --suites (2026-10-05): a project that names suites runs them on this HEAD before validate.
-const suiteRun = { ts: '2026-10-05T12:00:00.000Z', head: 'h2', result: 'green' as const };
-const suited = (suites: Snapshot['suites'], patch: Fixture = {}) => impl({ ...done2, files: {}, head: 'h2', suites, ...patch });
-check('suites named, never run → run them before validate', say(suited(null)) === 'suites: `node C:/wf/wf.mjs check --suites` (the whole suites of what this round changed, on this HEAD), then `node C:/wf/wf.mjs next`');
-check('suites run on an older HEAD (a fix since) → run them again', say(suited({ ...suiteRun, head: 'h1' })).startsWith('suites: '));
-check('suites run on this HEAD, green or red → validate, which reads the line', say(suited(suiteRun)).startsWith('dispatch validate:') && say(suited({ ...suiteRun, result: 'red' })).startsWith('dispatch validate:'));
-check('a fix asked for comes before the suites', say(suited(null, { files: { validation: VALID('deviates') }, answered: [{ n: 3, source: 'VALIDATION.md#ccc333', answer: 'fix' }] })).startsWith('dispatch fix-review'));
-const validatedSuite = (at: string, result: 'green' | 'red' = 'green', validation = VALID()) => suited({ ...suiteRun, result }, { files: { validation }, briefs: { ...base().briefs, validate: { ...base().briefs.validate, at } } });
-check('resumed or rerun: suites newer than validation → validate again', say(validatedSuite('2026-10-05T11:00:00.000Z')).startsWith('dispatch validate:') && say(validatedSuite('2026-10-05T11:00:00.000Z', 'red')).startsWith('dispatch validate:'));
-check('validation after suites → T2 without another run', say(validatedSuite('2026-10-05T13:00:00.000Z')).startsWith('review: T2'));
-check('red suite reported by validation → fix-or-accept question names it', asks(validatedSuite('2026-10-05T13:00:00.000Z', 'red', VALID('deviates') + '\n## Suites\n- red: suite one — failing.test.ts\n'))[0]?.text.includes('red: suite one — failing.test.ts') === true);
-check('checks.log: the last suites line, past others and a cut-off one', JSON.stringify(lastSuites('{"ts":"t","row":"suites","head":"h1","result":"red"}\n{"row":1,"result":"green"}\n{"ts":"t","row":"suites","head":"h2","result":"green"}\n{"row":"sui')) === '{"ts":"t","head":"h2","result":"green"}' && lastSuites('') === null);
-check('checks.log: malformed suites entries and JSON primitives are ignored', lastSuites('null\n42\n{"row":"suites","head":1,"result":"green"}\n{"row":"suites","ts":"t","head":"h","result":"maybe"}') === null);
-const suiteFix = { ...validatedSuite('2026-10-05T13:00:00.000Z', 'red', VALID('deviates')), answered: [{ n: 1, to: 'user', text: 'fix or accept', asked: 't', source: 'VALIDATION.md#ccc333', answer: 'fix' }] };
-check('red suite ruled fix → fix-review from validation', say(suiteFix).includes('brief fix-review --from VALIDATION.md'));
-const suiteFixed = { ...suiteFix, head: 'h3', subjects: [...done2.subjects, 'fix(review): the suite failure'], fixesAfterValidate: 1 };
-check('suite fix committed → rerun suites on the new HEAD', say(suiteFixed).startsWith('suites: '));
-check('suites rerun after the fix → validate again', say({ ...suiteFixed, suites: { ...suiteRun, ts: '2026-10-05T14:00:00.000Z', head: 'h3' } }).startsWith('dispatch validate:'));
-check('last commit, class B → as-built first', say(impl({ ...done2, klass: 'B', files: {} })).startsWith('dispatch as-built:'));
-check('validation matches plan → T2, local, before any PR', say(impl({ ...done2, files: { validation: VALID() } })).startsWith('review: T2'));
-const deviates = impl({ ...done2, files: { validation: VALID('deviates') } });
-check('validation deviates: fix or accept, recorded for the user with the deviating lines', asks(deviates)[0]?.text === 'fix or accept: hop 1: differs: returns null' && say(deviates).startsWith('wait user: fix or accept'), say(deviates));
-const ruled = (answer: string) => impl({ ...done2, files: { validation: VALID('deviates') }, answered: [{ n: 3, source: 'VALIDATION.md#ccc333', answer }] });
-check('ruled accept → T2', say(ruled('accept, the label is fine')).startsWith('review: T2'));
-check('ruled fix → fix-review from VALIDATION.md', say(ruled('fix it')).startsWith('dispatch fix-review --from VALIDATION.md: run `node C:/wf/wf.mjs brief fix-review --from VALIDATION.md`'));
-check('the fix committed → validate again', say(impl({ ...done2, subjects: [...done2.subjects, 'fix(review): the label'], files: { validation: VALID('deviates') }, answered: [{ n: 3, source: 'VALIDATION.md#ccc333', answer: 'fix' }] })).startsWith('dispatch validate:'));
-// TJEW-670 (2026-10-06): a fix ruling recorded with `wf decide --revise --q` is built by a plan row whose subject is not fix(review):.
-const viaPlan: Partial<Question> = { n: 6, to: 'user', text: 'fix or accept: x differs', source: 'VALIDATION.md#ccc333', answer: 'fix, differently: single-flight', answered: '2026-10-06T19:38:53.000Z' };
-const viaPlanRevisions = [{ text: revisionText(viaPlan as Question, viaPlan.answer!), at: '2026-10-06T19:38:53.305Z' }];
-const viaPlanRound = (patch: Fixture = {}) => impl({ ...done2, subjects: [...done2.subjects, 'fix(admin): update the cached formula'], files: { validation: VALID('deviates') }, answered: [viaPlan], revisions: viaPlanRevisions, ...patch });
-check('fix ruling built by a plan row (decide --revise --q) → no fix-review, on to validate', !say(viaPlanRound()).includes('fix-review') && say(viaPlanRound()).startsWith('dispatch validate:'), say(viaPlanRound()));
-check('the same ruling, not revised through plan → still a fix(review) owed', say(viaPlanRound({ revisions: [] })).startsWith('dispatch fix-review --from VALIDATION.md'));
-check('a revise through plan does not excuse another ruling', say(viaPlanRound({ answered: [viaPlan, { n: 7, source: 'VALIDATION.md#ccc333', answer: 'fix', answered: '2026-10-06T19:40:00.000Z' }] })).startsWith('dispatch fix-review --from VALIDATION.md'));
+// material change: one renewed-agreement escalation
+const material = base({ step: 'assess', files: { agreement: null, assessment: ASSESS({ material: 'the round also changes the API shape' }), review: null, blocked: null } });
+check('a material change is one renewed-agreement escalation, not a repair', asks(material).length === 1 && asks(material)[0].text.includes('Answer `accept`') && asks(material)[0].text.includes('--revise') && repairs(material) === 0, say(material));
+check('N-5: the material question offers only accept and --revise, not hold/end', !/hold\/end|hold or end/i.test(asks(material)[0].text), asks(material)[0].text);
 
-// JX-1221 (2026-10-08): q9 answered `fix` after plan rows 5, 6, 9 and 10, whose messages start with fix(review): —
-// they are rows of the plan (built after `wf decide --revise`), not the fix q9 asked for. q4 was built by row 5, after
-// a separate `wf decide --revise` with no --q.
-const jxRow = (n: number, message: string) => `| ${n} | ${message} | a.ts | repro |\n`;
-const jxPlan = plan().replace('\n## Asks', jxRow(5, 'fix(review): row five') + jxRow(6, 'fix(review): row six') + '\n## Asks');
-const jxAnswer = (n: number, answered: string): Partial<Question> => ({ n, to: 'user', text: `fix or accept ${n}`, source: 'VALIDATION.md#ccc333', answer: 'fix: x', answered });
-const jxCommit = (subject: string, at: string) => ({ subject, at });
-const jx = (patch: Fixture = {}) => impl({
-	...done2, checks: [...done2.checks, green(5), green(6)], files: { validation: VALID('deviates'), plan: jxPlan },
-	subjects: [...done2.subjects, 'fix(review): row five', 'fix(review): row six'],
-	commits: [jxCommit('fix(x): one', '2026-10-07T15:00:00+03:00'), jxCommit('fix(x): two', '2026-10-07T15:10:00+03:00'), jxCommit('fix(review): row five', '2026-10-07T19:05:28+03:00'), jxCommit('fix(review): row six', '2026-10-07T19:24:05+03:00')],
-	answered: [jxAnswer(4, '2026-10-07T16:01:12.835Z'), jxAnswer(9, '2026-10-08T05:40:28.619Z')],
-	revisions: [{ text: 'add a row 5 …', at: '2026-10-07T16:02:45.234Z' }, { text: 'T2 #3 …', at: '2026-10-07T17:24:53.989Z' }], ...patch,
-});
-check('a ruling answered after plan rows named fix(review): is not met by them → fix-review from VALIDATION.md', say(jx()).startsWith('dispatch fix-review --from VALIDATION.md:'), say(jx()));
-check('…and a fix(review) commit made after the answer meets it → validate', say(jx({ subjects: [...jx().subjects, 'fix(review): the meta'], commits: [...jx().commits!, jxCommit('fix(review): the meta', '2026-10-08T09:00:00+03:00')] })).startsWith('dispatch validate:'), say(jx({ subjects: [...jx().subjects, 'fix(review): the meta'], commits: [...jx().commits!, jxCommit('fix(review): the meta', '2026-10-08T09:00:00+03:00')] })));
-check('a fix(review) commit made before the answer does not meet it', say(jx({ commits: [...jx().commits!, jxCommit('fix(review): early', '2026-10-08T08:00:00+03:00')], subjects: [...jx().subjects, 'fix(review): early'] })).startsWith('dispatch fix-review --from VALIDATION.md:'));
-check('a ruling fixed by a commit, an unrelated revise after it, then a new ruling → the new one is owed', say(jx({
-	answered: [jxAnswer(4, '2026-10-07T16:01:12.000Z'), jxAnswer(9, '2026-10-08T06:00:00.000Z')],
-	revisions: [{ text: 'unrelated', at: '2026-10-07T19:00:00.000Z' }],
-	subjects: [...jx().subjects, 'fix(review): fixes q4'], commits: [...jx().commits!, jxCommit('fix(review): fixes q4', '2026-10-07T16:30:00.000Z')],
-})).startsWith('dispatch fix-review --from VALIDATION.md:'));
+// ── T2 / delivery
+check('an open question holds the round before anything else', say(base({ step: 'assess', questions: [{ n: 3, to: 'einat', text: 'which label?', asked: 't' }] })) === 'wait einat: q3 which label?');
+check('a review dismissed without a verdict waits on the user', say(base({ step: 'review', files: { agreement: null, assessment: null, review: 'verdict: dismissed\n', blocked: null } })).startsWith('wait user: T2 was closed'), say(base({ step: 'review' })));
+check('pr → deliver', say(base({ step: 'pr' })).startsWith('deliver: T2 approved'));
+check('merged with no note sections left → done and reap', say(base({ step: 'merged', note: { file: 'bug-reports/r/NOTE.md', text: '## JX-1 (posted)\n' } })) === 'done: `node C:/wf/wf.mjs reap fix/r`');
+check('merged with an unposted section → post it first', say(base({ step: 'merged', note: { file: 'bug-reports/r/NOTE.md', text: '## JX-1\n' } })).startsWith('post: JX-1'));
 
-// JX-1221 (2026-10-08): q9's fix(review) commit (05:49Z) was named by plan row 7 afterwards (the revise at 06:10Z added
-// it as a row, briefed 06:14Z): a row added for a commit that was there already does not make it the row's own.
-const jxSeven = { ...jx(), checks: [...jx().checks, green(7)], files: { ...jx().files, plan: jxPlan.replace('\n## Asks', jxRow(7, 'fix(review): the meta') + '\n## Asks') }, subjects: [...jx().subjects, 'fix(review): the meta'], commits: [...jx().commits!, jxCommit('fix(review): the meta', '2026-10-08T09:00:00+03:00')] };
-const sevenBriefed = (at: string) => ({ ...jxSeven, briefs: { ...jxSeven.briefs, 'implement 7': { token: 'x', count: 1, at } } });
-check('a ruling met by a fix(review) commit that a plan row later named (row briefed after it) stays met → validate', say(sevenBriefed('2026-10-08T06:14:42.834Z')).startsWith('dispatch validate:'), say(sevenBriefed('2026-10-08T06:14:42.834Z')));
-check('…a row briefed before the commit built it: not the ruling\'s fix → fix-review', say(sevenBriefed('2026-10-08T05:50:00.000Z')).startsWith('dispatch fix-review --from VALIDATION.md:'), say(sevenBriefed('2026-10-08T05:50:00.000Z')));
-check('…a row with no brief left in state is the row\'s own, as before', say(jxSeven).startsWith('dispatch fix-review --from VALIDATION.md:'), say(jxSeven));
+// ── the class is measured from the agreement, not assumed: a declared `Class:` line, or a case whose
+// files reach a contract path, upgrades A→B so T1 cannot be skipped by how the worktree was opened
+check('an A round whose agreement declares Class: B steps classify --class B before any build', steps(base({ klass: 'A', files: { agreement: AGREEMENT, assessment: null, review: null, blocked: null } })).join() === 'classify --class B' && say(base({ klass: 'A', files: { agreement: AGREEMENT, assessment: null, review: null, blocked: null } })).startsWith('classify:'), say(base({ klass: 'A', files: { agreement: AGREEMENT, assessment: null, review: null, blocked: null } })));
+const noClass = AGREEMENT.replace('Class: B\n', '');
+check('a case on a contract path upgrades A→B without a Class: line', steps(base({ klass: 'A', contractPaths: 'src/**', files: { agreement: noClass, assessment: null, review: null, blocked: null } })).join() === 'classify --class B', say(base({ klass: 'A', contractPaths: 'src/**', files: { agreement: noClass, assessment: null, review: null, blocked: null } })));
+check('R-4: a changed file on a contract path upgrades A→B with no case and no Class: line', steps(base({ klass: 'A', contractPaths: 'src/**', filesChanged: ['src/Deep.svelte'], files: { agreement: TICKET, assessment: null, review: null, blocked: null } })).join() === 'classify --class B', say(base({ klass: 'A', contractPaths: 'src/**', filesChanged: ['src/Deep.svelte'], files: { agreement: TICKET, assessment: null, review: null, blocked: null } })));
+check('R-4: the actual diff is measured at step build too, not only at classify/agree', steps(base({ klass: 'A', step: 'build', contractPaths: 'src/**', filesChanged: ['src/Deep.svelte'], files: { agreement: TICKET, assessment: null, review: null, blocked: null } })).join() === 'classify --class B');
+check('R-4: a round-paperwork-only change is not a contract-path change (control)', say(base({ klass: 'A', step: 'build', contractPaths: 'src/**', filesChanged: [], files: { agreement: TICKET, assessment: null, review: null, blocked: null } })).startsWith('dispatch build'));
+check('a B round with an approved agreement stays B (never downgrades)', steps(base({ klass: 'B', files: { agreement: AGREEMENT, assessment: null, review: null, blocked: null }, t1: { sha: 's1', reviewed: 's1', verdict: 'approved' } })).join() === 'build');
 
-const onModels = (s: Snapshot) => say({ ...s, models: { low: 'sonnet', medium: 'opus' } });
-// the critic: a fresh agent audits the validation before the person sees it (gates/critique.ts)
-const critiqued = (critique: string | null, cb: Partial<Brief> | undefined, vb: Partial<Brief> = { token: 'ccc333', count: 1 }, validation = VALID()) => impl({ ...done2, files: { validation, critique }, briefs: { ...base().briefs, validate: vb, critique: cb } as Fixture['briefs'] });
-check('validated, never critiqued → dispatch critique', say(critiqued(null, undefined)) === 'dispatch critique: run `node C:/wf/wf.mjs brief critique` in this worktree and do exactly what it prints', say(critiqued(null, undefined)));
-check('a critique of an earlier validation is not this one\'s: critique again, a new chain', say(critiqued(CRIT(), { token: 'fff666', count: 1, of: 'old999', exchange: 1 })).startsWith('dispatch critique: run'));
-check('critique briefed, no CRITIQUE.md: again, saying why', say(critiqued(null, { token: 'fff666', count: 1, of: 'ccc333', exchange: 1 })).includes('(again: no CRITIQUE.md)'));
-check('a critic briefed twice without its handoff goes to the user', say(critiqued(null, { token: 'fff666', count: 2, of: 'ccc333', exchange: 1 })).startsWith('wait user: critique was briefed 2 times'));
-check('a critique that agrees: on to the validation\'s verdict, as before', say(critiqued(CRIT(), { token: 'fff666', count: 1, of: 'ccc333', exchange: 1 })).startsWith('review: T2') && say(critiqued(CRIT(), { token: 'fff666', count: 1, of: 'ccc333', exchange: 1 }, undefined, VALID('deviates'))).startsWith('wait user: fix or accept'));
-check('the critic disagrees: validate answers it, before any fix-or-accept question', say(critiqued(CRIT('DISAGREE_EVIDENCE'), { token: 'fff666', count: 1, of: 'ccc333', exchange: 1 }, undefined, VALID('deviates'))) === 'dispatch validate --answer: run `node C:/wf/wf.mjs brief validate --answer` in this worktree and do exactly what it prints' && asks(critiqued(CRIT('DISAGREE_EVIDENCE'), { token: 'fff666', count: 1, of: 'ccc333', exchange: 1 }, undefined, VALID('deviates'))).length === 0);
-check('a concern is answered too', say(critiqued(CRIT('DISAGREE_CONCERN'), { token: 'fff666', count: 1, of: 'ccc333', exchange: 1 })).startsWith('dispatch validate --answer:'));
-const answered1 = (critiqued(CRIT('DISAGREE_EVIDENCE'), { token: 'fff666', count: 1, of: 'ccc333', exchange: 1 }, { token: 'abc777', count: 2, answers: 1 }, VALID('matches plan', 'abc777')));
-check('the answer handed off → the next exchange\'s critique', say(answered1).startsWith('dispatch critique: run'));
-check('an answer that did not hand off is briefed again as an answer', say(critiqued(CRIT('DISAGREE_EVIDENCE'), { token: 'fff666', count: 1, of: 'ccc333', exchange: 1 }, { token: 'abc777', count: 1, answers: 1 })).startsWith('dispatch validate --answer: run') );
-check('still disagreeing after the last exchange: the dispute goes on to T2, wf does not settle it', say(critiqued(CRIT('DISAGREE_EVIDENCE', 'def888'), { token: 'def888', count: 1, of: 'abc777', exchange: 2 }, { token: 'abc777', count: 2, answers: 1 }, VALID('matches plan', 'abc777'))).startsWith('review: T2'));
-check('the critic is another model than validate: medium, where validate is low', onModels(critiqued(null, undefined)).startsWith('dispatch critique (model: opus): '));
+// ── T1 stays live after the build starts: a changed agreed material (or a recorded revision) sends the
+// round back to a fresh T1, while a progress edit (same sha) does not
+const liveB = (patch: Partial<Snapshot>) => base({ klass: 'B', files: { agreement: AGREEMENT, assessment: null, review: null, blocked: null }, ...patch });
+check('B/C build: a changed ## Agreed sends back to T1, not build', say(liveB({ step: 'build', t1: { sha: 's2', reviewed: 's1', verdict: 'approved' } })).startsWith('wait user: T1') && steps(liveB({ step: 'build', t1: { sha: 's2', reviewed: 's1', verdict: 'approved' } })).join() === 'agree --waiting-on user');
+check('B/C assess: a changed ## Agreed sends back to T1 too', say(liveB({ step: 'assess', t1: { sha: 's2', reviewed: 's1', verdict: 'approved' } })).startsWith('wait user: T1'));
+check('B/C review: a changed ## Agreed sends back to T1 too', say(liveB({ step: 'review', t1: { sha: 's2', reviewed: 's1', verdict: 'approved' } })).startsWith('wait user: T1'));
+check('B/C build: an approved agreement at the same sha builds (progress does not renew T1)', say(liveB({ step: 'build', t1: { sha: 's1', reviewed: 's1', verdict: 'approved' } })) === 'dispatch build: run `node C:/wf/wf.mjs brief build` in this worktree and do exactly what it prints');
 
-// the model: this machine's for the phase's effort level (models.ts), named in the dispatch line
-check('a dispatch names the model for its phase\'s level: medium for research, a commit, a revised plan', onModels(fresh) === 'dispatch research (model: opus): run `node C:/wf/wf.mjs brief research` in this worktree and do exactly what it prints' && onModels(planned).startsWith('dispatch implement 1 (model: opus): ') && onModels(answeredAsk('3')).startsWith('dispatch plan --revise (model: opus): '), onModels(fresh));
-check('low for the read-only judges', onModels(impl({ ...done2, files: {} })).startsWith('dispatch validate (model: sonnet): ') && onModels(impl({ ...done2, klass: 'B', files: {} })).startsWith('dispatch as-built (model: sonnet): '));
-check('a wait names no model', onModels(base({ briefs: { research: { token: 'aaa111', count: 2 } } })).startsWith('wait user: research was briefed 2 times'));
+// ── a recorded revision (`wf decide --revise`) reaches a fresh agreement before any build, and an
+// unchanged agreement cannot leave the old T1 approval in force
+const revised = liveB({ step: 'agree', revisions: [{ text: 'the header must also show the count', at: 't', sha: 's1' }], t1: { sha: 's1', reviewed: 's1', verdict: 'approved' } });
+check('a recorded revision dispatches a fresh agreement before build', say(revised).startsWith('dispatch agree') && say(revised).includes('asked the agreement to change'), say(revised));
+check('a revision whose material sha moved is answered (no re-dispatch)', !say({ ...revised, t1: { sha: 's2', reviewed: 's2', verdict: 'approved' } }).startsWith('dispatch agree'));
+check('R-3: an unchanged agreement after --revise cannot build on the old T1', say({ ...revised, step: 'build' }).startsWith('dispatch agree') && steps({ ...revised, step: 'build' }).join() === 'agree --waiting-on user', say({ ...revised, step: 'build' }));
+check('R-3: an unchanged agreement after --revise also refuses at assess', say({ ...revised, step: 'assess' }).startsWith('dispatch agree'));
+const revisedA = base({ step: 'agree', klass: 'A', revisions: [{ text: 'change x', at: 't', sha: null }], files: { agreement: TICKET, assessment: null, review: null, blocked: null } });
+check('a revision on a class A round also dispatches a fresh agreement', say(revisedA).startsWith('dispatch agree'));
 
-// the standards axis: one fresh agent per .agents/checks rule that covers the diff, after spec is settled
-const REPORT = (t = 'ddd444') => `# r — standards: perf\nCheck: .agents/checks/perf.md\nResult: pass\n\n## Issues\nnone\n${tok(t)}`;
-const rules = (perf: string | null, errors: string | null = null, fixesAfter = 0) => [{ id: 'perf', text: perf, fixesAfter }, { id: 'api/errors', text: errors, fixesAfter: 0 }];
-const ruled2 = (standards: Snapshot['standards'], briefs = {}) => impl({ ...done2, files: { validation: VALID() }, standards, briefs: { ...base().briefs, ...briefs } });
-check('validated, rules cover the diff: the first rule, by its id', say(ruled2(rules(null))) === 'dispatch standards perf: run `node C:/wf/wf.mjs brief standards perf` in this worktree and do exactly what it prints', say(ruled2(rules(null))));
-check('validation deviating and unruled: spec is settled first, no standards yet', say(impl({ ...done2, files: { validation: VALID('deviates') }, standards: rules(null) })).startsWith('wait user: fix or accept'));
-check('one at a time: the next rule once the first handed off', say(ruled2(rules(REPORT()), { 'standards perf': { token: 'ddd444', count: 1 } })).startsWith('dispatch standards api/errors:'), say(ruled2(rules(REPORT()), { 'standards perf': { token: 'ddd444', count: 1 } })));
-check('a report from an earlier brief is not the answer', say(ruled2(rules(REPORT('old999')), { 'standards perf': { token: 'ddd444', count: 1 } })).includes('(again: standards/perf.md is not the answer to the last brief'));
-check('a rule briefed twice without its report goes to the user', say(ruled2(rules(null), { 'standards perf': { token: 'ddd444', count: 2 } })).startsWith('wait user: standards perf was briefed 2 times'));
-const allIn = { 'standards perf': { token: 'ddd444', count: 1 }, 'standards api/errors': { token: 'eee555', count: 1 } };
-check('every rule reported, issues or not → T2: the reports go to the person as they are', say(ruled2(rules(REPORT(), REPORT('eee555').replace('Result: pass', 'Result: issues').replace('none', '- high · api/o.ts:4 — x · fix: y')), allIn)).startsWith('review: T2'));
-check('a fix(review) after a rule\'s brief: that rule again', say(ruled2(rules(REPORT(), REPORT('eee555'), 1), allIn)).startsWith('dispatch standards perf:'));
-check('no rule covers the diff (no .agents/checks): T2 as before', say(ruled2([])).startsWith('review: T2') && say(ruled2(undefined)).startsWith('review: T2'));
+// ── an answered BLOCKED.md resumes the build once; the same answer never loops
+const blockedBuild = base({ step: 'build', files: { agreement: null, assessment: null, review: null, blocked: 'Question: which label?\n' } });
+check('a blocked build with no answer waits on the user', say(blockedBuild) === 'wait user: blocked — which label?');
+const answeredBlocked = { ...blockedBuild, answered: [{ n: 1, to: 'user', text: 'which label?', source: 'BLOCKED.md', answer: 'cancel', asked: 't', answered: 't' }] };
+check('an answered BLOCKED.md resumes the build once', say(answeredBlocked).startsWith('dispatch build') && say(answeredBlocked).includes('answered'), say(answeredBlocked));
+check('the same answer does not resume a second time', say({ ...answeredBlocked, blockedAnswered: 1 }) === 'wait user: blocked — which label?');
 
-// T2 (local) → deliver: push, PR, merge → the tracker, last
-check('delivered: T2, then wf review and --done', say(base({ step: 'review' })) === 'review: T2 — see the fix first (ROUND.md\'s T2, as the round skill\'s *Dispatch in this harness* says), then `node C:/wf/wf.mjs review fix/r`; once it has a verdict, `node C:/wf/wf.mjs review fix/r --done`');
-check('T2 annotated (step back to implement) → fix-review', say(impl({ ...done2, files: { validation: VALID(), review: 'verdict: changes-requested\n' } })).startsWith('dispatch fix-review: run `node C:/wf/wf.mjs brief fix-review`'));
-const t2Fixed = { ...done2, subjects: [...done2.subjects, 'fix(review): x'], files: { validation: VALID(), review: 'verdict: changes-requested\n' } };
-check('the T2 fix committed → validate again: the PR carries VALIDATION.md (TJEW-670)', say(impl({ ...t2Fixed, fixesAfterValidate: 1 })) === 'dispatch validate: run `node C:/wf/wf.mjs brief validate` in this worktree and do exactly what it prints', say(impl({ ...t2Fixed, fixesAfterValidate: 1 })));
-check('a second T2 fix re-validates too, never escalating as a missing handoff', say(impl({ ...t2Fixed, fixesAfterValidate: 1, briefs: { ...base().briefs, validate: { token: 'ccc333', count: 3 } } })).startsWith('dispatch validate:'));
-check('validated after the fix → T2 again', say(impl({ ...t2Fixed, fixesAfterValidate: 0 })).startsWith('review: T2'));
-// JX-1221 (2026-10-07): a validation that does not hand off holds the round only at the count of one tree's agents (brief.ts briefCount).
-const badValidation = (count: number) => impl({ ...done2, files: { validation: VALID().replace('before: red · after: green', 'diff touches none') }, briefs: { ...base().briefs, validate: { token: 'ccc333', count, head: 'B' } } });
-check('a bad validation on a new head, first brief → validate again, not a harness gap', say(badValidation(1)).startsWith('dispatch validate') && !say(badValidation(1)).startsWith('wait user'), say(badValidation(1)));
-check('the same bad validation at the second agent of that head → held', say(badValidation(2)).startsWith('wait user: validate was briefed 2 times'), say(badValidation(2)));
-// JX-1221 (2026-10-07): a T2 changes-requested answered with `wf decide --revise` (step history: review,
-// implement by --done, then plan at the revision's own `at`) is built by the revised plan's rows, not a fix(review).
-const T = (m: number) => `2026-10-07T14:${String(m).padStart(2, '0')}:00.000Z`;
-const t2History = (...steps: [string, number][]) => steps.map(([step, m]) => ({ step, at: T(m) }));
-const afterDone = reviseState({ step: 'implement', history: t2History(['plan', 1], ['implement', 2], ['review', 3], ['implement', 4]) }, 'build 3 design variants', T(5));
-const t2Revised = (patch: Fixture = {}) => impl({ ...done2, files: { validation: VALID(), review: 'verdict: changes-requested\n' }, revisions: afterDone.revisions, history: afterDone.history, ...patch });
-check('T2 changes-requested answered by decide --revise, rows built → no fix-review, on to T2', !say(t2Revised()).includes('fix-review') && say(t2Revised()).startsWith('review: T2'), say(t2Revised()));
-check('the same review, no revise recorded → fix-review still owed', say(t2Revised({ revisions: [], history: [] })).startsWith('dispatch fix-review:'));
-check('a revise that did not come from a T2 (history: implement, plan) does not excuse the review', say(t2Revised({ history: t2History(['plan', 1], ['implement', 4], ['plan', 5]) })).startsWith('dispatch fix-review:'));
-const review2 = 'verdict: changes-requested\n\n## 2026-10-08\nverdict: changes-requested\n';
-check('a second T2 changes-requested after the revised one is still owed a fix(review)', say(t2Revised({ files: { validation: VALID(), review: review2 } })).startsWith('dispatch fix-review:'));
-check('…and its fix(review) commit satisfies it', !say(t2Revised({ files: { validation: VALID(), review: review2 }, subjects: [...done2.subjects, 'fix(review): y'] })).includes('fix-review'));
-// JX-1221 (2026-10-08): the same answer after `wf deliver`'s push was refused by the pre-push hook: REVIEW.md gets
-// a changes-requested section, and the revise comes from step pr (review, pr, plan), or after deliver's own
-// `wf step implement` (review, pr, implement, plan). Both answer the review.
-const reviewRefused = 'verdict: changes-requested\n\n## 2026-10-08 — the push was refused by the project\'s pre-push hook\n\nverdict: changes-requested\n';
-const afterRefusal = (...steps: [string, number][]) => reviseState({ step: 'implement', history: t2History(['plan', 1], ['implement', 2], ['review', 3], ['implement', 4], ['plan', 5], ['implement', 6], ['review', 7], ...steps) }, 'T2 answer + the hook\'s failures', T(20));
-const t2Refused = (via: ReturnType<typeof afterRefusal>, patch: Fixture = {}) => impl({ ...done2, files: { validation: VALID(), review: reviewRefused }, revisions: [...afterDone.revisions!, ...via.revisions!.slice(-1)], history: via.history, ...patch });
-const viaPr = afterRefusal(['pr', 8]);
-const viaPrImplement = afterRefusal(['pr', 8], ['implement', 9]);
-check('a refused push answered by decide --revise from step pr (review, pr, plan) → no fix-review', !say(t2Refused(viaPr)).includes('fix-review') && say(t2Refused(viaPr)).startsWith('review: T2'), say(t2Refused(viaPr)));
-check('…and from the step deliver wrote (review, pr, implement, plan)', !say(t2Refused(viaPrImplement)).includes('fix-review') && say(t2Refused(viaPrImplement)).startsWith('review: T2'), say(t2Refused(viaPrImplement)));
-check('…the refused push, no revise → fix-review owed', say(t2Refused(viaPr, { revisions: afterDone.revisions, history: t2History(['review', 7], ['pr', 8], ['implement', 9]) })).startsWith('dispatch fix-review:'));
-check('a second revise before the next review answers nothing: three changes-requested, two answered, one owed', say(t2Refused(afterRefusal(['pr', 8], ['implement', 9], ['plan', 10], ['implement', 11]), { revisions: [...afterDone.revisions!, { text: 'again', at: T(10) }, { text: 'and again', at: T(20) }], files: { validation: VALID(), review: `${reviewRefused}\nverdict: changes-requested\n` } })).startsWith('dispatch fix-review:'));
-check('T2 dismissed: nothing merges, wait on the user', say(base({ step: 'review', files: { review: 'verdict: dismissed\n' } })).startsWith('wait user: T2 was closed'));
-check('T2 approved → deliver (push, PR, merge, the note), then wf next', say(base({ step: 'pr' })) === 'deliver: T2 approved — `node C:/wf/wf.mjs deliver` (push, PR, merge, the tracker note), then `node C:/wf/wf.mjs next`', say(base({ step: 'pr' })));
-// The tracker note: a section per item, each marked once posted, so a resumed round never posts one twice.
-const NOTE = '<!-- one per ## -->\n\n## TJEW-670.2\nתוקן ✅\nPR: u\n\n## TJEW-670.3\nתוקן ✅\nPR: u\n';
-const merged = (text: string | null) => base({ step: 'merged', note: { file: 'bug-reports/r/NOTE.md', text } });
-check('merged, nothing posted → post every section', say(merged(NOTE)) === 'post: TJEW-670.2, TJEW-670.3 — each section of bug-reports/r/NOTE.md on its own item, with the delivered status (ROUND.md); right after each, its heading gets ` (posted)`. Then `node C:/wf/wf.mjs next`', say(merged(NOTE)));
-check('one posted → only the other', say(merged(NOTE.replace('## TJEW-670.2', '## TJEW-670.2 (posted)'))).startsWith('post: TJEW-670.3 — '));
-check('all posted → done: reap', say(merged(NOTE.replace(/^## (\S+)$/gm, '## $1 (posted)'))) === 'done: `node C:/wf/wf.mjs reap fix/r`');
-check('no note recorded (delivered before wf recorded it) → done: reap', say(base({ step: 'merged' })) === 'done: `node C:/wf/wf.mjs reap fix/r`');
-check('a recorded note gone from disk → done, not a crash', say(merged(null)).startsWith('done: '));
-check('the ## lines of a section body are not sections', unpostedSections('## A\ntext ## B\n').join() === 'A');
-check('held → wait on the user', say(base({ step: 'held' })).startsWith('wait user: the round is held'));
+// ── the assessment must name the HEAD it judged, and a clean verdict cannot carry an unmet item
+check('an assessment with no head: line is refused', say(base({ step: 'assess', files: { agreement: null, assessment: '# r\nVerdict: clean\n## Intent\n- "x": met: a:1 · before: b · after: c\n', review: null, blocked: null } })).startsWith('dispatch assess') && say(base({ step: 'assess', files: { agreement: null, assessment: '# r\nVerdict: clean\n## Intent\n- "x": met: a:1 · before: b · after: c\n', review: null, blocked: null } })).includes('head:'));
+const cleanNotMet = base({ step: 'assess', files: { agreement: null, assessment: ASSESS({ verdict: 'clean', intent: '- "x": not met: the modal still jumps' }), review: null, blocked: null } });
+check('a clean assessment that states an unmet item is refused', say(cleanNotMet).startsWith('dispatch assess') && say(cleanNotMet).includes('says clean but states an unmet item'), say(cleanNotMet));
 
-// snapshotOf on a real repo (the pure arms above are fed `commits` by hand; PR #90 shipped with nothing filling it,
-// so JX-1221's `wf next` dispatched fix-review forever, 2026-10-08): commits come from git, oldest first, with ISO
-// committer times, and a fix ruling answered before a fix(review) commit is met by it.
-const repo = realpathSync(mkdtempSync(join(tmpdir(), 'wf-next-')));
-try {
-	const git = (at: string, ...args: string[]) => execFileSync('git', ['-C', repo, '-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { encoding: 'utf8', env: { ...process.env, GIT_COMMITTER_DATE: at, GIT_AUTHOR_DATE: at } });
-	git('2026-10-01T10:00:00+03:00', 'init', '-q', '-b', 'main');
-	git('2026-10-01T10:00:00+03:00', 'commit', '-q', '--allow-empty', '-m', 'base');
-	git('2026-10-08T08:00:00+03:00', 'checkout', '-q', '-b', 'feat/x');
-	git('2026-10-07T15:00:00+03:00', 'commit', '-q', '--allow-empty', '-m', 'fix(x): one');
-	git('2026-10-08T08:49:32+03:00', 'commit', '-q', '--allow-empty', '-m', 'fix(review): the\ttabbed meta');
-	writeState(repo, () => ({ base: 'main', folder: '' }));
-	// The project's contract paths, read from the worktree: a missing one measures nothing, silently.
-	mkdirSync(join(repo, dirname(contractPathsFile)), { recursive: true });
-	writeFileSync(join(repo, contractPathsFile), 'packages/backend/app/api/**\n');
-	const snap = snapshotOf(repo);
-	check('snapshotOf reads the project\'s contract paths from the worktree', snap.contractPaths === 'packages/backend/app/api/**\n', JSON.stringify(snap.contractPaths));
-	check('snapshotOf fills commits from git, oldest first, with ISO committer times', JSON.stringify(snap.commits) === JSON.stringify([{ subject: 'fix(x): one', at: '2026-10-07T15:00:00+03:00' }, { subject: 'fix(review): the\ttabbed meta', at: '2026-10-08T08:49:32+03:00' }]), JSON.stringify(snap.commits));
-	check('…and subjects are the same commits', JSON.stringify(snap.subjects) === JSON.stringify(snap.commits?.map((c) => c.subject)));
-	const ruled = (answered: string) => nextAction(jx({ subjects: [...jx().subjects, snap.subjects[1]], commits: [...jx().commits!, snap.commits![1]], answered: [jxAnswer(9, answered)], revisions: [] }));
-	check('a fix ruling answered before the fix(review) commit in a real repo is met → validate, not fix-review', ruled('2026-10-08T05:40:28.619Z').say.startsWith('dispatch validate:'), ruled('2026-10-08T05:40:28.619Z').say);
-	check('…and one answered after it is still owed', ruled('2026-10-08T06:00:00.000Z').say.startsWith('dispatch fix-review --from VALIDATION.md:'), ruled('2026-10-08T06:00:00.000Z').say);
-	// JX-1221 as state.json holds it: history, revisions and briefs come through snapshotOf from a real repo; the commit
-	// is q9's (05:49Z), row 7 that names it was briefed 06:14Z, the revise came after a refused push (review, pr, plan).
-	git('2026-10-08T09:00:00+03:00', 'commit', '-q', '--allow-empty', '-m', 'fix(review): the meta');
-	writeState(repo, () => ({
-		base: 'main', folder: '', step: 'implement',
-		history: [{ step: 'review', at: '2026-10-08T06:03:17.973Z' }, { step: 'pr', at: '2026-10-08T06:05:28.735Z' }, { step: 'plan', at: '2026-10-08T06:10:13.026Z' }, { step: 'implement', at: '2026-10-08T06:14:13.905Z' }],
-		revisions: [{ text: 'T2 #4 + hook', at: '2026-10-08T06:10:13.026Z' }],
-		briefs: { 'implement 7': { token: 'x', count: 1, at: '2026-10-08T06:14:42.834Z' } },
-	}));
-	const real = snapshotOf(repo);
-	const fromRepo = (patch: Fixture = {}) => nextAction({ ...jxSeven, commits: [...jxSeven.commits!.slice(0, -1), real.commits!.at(-1)!], history: real.history, revisions: [...jxSeven.revisions!.slice(0, 2), ...real.revisions!], briefs: { ...jxSeven.briefs, ...real.briefs }, answered: [jxAnswer(9, '2026-10-08T05:40:28.619Z')], ...patch } as Snapshot).say;
-	const refusedReview = 'verdict: changes-requested\n';
-	check('state.json from a real repo: review, pr, plan answers the refused push and q9 stays met by its commit → no fix-review', !fromRepo({ files: { ...jxSeven.files, review: refusedReview } }).includes('fix-review'), fromRepo({ files: { ...jxSeven.files, review: refusedReview } }));
-	check('…the same repo with a second changes-requested is owed one fix-review', fromRepo({ files: { ...jxSeven.files, review: refusedReview + refusedReview } }).startsWith('dispatch fix-review:'), fromRepo({ files: { ...jxSeven.files, review: refusedReview + refusedReview } }));
-} finally {
+// ── the material and repair-cap escalations are recorded, so the same question cannot repeat, and a
+// material change needs an EXPLICIT accept to reach T2 (R-2): hold/end/no/looks fine/fix do not
+const materialAnswered = { ...material, answered: [{ n: 1, to: 'user', text: 'the assessment found a material change', source: asks(material)[0].source, answer: 'accept: ship it', asked: 't', answered: 't' }] };
+check('an explicit accept of a material change opens T2', asks(materialAnswered).length === 0 && say(materialAnswered).startsWith('review: T2'), say(materialAnswered));
+for (const answer of ['hold the round until n', 'end it, drop this round', 'no', 'looks fine, carry on', 'fix: tighten the API']) {
+	const ruled = { ...material, answered: [{ n: 1, to: 'user', text: 'the assessment found a material change', source: asks(material)[0].source, answer, asked: 't', answered: 't' }] };
+	check(`R-2: a material answer "${answer}" does not open T2 (it returns to build)`, asks(ruled).length === 0 && !say(ruled).startsWith('review: T2') && steps(ruled).join() === 'build', say(ruled));
+}
+check('R-6: the fix-or-accept question names the unmet finding and the literal accept', asks(blocked)[0].text.includes('not met: the modal still jumps') && asks(blocked)[0].text.includes('answer `accept`'), asks(blocked)[0].text);
+const spentAnswered = { ...spent, answered: [{ n: 1, to: 'user', text: 'x', source: asks(spent)[0].source, answer: 'accept: it is a separate ticket', asked: 't', answered: 't' }] };
+check('an answered repair-cap escalation does not repeat', asks(spentAnswered).length === 0 && say(spentAnswered).startsWith('review: T2'), say(spentAnswered));
+
+// ── helpers
+check('unpostedSections names the sections without (posted)', unpostedSections('## A (posted)\n## B\n').join() === 'B');
+
+// ── the version guard: an old round state is refused, not reinterpreted
+check('a state with no wf_version is refused with an actionable line', (legacyStateGap({ step: 'implement' }) ?? '').includes('older wf') && (legacyStateGap({ step: 'implement' }) ?? '').includes('wf_version'));
+check('a versionless state at a shared step (classify/review/pr/held/merged) is refused too', ['classify', 'review', 'pr', 'held', 'merged'].every((step) => (legacyStateGap({ step }) ?? '').includes('older wf')));
+check('a versionless state with no step is refused too', (legacyStateGap({ round: 'r' }) ?? '').includes('older wf'));
+check('a state at the current version is accepted', legacyStateGap({ wf_version: 2, step: 'build' }) === null);
+check('no state is not a legacy round', legacyStateGap(null) === null);
+
+// ── real CLI: an ordinary class A round reaches build through wf next; a legacy state is refused
+const git = (repo: string, ...args: string[]) => execFileSync('git', ['-C', repo, '-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { encoding: 'utf8' });
+const cli = (repo: string, ...args: string[]) => {
+	try { return { out: execFileSync(process.execPath, [join(WF_ROOT, 'wf.mjs'), ...args], { cwd: repo, encoding: 'utf8' }), code: 0 }; } catch (e) {
+		const err = e as { stdout?: string; stderr?: string; status?: number };
+		return { out: `${err.stdout ?? ''}${err.stderr ?? ''}`, code: err.status ?? 1 };
+	}
+};
+{
+	const repo = mkdtempSync(join(tmpdir(), 'wf-next-'));
+	git(repo, 'init', '-q', '-b', 'main');
+	git(repo, 'config', 'core.autocrlf', 'false');
+	writeFileSync(join(repo, 'a.txt'), 'a\n');
+	git(repo, 'add', '-A');
+	git(repo, 'commit', '-q', '-m', 'base');
+	git(repo, 'checkout', '-q', '-b', 'fix/r');
+	mkdirSync(join(repo, 'bug-reports/r'), { recursive: true });
+	writeFileSync(join(repo, 'bug-reports/r/TICKET.md'), TICKET);
+	mkdirSync(join(repo, '.wf'), { recursive: true });
+	writeFileSync(join(repo, '.wf', 'state.json'), `${JSON.stringify({ wf_version: 2, round: 'r', id: 'r', folder: 'bug-reports/r', base: 'main', step: 'classify', class: 'A' }, null, 2)}\n`);
+	const next = cli(repo, 'next');
+	check('CLI: an ordinary class A round steps to build and dispatches it', next.code === 0 && next.out.includes('dispatch build') && readState(repo)?.step === 'build', next.out);
+	// the class is measured: a ticket declaring Class: B upgrades the round before any build
+	writeFileSync(join(repo, 'bug-reports/r/TICKET.md'), `${TICKET}\nClass: B\n`);
+	mkdirSync(join(repo, 'docs', 'agents'), { recursive: true });
+	writeFileSync(join(repo, 'docs', 'agents', 'contract-paths.txt'), 'src/**\n');
+	writeFileSync(join(repo, '.wf', 'state.json'), `${JSON.stringify({ wf_version: 2, round: 'r', id: 'r', folder: 'bug-reports/r', base: 'main', step: 'classify', class: 'A' }, null, 2)}\n`);
+	const upgraded = cli(repo, 'next');
+	check('CLI: an agreement declaring Class: B upgrades the round and takes T1', upgraded.code === 0 && readState(repo)?.class === 'B' && upgraded.out.includes('T1'), upgraded.out);
+	// the version guard refuses a mutating command on a legacy state
+	writeFileSync(join(repo, '.wf', 'state.json'), `${JSON.stringify({ round: 'r', id: 'r', folder: 'bug-reports/r', step: 'implement' }, null, 2)}\n`);
+	const refused = cli(repo, 'step', 'build');
+	check('CLI: a legacy state refuses a mutating command before it writes', refused.code === 1 && /older wf/.test(refused.out), refused.out);
+	check('CLI: the refused legacy state was not rewritten', JSON.parse(readFileSync(join(repo, '.wf', 'state.json'), 'utf8')).step === 'implement');
+	// a versionless state parked at a shared step is refused by wf next too (it mutates)
+	writeFileSync(join(repo, '.wf', 'state.json'), `${JSON.stringify({ round: 'r', id: 'r', folder: 'bug-reports/r', step: 'review' }, null, 2)}\n`);
+	const legacyNext = cli(repo, 'next');
+	check('CLI: wf next refuses a versionless state parked at review', legacyNext.code === 1 && /older wf/.test(legacyNext.out), legacyNext.out);
 	rmSync(repo, { recursive: true, force: true });
 }
 

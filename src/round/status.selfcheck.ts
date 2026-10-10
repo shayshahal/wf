@@ -71,24 +71,25 @@ check('stack column shows the machine\'s name for the first app when it has one'
 
 // --all arm: the grouped morning screen over the same fixture worktrees (offline, detail stubbed).
 const allStates = new Map<string, State>([
-  [old, { id: 'BJEW-1', folder: 'bug-reports/BJEW-1', step: 'implement', waiting_on: null, since: '2026-09-17T14:57:00.000Z', commit: 2 }],
+  [old, { id: 'BJEW-1', folder: 'bug-reports/BJEW-1', step: 'build', waiting_on: null, since: '2026-09-17T14:57:00.000Z' }],
   [mine, { id: 'BJEW-2', step: 'review', waiting_on: 'user', since: '2026-09-16T15:00:00.000Z' }],
   [mid, { id: 'BJEW-3', step: 'held', waiting_on: 'einat', since: '2026-09-17T13:00:00.000Z' }],
 ]);
 allStates.set(mine, { ...allStates.get(mine), questions: [{ n: 1, to: 'user', text: 'hide or delete?', default: 'hide' } as Question] });
 const readAll = (p: string) => allStates.get(p) ?? null;
-const all = allLines({ paths: [old, mine, mid, bare], readState: readAll, detailFor: (_p, s) => (s.step === 'implement' ? `commit ${s.commit} of 3` : s.step === 'review' ? 'https://pr/2' : ''), now });
+const all = allLines({ paths: [old, mine, mid, bare], readState: readAll, detailFor: (_p, s) => (s.step === 'build' ? '2 verification cases' : s.step === 'review' ? 'https://pr/2' : ''), now });
 check('groups printed in order: waiting on you, running, held', all.filter((l) => !l.startsWith(' ')).join('|') === 'waiting on you:|running:|held:', all.join('|'));
 check('the waiting line is id, step, who, age, detail', all[1] === '  BJEW-2  review  user  24h  https://pr/2', JSON.stringify(all[1]));
 check('an open question sits under its round, not sorted away from it', all[2] === '      ? q1 → user: hide or delete? (default: hide)', JSON.stringify(all[2]));
-check('a round nobody waits on reads "running"', all[4] === '  BJEW-1  implement  running  3m  commit 2 of 3', JSON.stringify(all[4]));
+check('a round nobody waits on reads "running"', all[4] === '  BJEW-1  build  running  3m  2 verification cases', JSON.stringify(all[4]));
 check('a worktree with no state is not a round', !all.join('|').includes('wt-bare'), all.join('|'));
 check('no rounds → no lines', allLines({ paths: [bare], readState: readAll, detailFor: () => '', now }).length === 0);
 check('liveRounds counts everything but merged and held', liveRounds({ paths: [old, mine, mid, bare], readState: readAll }).map((r) => r.state.id).join() === 'BJEW-1,BJEW-2', JSON.stringify(liveRounds({ paths: [old, mine, mid, bare], readState: readAll }).map((r) => r.state.id)));
 mkdirSync(join(old, 'bug-reports', 'BJEW-1'), { recursive: true });
-writeFileSync(join(old, 'bug-reports', 'BJEW-1', 'PLAN.md'), '# p\n\n## Commits\n| # | m | f | c |\n| 1 | a | b | c |\n| 2 | a | b | c |\n');
-check('real detail for implement counts the PLAN.md rows', realDetailFor(old, readAll(old)!) === 'commit 2 of 2', realDetailFor(old, readAll(old)!));
-check('real detail for plan counts PLAN.md lines', realDetailFor(old, { ...readAll(old), step: 'plan' }) === 'PLAN.md 6 lines', realDetailFor(old, { ...readAll(old), step: 'plan' }));
+writeFileSync(join(old, 'bug-reports', 'BJEW-1', 'TICKET.md'), '# t\n\n## Intent\n- x\n\n## Verification\n| # | case | files | check |\n|---|---|---|---|\n| 1 | a | b | c |\n| 2 | a | b | c |\n');
+const ticketText = readFileSync(join(old, 'bug-reports', 'BJEW-1', 'TICKET.md'), 'utf8').replace(/\r\n/g, '\n').trimEnd();
+check('real detail for agree counts the agreement lines', realDetailFor(old, { ...readAll(old), step: 'agree' }) === `TICKET.md ${ticketText.split('\n').length} lines`, realDetailFor(old, { ...readAll(old), step: 'agree' }));
+check('real detail for build counts the verification cases', realDetailFor(old, { ...readAll(old), step: 'build' }) === '2 verification cases', realDetailFor(old, { ...readAll(old), step: 'build' }));
 
 // What still runs in a worktree (seams.processCwds): its own folder and below, nothing beside it.
 const cwds = ['C:\\Users\\S\\wt\\fix-a\\', 'C:\\Users\\S\\wt\\fix-a\\packages\\backend\\', 'C:\\Users\\S\\wt\\fix-ab\\', 'C:\\Users\\S\\'];

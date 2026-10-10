@@ -4,18 +4,20 @@
 import assert from 'node:assert/strict';
 import { reviewFiles } from './review.ts';
 import { beforeAfterPage, captionFor, proofPairs } from './review-format.ts';
-import { asBuiltFile, commentLine, foldFeedbackLine, lastField, pageLine, planBody, planPage, renderHeader, renderSkeleton, readVerdict, roundArtifacts, specShaFor } from './review-format.ts';
+import { commentLine, foldFeedbackLine, lastField, pageLine, agreementBody, agreementPage, renderHeader, renderSkeleton, readVerdict, roundArtifacts } from './review-format.ts';
 import { appendDecision, STEPS, t1Gap } from '../round/step.ts';
-import { forT1Offset, forT1Section } from './design.ts';
+import { agreedOffset, agreedSection } from './agree.ts';
+import { agreementSha } from '../round/agreement.ts';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join as pjoin } from 'node:path';
-// A temp worktree with SPEC.md = 'x'; `review` is the SPEC-REVIEW.md text, with `<real>` replaced by the true sha.
+// A temp worktree with AGREEMENT.md = the observed/agreed material; `review` is AGREEMENT-REVIEW.md's
+// text, with `<real>` replaced by the true agreement sha.
 function t1GapFor(review: string | null) {
   const d = mkdtempSync(pjoin(tmpdir(), 'wf-t1-'));
-  writeFileSync(pjoin(d, 'SPEC.md'), 'x');
-  if (review !== null) writeFileSync(pjoin(d, 'SPEC-REVIEW.md'), review.replace('<real>', specShaFor(d)!));
-  const out = t1Gap(d);
+  writeFileSync(pjoin(d, 'AGREEMENT.md'), '## Observed\n- x — `a.ts:1`\n\n## Agreed\n- behavior\n');
+  if (review !== null) writeFileSync(pjoin(d, 'AGREEMENT-REVIEW.md'), review.replace('<real>', agreementSha(d, 'B', null)!));
+  const out = t1Gap(d, { class: 'B' });
   rmSync(d, { recursive: true });
   return out;
 }
@@ -42,49 +44,58 @@ check('annotated maps to changes-requested', folded.endsWith('verdict: changes-r
 
 const annotate = {
   v: 1, ts: '2026-09-17T20:01:00.000Z', client: 'test', project: 'x', surface: 'annotate',
-  decision: 'approved', target: 'SPEC.md', feedback: '',
+  decision: 'approved', target: 'AGREEMENT.md', feedback: '',
   annotations: [{ blockId: 'usage-table', text: 'add a row' }],
 };
 // The adapter hands the parsed line, fold also takes its JSON text. Until 2026-10-01 the variants
 // below spread the text, which copies its characters, not its fields: none carried the annotation.
 const annotateLine = JSON.stringify(annotate);
 const folded2 = foldFeedbackLine(annotateLine);
-check('blockId-only comment targets SPEC.md', folded2.includes('SPEC.md:usage-table — add a row'), folded2);
+check('blockId-only comment targets the agreement', folded2.includes('AGREEMENT.md:usage-table — add a row'), folded2);
 check('approved maps to approved', folded2.endsWith('verdict: approved'), folded2);
 check('the review UI\'s own message is the note line (stdout carries only {decision,message})', foldFeedbackLine({ ...annotate, message: 'shown in chat, not in a browser' }).includes('note — shown in chat, not in a browser'), foldFeedbackLine({ ...annotate, message: 'shown in chat, not in a browser' }));
 // The shape a real record has: a digest with a section per annotation, a quoted person line, and — the part
 // that reached a round's SPEC-REVIEW.md, 2026-10-06 — the element's HTML and box coordinates.
 const realDigest = { ...annotate, feedback: '# File Feedback\n\nI\'ve reviewed this file and have 1 pieces of feedback:\n\n## 1. General feedback about the file\n> this is still information overload\n\n- **selector** `#wf-src-50 > strong`\n- **box** 298,315 492×20 (viewport 1680×901)\n\n---\n\n## Label Summary\n' };
-check('a real digest folds to its comment lines only — no digest headers, no selectors, no box coordinates', foldFeedbackLine(realDigest) === 'SPEC.md:usage-table — add a row\nverdict: approved', foldFeedbackLine(realDigest));
+check('a real digest folds to its comment lines only — no digest headers, no selectors, no box coordinates', foldFeedbackLine(realDigest) === 'AGREEMENT.md:usage-table — add a row\nverdict: approved', foldFeedbackLine(realDigest));
 const lgtm = foldFeedbackLine({ ...annotate, decision: 'lgtm' });
-check('review-surface lgtm maps to approved (plannotator 0.27.16)', lgtm.endsWith('verdict: approved') && lgtm.includes('SPEC.md:usage-table — add a row'), lgtm);
+check('review-surface lgtm maps to approved (plannotator 0.27.16)', lgtm.endsWith('verdict: approved') && lgtm.includes('AGREEMENT.md:usage-table — add a row'), lgtm);
 const withNotes = foldFeedbackLine({ ...annotate, decision: 'approved-with-notes' });
-check('an approval with a comment (approved-with-notes) maps to approved, keeping the comment', withNotes.endsWith('verdict: approved') && withNotes.includes('SPEC.md:usage-table — add a row'), withNotes);
+check('an approval with a comment (approved-with-notes) maps to approved, keeping the comment', withNotes.endsWith('verdict: approved') && withNotes.includes('AGREEMENT.md:usage-table — add a row'), withNotes);
 const meh = foldFeedbackLine({ ...annotate, decision: 'meh' });
-check('unknown decision maps to changes-requested, keeping the comment', meh.endsWith('verdict: changes-requested') && meh.includes('SPEC.md:usage-table — add a row'), meh);
+check('unknown decision maps to changes-requested, keeping the comment', meh.endsWith('verdict: changes-requested') && meh.includes('AGREEMENT.md:usage-table — add a row'), meh);
 
 const skel = renderSkeleton({ round: 'feat/x', klass: 'A', base: 'dev', date: '2026-09-17', files: ['a.ts'] });
 check('skeleton verdict is not a real verdict', readVerdict(skel) === null, skel);
+const currentHeader = renderHeader({ round: 'r', agreementSha: 'agreed', contentSha: 'worktree', headSha: 'head', assessment: ['assessment: VERIFIED (r/ASSESSMENT.md)'], files: ['proof/CALL-STACK-AS-BUILT.md'] });
+check('review headers bind the current agreement and implementation, never the retired SPEC', currentHeader.includes('agreement-sha: agreed') && currentHeader.includes('content-sha: worktree') && currentHeader.includes('head-sha: head') && !currentHeader.includes('spec-sha:') && currentHeader.includes('diffed against the agreement'), currentHeader);
+check('review headers retain the consolidated assessment summary exactly once', currentHeader.split('assessment: VERIFIED (r/ASSESSMENT.md)').length === 2, currentHeader);
+// @ts-expect-error SPEC is not an input to the replacement review header.
+renderHeader({ round: 'r', specSha: 'obsolete' });
+// @ts-expect-error Per-rule standards reports are not an input to the consolidated assessment.
+renderHeader({ round: 'r', standards: ['standards: obsolete'] });
 const targetLine = { ...annotate, decision: "lgtm", target: { review: { base: "dev", changedFiles: 124 } } };
 check('fold records what plannotator actually reviewed', foldFeedbackLine(targetLine).includes("reviewed: dev (124 files)"));
 check('lastField takes the newest dated section', lastField('base: dev\nverdict: approved\n## 2\nbase: tools/wf-runtime\n', 'base') === 'tools/wf-runtime');
-check('the as-built file counts uncommitted: the as-built phase does not commit it (TJEW-670.11)', asBuiltFile(reviewFiles(['a.ts'], 'bug-reports/r/proof/CALL-STACK-AS-BUILT.md', true)) === 'bug-reports/r/proof/CALL-STACK-AS-BUILT.md' && asBuiltFile(reviewFiles(['a.ts'], 'bug-reports/r/proof/CALL-STACK-AS-BUILT.md', false)) === null && reviewFiles(['bug-reports/r/proof/CALL-STACK-AS-BUILT.md'], 'bug-reports/r/proof/CALL-STACK-AS-BUILT.md', true).length === 1);
-check('as-built file found anywhere in the diff', asBuiltFile(['x.ts', 'bug-reports/r/proof/CALL-STACK-AS-BUILT.md']) === 'bug-reports/r/proof/CALL-STACK-AS-BUILT.md');
-check('header lists the as-built file first under look at', renderHeader({ round: 'r', klass: 'B', base: 'dev', urls: 'b2b:   http://localhost:1\n', files: ['packages/frontend/b2b/src/routes/(auth)/login/+page.svelte', 'bug-reports/r/proof/CALL-STACK-AS-BUILT.md'] }).match(/^look at: .*$/m)![0].includes('CALL-STACK-AS-BUILT'));
-check('t1Gap null when SPEC-REVIEW approves the current sha', t1GapFor('spec-sha: <real>\nverdict: approved\n') === null);
-check('t1Gap names a re-spec', /is of sha256:0ld, SPEC.md is now sha256:/.test(t1GapFor('spec-sha: sha256:0ld\nverdict: approved\n')!));
-check('t1Gap names a changes-requested verdict', /verdict is changes-requested/.test(t1GapFor('spec-sha: <real>\nverdict: changes-requested\n')!));
-check('forT1Section extracts only the T1 section', forT1Section('# S\n## For T1\na\nb\n\n## As-is\nx\n') === '## For T1\na\nb\n');
-check('forT1Section null on the older shape', forT1Section('# S\n## As-is\nx\n') === null);
-check('forT1Offset: `## For T1` starts at line 3, so a page block carries its SPEC.md line, not its line in the extract', forT1Offset('# S\n\n## For T1\n\nthe count is read\n') === 2, String(forT1Offset('# S\n\n## For T1\n\nthe count is read\n')));
-check('t1Gap names a missing review', t1GapFor(null) === 'no SPEC-REVIEW.md');
+check('the assessment file counts uncommitted: the assessment phase does not commit it', reviewFiles(['a.ts'], 'bug-reports/r/ASSESSMENT.md', true).includes('bug-reports/r/ASSESSMENT.md') && reviewFiles(['a.ts'], 'bug-reports/r/ASSESSMENT.md', true).length === 2 && reviewFiles(['bug-reports/r/ASSESSMENT.md'], 'bug-reports/r/ASSESSMENT.md', true).length === 1);
+// N-4: review.ts's own changedFiles(worktree, base) (review.ts:44) has always taken the base; the T2
+// file list is that committed diff plus the round's ASSESSMENT.md, so the check.ts signature change
+// does not touch it. The list is the public composition, tested here.
+check('N-4: the T2 file list is the committed diff plus the round assessment', JSON.stringify(reviewFiles(['src/Page.svelte', 'src/Other.svelte'], 'bug-reports/r/ASSESSMENT.md', true)) === JSON.stringify(['bug-reports/r/ASSESSMENT.md', 'src/Page.svelte', 'src/Other.svelte']) && JSON.stringify(reviewFiles([], 'bug-reports/r/ASSESSMENT.md', false)) === JSON.stringify([]));
+check('t1Gap null when AGREEMENT-REVIEW approves the current material sha', t1GapFor('agreement-sha: <real>\nverdict: approved\n') === null);
+check('t1Gap names a re-agreement', /is of 0ld, the agreement is now [0-9a-f]/.test(t1GapFor('agreement-sha: 0ld\nverdict: approved\n')!));
+check('t1Gap names a changes-requested verdict', /verdict is changes-requested/.test(t1GapFor('agreement-sha: <real>\nverdict: changes-requested\n')!));
+check('agreedSection extracts Observed + Agreed, not the verification cases', agreedSection('# A\n## Observed\no\n\n## Agreed\na\n\n## Verification\n|1|\n', 'B') === '## Observed\no\n\n## Agreed\na');
+check('agreedSection for class A is the Intent', agreedSection('# T\n## Intent\ni\n\n## Thread\nx\n', 'A') === '## Intent\ni');
+check('agreedOffset: `## Observed` starts at line 3, so a page block carries its agreement line', agreedOffset('# A\n\n## Observed\n\nthe fact\n', 'B') === 2, String(agreedOffset('# A\n\n## Observed\n\nthe fact\n', 'B')));
+check('t1Gap names a missing review', t1GapFor(null) === 'no AGREEMENT-REVIEW.md');
 check('last verdict line wins', readVerdict(`${skel}\n## 2026-09-18\n\nc.ts:1 — x\nverdict: approved`) === 'approved');
 
 assert.throws(() => resolveWorktree('no-such-round-xyz'), /candidates:/);
 check('resolveWorktree throws with candidates on a bogus name', true);
 
 // step.ts: the round's phases, and `wf decide` writing into PLAN.md § Decisions.
-check('STEPS carry research and plan before design', STEPS.join(' ') === 'classify research plan design implement review pr merged held', STEPS.join(' '));
+check('STEPS are the smaller route', STEPS.join(' ') === 'classify agree build assess review pr merged held', STEPS.join(' '));
 const planNoSection = '# p\n\n## Asks\nnone\n';
 check('decide creates ## Decisions when there is none', appendDecision(planNoSection, 'use 30 days', '2026-09-22') === '# p\n\n## Asks\nnone\n\n## Decisions\n- 2026-09-22 use 30 days\n', JSON.stringify(appendDecision(planNoSection, 'use 30 days', '2026-09-22')));
 const twice = appendDecision(appendDecision(planNoSection, 'a', '2026-09-22'), 'b', '2026-09-23');
@@ -109,45 +120,45 @@ check('the T2 header carries a manual row as a `manual:` line (prompts/plan.md)'
 // The plan page: SHOW-ME.md's views rendered for T1 (.wf/SPEC-T1.html) and T2 (.wf/PLAN.html). Every
 // block carries its own markdown line (`wf-src-<line>`) as its first class and as its id, so a comment
 // on the page folds back onto that line (pageLine/commentLine below).
-const body = planBody('# T\n\n## Build\n\n```diff\n a\n+b\n-c\n~d\n```\n\n- one\n- two\n\n> **ASK-1 (user) — which?**\n');
+const body = agreementBody('# T\n\n## Build\n\n```diff\n a\n+b\n-c\n~d\n```\n\n- one\n- two\n\n> **ASK-1 (user) — which?**\n');
 check('a plan heading becomes h2, the diff markers keep their class', body.includes('<h2 class="wf-src-3" id="wf-src-3">Build</h2>') && body.includes('class="add">+b') && body.includes('class="del">-c') && body.includes('class="chg">~d'), body);
 check('every block is tagged with its own line: the tag survives a click inside it', body.includes('<h1 class="wf-src-1" id="wf-src-1">T</h1>') && body.includes('<pre class="wf-src-5 diff" id="wf-src-5">') && body.includes('<blockquote class="wf-src-15 ask" id="wf-src-15">') && body.includes('<li class="wf-src-12" id="wf-src-12">one</li>'), body);
 check('a bullet run becomes one list', body.includes('<ul>\n<li class="wf-src-12" id="wf-src-12">one</li>\n<li class="wf-src-13" id="wf-src-13">two</li>\n</ul>'), body);
 check('an ASK is a blockquote with a copy button', body.includes('<blockquote class="wf-src-15 ask" id="wf-src-15">') && body.includes('<button class="copy"'), body);
-const bare = planBody('```\n+x\n y\n```');
+const bare = agreementBody('```\n+x\n y\n```');
 check('a bare fence is coloured like a diff: the call stacks live there', bare.includes('class="add">+x') && bare.includes('class="ctx"> y'), bare);
-const indented = planBody('```\n  entry\n    run\n  +    handle\n    ~ changed\n    - gone\n```');
+const indented = agreementBody('```\n  entry\n    run\n  +    handle\n    ~ changed\n    - gone\n```');
 check('an indented hop keeps its marker: a stack indents, so the marker is not at column 0', indented.includes('class="add">  +    handle') && indented.includes('class="chg">    ~ changed') && indented.includes('class="del">    - gone') && indented.includes('class="ctx">  entry'), indented);
-const table = planBody('| a | b |\n|---|---|\n');
+const table = agreementBody('| a | b |\n|---|---|\n');
 check('a table is kept as text', table.includes('<pre class="wf-src-1 table" id="wf-src-1">'), table);
-const offset = planBody('## H\n\np\n', 10);
+const offset = agreementBody('## H\n\np\n', 10);
 check('with a base the tag is the line in the document the section was cut from', offset.includes('<h2 class="wf-src-11" id="wf-src-11">H</h2>') && offset.includes('<p class="wf-src-13" id="wf-src-13">p</p>'), offset);
-const withAsk = planPage({ title: 'P', meta: [], section: '> **ASK-1 — which?**\n' });
-const withMermaid = planPage({ title: 'P', meta: ['m'], section: '```mermaid\nA->>B: x\n```' });
+const withAsk = agreementPage({ title: 'P', meta: [], section: '> **ASK-1 — which?**\n' });
+const withMermaid = agreementPage({ title: 'P', meta: ['m'], section: '```mermaid\nA->>B: x\n```' });
 check('mermaid: the block is drawn by the CDN script', withMermaid.includes('<pre class="wf-src-1 mermaid" id="wf-src-1">A-&gt;&gt;B: x</pre>') && withMermaid.includes('cdn.jsdelivr.net/npm/mermaid'), withMermaid);
 check('mermaid follows the page scheme: default writes dark text, unreadable on the dark page', withMermaid.includes('theme:matchMedia("(prefers-color-scheme: dark)").matches?"dark":"default"'), withMermaid);
 check('the diff markers get a dark-scheme colour too, or they are dim on it', withMermaid.includes('@media (prefers-color-scheme:dark){pre.diff .add{color:#4ade80}'));
 check('the copy button falls back when the frame refuses the clipboard API (sandbox, no allow-same-origin)', withAsk.includes('wfCopy') && withAsk.includes('execCommand("copy")') && withAsk.includes('navigator.clipboard'), withAsk);
-check('no mermaid script on a page with no mermaid block', !planPage({ title: 'P', meta: [], section: '- a' }).includes('cdn.jsdelivr.net'));
-const pageHtml = planPage({ title: '<b>', meta: ['x <y>'], section: '## <i>', artifacts: [{ title: 'v.html', src: '../r/v.html' }] });
+check('no mermaid script on a page with no mermaid block', !agreementPage({ title: 'P', meta: [], section: '- a' }).includes('cdn.jsdelivr.net'));
+const pageHtml = agreementPage({ title: '<b>', meta: ['x <y>'], section: '## <i>', artifacts: [{ title: 'v.html', src: '../r/v.html' }] });
 check('the page escapes the title, meta and artifact, and embeds it', pageHtml.includes('<title>&lt;b&gt;</title>') && pageHtml.includes('x &lt;y&gt;') && pageHtml.includes('src="../r/v.html"'), pageHtml);
-// Folding a comment made on the rendered page back to a SPEC.md line (planBody's tag, pageLine). The
+// Folding a comment made on the rendered page back to an agreement line (agreementBody's tag, pageLine). The
 // payloads are what Plannotator 0.28.5 logged for clicks on a styled page (2026-10-06): the tag has to be
 // read out of both fields, because elementPath keeps only an element's first class where the selector
 // keeps them all, and a click on a `<b>` inside a block reports the block's tag with the `<b>` after it.
 const onWrapper = { text: 'here?', elementTag: 'p', elementPath: 'body > div.block:nth-of-type(3)> p', elementSelector: 'div.block.wf-src-12 > p', originalText: 'Comment on this paragraph (the inner element), not the box around it. ← inline comment here' };
-check('a page comment folds to the line of the block it landed on, quoting what it landed on', commentLine(onWrapper) === 'SPEC.md:12 — here? (on: Comment on this paragraph (the inner element), not the box around it. ← inline comment here)', commentLine(onWrapper));
+check('a page comment folds to the line of the block it landed on, quoting what it landed on', commentLine(onWrapper) === 'AGREEMENT.md:12 — here? (on: Comment on this paragraph (the inner element), not the box around it. ← inline comment here)', commentLine(onWrapper));
 const onNested = { text: 'or here?', elementTag: 'b', elementPath: 'body > div.block:nth-of-type(5) > blockquote.wf-src-77 > b', elementSelector: 'blockquote.wf-src-77 > b', originalText: '← inline comment here' };
-check('a click inside a block still folds to the block, quoting only the clicked words', commentLine(onNested) === 'SPEC.md:77 — or here? (on: ← inline comment here)', commentLine(onNested));
+check('a click inside a block still folds to the block, quoting only the clicked words', commentLine(onNested) === 'AGREEMENT.md:77 — or here? (on: ← inline comment here)', commentLine(onNested));
 check('the deepest tag wins when a branch carries two', pageLine({ elementSelector: 'div.wf-src-12 > p.wf-src-42' }) === 42, String(pageLine({ elementSelector: 'div.wf-src-12 > p.wf-src-42' })));
-check('a comment on page chrome the page cannot place says so', commentLine({ text: 'nice', elementPath: 'body > div#scriptcheck', originalText: 'SCRIPTS RUN — mermaid would draw' }) === 'SPEC.md:? — nice (on: SCRIPTS RUN — mermaid would draw)', commentLine({ text: 'nice', elementPath: 'body > div#scriptcheck', originalText: 'SCRIPTS RUN — mermaid would draw' }));
+check('a comment on page chrome the page cannot place says so', commentLine({ text: 'nice', elementPath: 'body > div#scriptcheck', originalText: 'SCRIPTS RUN — mermaid would draw' }) === 'AGREEMENT.md:? — nice (on: SCRIPTS RUN — mermaid would draw)', commentLine({ text: 'nice', elementPath: 'body > div#scriptcheck', originalText: 'SCRIPTS RUN — mermaid would draw' }));
 // The markdown surface carries originalText too (Shay's own T1 on wf, 2026-10-06): a blockId plus the
 // text of the block that was annotated, which is what the reviser needs and used to be dropped.
-check('a markdown-surface comment keeps its blockId and gains the quoted block', commentLine({ text: 'main or dev?', blockId: 'block-14', originalText: 'a Desktop session on their main checkout, not the round worktree' }) === 'SPEC.md:block-14 — main or dev? (on: a Desktop session on their main checkout, not the round worktree)', commentLine({ text: 'main or dev?', blockId: 'block-14', originalText: 'a Desktop session on their main checkout, not the round worktree' }));
-check('a quote spanning lines stays on one line, clipped to 96', commentLine({ text: 't', blockId: 'b', originalText: `a\nb ${'x'.repeat(200)}` }).startsWith('SPEC.md:b — t (on: a b ') && /\(on: x{95}…\)$/.test(commentLine({ text: 't', blockId: 'b', originalText: 'x'.repeat(200) })), commentLine({ text: 't', blockId: 'b', originalText: 'x'.repeat(200) }));
-check('no quote, no `on:`', commentLine({ text: 't', blockId: 'b' }) === 'SPEC.md:b — t', commentLine({ text: 't', blockId: 'b' }));
+check('a markdown-surface comment keeps its blockId and gains the quoted block', commentLine({ text: 'main or dev?', blockId: 'block-14', originalText: 'a Desktop session on their main checkout, not the round worktree' }) === 'AGREEMENT.md:block-14 — main or dev? (on: a Desktop session on their main checkout, not the round worktree)', commentLine({ text: 'main or dev?', blockId: 'block-14', originalText: 'a Desktop session on their main checkout, not the round worktree' }));
+check('a quote spanning lines stays on one line, clipped to 96', commentLine({ text: 't', blockId: 'b', originalText: `a\nb ${'x'.repeat(200)}` }).startsWith('AGREEMENT.md:b — t (on: a b ') && /\(on: x{95}…\)$/.test(commentLine({ text: 't', blockId: 'b', originalText: 'x'.repeat(200) })), commentLine({ text: 't', blockId: 'b', originalText: 'x'.repeat(200) }));
+check('no quote, no `on:`', commentLine({ text: 't', blockId: 'b' }) === 'AGREEMENT.md:b — t', commentLine({ text: 't', blockId: 'b' }));
 const foldedPage = foldFeedbackLine({ decision: 'approved-with-notes', target: 'SPEC-T1.html', annotations: [onWrapper] });
-check('a page review folds to the same review-file shape, with a real SPEC.md line', foldedPage.includes('SPEC.md:12 — here?') && foldedPage.endsWith('verdict: approved'), foldedPage);
+check('a page review folds to the same review-file shape, with a real agreement line', foldedPage.includes('AGREEMENT.md:12 — here?') && foldedPage.endsWith('verdict: approved'), foldedPage);
 
 const artDir = mkdtempSync(pjoin(tmpdir(), 'wf-art-'));
 writeFileSync(pjoin(artDir, 'b.html'), 'x');

@@ -21,17 +21,11 @@ export const CLAUDE_CODE_MODELS: Models = { low: 'sonnet', medium: 'opus' };
 
 // What each phase `wf next` dispatches needs.
 export const PHASE_EFFORT: Record<string, Effort> = {
-	research: 'medium',
-	plan: 'medium',
-	implement: 'medium',
-	'fix-review': 'medium',
-	'as-built': 'low',
-	validate: 'low',
-	standards: 'low',
-	// Not validate's level: the critic is another model where the machine has one (PRACTICES.md,
-	// second-model review). Self-Refine, one model judging its own review, gained nothing in the paper
-	// (gates/critique.ts).
-	critique: 'medium',
+	// The smaller route (#111): agree writes the working agreement (consequential work needs T1's
+	// informed decision), build implements it, assess is one independent read-only judgement (#113).
+	agree: 'medium',
+	build: 'medium',
+	assess: 'medium',
 };
 
 export const isEffort = (e: string): e is Effort => (EFFORTS as readonly string[]).includes(e);

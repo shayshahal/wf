@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CorruptStateError, readState, roundFile, stateFile, stateLockIsStale, writeState } from './state.ts';
-import type { Brief, State, StateUpdater } from './state.ts';
+import type { State, StateUpdater } from './state.ts';
 
 // Child mode: this file spawned as the writer the parent races or kills.
 const [, , mode, childDir, childKey, childIters, childNapMs] = process.argv;
@@ -29,9 +29,9 @@ if (mode === 'writer' || mode === 'spam') {
 		while (!existsSync(join(childDir, 'go'))) nap();
 	}
 	for (let i = 0; (mode === 'spam' ? !existsSync(stop) : i < Number(childIters)) && i < 100_000; i++) {
-		// note is padding, so a writer that lost atomicity would be read mid-file; briefs is the nested
+		// note is padding, so a writer that lost atomicity would be read mid-file; revisions is the nested
 		// collection a competing writer must not erase.
-		writeState(childDir, (s) => { nap(); return { note: 'x'.repeat(1_000_000), briefs: { ...s.briefs, [childKey]: { token: childKey, at, count: i } } }; });
+		writeState(childDir, (s) => { nap(); return { note: 'x'.repeat(1_000_000), revisions: [...(s.revisions ?? []), { text: `${childKey}${i}`, at, sha: null }] }; });
 	}
 	process.exit(0);
 }
@@ -43,7 +43,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const self = fileURLToPath(import.meta.url);
 const tempDir = () => mkdtempSync(join(tmpdir(), 'wf-state-'));
 const at = '2026-10-09T00:00:00.000Z';
-const brief = (token: string, count = 1): Brief => ({ token, at, count });
+const rev = (text: string) => ({ text, at, sha: null });
 const spawnWriter = (m: string, dir: string, key: string, iters: number, napMs = 1) =>
 	spawn(process.execPath, [self, m, dir, key, String(iters), String(napMs)], { stdio: ['ignore', 'ignore', 'pipe'] });
 const stderrOf = (c: ReturnType<typeof spawnWriter>) => { const out = { text: '' }; c.stderr?.on('data', (d: Buffer) => { out.text += d; }); return out; };
@@ -55,46 +55,46 @@ check('no state file is no round (null)', readState(missing) === null);
 rmSync(missing, { recursive: true, force: true });
 
 const bad = tempDir();
-writeState(bad, () => ({ round: 'r', briefs: { plan: brief('a') } }));
+writeState(bad, () => ({ round: 'r', revisions: [rev('a')] }));
 const good = readFileSync(stateFile(bad), 'utf8');
-writeFileSync(stateFile(bad), '{ "round": "r", "briefs": {');
+writeFileSync(stateFile(bad), '{ "round": "r", "revisions": [');
 const corrupt = throws(() => readState(bad));
 check('corrupt state throws and names the file', corrupt instanceof CorruptStateError && corrupt.message.startsWith('corrupt round state: ') && corrupt.message.includes(stateFile(bad)), String(corrupt));
 check('corrupt state is refused, not replaced', throws(() => writeState(bad, () => ({ round: 'other' }))) instanceof CorruptStateError);
-check('a refused write leaves the file exactly as it was', readFileSync(stateFile(bad), 'utf8') === '{ "round": "r", "briefs": {');
+check('a refused write leaves the file exactly as it was', readFileSync(stateFile(bad), 'utf8') === '{ "round": "r", "revisions": [');
 check('roundFile refuses a corrupt round too', throws(() => roundFile(bad, 'PLAN.md')) instanceof CorruptStateError);
 writeFileSync(stateFile(bad), '[]');
 check('a JSON array is corrupt state as well', throws(() => readState(bad)) instanceof CorruptStateError);
 writeFileSync(stateFile(bad), good);
-check('a restored file reads again', readState(bad)?.briefs?.plan?.token === 'a');
+check('a restored file reads again', readState(bad)?.revisions?.[0]?.text === 'a');
 rmSync(bad, { recursive: true, force: true });
 
 // ── merge, and the updater that sees the state under the lock
 const dir = tempDir();
-writeState(dir, () => ({ round: 'r', briefs: { plan: brief('a') } }));
-writeState(dir, () => ({ commit: 2 }));
-check('an update keeps the fields it does not return', readState(dir)?.round === 'r' && readState(dir)?.commit === 2);
+writeState(dir, () => ({ round: 'r', revisions: [rev('a')] }));
+writeState(dir, () => ({ repairs: 2 }));
+check('an update keeps the fields it does not return', readState(dir)?.round === 'r' && readState(dir)?.repairs === 2);
 const seen: { state?: State } = {};
 writeState(dir, (s) => { seen.state = s; return { id: 'round-id' }; });
-check('the updater is handed the state as it is on disk', seen.state?.commit === 2 && seen.state?.briefs?.plan?.token === 'a');
+check('the updater is handed the state as it is on disk', seen.state?.repairs === 2 && seen.state?.revisions?.[0]?.text === 'a');
 check('the fields it returns merge over that state', readState(dir)?.round === 'r' && readState(dir)?.id === 'round-id');
 // The stale copy a caller used to hold: it read early, another write landed, and writing its map back
 // would erase that write. The write shape has no parameter for that copy; an updater is handed the
 // live state, and a caller that returns its own old map is the deliberate rewind the trace watches for.
 const early = readState(dir)!;
-writeState(dir, (s) => ({ briefs: { ...s.briefs, implement: brief('c') } }));
-writeState(dir, (s) => ({ briefs: { ...s.briefs, validate: brief('d') } }));
-check('an update keeps a brief that landed after the caller read', Object.keys(readState(dir)?.briefs ?? {}).sort().join() === 'implement,plan,validate', JSON.stringify(readState(dir)?.briefs));
-check('the read-early copy is not what the updater was given', early.briefs?.implement === undefined && readState(dir)!.briefs!.implement !== undefined);
+writeState(dir, (s) => ({ revisions: [...(s.revisions ?? []), rev('implement')] }));
+writeState(dir, (s) => ({ revisions: [...(s.revisions ?? []), rev('validate')] }));
+check('an update keeps a revision that landed after the caller read', readState(dir)?.revisions?.map((r) => r.text).join() === 'a,implement,validate', JSON.stringify(readState(dir)?.revisions));
+check('the read-early copy is not what the updater was given', early.revisions?.length === 1 && readState(dir)!.revisions!.length === 3);
 rmSync(dir, { recursive: true, force: true });
 
 // The updater is handed its own copy: a callback that mutates what it got must not rewrite the
 // snapshot state-trace compares against, nor smuggle the mutation into the write.
 const mutable = tempDir();
-writeState(mutable, () => ({ round: 'keep', briefs: { plan: brief('a') } }));
-writeState(mutable, (s) => { s.round = 'MUTATED'; (s.briefs as Record<string, Brief>).sneak = brief('z'); return { commit: 5 }; });
+writeState(mutable, () => ({ round: 'keep', revisions: [rev('a')] }));
+writeState(mutable, (s) => { s.round = 'MUTATED'; (s.revisions as { text: string; at: string }[]).push(rev('z')); return { repairs: 5 }; });
 const kept = readState(mutable)!;
-check('an updater that mutates what it was handed cannot change the write', kept.round === 'keep' && kept.briefs?.sneak === undefined && kept.commit === 5, JSON.stringify(kept));
+check('an updater that mutates what it was handed cannot change the write', kept.round === 'keep' && kept.revisions?.length === 1 && kept.repairs === 5, JSON.stringify(kept));
 rmSync(mutable, { recursive: true, force: true });
 
 // The old write shape: an object (a copied map) instead of an updater is refused, and the state on
@@ -140,16 +140,16 @@ check('an unreadable lock is not stale: wf publishes locks complete, so it is no
 // The stale lock and the orphan temp a killed writer leaves: the next command recovers.
 writeFileSync(lock, JSON.stringify({ pid: deadPid, at: new Date().toISOString() }));
 writeFileSync(`${stateFile(locks)}.${deadPid}.1.tmp`, '{ partial');
-const recovered = writeState(locks, (s) => ({ briefs: { ...s.briefs, recovered: brief('r') } }));
-check('a stale lock does not block the next update', recovered.briefs?.recovered?.token === 'r' && readState(locks)?.round === 'r');
+const recovered = writeState(locks, (s) => ({ revisions: [...(s.revisions ?? []), rev('recovered')] }));
+check('a stale lock does not block the next update', recovered.revisions?.some((r) => r.text === 'recovered') === true && readState(locks)?.round === 'r');
 check('the stale lock is gone after the write', !existsSync(lock));
 check('the acquisition guard is gone after the reclaim', !existsSync(`${lock}.acquiring`));
 check('the orphan temp of an interrupted write is not the round', readState(locks)?.round === 'r');
 // A release that lost a Windows sharing race leaves our own pid in the lock: the next write takes it
 // back at once (the stale rule reads our own pid; reentry is refused separately) instead of waiting.
 writeFileSync(lock, JSON.stringify({ pid: process.pid, at: new Date().toISOString() }));
-const selfRecovered = writeState(locks, (s) => ({ briefs: { ...s.briefs, selflock: brief('s') } }));
-check('a leftover lock of our own pid does not wedge the next write', selfRecovered.briefs?.selflock?.token === 's' && !existsSync(lock));
+const selfRecovered = writeState(locks, (s) => ({ revisions: [...(s.revisions ?? []), rev('selflock')] }));
+check('a leftover lock of our own pid does not wedge the next write', selfRecovered.revisions?.some((r) => r.text === 'selflock') === true && !existsSync(lock));
 rmSync(locks, { recursive: true, force: true });
 
 // Waits until every named writer has opened its barrier, then lets them start together; a bounded
@@ -165,7 +165,7 @@ const startTogether = async (dir: string, readyKeys: string[]) => {
 // nothing serializes them, so without the lock all but one key is lost — and with it every key
 // lands, because each read happens after the previous write.
 const race = tempDir();
-writeState(race, () => ({ round: 'race', briefs: { seed: brief('seed') } }));
+writeState(race, () => ({ round: 'race', revisions: [rev('seed')] }));
 const keys = ['alpha', 'beta', 'gamma', 'delta'];
 const children = keys.map((k) => {
 	const c = spawnWriter('writer', race, k, 1, 30);
@@ -175,8 +175,8 @@ await startTogether(race, keys);
 await Promise.all(children.map(({ done }) => done));
 const raced = readState(race);
 check('every competing writer exited clean', children.every(({ c }) => c.exitCode === 0), children.map(({ c, err }) => `${c.pid}:${c.exitCode} ${err.text.slice(0, 800)}`).join(' | '));
-check('four competing processes keep every nested key', keys.every((k) => raced?.briefs?.[k] !== undefined), JSON.stringify(Object.keys(raced?.briefs ?? {})));
-check('the round fields survive the race', raced?.round === 'race' && raced?.briefs?.seed?.token === 'seed');
+check('four competing processes keep every nested key', keys.every((k) => raced?.revisions?.some((r) => r.text.startsWith(k))), JSON.stringify(raced?.revisions?.map((r) => r.text)));
+check('the round fields survive the race', raced?.round === 'race' && raced?.revisions?.[0]?.text === 'seed');
 rmSync(race, { recursive: true, force: true });
 
 // ── the lock is published complete: a reader during a write never meets an empty or partial lock.
@@ -209,7 +209,7 @@ rmSync(complete, { recursive: true, force: true });
 // the reader never lets go, refuse; that is not what this arm measures. Only a parse failure — the
 // signature of a write that replaced the file in place — is a failure.
 const atomic = tempDir();
-writeState(atomic, () => ({ round: 'atomic', briefs: { seed: brief('seed') } }));
+writeState(atomic, () => ({ round: 'atomic', revisions: [rev('seed')] }));
 const atomicKeys = keys.slice(0, 3);
 const writerKids = atomicKeys.map((k) => spawnWriter('writer', atomic, k, 6));
 const writerDone = writerKids.map((c) => once(c, 'close'));
@@ -229,7 +229,7 @@ rmSync(atomic, { recursive: true, force: true });
 
 // ── a writer killed mid-write: the state stays whole, the mechanism stays usable
 const killed = tempDir();
-writeState(killed, () => ({ round: 'killed', briefs: { seed: brief('seed') } }));
+writeState(killed, () => ({ round: 'killed', revisions: [rev('seed')] }));
 const victim = spawnWriter('spam', killed, 'child', 0, 0);
 const victimErr = stderrOf(victim);
 const victimDone = once(victim, 'exit');
@@ -238,9 +238,9 @@ victim.kill('SIGKILL');
 writeFileSync(join(killed, '.stop'), ''); // if the kill did not land, the loop ends anyway
 await victimDone;
 const afterKill = readState(killed);
-check('a killed writer leaves the state whole', afterKill?.round === 'killed' && afterKill?.briefs?.seed?.token === 'seed', JSON.stringify(afterKill?.briefs) + victimErr.text);
-const afterRecovery = writeState(killed, (s) => ({ briefs: { ...s.briefs, recovered: brief('r') } }));
-check('a killed writer does not leave the update mechanism unusable', afterRecovery.briefs?.recovered?.token === 'r' && !existsSync(`${stateFile(killed)}.lock`), JSON.stringify(afterRecovery.briefs));
+check('a killed writer leaves the state whole', afterKill?.round === 'killed' && afterKill?.revisions?.[0]?.text === 'seed', JSON.stringify(afterKill?.revisions) + victimErr.text);
+const afterRecovery = writeState(killed, (s) => ({ revisions: [...(s.revisions ?? []), rev('recovered')] }));
+check('a killed writer does not leave the update mechanism unusable', afterRecovery.revisions?.some((r) => r.text === 'recovered') === true && !existsSync(`${stateFile(killed)}.lock`), JSON.stringify(afterRecovery.revisions));
 rmSync(killed, { recursive: true, force: true });
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');

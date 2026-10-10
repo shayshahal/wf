@@ -11,7 +11,7 @@
 // reads the old state and blocks at its write; the parent releases the mutate child only once the
 // command is ready, so the read is over before the competing write lands.
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -35,7 +35,7 @@ if (mode === 'step') {
 	process.chdir(dir);
 	const { runStep } = await import('./step.ts');
 	process.stdout.write('READY\n');
-	await runStep([arg || 'plan', '--round', 'r']);
+	await runStep([arg || 'agree', '--round', 'r']);
 	process.exit(0);
 }
 if (mode === 'ask') {
@@ -108,19 +108,29 @@ const spawnKid = (m: string, d: string, a = '', input = '', token = 'READY'): Ki
 	return { ready, done };
 };
 // Run a competing writer holding the lock while `start` begins the real command(s) under test: start
-// the writer, wait for the command to be ready, give it a margin to finish its read (after READY it
-// spawns `git rev-parse --show-toplevel`, which is the slow part under load), then let the writer
-// land. The margin scales with a measured spawn so a loaded machine gets a bigger one. The command is
-// blocked at its write the whole time, so its read is of the old state.
+// the writer, wait for the command to be ready, then wait — deterministically, not on a sleep — until
+// the command is contending for the state lock. Reaching the lock proves its read is already over
+// (readState happens before writeState), so the competing write can land without the command ever
+// reading the new state. A margin sleep was not enough under the full suite's load (the review saw the
+// arm red once and green once at the same HEAD); a test-only signal is the proof, a sleep is not.
+const lockTemps = (d: string) => {
+	const wf = join(d, '.wf');
+	return existsSync(wf) ? readdirSync(wf).filter((n) => /^state\.json\.lock\..*\.tmp$/.test(n)) : [];
+};
+const waitForContention = async (d: string) => {
+	const deadline = Date.now() + 20_000;
+	while (Date.now() < deadline) {
+		if (lockTemps(d).length) return;
+		await sleep(2);
+	}
+	throw new Error('the command under test never contended for the state lock');
+};
 const raceWith = async (d: string, kind: string, start: () => Kid[]) => {
-	const t0 = Date.now();
-	execFileSync('git', ['-C', d, 'rev-parse', '--show-toplevel'], { encoding: 'utf8' });
-	const marginMs = Math.max(1500, (Date.now() - t0) * 10);
 	const holder = spawnKid('mutate', d, kind, '', 'HELD');
 	await holder.ready;
 	const kids = start();
 	await Promise.all(kids.map((k) => k.ready));
-	await sleep(marginMs);
+	await waitForContention(d);
 	writeFileSync(join(d, '.go'), '');
 	await holder.done;
 	return Promise.all(kids.map((k) => k.done));
@@ -134,12 +144,12 @@ const planText = '# plan\n\n## Commits\n\n| 1 | do it | a.ts | x |\n';
 	const d = tempRepo();
 	putState(d, { round: 'r', folder: 'round', step: 'plan', questions: [q5], last_question: 5 });
 	mkdirSync(join(d, 'round'), { recursive: true });
-	writeFileSync(join(d, 'round', 'PLAN.md'), planText);
+	writeFileSync(join(d, 'round', 'TICKET.md'), planText);
 	const [r] = await raceWith(d, 'close-open', () => [spawnKid('decide', d, 'the answer for q5')]);
 	const st = readStateFile(d);
 	check('a decide whose question lost the race refuses cleanly', r.code === 2 && /no open question q5/.test(r.err), `code ${r.code} err ${r.err.slice(0, 200)}`);
 	check('the refused decide does not answer the new question with q5\'s words', (st.answered ?? []).length === 1 && st.answered![0].answer === 'x', JSON.stringify(st.answered));
-	check('the refused decide leaves PLAN.md as it was', readFileSync(join(d, 'round', 'PLAN.md'), 'utf8') === planText);
+	check('the refused decide leaves PLAN.md as it was', readFileSync(join(d, 'round', 'TICKET.md'), 'utf8') === planText);
 	rmSync(d, { recursive: true, force: true });
 }
 
@@ -150,7 +160,7 @@ const planText = '# plan\n\n## Commits\n\n| 1 | do it | a.ts | x |\n';
 	const d = tempRepo();
 	putState(d, { round: 'r', folder: 'round', step: 'plan', questions: [q5], last_question: 5 });
 	mkdirSync(join(d, 'round'), { recursive: true });
-	writeFileSync(join(d, 'round', 'PLAN.md'), planText);
+	writeFileSync(join(d, 'round', 'TICKET.md'), planText);
 	const [decide, ask] = await raceWith(d, 'hold', () => [spawnKid('decide', d, 'the answer for q5'), spawnKid('ask', d, 'a second question')]);
 	const st = readStateFile(d);
 	const answered5 = (st.answered ?? []).filter((q) => q.n === 5);
@@ -158,7 +168,7 @@ const planText = '# plan\n\n## Commits\n\n| 1 | do it | a.ts | x |\n';
 	check('a competing ask and decide both succeed', decide.code === 0 && ask.code === 0, `decide ${decide.code}: ${decide.err.slice(0, 80)} | ask ${ask.code}: ${ask.err.slice(0, 80)}`);
 	check('the decide answers q5 once with its own words', answered5.length === 1 && answered5[0].answer === 'the answer for q5', JSON.stringify(st.answered));
 	check('the ask question is opened once and left open', open.length === 1 && open[0] === 6 && (st.questions ?? [])[0].text === 'a second question', JSON.stringify(st.questions));
-	check('PLAN.md carries q5 once', (readFileSync(join(d, 'round', 'PLAN.md'), 'utf8').match(/the q5 question/g) ?? []).length === 1, readFileSync(join(d, 'round', 'PLAN.md'), 'utf8'));
+	check('PLAN.md carries q5 once', (readFileSync(join(d, 'round', 'TICKET.md'), 'utf8').match(/the q5 question/g) ?? []).length === 1, readFileSync(join(d, 'round', 'TICKET.md'), 'utf8'));
 	rmSync(d, { recursive: true, force: true });
 }
 
@@ -168,7 +178,7 @@ const planText = '# plan\n\n## Commits\n\n| 1 | do it | a.ts | x |\n';
 	const d = tempRepo();
 	putState(d, { round: 'r', folder: 'round', step: 'plan', questions: [q5, { n: 6, to: 'user', text: 'the q6 question', asked: '2026-10-09T00:00:30.000Z' }], last_question: 6 });
 	mkdirSync(join(d, 'round'), { recursive: true });
-	writeFileSync(join(d, 'round', 'PLAN.md'), planText);
+	writeFileSync(join(d, 'round', 'TICKET.md'), planText);
 	const r = await spawnKid('decide', d, 'an answer with no --q').done;
 	const st = readStateFile(d);
 	check('decide with two open and no --q refuses, naming both', r.code === 2 && /2 questions are open — name one with --q: q5, q6/.test(r.err), `code ${r.code} err ${r.err.slice(0, 200)}`);
@@ -179,8 +189,8 @@ const planText = '# plan\n\n## Commits\n\n| 1 | do it | a.ts | x |\n';
 // ── runStep: a concurrent classify upgrade (class B) and a base another command wrote are kept.
 {
 	const d = tempRepo();
-	putState(d, { round: 'r', folder: 'round', step: 'plan', class: 'A', base: 'b0' });
-	const [r] = await raceWith(d, 'class', () => [spawnKid('step', d, 'plan')]);
+	putState(d, { round: 'r', folder: 'round', step: 'agree', class: 'A', base: 'b0' });
+	const [r] = await raceWith(d, 'class', () => [spawnKid('step', d, 'agree')]);
 	const st = readStateFile(d);
 	check('runStep keeps a concurrent class upgrade (B, not the pre-lock A)', st.class === 'B', `code ${r.code} class ${st.class}`);
 	check('runStep keeps a base another command wrote', st.base === 'b1', `base ${st.base}`);
@@ -191,13 +201,13 @@ const planText = '# plan\n\n## Commits\n\n| 1 | do it | a.ts | x |\n';
 // the write will leave, so it refuses instead of writing the stale A and bypassing T1.
 {
 	const d = tempRepo();
-	putState(d, { round: 'r', folder: 'round', step: 'plan', class: 'A' });
+	putState(d, { round: 'r', folder: 'round', step: 'agree', class: 'A' });
 	mkdirSync(join(d, 'round'), { recursive: true });
-	writeFileSync(join(d, 'round', 'PLAN.md'), planText);
-	const [r] = await raceWith(d, 'class', () => [spawnKid('step', d, 'implement')]);
+	writeFileSync(join(d, 'round', 'TICKET.md'), planText);
+	const [r] = await raceWith(d, 'class', () => [spawnKid('step', d, 'build')]);
 	const st = readStateFile(d);
-	check('an implement whose class became B refuses T1 instead of writing the stale A', r.code === 2 && /T1 \(wf design\) must approve/.test(r.err), `code ${r.code} err ${r.err.slice(0, 200)}`);
-	check('the refused implement keeps the concurrent class B and the plan step', st.class === 'B' && st.step === 'plan', JSON.stringify(st));
+	check('an implement whose class became B refuses T1 instead of writing the stale A', r.code === 2 && /T1 \(wf agree\) must approve/.test(r.err), `code ${r.code} err ${r.err.slice(0, 200)}`);
+	check('the refused build keeps the concurrent class B and the agree step', st.class === 'B' && st.step === 'agree', JSON.stringify(st));
 	rmSync(d, { recursive: true, force: true });
 }
 
@@ -222,6 +232,26 @@ const planText = '# plan\n\n## Commits\n\n| 1 | do it | a.ts | x |\n';
 	const cls = spawnSync(process.execPath, [join(WF_ROOT, 'src', 'gates', 'classify.ts'), '--json'], { cwd: d, encoding: 'utf8' });
 	const text = `${cls.stdout ?? ''}${cls.stderr ?? ''}`;
 	check('classify reports corrupt state instead of falling back to the base branch', cls.status !== 0 && text.includes('corrupt round state'), `status ${cls.status} ${text.slice(0, 200)}`);
+	rmSync(d, { recursive: true, force: true });
+}
+
+// ── classify: a missing contract-path list is one actionable line, never an uncaught stack (R-9).
+{
+	const d = tempRepo();
+	const cls = spawnSync(process.execPath, [join(WF_ROOT, 'src', 'gates', 'classify.ts'), '--json', '--base', 'HEAD'], { cwd: d, encoding: 'utf8' });
+	const text = `${cls.stdout ?? ''}${cls.stderr ?? ''}`;
+	check('R-9: classify without contract-paths.txt prints one line, no stack', cls.status === 2 && /contract-paths\.txt is missing/.test(text) && !/\bat file:/.test(text), `status ${cls.status} ${text.slice(0, 200)}`);
+	rmSync(d, { recursive: true, force: true });
+}
+
+// ── a version-less legacy round is refused by the handoff hook before it writes (R-5).
+{
+	const d = tempRepo();
+	putState(d, { round: 'r', folder: 'round', step: 'build' });
+	const hook = await spawnKid('hook', d, '', JSON.stringify({ hook_event_name: 'SubagentStop', agent_type: 'wf:round-worker' })).done;
+	const st = readStateFile(d);
+	check('R-5: the handoff hook blocks a version-less state instead of writing it', hook.out.includes('"decision":"block"') && /older wf/.test(hook.out), hook.out.slice(0, 200));
+	check('R-5: the blocked hook left the legacy state unmutated', st.handoff_sent_back === undefined, JSON.stringify(st));
 	rmSync(d, { recursive: true, force: true });
 }
 

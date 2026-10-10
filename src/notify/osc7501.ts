@@ -111,8 +111,8 @@ export function reportsFor(state: State, o: { progress?: number; msg?: string } 
 	// A person, or the user: anything but the CI the round is waiting on, which is not a human block.
 	const onHuman = waiting !== null && waiting !== 'ci';
 	const open = state.questions ?? [];
-	// T1 and T2 are approvals: SPEC.md or the diff is on screen and the round cannot go on.
-	const gate = step === 'design' ? 'T1 on SPEC.md' : step === 'review' ? 'T2 on the diff' : null;
+	// T1 and T2 are approvals: the agreement or the diff is on screen and the round cannot go on.
+	const gate = onHuman && step === 'agree' ? 'T1 on AGREEMENT.md' : onHuman && step === 'review' ? 'T2 on the diff' : null;
 	const blockedOn = step === 'held' ? 'held' : onHuman ? (open[0]?.text ?? gate ?? `waiting on ${waiting}`) : open[0]?.text ?? null;
 	const status: Status = step === 'merged' ? 'done' : blockedOn ? 'blocked' : 'working';
 	const msg = o.msg ?? blockedOn ?? (status === 'done' ? 'merged' : waiting === 'ci' ? 'checks' : gate ?? step);

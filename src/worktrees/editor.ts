@@ -1,5 +1,5 @@
 // editor.ts — $VISUAL → $EDITOR → code fallback. Returns true when an editor was started.
-// It is started detached and not waited for: `wf review` and `wf design` return, and the person says
+// It is started detached and not waited for: `wf review` and `wf agree` return, and the person says
 // when the verdict is in. Until 2026-09-27 it waited (spawnSync): a terminal editor with no terminal
 // hung the command, and on Windows `code` (code.cmd, which Node cannot start without a shell)
 // failed with ENOENT while this still said it had opened.

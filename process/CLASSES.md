@@ -7,7 +7,7 @@ backend models, schemas, API, `openapi.json`; frontend `*.remote.ts`,
 `src/lib/server/**`, `shared/**`; auth, permissions, `core/security*`;
 manifests (`package.json`, lockfiles, `pyproject.toml`, `requirements.txt`);
 data migrations, `core/config.py`, CI (`.github/**`), compose files and `infrastructure/**`.
-Requires a design session and SPEC.md before implementing; T1 + T2.
+Requires a working agreement and T1 before building; T1 + T2.
 
 **C — product-undecided.** The requirement itself is open. Set only by the
 orchestrator when a question is waiting on the user or the product owner — never by paths.
@@ -34,6 +34,6 @@ deleted them.
 The paths are the project's contract-paths file (one git pathspec glob per
 line; `projects/<name>/index.ts` says where it lives), and last match wins,
 so the `** wf-class=A` default comes first. `wf:classify` reports the class
-for the diff. `wf next` also measures a plan's own files against the same
-globs before anything is built: a plan whose rows touch one is B whatever its
+for the diff. `wf next` also measures an agreement's verification-case files against the same
+globs before anything is built: an agreement whose cases touch one is B whatever its
 `Class:` line says, and a class never downgrades (A→B→C).

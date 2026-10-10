@@ -1,13 +1,14 @@
 // make-demo.mjs — regenerate this demo's rendered pages with wf's own code.
 //
 // It imports the shipped renderer, so what you open is what a round would produce, not a hand-written
-// mock: the T1 page (`## For T1` of SPEC.md), the T2 plan page (PLAN.md), and the REVIEW.md header T2
-// sees — the one that carries the `manual:` rows. Change the renderer, run this, see the difference:
-// it is the fastest check on a `planPage` or `renderHeader` change, with no round and no worktree.
+// mock: the T1 page (the agreement's `## Observed` + `## Agreed`), the T2 agreement page (the whole
+// AGREEMENT.md), and the REVIEW.md header T2 sees — the one that carries the `manual:` rows. Change
+// the renderer, run this, see the difference: it is the fastest check on a `agreementPage` or
+// `renderHeader` change, with no round and no worktree.
 //
 //   node docs/demo/make-demo.mjs           regenerate in docs/demo
 //   WF_ROOT=~/other/wf node docs/demo/make-demo.mjs
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -16,9 +17,9 @@ const here = dirname(fileURLToPath(import.meta.url));
 const WF = process.env.WF_ROOT ?? join(here, '..', '..');
 const load = (rel) => import(pathToFileURL(join(WF, rel)).href);
 
-const { planPage, renderSkeleton, roundArtifacts } = await load('src/gates/review-format.ts');
-const { forT1Offset, forT1Section } = await load('src/gates/design.ts');
-const { planCommitRows } = await load('src/round/prompt.ts');
+const { agreementPage, renderSkeleton, roundArtifacts } = await load('src/gates/review-format.ts');
+const { agreedSection, agreedOffset } = await load('src/gates/agree.ts');
+const { verificationCases } = await load('src/round/agreement.ts');
 const { manualCheck } = await load('src/gates/check.ts');
 
 const demo = process.argv[2] ? process.argv[2] : here;
@@ -27,42 +28,46 @@ const folder = join(demo, 'bug-reports', round);
 const wfDir = join(demo, '.wf');
 mkdirSync(wfDir, { recursive: true });
 
-// T1 — what `wf design` writes, from SPEC.md's `## For T1` (gates/design.ts).
-const spec = readFileSync(join(folder, 'SPEC.md'), 'utf8');
-writeFileSync(join(wfDir, 'SPEC-T1.html'), planPage({
-  title: `SPEC — ${round} · For T1`,
-  meta: ['spec-sha: sha256:demo', 'the design this round is built against'],
-  section: forT1Section(spec) ?? '',
-  // The section's own line in SPEC.md: a block of the page has to carry its SPEC.md line, because that is
-  // the line a comment on the page folds onto (design.ts passes the same offset).
-  base: forT1Offset(spec),
+const agreement = readFileSync(join(folder, 'AGREEMENT.md'), 'utf8');
+
+// T1 — what `wf agree` writes, from the agreement's agreed material (gates/agree.ts). The page's
+// blocks carry the AGREEMENT.md line a comment on them folds onto, so `base` is the agreement's own
+// line for `## Observed`.
+writeFileSync(join(wfDir, 'AGREEMENT-T1.html'), agreementPage({
+  title: `Agreement — ${round} · T1`,
+  meta: ['agreement-sha: sha256:demo', 'the agreed material this round is built against'],
+  section: agreedSection(agreement, 'B'),
+  base: agreedOffset(agreement, 'B'),
   artifacts: roundArtifacts(folder, wfDir),
 }));
 
-// T2 — what `wf review` writes, from PLAN.md (gates/review.ts writePlan).
-const plan = readFileSync(join(folder, 'PLAN.md'), 'utf8');
-writeFileSync(join(wfDir, 'PLAN.html'), planPage({
-  title: `PLAN — ${round}`,
-  meta: ['class B · base dev', 'the plan the diff is judged against — the markdown is the file of record'],
-  section: plan,
+// T2 — what `wf review` writes, from the whole AGREEMENT.md (gates/review.ts writeAgreement).
+writeFileSync(join(wfDir, 'AGREEMENT.html'), agreementPage({
+  title: `Agreement — ${round}`,
+  meta: ['class B · base dev', 'the agreement the diff is judged against — the markdown is the file of record'],
+  section: agreement,
   artifacts: roundArtifacts(folder, wfDir),
 }));
 
-// T2's REVIEW.md header: the `manual:` rows a check cell can name (gates/review.ts manualFor).
-const manual = planCommitRows(plan).flatMap((r) => {
-  const text = manualCheck(r.check);
-  return text ? [`manual: row ${r.n} — ${text}`] : [];
+// T2's REVIEW.md header: the `manual:` rows a verification case can name (gates/review.ts manualFor).
+const manual = verificationCases(agreement).flatMap((c) => {
+  const text = manualCheck(c.check);
+  return text ? [`manual: case ${c.n} — ${text}`] : [];
 });
 writeFileSync(join(wfDir, 'REVIEW.md'), renderSkeleton({
-  round, klass: 'B', base: 'dev', specSha: 'sha256:demo', date: '2026-10-06',
+  round, klass: 'B', base: 'dev',
+  contentSha: 'sha256:demo-worktree', headSha: 'sha256:demo-head', date: '2026-10-06',
   urls: 'admin:  http://localhost:12001\napi:    http://127.0.0.1:22001/api/v1\n',
   files: [
     'packages/admin/src/lib/listings.remote.ts',
     'packages/admin/src/routes/admin/listings/ListingBadge.svelte',
     'packages/admin/src/routes/admin/listings/listings.test.ts',
   ],
-  standards: ['standards: admin-svelte — pass (0 issues)'],
+  assessment: ['assessment: clean (bug-reports/DEMO-1/ASSESSMENT.md)'],
   manual,
 }));
 
-console.log(`renderer: ${join(WF, 'src', 'gates', 'review-format.ts')}\nwrote:\n  ${['SPEC-T1.html', 'PLAN.html', 'REVIEW.md'].map((f) => join(wfDir, f)).join('\n  ')}`);
+// The old route's two pages are not a wf it makes any more; a leftover file is a dangling reference.
+for (const stale of ['SPEC-T1.html', 'PLAN.html']) rmSync(join(wfDir, stale), { force: true });
+
+console.log(`renderer: ${join(WF, 'src', 'gates', 'review-format.ts')}\nwrote:\n  ${['AGREEMENT-T1.html', 'AGREEMENT.html', 'REVIEW.md'].map((f) => join(wfDir, f)).join('\n  ')}`);

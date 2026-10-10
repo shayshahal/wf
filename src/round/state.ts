@@ -1,29 +1,25 @@
 #!/usr/bin/env node
 // state.ts — <git-toplevel>/.wf/state.json, the one file a round's commands share.
-// step.ts owns round/class/base/step/waiting_on/since; `wf new --id` adds id + folder;
-// `wf prompt implement N` adds commit (the row `wf check` fences against).
+// step.ts owns wf_version/round/class/base/step/waiting_on/since; `wf new --id` adds id + folder;
+// `wf ask`/`wf decide` own questions/answered/revisions; `wf next` owns repairs.
 // writeState serializes every read-modify-write against the other wf processes on this worktree and
 // replaces the file with one rename; readState tells a missing round (null) from a corrupt one (it
 // throws). See the comments on writeState and CorruptStateError (issue #107).
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { linkSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { roundsDir } from '../project.ts';
-import { traceStateWrite } from './state-trace.ts';
+import { baseBranch, roundsDir } from '../project.ts';
 
 export type RoundClass = 'A' | 'B' | 'C';
 // A question `wf ask` opened; `wf decide` moves it to `answered` with its answer (ask.ts).
 export type Question = { n: number; to: string; text: string; default?: string; source?: string; asked: string; answer?: string | null; answered?: string };
-// What `wf brief` recorded for a phase (handoff.ts): the token its handoff file must end with.
-// of: the validation token a critique judged; exchange: which critique of that validation's chain it is;
-// answers: the exchange a `validate --answer` answered (gates/critique.ts).
-export type Brief = { token: string; at: string; count: number; head?: string; sent_back?: boolean; of?: string | null; exchange?: number; answers?: number;
-// plan only: SPEC.md's sha when the brief went out, null when there was none yet (a plan written before the design session).
-spec?: string | null };
 // .wf/state.json. Every field is optional: each command writes only its own (writeState merges),
 // and a hand-cut worktree has only what `wf step` wrote.
+// `wf_version` is the runtime that wrote the state (2 = the smaller route, #110/#111). A state from
+// an older runtime is refused before mutation, never silently reinterpreted (finish-before-release).
 export type State = {
+	wf_version?: number;
 	round?: string;
 	class?: RoundClass | null;
 	base?: string | null;
@@ -39,22 +35,25 @@ export type State = {
 	opened_by?: Record<string, string>;
 	entry?: string;
 	check?: boolean;
-	commit?: number;
+	// How many autonomous repairs an assessment has already sent back to build (#113.3): bounded by
+	// MAX_REPAIRS in next.ts. Reset is not needed — the assessment's `head:` names the tree it judged.
+	repairs?: number;
+	// The step a round-worker was sent back for by `wf handoff check` (handoff-hook.ts): one hand-back
+	// per step, so a hook loop cannot burn the agent.
+	handoff_sent_back?: string;
 	questions?: Question[];
 	answered?: Question[];
-	// Answers that say the plan must change (`wf decide --revise`, ask.ts): `wf next` sends the round
-	// to `plan --revise` until a plan brief is newer than the answer.
-	revisions?: { text: string; at: string }[];
-	// What research must now measure (`wf decide --research`, ask.ts): `wf next` dispatches a fresh
-	// research until a research brief is newer than the request, and its prompt carries them all.
-	researchRequests?: { text: string; at: string }[];
+	// Answers that say the agreement must change (`wf decide --revise`, ask.ts): each carries the
+	// agreement material sha at the moment it was recorded, so it is open until that sha moves. `wf next`
+	// sends the round back to agree while any is open (agree.ts). `sha` is required: the only producer
+	// (ask.ts `reviseState`) always writes it (`null` at worst), so a revision without one is a malformed
+	// state, not a migration (N-6).
+	revisions?: { text: string; at: string; sha: string | null }[];
+	// The BLOCKED.md question whose `## Answer` a build has already resumed from, so a build that comes
+	// back still blocked asks the person again instead of looping (next.ts).
+	blocked_answered?: number;
 	last_question?: number;
-	briefs?: Record<string, Brief>;
-	// How many agents each phase has had, over the whole round: every brief it sent, in a field nothing
-	// voids (`briefs` loses every `implement *` key on a plan --revise, on purpose). This is what `wf
-	// reap`'s line reports as `agents:`; a round from before the field falls back to the surviving briefs.
-	briefCounts?: Record<string, number>;
-	// The validation token whose T2 setup `wf show` already ran (projects/jewelryx/show.ts).
+	// The agreement material sha whose project T2 setup `wf show` already ran.
 	t2_setup?: string;
 	// The tracker note `wf deliver` wrote, from the worktree's top: `wf next` reads which of its
 	// sections are posted (src/round/next.ts, unpostedSections).
@@ -63,6 +62,36 @@ export type State = {
 
 export function toplevelOf(cwd = process.cwd()): string {
 	return execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8', cwd }).trim();
+}
+
+// The ref a round's committed diff is measured against: the round's own base, else the project's
+// origin base branch. `base` is the merge-base with HEAD, or null when the ref does not resolve — the
+// round's committed range is then unknown, and every caller must fail closed rather than bless a
+// committed product change it cannot see (N-1, #109).
+export function resolveRoundBase(toplevel: string, state: State | null): { ref: string; base: string | null } {
+	const ref = state?.base ?? `origin/${baseBranch}`;
+	const run = spawnSync('git', ['-C', toplevel, 'merge-base', ref, 'HEAD'], { encoding: 'utf8' });
+	return { ref, base: run.status === 0 ? (run.stdout ?? '').trim() : null };
+}
+
+// The runtime that reads and writes a round's state. A state from an older one is refused before any
+// command mutates it (finish-before-release, #110): the new route cannot read the old fields, and a
+// silent reinterpretation would corrupt a half-finished round. A genuine read-only inspection may
+// still report it; every mutating command refuses (run.ts).
+export const WF_STATE_VERSION = 2;
+// The steps the smaller route removed (#111/#112/#113). A round parked at one is an old round: it must
+// finish on the installed wf that made it, and this wf refuses to reinterpret it.
+const OLD_ROUTE_STEPS = ['research', 'plan', 'design', 'implement'];
+export function legacyStateGap(state: State | null): string | null {
+	if (!state) return null;
+	if (state.wf_version === WF_STATE_VERSION) return null;
+	// Any state this runtime did not write is refused before a mutating command touches it: an unknown
+	// version, a versionless old round (even parked at a step the two routes share, like classify or
+	// review), or a hand-edited file. Fresh/absent state is allowed to initialize version 2; a
+	// read-only inspection may still report an old round (run.ts).
+	if (typeof state.wf_version === 'number') return `this round's state names wf version ${state.wf_version}, not ${WF_STATE_VERSION} — finish it on that wf, then start a new round`;
+	const at = state.step && OLD_ROUTE_STEPS.includes(state.step) ? ` (step "${state.step}")` : '';
+	return `this round's state is from an older wf (no wf_version${at}): finish it on the installed wf that made it, then start a new round — this wf refuses to reinterpret old state (finish-before-release, #110)`;
 }
 
 export function stateFile(toplevel: string) {
@@ -132,9 +161,8 @@ export function roundFile(toplevel: string, name: string) {
 // write replace a whole collection from a read that predated it, which is the lost update this fixes.
 // `writeState` refuses a copied `State` object outright, so that shape cannot come back by accident.
 // The updater is handed its own copy of `current`: a callback that mutates it cannot rewrite the
-// snapshot state-trace.ts compares against, and cannot smuggle the mutation into the write.
-// An updater still replaces the field it returns whole — intentional: `wf brief plan --revise` voids
-// implement briefs (briefsAfter), `wf new` writes `ids` as a list.
+// snapshot state.ts keeps, and cannot smuggle the mutation into the write.
+// An updater still replaces the field it returns whole.
 //
 // A write is serialized against every other wf process on this worktree with .wf/state.json.lock, and
 // the new state replaces the old with one rename: a reader sees the old state or the new one, never a
@@ -345,15 +373,14 @@ export function writeState(toplevel: string, update: StateUpdater): State {
 	try {
 		const release = acquireStateLock(toplevel);
 		try {
-			// What is on disk now, kept: state-trace.ts compares it against what this write leaves behind,
-			// since `briefs` is the one field a write replaces whole. The updater gets its own copy, so a
-			// callback that mutates it cannot rewrite this snapshot and blind that comparison.
+			// The updater gets its own copy of `current`: a callback that mutates it cannot rewrite the
+			// snapshot state.ts keeps, and cannot smuggle the mutation into the write.
 			const before = readState(toplevel);
 			const current = before ?? {};
 			const patch = update(structuredClone(current));
 			const state: State = { ...current, ...patch };
 			writeStateFileAtomically(toplevel, state);
-			traceStateWrite(toplevel, { before, after: state, patch: Object.keys(patch) });
+
 			return state;
 		} finally {
 			release();

@@ -10,14 +10,14 @@ Create worktrees only via `wf new <branch> [--base <ref>] [--class B|C] [--check
 (default base `origin/<the project's base branch>`): it makes the worktree, runs the project's
 setup, then `wf step classify`. A raw `git worktree add` skips the setup. `--id <ticket id>`
 refuses to cut the worktree when a round folder or a commit already names the id — read
-that first. `--class B|C` asserts the class at creation: a design-first round has no code to
+that first. `--class B|C` asserts the class at creation: an agreement-first round has no code to
 measure, and `wf step classify` only ever upgrades (A→B→C), never downgrades. The class that binds
-is measured again from the plan's own files (`wf next`).
+is measured again from the agreement's verification-case files (`wf next`).
 
 Ports: one hashed port P per branch, from the branch name (`ports.ts`, 10000–19999); the project
 spreads its apps from there. No worktree is served from its creation (Shay, 2026-10-04: a stack per
 worktree was too much). `wf serve [--wait]` starts the project's `serve` in the background, and the
-phases that drive the app run it themselves: `wf brief research` and `wf brief validate`,
+phases that drive the app run it themselves: `wf brief assess`,
 `wf check` before the repro or a task marked `stack`, and `wf review`. It stops at reap. `wf status`
 probes P and prints the first app's name.
 
@@ -27,8 +27,14 @@ state file) are removable. `wf reap` stops the tree's processes first, runs the 
 while the worktree exists, then removes it and runs the same teardown again (each step tolerates
 "already gone").
 
+Pipeline cutover follows the agreed finish-before-release policy: finish active legacy rounds on
+that installed runtime before installing the replacement. There is no state converter or second
+pipeline. Planned-commit rows, their completion tokens and their decided-skip obligations (#74)
+are retired with that protocol, not imported into version 2. The replacement resumes one build
+phase; it cannot redispatch an obsolete `implement N` row. Verification cases remain working detail,
+not commit-completion obligations.
+
 One round is one PR to the base branch: CI runs on it, T2 approves it, and it merges with
-`gh pr merge <n> --merge` (a merge commit, not a squash: the round's commits stay as planned, one
-per PLAN.md row). The round folder merges with it and stays: it is the round's memory. Then
+`gh pr merge <n> --merge` (a merge commit, not a squash). The round folder merges with it and stays: it is the round's memory. Then
 `wf step merged` opens the reap gate and `wf reap <branch>` removes the worktree (skills/round/SKILL.md,
 *T2 approved*).

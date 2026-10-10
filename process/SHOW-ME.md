@@ -1,6 +1,6 @@
-# Show me — the views a design or a plan carries
+# Show me — the views an agreement carries
 
-A `PLAN.md` Build, and a SPEC candidate's build, say what changes as a **view**: the smallest
+An agreement's `## Agreed` (and a candidate view in the session), say what changes as a **view**: the smallest
 shape that makes the point. `CALL-STACK-FORMAT.md` is the view when the change travels a call
 path. This file is the rest, and the rules all of them follow.
 
@@ -29,19 +29,20 @@ path. This file is the rest, and the rules all of them follow.
 - **`diff` blocks**: `+` added, `-` removed, `~` changed, a leading space unchanged — the same
   markers as the call stack, so a reader learns one grammar.
 - **An HTML artifact is a view, not a second document.** One focused file, in the round folder, for
-  the one question text cannot carry. The markdown stays what binds; `wf design` and `wf review`
-  render the artifact beside the plan (`.wf/SPEC-T1.html`, `.wf/PLAN.html`), and a reader who never
-  opens it loses nothing the plan does not say.
+  the one question text cannot carry. The markdown stays what binds; `wf agree` and `wf review`
+  render the artifact beside the agreement (`.wf/AGREEMENT-T1.html`; `.wf/AGREEMENT.html`,
+  `.wf/before-after.html`), and a reader
+  who never opens it loses nothing the agreement does not say.
 - **`NOT MEASURED — <why>` is always acceptable. Silence is not** (`PRACTICES.md`): a view asserts a
   shape; a shape nobody measured says so.
 
 ## Where they go
 
-- A SPEC candidate: `CALL-STACK-FORMAT.md` for the stack, and a view here for every shape the stack
-  cannot carry. `SPEC-TEMPLATE.md` § Candidates.
-- `PLAN.md ## Build`: the same views, against `RESEARCH.md`'s as-is.
-- `## For T1`: the views of the chosen candidate, whole — it is what T1 approves and what the round
-  is built against (`DESIGN-SESSION.md` § 5).
+- A candidate: `CALL-STACK-FORMAT.md` for the stack, and a view here for every shape the stack
+  cannot carry (`AGREEMENT-TEMPLATE.md`).
+- `## Agreed`: the same views, against `## Observed`'s as-is.
+- The agreed material: the views of the chosen candidate, whole — it is what T1 approves and what the
+  round is built against (`AGREEMENT-TEMPLATE.md` § T1).
 
 *Views from HumanLayer's `show-me` and `create-structure-outline` skills (dexhorthy, 2026-10-06),
 kept to wf's sizes: a view replaces prose, it does not add a section.*

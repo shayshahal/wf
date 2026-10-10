@@ -1,7 +1,7 @@
 // projects/jewelryx/checks.ts — wf check's commands for a JewelryX diff (index.ts checks):
 //   backend  — ruff check + ruff format --check, pytest for the changed tests
 //   frontend — svelte-check for the touched packages, vitest for the changed tests
-//   test     — the plan row's test path: pytest, vitest in its package, or playwright under verification/
+//   test     — the verification case's test path: pytest, vitest in its package, or playwright under verification/
 //   pre-commit — the repo's own lefthook pre-commit hook on the changed files, first, when it has one
 //              (prettier, eslint and oxlint with --fix, ruff --fix: it rewrites and stages what it fixes)
 //   oracle-guard — refused outright when the round's diff against the base touches the oracle (below)
@@ -19,28 +19,28 @@ import type { CheckTarget, CheckTask } from '../../src/gates/check.ts';
 // bugs-to-tests on a verification/* branch". BJEW-617 (2026-10-06): the plan's row 1 edited
 // verification/tests/login-relogin.spec.ts, and nothing said no until row 2's `wf check`. Row 1's own
 // check had run `lefthook pre-push` green, because the guard reads base...HEAD and row 1's edit was
-// not committed yet; at row 2 it was, and the guard named row 1. Two places say it earlier: the plan
-// (planOracleGap, before any row is built) and each row's check (oracleGuardTask, on the working tree).
+// not committed yet; at row 2 it was, and the guard named row 1. Two places say it earlier: the agreement's
+// verification cases (oracleCaseGap) and each case's check (oracleGuardTask, on the working tree).
 export const PRODUCT_BRANCH = /^(fix|feat)\//;
 const ORACLE_PATH = /^(verification|JewelryX-Tools)\//;
 export const oracleEdits = (files: string[]): string[] => files.filter((f) => ORACLE_PATH.test(f));
 const ORACLE_RULE = "JewelryX's lefthook oracle-guard (scripts/oracle-guard.mjs) fails any fix/* or feat/* branch whose diff against origin/dev touches verification/ or JewelryX-Tools/ (product branches never edit the oracle)";
-const ORACLE_WAY = 'coverage for them lands via bugs-to-tests / cr-to-tests on a verification/* branch: take them out of the rows and list them under Not doing';
+const ORACLE_WAY = 'coverage for them lands via bugs-to-tests / cr-to-tests on a verification/* branch: take them out of the cases and record that exclusion in the agreement';
 
-// Pure: null, or why the plan's rows cannot pass the oracle guard. A row that reverts is let through:
-// on a branch that already carries an oracle edit, undoing it is how the guard goes green (BJEW-617's
-// revised plan has exactly that row).
-export function planOracleGap({ branch, rows }: { branch: string | null; rows: { n: number; message: string; files: string[] }[] }): string | null {
+// Pure: null, or why the agreement's verification cases cannot pass the oracle guard. A case that
+// reverts is let through: on a branch that already carries an oracle edit, undoing it is how the guard
+// goes green (BJEW-617's revised plan had exactly that undo, 2026-10-06).
+export function oracleCaseGap({ branch, rows }: { branch: string | null; rows: { n: number; message: string; files: string[] }[] }): string | null {
 	if (!branch || !PRODUCT_BRANCH.test(branch)) return null;
 	const bad = rows.filter((r) => !/^`?revert(?![a-z])/i.test(r.message)).flatMap((r) => oracleEdits(r.files).map((f) => `row ${r.n}: ${f}`));
-	return bad.length ? `PLAN.md lists oracle files on ${branch}: ${bad.join(', ')}. ${ORACLE_RULE}; ${ORACLE_WAY}` : null;
+	return bad.length ? `The agreement lists oracle files on ${branch}: ${bad.join(', ')}. ${ORACLE_RULE}; ${ORACLE_WAY}` : null;
 }
 
 // Pure: the refusal `wf check` makes when the working tree's diff against the base (`touched`, the
 // oracle files of it) would fail the guard at the next push, or null. The guard itself, run by the
 // pre-push hook in checkTasks, only sees commits.
 export function oracleGuardTask(touched: string[]): CheckTask | null {
-	return touched.length ? { label: 'oracle-guard', missing: `${touched.join(', ')} differ from the base. ${ORACLE_RULE}. Leave them out of this commit (git checkout origin/dev -- <file>) and BLOCKED.md the plan gap: coverage for them lands via bugs-to-tests / cr-to-tests on a verification/* branch` } : null;
+	return touched.length ? { label: 'oracle-guard', missing: `${touched.join(', ')} differ from the base. ${ORACLE_RULE}. Leave them out of this commit (git checkout origin/dev -- <file>) and record the verification blocker in BLOCKED.md: coverage for them lands via bugs-to-tests / cr-to-tests on a verification/* branch` } : null;
 }
 
 export type Pkg = { name: string; dir: string; svelte: boolean };
@@ -138,7 +138,7 @@ function rowTasks({ changed, target, pkgFor, pushHook, stackEnv, onDisk }: { cha
 	}
 
 	if (!test || test.endsWith('.py')) return tasks;
-	if (!test.endsWith('.ts')) return [...tasks, { label: 'check', missing: `PLAN.md row check "${test}" is not runnable — use \`repro\`, one repo-rooted test path, or — (fence only)` }];
+	if (!test.endsWith('.ts')) return [...tasks, { label: 'check', missing: `Verification check "${test}" is not runnable — use \`repro\` or one repo-rooted test path with its named assertion` }];
 	// verification/ drives the running app: wf check starts the stack first (stack: true, check.ts).
 	// Playwright is installed only in verification/node_modules, so the root has no `playwright` (BJEW-617
 	// row 1, 2026-10-06: `Command "playwright" not found`). The task runs in verification and hands the

@@ -13,7 +13,7 @@ not a sibling's.
 Bugs freeze a capture that shows the symptom, then the same capture clean;
 CRs measure cells RED on the base tree, GREEN on the build, RED reverted.
 A test that never failed is not proof — it is a test that cannot detect
-the defect. `wf check` runs the row's own test with the row's change taken
+the defect. `wf check` runs the case's own test with the change taken
 back to HEAD and refuses a green: a test that passes with and without the
 fix does not reach a commit (red-base, `src/gates/check.ts`).
 `NOT MEASURED — <why>` is always acceptable; silence is not.
@@ -34,12 +34,10 @@ in one.
 not write the code reads it — a different model where possible — along two
 axes kept apart: standards (does it follow this repo's rules?) and spec
 (does it do what was asked, no more?). The two reports are presented side by
-side, never merged, so one axis cannot mask the other. In a round, validate is
-the spec axis, and one `standards` agent per repository rule is the other
-(STANDARDS.md). Before the spec report reaches the person, a critic audits it,
-not the code: each line agreed, contradicted with a cited `path:line`, or
-questioned for evidence. A disagreement sends validate back to answer it, at
-most twice, and a dispute still open goes to T2 beside VALIDATION.md
-(`src/gates/critique.ts`; Adversarial Review, arXiv 2608.18167).
+side, never merged, so one axis cannot mask the other. In a round, behavior/evidence is
+one axis and the repository's rules are another (STANDARDS.md). One independent,
+read-only assessment covers both by default, its findings distinguishable by axis; a within-agreement
+finding returns to the build, at most twice, and a genuine blocker is one contextual escalation
+(`src/round/next.ts`; Adversarial Review, arXiv 2608.18167).
 
 superpowers implements these if installed; the practices don't depend on it.

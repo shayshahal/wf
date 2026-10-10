@@ -1,13 +1,11 @@
 // review-format.ts — the REVIEW-FORMAT.md contract in code, shared by T1 (SPEC-REVIEW.md)
 // and T2 (REVIEW.md): foldFeedbackLine(jsonLine) + renderHeader/renderSkeleton (pure),
-// plus worktree IO helpers (specShaFor, devUrlsFor, appendDatedSection).
-import { createHash } from 'node:crypto';
+// plus worktree IO helpers (devUrlsFor, appendDatedSection).
 import { appendFileSync, existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { relative } from 'node:path';
 import { pageOf, stackUrls } from '../project.ts';
 import type { ContentIdentity } from './content-identity.ts';
 import { basePortForBranch, listWorktrees, slugForBranch, urlLines } from '../worktrees/worktree.ts';
-import { roundFile } from '../round/state.ts';
 
 export const VERDICTS = ['approved', 'changes-requested', 'dismissed'];
 // Plannotator's annotate surface says `approved`; its review surface says `lgtm` (measured 0.27.16,
@@ -17,14 +15,14 @@ export const VERDICTS = ['approved', 'changes-requested', 'dismissed'];
 export const verdictOf = (d: string | undefined) => (d === 'approved' || d === 'lgtm' || d === 'approved-with-notes' ? 'approved' : d === 'dismissed' ? 'dismissed' : 'changes-requested');
 
 // One annotation, as Plannotator logs it on submit. The `element*` fields and `originalText` are what the
-// annotate surface reports when its document is a raw-rendered page (planPage): no file and no blockId,
+// annotate surface reports when its document is a raw-rendered page (agreementPage): no file and no blockId,
 // but the element the comment landed on and the selector/path back to it.
 export type Annotation = { text?: string; file?: string; lineStart?: number; lineEnd?: number; blockId?: string; originalText?: string; elementSelector?: string; elementPath?: string };
 // The line a review UI returns (seams.reviewUI), or the JSON text of one. `target` is the file on
 // Plannotator's annotate surface, and what was diffed on its review surface.
 export type ReviewFeedback = { decision?: string; feedback?: string; message?: string; annotations?: Annotation[]; target?: string | { review?: { base?: string; changedFiles?: number } } };
 
-// Pure: the source line a comment on a rendered page points at. planBody tags every block `wf-src-<line>`;
+// Pure: the source line a comment on a rendered page points at. agreementBody tags every block `wf-src-<line>`;
 // Plannotator hands that tag back in elementSelector and elementPath (measured on 0.28.5, 2026-10-06: an
 // element's first class is dropped from elementPath when it has more than one — the selector keeps them
 // all — and an id survives both, while the attributes never arrive at all). The last match is the block
@@ -46,9 +44,10 @@ export function commentLine(a: Annotation = {}) {
     const range = a.lineStart ? `:${a.lineStart}${a.lineEnd && a.lineEnd !== a.lineStart ? `-${a.lineEnd}` : ''}` : '';
     return `${a.file}${range} — ${text}${on}`;
   }
-  // A comment with no file is a SPEC comment: the page's own line when it came from the rendered page,
-  // Plannotator's blockId on the markdown surface, `?` when neither says where it was.
-  return `SPEC.md:${pageLine(a) ?? a.blockId ?? a.lineStart ?? '?'} — ${text}${on}`;
+  // A comment with no file is an agreement comment (T1) or a T2 note: the page's own line when it
+  // came from the rendered page, Plannotator's blockId on the markdown surface, `?` when neither says
+  // where it was. `AGREEMENT.md` is where T1's agreed material lives; T2 folds the same shape.
+  return `AGREEMENT.md:${pageLine(a) ?? a.blockId ?? a.lineStart ?? '?'} — ${text}${on}`;
 }
 
 // Pure: one `path:line[-end] — text` line per annotation, then the verdict line.
@@ -75,7 +74,7 @@ export function foldFeedbackLine(input: ReviewFeedback | string) {
 
 const today = () => new Date().toISOString().slice(0, 10);
 
-// Pure: header block both review files share. `base` null = SPEC review (no diff).
+// Pure: header block both review files share. `base` null = agreement review (no diff).
 // "look at:" — every changed page, as a URL on this worktree's server, so the reviewer opens the
 // screen and not only the diff (Shay, BJEW-600 pilot, 2026-09-19). The project says which files are
 // pages (project.ts pageOf); `urls` is the header's `<app>: <url>` lines.
@@ -93,29 +92,27 @@ export function lookAtLines(urls: string | null, files: string[], pageFor: (file
   }
   return out;
 }
-// `standards`: one line per rule's report (standards.ts summaryLines), beside the diff and never
-// folded into VALIDATION.md: one axis must not mask the other (PRACTICES.md, Second-model review).
-// `contentSha`/`headSha`: the worktree and HEAD identities the review opened on
-// (content-identity.ts), the two lines that bind the verdict to the code T2 judged — deliver pushes
-// HEAD, so both must match. Absent on a SPEC review and on reviews from before #106 (2026-10-09),
-// which approvalContentGap refuses.
-export type ReviewHeader = { round: string; klass?: string; base?: string | null; specSha?: string | null; contentSha?: string | null; headSha?: string | null; date?: string; urls?: string | null; files?: string[]; beforeAfter?: string | null; standards?: string[]; manual?: string[] };
-export function renderHeader({ round, klass = '—', base = null, specSha = null, contentSha = null, headSha = null, date = today(), urls = null, files = [], beforeAfter = null, standards = [], manual = [] }: ReviewHeader) {
+// `agreementSha` binds T1's agreed material. `contentSha`/`headSha` bind T2's worktree and HEAD
+// (content-identity.ts): deliver pushes HEAD, so both must match. `assessment` is the one final
+// assessment's summary, not the former per-rule standards reports. SPEC has no producer in the
+// replacement and must not remain another rendered document contract (#111/#113 audit, 2026-10-10).
+export type ReviewHeader = { round: string; klass?: string; base?: string | null; agreementSha?: string | null; contentSha?: string | null; headSha?: string | null; date?: string; urls?: string | null; files?: string[]; beforeAfter?: string | null; assessment?: string[]; manual?: string[] };
+export function renderHeader({ round, klass = '—', base = null, agreementSha = null, contentSha = null, headSha = null, date = today(), urls = null, files = [], beforeAfter = null, assessment = [], manual = [] }: ReviewHeader) {
   return [
     `# Review — ${round}`,
     ``,
     `round: ${round}`,
     `class: ${klass}`,
-    `base: ${base ?? 'n/a (SPEC review)'}`,
-    `spec-sha: ${specSha ?? 'n/a'}`,
+    `base: ${base ?? 'n/a (agreement review)'}`,
+    ...(agreementSha ? [`agreement-sha: ${agreementSha}`] : []),
     ...(contentSha ? [`content-sha: ${contentSha}`] : []),
     ...(headSha ? [`head-sha: ${headSha}`] : []),
     `date: ${date}`,
     urls ?? `urls: n/a — port not derivable without wt (see REVIEW-FORMAT.md)`,
-    ...(asBuiltFile(files) ? [`look at: ${asBuiltFile(files)}  ← the call stack as built, diffed against SPEC — read first`] : []),
+    ...(asBuiltFile(files) ? [`look at: ${asBuiltFile(files)}  ← the call stack as built, diffed against the agreement — read first`] : []),
     ...(beforeAfter ? [`look at: ${beforeAfter}  ← screenshots: before (the base) and after (this round)`] : []),
     ...lookAtLines(urls, files),
-    ...standards,
+    ...assessment,
     ...manual,
     ``,
     `files changed (${files.length}):`,
@@ -132,7 +129,7 @@ export function renderSkeleton(opts: ReviewHeader) {
 // Last `<key>: <value>` line wins (review files are append-only dated sections).
 export const lastField = (text: string, key: string) => [...text.matchAll(new RegExp(`^${key}:[ \\t]*(\\S+)[ \\t]*$`, 'gm'))].at(-1)?.[1] ?? null;
 
-// The as-built call stack a B/C worker delivers (plan Task 6). T2 must see it: the one
+// An optional as-built call stack accompanying consequential work. T2 must see it: the one
 // contract change of BJEW-586 (a new error_code on a 400) was in this file and nowhere on
 // the reviewer's screen. It lives in the round's diff, wherever the bug folder is.
 export const asBuiltFile = (files: string[]) => files.find((f) => /(^|\/)proof\/CALL-STACK-AS-BUILT\.md$/.test(f)) ?? null;
@@ -181,7 +178,7 @@ ${rows}
 // ── the plan page ────────────────────────────────────────────────────────────
 // The same design, rendered: SPEC.md § For T1 at T1 (.wf/SPEC-T1.html, design.ts) and PLAN.md at T2
 // (.wf/PLAN.html, review.ts). The markdown stays the file of record. At T1 the page is what the person
-// annotates, so the page has to say which SPEC.md line each block is: planBody tags them `wf-src-<line>`
+// annotates, so the page has to say which SPEC.md line each block is: agreementBody tags them `wf-src-<line>`
 // and pageLine reads the tag back out of what Plannotator reports. The page is also where SHOW-ME.md's
 // views read as views — diff blocks coloured, a mermaid block drawn, the Asks copyable, the round's own
 // HTML artifacts embedded. Mermaid comes from a CDN and its source stays readable when there is none:
@@ -209,8 +206,8 @@ const diffRow = (line: string) => {
 
 // Pure: a plan document's markdown → the small part of it wf writes. Fenced blocks keep their shape:
 // a `diff` block and a bare one (where the call stacks live) are coloured by marker, `mermaid` is left
-// for the script `planPage` adds, and a table is shown as it is because a plan's tables are read as text.
-export function planBody(md: string, base = 0): string {
+// for the script `agreementPage` adds, and a table is shown as it is because a plan's tables are read as text.
+export function agreementBody(md: string, base = 0): string {
 	const out: string[] = [];
 	const lines = md.replace(/\r\n/g, '\n').split('\n');
 	const inline = (s: string) => escapeHtml(s).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>').replace(/`([^`]+)`/g, '<code>$1</code>');
@@ -274,8 +271,8 @@ const COPY_ASK = '<script>const wfCopy=(t)=>{const a=document.createElement("tex
 
 // Pure: the standalone page for a section of a plan document. `base` is the line the section starts at in
 // the document it was cut from: with it each block's tag is a line of that document (design.ts).
-export function planPage({ title, meta, section, artifacts = [], base = 0 }: { title: string; meta: string[]; section: string; artifacts?: PlanArtifact[]; base?: number }) {
-	const body = planBody(section, base);
+export function agreementPage({ title, meta, section, artifacts = [], base = 0 }: { title: string; meta: string[]; section: string; artifacts?: PlanArtifact[]; base?: number }) {
+	const body = agreementBody(section, base);
 	const hasClass = (cls: string) => new RegExp(`class="[^"]*\\b${cls}\\b`).test(body);
 	return `<!doctype html>
 <meta charset="utf-8"><title>${escapeHtml(title)}</title>
@@ -361,12 +358,6 @@ export function approvalContentGap(reviewText: string, current: ContentIdentity)
   if (contentSha !== current.worktree) return `the working tree changed after T2 approved it (REVIEW.md: ${contentSha}, this tree: ${current.worktree}) — a product, test or repro change invalidates the approval; re-run \`wf review <round>\` and T2`;
   if (headSha !== current.head && contentSha !== current.head) return `the committed implementation changed after T2 approved it (REVIEW.md: ${headSha}, HEAD: ${current.head}) — deliver pushes HEAD, so a change it carries is not the approved code; re-run \`wf review <round>\` and T2`;
   return null;
-}
-
-export function specShaFor(worktree: string) {
-  const f = roundFile(worktree, 'SPEC.md');
-  if (!existsSync(f)) return null;
-  return `sha256:${createHash('sha256').update(readFileSync(f, 'utf8').replace(/\r\n/g, '\n')).digest('hex')}`;
 }
 
 // The worktree's stack names for the header. A detached worktree has no branch, so return null

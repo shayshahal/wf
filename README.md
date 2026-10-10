@@ -1,8 +1,9 @@
 # wf
 
-Shay's agent workflow: a ticket becomes a merged PR through fresh-context phases (research → plan
-→ one agent per commit → validate, and one per repository rule), deterministic checks (`wf
-check`), and two human gates (T1 plan, T2 diff, both in plannotator). Runs in pi and in Claude
+Shay's agent workflow: a ticket becomes a merged PR through one working agreement (TICKET.md for
+an ordinary round, AGREEMENT.md for a consequential one), a build that checks and steers,
+deterministic checks (`wf check`), one final independent assessment, and two human gates (T1 on the
+agreement for consequential work, T2 on the diff, both in plannotator). Runs in pi and in Claude
 Code, on Windows.
 
 It lives outside every project's repo on purpose. A project's repo keeps only the round memory each
@@ -20,20 +21,23 @@ round commits (for JewelryX, `bug-reports/<round>/`).
     notifications, the model for each effort level) and the kit's defaults for it. An env's own
     entry plugs its pieces in: `env/wf.mjs` is Shay's.
   - `src/project.ts` → `projects/<name>/`: everything project-specific. See *Projects* below.
-  - `src/round/`: a round's state and its loop. `state.ts` is `.wf/state.json`; `next.ts` is
-    `wf next`, the round's next action from its state and files (the orchestrator's whole loop);
-    `brief.ts` + `handoff.ts` are `wf brief <phase>`, what a phase agent runs first and what it
-    hands the next; `step`, `ask`/`decide` (`decide --revise` sends a round back to plan, `decide --research` to a fresh research, when new evidence comes in), `prompt`, `status`, `notes`, and `handoff-hook.ts`
-    (`wf handoff`, the Claude Code hooks)
-  - `src/gates/`: what a round has to pass. `classify`, T1 (`design.ts`) and T2 (`review.ts`,
-    both written through `review-format.ts`), `wf check` (`check.ts`; `--repro`, research's three runs; `--suites`, the whole suites of the packages the round changed, before validate; and, on each row, the row's own test with the row's change taken back to HEAD — red-base),
-    `wf standards` (`standards.ts`: the project's `.agents/checks/` rules that cover the diff), the
-    critic of a validation (`critique.ts`: CRITIQUE.md, and when validate answers it) and `wf deliver`
+  - `src/round/`: a round's state and its loop. `state.ts` is `.wf/state.json` (versioned; an
+    old-route round is refused before mutation); `next.ts` is `wf next`, the round's next action
+    from its state and files (the orchestrator's whole loop); `agreement.ts` is the working
+    agreement (which file it is, the agreed-material sha T1 binds, the verification cases);
+    `brief.ts` + `prompt.ts` are `wf brief <phase>`, what a phase agent runs first;
+    `step`, `ask`/`decide` (`decide --revise` sends a round back to `agree` for a new T1),
+    `status`, `notes`, and `handoff-hook.ts` (`wf handoff`, the Claude Code hooks)
+  - `src/gates/`: what a round has to pass. `classify`, T1 (`agree.ts`) and T2 (`review.ts`,
+    both written through `review-format.ts`), `wf check` (`check.ts`; `--repro`, the three runs of
+    a repro case; `--suites`, the whole suites the round's diff reaches; and, on a verification
+    case, the case's own test with the change taken back to HEAD — red-base; `--case` names one),
+    and `wf deliver`
   - `src/worktrees/`: `worktree.ts` is the one interface to worktrees: list, ports and slugs
     (`ports.ts`), create (`wf new`), remove (`wf reap`). Where no env plugs its own in,
     `git-worktree.ts` makes them in `<repo>/.claude/worktrees/`. No worktree is served from its
     creation: `wf serve` (`serve.ts`) runs the stack in the background (pid and logs in the
-    worktree's `.wf/`), started by the phases that use it (research and validate's briefs, `wf check`
+    worktree's `.wf/`), started by the phases that use it (`wf brief assess`, `wf check`
     before the repro or a test that drives the app, `wf review`)
   - `src/plugin/`: `plugin.ts` writes `claude/agents/` from `agents/`; `anchor.ts` fills the paths
     in text (below)
@@ -43,19 +47,17 @@ round commits (for JewelryX, `bug-reports/<round>/`).
   `env/worktrees.ts`), self-update (`env/update.ts`), plannotator and herdr (`env/adapters/`), and
   per project where the worktrees' databases live (JewelryX: one MongoDB) and portless
   (`env/projects/`).
-  `env/projects/jewelryx/plan-eval.ts` measures a change to the plan prompt: wf revisions as arms,
-  on delivered JewelryX rounds, each plan graded against what the round shipped
   `env/projects/jewelryx/rework.ts` measures how much of each change's code is changed again within N days, and by
   what (a fix, a revert, a sweep, other work): wf rounds against other ticket work and other PRs
 - `skills/round/SKILL.md`: the orchestrator skill ("start 662", "resume 662"); `skills/design-session/` for T1; `skills/show-me/` for a view
-- `prompts/`: one prompt per phase (`wf prompt <phase>` prints it without the handoff)
+- `prompts/`: one prompt per phase, `agree`, `build` and `assess` (`wf prompt <phase>` prints it)
 - `.claude-plugin/` + `claude/`: the Claude Code plugin (manifest, marketplace, agents, hooks)
-- `agents/`: `round-worker` (every phase), `codebase-locator` and `codebase-analyzer` (research, pi only), `harness-fixer` (harness trouble, outside the round)
-- `process/`: lifecycle, classes, design session, the views a plan carries (`SHOW-ME.md`), review format, touchpoints, standards
+- `agents/`: `round-worker` (every phase), `codebase-locator` and `codebase-analyzer` (agree, pi only), `harness-fixer` (harness trouble, outside the round)
+- `process/`: lifecycle, classes, the agreement template (`AGREEMENT-TEMPLATE.md`), the views an agreement carries (`SHOW-ME.md`), review format, touchpoints, standards
 - `docs/plans/2026-09-17-workflow-v2.md`: the plan wf was built from (history; done)
 - `docs/research/papers-and-first-principles.md`: what wf is for, and the five papers read after it was built
 - `docs/research/show-me-maintainability-papers.html`: five papers on what happens to agent code after it merges, against wf (notes per paper in `docs/research/papers/`)
-- `docs/demo/`: the plan pages rendered (`process/SHOW-ME.md`, `planPage`, the `manual:` cell) — `node docs/demo/make-demo.mjs`, then open `.wf/SPEC-T1.html` (T1, the page `wf design` annotates) and `.wf/PLAN.html` (T2)
+- `docs/demo/`: the agreement pages rendered (`process/SHOW-ME.md`, `planPage`, the `manual:` cell) — `node docs/demo/make-demo.mjs`, then open `.wf/AGREEMENT-T1.html` (T1, the page `wf agree` annotates) and `.wf/AGREEMENT.html` (T2)
 
 Text names wf's own files as `{{wf}}/…` (prompts, docs) or `${CLAUDE_PLUGIN_ROOT}/…` (the skills),
 and the project's folder as `{{project}}/…`: `wf prompt`, Claude Code (for the plugin) and the
@@ -90,8 +92,8 @@ The kit alone, as a Claude Code plugin: this repo is its marketplace (`.claude-p
   *worktree* box off. `wf new` makes the round's branch and worktree, and the session moves into
   it; `resume <id>` does the same. Picking the round's branch fails (git: it is checked out in the
   round's worktree), and a Desktop worktree is one the round never uses.
-- **Does it reproduce?** `/wf:round check <id>`: a round that stops after research, with the
-  tracker untouched. "go" turns it into the round; "stop" reaps it.
+- **Does it reproduce?** `/wf:round check <id>`: a round that measures the ticket's `## Repro` and
+  stops, with the tracker untouched. "go" turns it into the round; "stop" reaps it.
 
 ## Projects
 
@@ -128,7 +130,9 @@ Claude Code, plus what the project's `setup` runs (JewelryX: pnpm, uv, docker, p
    `exec node "$HOME/.local/share/wf/env/wf.mjs" "$@"`, and `~/bin/wf.cmd` is
    `@node "%USERPROFILE%\.local\share\wf\env\wf.mjs" %*`.
 4. Skills: add `~/.local/share/wf/skills/round`, `~/.local/share/wf/skills/design-session` and
-   `~/.local/share/wf/skills/show-me` to pi's `settings.json` `skills`.
+   `~/.local/share/wf/skills/show-me` to pi's `settings.json` `skills`. Each path is a stable entry
+   point: the skill's directory keeps its name across releases, so a registered path never dangles
+   (its folder and its frontmatter `name:` move together).
 5. `wf hook install`: worktrunk's user config gets the project's hooks, calling the installed copy's
    `env/wf.mjs`.
 6. The project's clone: a bare repo, and a worktree for its base branch (JewelryX):
