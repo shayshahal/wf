@@ -35,7 +35,7 @@ export type State = {
 	opened_by?: Record<string, string>;
 	entry?: string;
 	check?: boolean;
-	// How many autonomous repairs an assessment has already sent back to build (#113.3): bounded by
+	// Autonomous attempts in an unresolved repair episode; wf next clears it at T2 (#113.3). Bounded by
 	// MAX_REPAIRS in next.ts. Reset is not needed — the assessment's `head:` names the tree it judged.
 	repairs?: number;
 	// The step a round-worker was sent back for by `wf handoff check` (handoff-hook.ts): one hand-back

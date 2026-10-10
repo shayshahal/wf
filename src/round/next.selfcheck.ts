@@ -52,7 +52,7 @@ const base = (patch: Partial<Snapshot> = {}): Snapshot => ({
 const say = (s: Snapshot) => nextAction(s).say;
 const steps = (s: Snapshot) => nextAction(s).effects.filter((e) => e.step).map((e) => e.step!.join(' '));
 const asks = (s: Snapshot) => nextAction(s).effects.filter((e) => e.ask).map((e) => e.ask!);
-const repairs = (s: Snapshot) => nextAction(s).effects.filter((e) => e.repair).length;
+const repairs = (s: Snapshot) => nextAction(s).effects.filter((e) => e.repair === 'attempt').length;
 
 // ── ordinary (class A): the ticket is the agreement, no T1, straight to build
 check('class A: the ticket is the agreement → step build and dispatch build', steps(base()) .join() === 'build' && say(base()).startsWith('dispatch build'), say(base()));
@@ -74,6 +74,10 @@ check('B/C a new agreement sha (material changed): T1 again, not approved', say(
 check('no ASSESSMENT.md: dispatch assess', say(base({ step: 'assess' })).startsWith('dispatch assess') && say(base({ step: 'assess' })).includes('no ASSESSMENT.md'), say(base({ step: 'assess' })));
 check('an assessment of an earlier HEAD is re-run', say(base({ step: 'assess', files: { agreement: null, assessment: ASSESS({ head: 'H3' }), review: null, blocked: null } })).startsWith('dispatch assess') && say(base({ step: 'assess', files: { agreement: null, assessment: ASSESS({ head: 'H3' }), review: null, blocked: null } })).includes('HEAD is H4'), say(base({ step: 'assess' })));
 check('clean assessment → T2 review', say(base({ step: 'assess', files: { agreement: null, assessment: ASSESS(), review: null, blocked: null } })).startsWith('review: T2'), say(base({ step: 'assess' })));
+const cleared = base({ step: 'assess', repairs: 2, files: { agreement: null, assessment: ASSESS(), review: null, blocked: null } });
+check('clean current assessment closes the repair episode', nextAction(cleared).effects.some((e) => e.repair === 'clear') && say(cleared).startsWith('review: T2'));
+const staleClean = { ...cleared, files: { ...cleared.files, assessment: ASSESS({ head: 'H3' }) } };
+check('a stale clean assessment cannot clear an unresolved repair budget', !nextAction(staleClean).effects.some((e) => e.repair === 'clear') && say(staleClean).startsWith('dispatch assess'));
 check('an intent line without a verdict is not a clean assessment', say(base({ step: 'assess', files: { agreement: null, assessment: ASSESS({ intent: '- "x": looks fine' }), review: null, blocked: null } })).startsWith('dispatch assess') && say(base({ step: 'assess', files: { agreement: null, assessment: ASSESS({ intent: '- "x": looks fine' }), review: null, blocked: null } })).includes('has no verdict'), say(base({ step: 'assess' })));
 
 // repair: back to build, bounded

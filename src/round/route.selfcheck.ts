@@ -142,6 +142,38 @@ const approve = (dir: string, klass: 'B', agreement: string) => {
 	rmSync(dir, { recursive: true, force: true });
 }
 
+// ── repair episodes: successful assessments clear history; unsuccessful commits retain the bound
+{
+	const { dir, git } = repo('fix/routeEpisodes', 'A', null);
+	const assess = (verdict: string) => `Verdict: ${verdict}\nhead: ${git('rev-parse', 'HEAD').trim()}\n## Intent\n- "x": met: before: fixture red · after: fixture green\n`;
+	for (const n of [1, 2]) {
+		cli(dir, 'step', 'assess');
+		writeFileSync(join(dir, 'bug-reports/r/ASSESSMENT.md'), assess('repair'));
+		const repair = cli(dir, 'next');
+		check(`episode ${n}: a new finding gets its first autonomous repair`, repair.out.includes('repair 1 of 2') && state(dir).repairs === 1, repair.out);
+		writeFileSync(join(dir, 'src/Page.svelte'), `cleared finding ${n}\n`);
+		git('add', 'src/Page.svelte'); git('commit', '-qm', `clear finding ${n}`);
+		cli(dir, 'step', 'assess');
+		writeFileSync(join(dir, 'bug-reports/r/ASSESSMENT.md'), assess('clean'));
+		const clean = cli(dir, 'next');
+		check(`episode ${n}: a clean assessment clears the repair budget at T2`, clean.out.startsWith('review: T2') && state(dir).repairs === 0, clean.out);
+		cli(dir, 'step', 'build');
+	}
+	for (const n of [1, 2]) {
+		writeFileSync(join(dir, 'src/Page.svelte'), `unsuccessful attempt ${n}\n`);
+		git('add', 'src/Page.svelte'); git('commit', '-qm', `attempt ${n}`);
+		cli(dir, 'step', 'assess');
+		writeFileSync(join(dir, 'bug-reports/r/ASSESSMENT.md'), assess('repair'));
+		const again = cli(dir, 'next');
+		check(`unresolved episode: repair ${n} survives a new HEAD`, again.out.includes(`repair ${n} of 2`) && state(dir).repairs === n && (state(dir).questions ?? []).length === 0, again.out);
+	}
+	cli(dir, 'step', 'assess');
+	writeFileSync(join(dir, 'bug-reports/r/ASSESSMENT.md'), assess('repair'));
+	const exhausted = cli(dir, 'next');
+	check('the same unresolved episode still escalates after two unsuccessful repairs', exhausted.out.includes('2 autonomous repairs') && state(dir).repairs === 2 && (state(dir).questions ?? []).length === 1, exhausted.out);
+	rmSync(dir, { recursive: true, force: true });
+}
+
 // ── the legacy/version guard: an old-route state is refused before mutation, and not rewritten
 {
 	const dir = mkdtempSync(join(tmpdir(), 'wf-routeV-'));

@@ -37,7 +37,7 @@ export const MAX_REPAIRS = 2;
 //   step: classify | agree | build | assess | review | pr | merged | held
 //   files: { agreement, assessment, review, blocked } (text or null)
 //   t1: agreement material sha, AGREEMENT-REVIEW.md's `agreement-sha` and verdict
-//   repairs: autonomous repairs already attempted for the current assessment
+//   repairs: autonomous attempts in the current unresolved repair episode
 export type Snapshot = {
 	branch: string;
 	entry: string;
@@ -59,7 +59,7 @@ export type Snapshot = {
 	repairs?: number;
 };
 export type Effect =
-	| { step?: string[]; ask?: { to: string; text: string; dflt: string | null; source: string }; repair?: true; blockedAnswered?: number };
+	| { step?: string[]; ask?: { to: string; text: string; dflt: string | null; source: string }; repair?: 'attempt' | 'clear'; blockedAnswered?: number };
 
 // Pure: the ids of the tracker note's `## <id>` sections not yet marked ` (posted)`.
 export function unpostedSections(note: string | null): string[] {
@@ -245,10 +245,13 @@ export function nextAction(s: Snapshot): { say: string; effects: Effect[] } {
 				}
 				// Accepted: fall through to T2 with the acceptance beside the assessment.
 			} else {
-				effects.push({ repair: true, step: ['build'] });
+				effects.push({ repair: 'attempt', step: ['build'] });
 				return dispatch('build', `repair ${attempts + 1} of ${MAX_REPAIRS} for ASSESSMENT.md's findings`);
 			}
 		}
+		// Reaching T2 means the findings cleared or were explicitly reconciled. Historical successful
+		// repairs must not consume a later finding's allowance (2026-10-10 stack review).
+		if ((s.repairs ?? 0) > 0) effects.push({ repair: 'clear' });
 		return act(t2);
 	}
 	return act(`wait user: step "${step}" has no next action`);
@@ -317,9 +320,9 @@ export async function runNext() {
 	let { say, effects } = nextAction(snapshotOf(toplevel));
 	for (const e of effects) {
 		if (e.step) await runStep(e.step, { quiet: true });
-		// A repair attempt is counted against the assessment it answered; the assessment's own `head:`
-		// makes a stale count harmless (the next assessment is of a new HEAD).
-		if (e.repair) writeState(toplevel, (s) => ({ repairs: (s.repairs ?? 0) + 1 }));
+		// Count across unsuccessful repair commits; clear only when that episode reaches T2.
+		if (e.repair === 'attempt') writeState(toplevel, (s) => ({ repairs: (s.repairs ?? 0) + 1 }));
+		if (e.repair === 'clear') writeState(toplevel, () => ({ repairs: 0 }));
 		if (e.blockedAnswered !== undefined) writeState(toplevel, () => ({ blocked_answered: e.blockedAnswered }));
 		if (e.ask) writeState(toplevel, (state) => addQuestion(state, e.ask!));
 	}
