@@ -36,7 +36,7 @@ Comment lines: `path:lineStart[-lineEnd] — text` (em-dash). A range folds to
 `a/b.ts:10-14 — rename this`; a single line to `c.ts:3 — nit`. A comment made on the page T1
 shows (agree.ts) is an agreement comment too, folded onto the line of the block it was made on —
 `AGREEMENT.md:22 — one call, not two` — because the page tags every block with its agreement line
-(`planBody`'s `wf-src-<line>`) and `pageLine` reads that tag back out of what the review UI reports.
+(`agreementBody`'s `wf-src-<line>`) and `pageLine` reads that tag back out of what the review UI reports.
 A `blockId` (annotating markdown directly) folds the same way:
 `AGREEMENT.md:usage-table — add a row`; one that says nothing about where it was is
 `AGREEMENT.md:? — text`. Each comment line also carries what it was made on, clipped to one line:
