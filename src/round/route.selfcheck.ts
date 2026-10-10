@@ -111,21 +111,27 @@ const approve = (dir: string, klass: 'B', agreement: string) => {
 	const { dir } = repo('fix/routeR', 'A', null);
 	const assess = (v: string, intent: string) => `# r — assessment\nVerdict: ${v}\nhead: ${execFileSync('git', ['-C', dir, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()}\n## Intent\n${intent}\n`;
 	const setStep = (step: string, extra: object = {}) => writeFileSync(join(dir, '.wf/state.json'), `${JSON.stringify({ wf_version: 2, round: 'r', id: 'r', folder: 'bug-reports/r', base: 'main', step, class: 'A', ...extra })}\n`);
+	const assessmentPrompt = cli(dir, 'prompt', 'assess');
+	check('assessment prompt makes fixable unmet intent repair and requires a genuine blocker reason', assessmentPrompt.code === 0 && assessmentPrompt.out.includes('including unmet intent or a still-reproducing') && assessmentPrompt.out.includes('blocker: <why autonomous repair cannot proceed>') && !assessmentPrompt.out.includes('NOT VERIFIED` makes the verdict `blocked'), assessmentPrompt.out);
 	setStep('assess');
-	writeFileSync(join(dir, 'bug-reports/r/ASSESSMENT.md'), assess('repair', '- "x": met: src/Page.svelte:1 · before: red · after: green'));
+	writeFileSync(join(dir, 'bug-reports/r/ASSESSMENT.md'), assess('blocked', '- "x": not met: still reproduces: a local one-line fix is needed'));
+	const misclassified = cli(dir, 'next');
+	check('assessment: an unjustified blocked verdict is reassessed, not a user interruption', misclassified.out.includes('dispatch assess') && (state(dir).questions ?? []).length === 0, misclassified.out);
+	setStep('assess');
+	writeFileSync(join(dir, 'bug-reports/r/ASSESSMENT.md'), assess('repair', '- "x": not met: still reproduces: a local one-line fix is needed'));
 	const repair = cli(dir, 'next');
-	check('assessment: a repair returns to build, counted', repair.out.includes('repair 1 of 2') && state(dir).step === 'build' && state(dir).repairs === 1, repair.out);
+	check('assessment: a fixable unmet intent returns autonomously to build, counted', repair.out.includes('repair 1 of 2') && state(dir).step === 'build' && state(dir).repairs === 1 && (state(dir).questions ?? []).length === 0, repair.out);
 	// After two attempts, one contextual escalation, no third build.
 	setStep('assess', { repairs: 2 });
 	writeFileSync(join(dir, 'bug-reports/r/ASSESSMENT.md'), assess('repair', '- "x": met: src/Page.svelte:1 · before: red · after: green'));
 	const bounded = cli(dir, 'next');
 	check('assessment: two unsuccessful repairs escalate once, not a third build', bounded.out.includes('2 autonomous repairs') && state(dir).step === 'assess', bounded.out);
 	check('assessment: the escalation is one recorded question', (state(dir).questions ?? []).length === 1);
-	// A blocked assessment (unmet intent) asks one fix-or-accept ruling and does not open T2.
+	// A genuine blocker asks one contextual ruling and does not open T2.
 	setStep('assess');
-	writeFileSync(join(dir, 'bug-reports/r/ASSESSMENT.md'), assess('blocked', '- "x": not met: the modal still jumps'));
+	writeFileSync(join(dir, 'bug-reports/r/ASSESSMENT.md'), assess('blocked', '- "x": not met: the modal still jumps').replace('## Intent', 'blocker: the required account is unavailable; the owner must grant access\n## Intent'));
 	const blocked = cli(dir, 'next');
-	check('assessment: unmet intent asks one fix-or-accept ruling, never T2', blocked.out.includes('fix or accept:') && state(dir).step === 'assess' && (state(dir).questions ?? []).length === 1, blocked.out);
+	check('assessment: a genuine blocker asks one contextual ruling, never T2', blocked.out.includes('fix or accept:') && blocked.out.includes('owner must grant access') && state(dir).step === 'assess' && (state(dir).questions ?? []).length === 1, blocked.out);
 	rmSync(dir, { recursive: true, force: true });
 }
 

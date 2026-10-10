@@ -5,7 +5,7 @@
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { agreementClass, agreementFile, agreementGap, agreementPath, agreementSha, assessmentGap, assessmentHead, assessmentMaterial, assessmentVerdict, ASSESSMENT_FILE, caseFiles, consequential, intentGap, section, verificationCases } from './agreement.ts';
+import { agreementClass, agreementFile, agreementGap, agreementPath, agreementSha, assessmentBlocker, assessmentGap, assessmentHead, assessmentMaterial, assessmentVerdict, ASSESSMENT_FILE, caseFiles, consequential, intentGap, section, verificationCases } from './agreement.ts';
 
 let failures = 0;
 const check = (name: string, cond: boolean, detail = '') =>
@@ -69,6 +69,16 @@ check('the assessment verdict is read', assessmentVerdict(assess()) === 'clean' 
 check('the assessment head is read', assessmentHead(assess({ head: 'H1' })) === 'H1');
 check('a material line under ## Agreement is read', assessmentMaterial(assess({ material: 'the API shape moved' })) === 'the API shape moved' && assessmentMaterial(assess()) === null);
 check('a clean assessment with a measured intent has no gap', assessmentGap(assess()) === null);
+const blocked = assess({ verdict: 'blocked' });
+check('a blocked assessment without a genuine blocker or material change is refused', (assessmentGap(blocked) ?? '').includes('without a `blocker:'));
+for (const reason of ['', ' ', '\t']) {
+  const empty = blocked.replace('## Intent', `blocker: ${reason}\n## Intent`);
+  check('an empty blocker reason cannot justify a human escalation', assessmentBlocker(empty) === null && assessmentGap(empty) !== null);
+}
+const genuine = blocked.replace('## Intent', 'blocker: the owner must grant access\r\n## Intent');
+check('a genuine blocker reason is parsed and permits contextual escalation', assessmentBlocker(genuine) === 'the owner must grant access' && assessmentGap(genuine) === null);
+check('a material-only blocked assessment needs its material ruling, not a second blocker', assessmentGap(assess({ verdict: 'blocked', material: 'the API shape moved' })) === null);
+check('repair permits fixable unmet intent without accepting it as clean', assessmentGap(assess({ verdict: 'repair', intent: '- "x": not met: still reproduces: local fix needed' })) === null);
 check('no ASSESSMENT.md is a gap naming it', assessmentGap(null) === `no ${ASSESSMENT_FILE}`);
 check('a VERDICT-less assessment is a gap', (assessmentGap(assess().replace(/^Verdict:.*\n/m, '')) ?? '').includes('Verdict'));
 check('an intent line with no verdict is a gap', (assessmentGap(assess({ intent: '- "x": looks fine' })) ?? '').includes('has no verdict'));

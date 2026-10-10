@@ -23,4 +23,6 @@ Add this section to `ASSESSMENT.md` under `## Behavior and evidence`:
 <for each Intent line: `VERIFIED | NOT VERIFIED | INCONCLUSIVE — <what you did and saw> — proof/<file>`>
 ```
 
-A `NOT VERIFIED` makes the verdict `blocked`; an `INCONCLUSIVE` does not, but name it.
+A `NOT VERIFIED` is a repair finding when it is fixable within the agreement. Use the core verdict
+rules above: a genuine blocker names why autonomous repair cannot proceed; an `INCONCLUSIVE` stays
+visible, never turns into `VERIFIED`.

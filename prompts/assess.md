@@ -12,9 +12,11 @@ whole.
 
 - `Verdict: clean | repair | blocked`
   - `clean` — intent is met and the evidence holds.
-  - `repair` — fixable findings within the agreement; the build repairs them and you judge again.
-  - `blocked` — an intent line is unmet, or a symptom still reproduces, or the work has left the
-    agreement materially.
+  - `repair` — fixable findings within the agreement, including unmet intent or a still-reproducing
+    symptom. The build repairs them autonomously first; after two unsuccessful attempts, one ruling.
+  - `blocked` — a genuine blocker prevents autonomous repair, or the work has left the agreement
+    materially. Unmet intent alone is `repair`. For a genuine blocker, write
+    `blocker: <why autonomous repair cannot proceed>` beside the verdict, before the sections.
 - `head: <git rev-parse HEAD>` — the implementation this judged.
 - `## Intent` — one line per intent line: `met:` with a `before:` and an `after:` measurement, or
   `NOT MEASURED`, or `not met: …`, or `left out: <reason>`. A line is never met from the code alone.

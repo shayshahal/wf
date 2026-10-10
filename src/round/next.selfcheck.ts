@@ -33,10 +33,10 @@ const TICKET = `# r — ticket
 ## Intent
 - "x": the modal keeps its scroll position
 `;
-const ASSESS = (patch: { verdict?: string; head?: string; material?: string; intent?: string } = {}) => `# r — assessment
+const ASSESS = (patch: { verdict?: string; head?: string; material?: string; intent?: string; blocker?: string } = {}) => `# r — assessment
 Verdict: ${patch.verdict ?? 'clean'}
 head: ${patch.head ?? 'H4'}
-## Intent
+${patch.blocker ? `blocker: ${patch.blocker}\n` : ''}## Intent
 ${patch.intent ?? '- "x": met: src/Page.svelte:1 · before: red · after: green'}
 ## Agreement
 ${patch.material ? `material: ${patch.material}` : '(none)'}
@@ -82,8 +82,12 @@ check('a repair assessment returns to build, counted', repairs(repair) === 1 && 
 const spent = base({ step: 'assess', repairs: 2, files: { agreement: null, assessment: ASSESS({ verdict: 'repair' }), review: null, blocked: null } });
 check('two unsuccessful repairs: one contextual escalation, not another build', repairs(spent) === 0 && steps(spent).length === 0 && asks(spent).length === 1 && asks(spent)[0].source.startsWith('ASSESSMENT.md#') && asks(spent)[0].text.includes('answer `accept`'), say(spent));
 
-// blocked: unmet intent / still-reproducing symptom cannot pass to T2 silently
-const blocked = base({ step: 'assess', files: { agreement: null, assessment: ASSESS({ verdict: 'blocked', intent: '- "x": not met: the modal still jumps' }), review: null, blocked: null } });
+// A genuine blocker cannot pass to T2 silently; fixable unmet intent repairs first.
+const blocked = base({ step: 'assess', files: { agreement: null, assessment: ASSESS({ verdict: 'blocked', blocker: 'the owner must grant access to the required account', intent: '- "x": not met: the modal still jumps' }), review: null, blocked: null } });
+const unjustified = base({ step: 'assess', files: { agreement: null, assessment: ASSESS({ verdict: 'blocked', intent: '- "x": not met: still reproduces: local correction needed' }), review: null, blocked: null } });
+check('blocked without a genuine reason is reassessed without a human question', asks(unjustified).length === 0 && say(unjustified).startsWith('dispatch assess'), say(unjustified));
+const repairSymptom = { ...unjustified, files: { ...unjustified.files, assessment: ASSESS({ verdict: 'repair', intent: '- "x": not met: still reproduces: local correction needed' }) } };
+check('repairable unmet intent dispatches build before any human ruling', repairs(repairSymptom) === 1 && asks(repairSymptom).length === 0 && say(repairSymptom).startsWith('dispatch build'), say(repairSymptom));
 check('a blocked assessment asks one fix-or-accept ruling, not T2', asks(blocked).length === 1 && asks(blocked)[0].text.startsWith('fix or accept:') && !say(blocked).startsWith('review: T2'), say(blocked));
 const accepted = { ...blocked, answered: [{ n: 1, to: 'user', text: 'fix or accept: x', source: asks(blocked)[0].source, answer: 'accept: it is a separate ticket', asked: 't', answered: 't' }] };
 check('an explicit accept goes to T2 with the ruling recorded', say(accepted).startsWith('review: T2'), say(accepted));
@@ -146,6 +150,8 @@ check('a clean assessment that states an unmet item is refused', say(cleanNotMet
 // material change needs an EXPLICIT accept to reach T2 (R-2): hold/end/no/looks fine/fix do not
 const materialAnswered = { ...material, answered: [{ n: 1, to: 'user', text: 'the assessment found a material change', source: asks(material)[0].source, answer: 'accept: ship it', asked: 't', answered: 't' }] };
 check('an explicit accept of a material change opens T2', asks(materialAnswered).length === 0 && say(materialAnswered).startsWith('review: T2'), say(materialAnswered));
+const materialBlocked = { ...materialAnswered, files: { ...materialAnswered.files, assessment: ASSESS({ verdict: 'blocked', material: 'the round also changes the API shape' }) } };
+check('a material-only blocked assessment uses its material ruling, not a duplicate question', asks(materialBlocked).length === 0 && say(materialBlocked).startsWith('review: T2'), say(materialBlocked));
 for (const answer of ['hold the round until n', 'end it, drop this round', 'no', 'looks fine, carry on', 'fix: tighten the API']) {
 	const ruled = { ...material, answered: [{ n: 1, to: 'user', text: 'the assessment found a material change', source: asks(material)[0].source, answer, asked: 't', answered: 't' }] };
 	check(`R-2: a material answer "${answer}" does not open T2 (it returns to build)`, asks(ruled).length === 0 && !say(ruled).startsWith('review: T2') && steps(ruled).join() === 'build', say(ruled));

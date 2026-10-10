@@ -136,6 +136,11 @@ export function assessmentMaterial(text: string | null | undefined): string | nu
 	return /^material:[ \t]*(.+)$/m.exec(body)?.[1].trim() || null;
 }
 
+/** Read the assessment's genuine blocker justification; unmet intent alone is a repair finding. */
+export function assessmentBlocker(text: string | null | undefined): string | null {
+	return /^blocker:[ \t]*(.+)$/m.exec((text ?? '').replace(/\r\n/g, '\n'))?.[1].trim() || null;
+}
+
 // Pure: null when ASSESSMENT.md is an assessment a T2 can read, else why not. The `head:` is what
 // binds it to the tree it judged, so a missing one is refused; a `clean` verdict may not carry an
 // unmet item (`not met:`/`differs:`/`still reproduces:`) — that is a blocked round wearing a clean
@@ -145,6 +150,7 @@ export function assessmentGap(text: string | null | undefined): string | null {
 	const verdict = assessmentVerdict(text);
 	if (!verdict) return `${ASSESSMENT_FILE} has no \`Verdict: clean | repair | blocked\` line`;
 	if (!assessmentHead(text)) return `${ASSESSMENT_FILE} has no \`head: <commit>\` line — the assessment names the tree it judged`;
+	if (verdict === 'blocked' && !assessmentMaterial(text) && !assessmentBlocker(text)) return `${ASSESSMENT_FILE} says blocked without a \`blocker: <why autonomous repair cannot proceed>\` line — fixable unmet intent is repair`;
 	if (verdict === 'clean' && /(not met:|differs:|still reproduces:)/i.test(text)) return `${ASSESSMENT_FILE} says clean but states an unmet item — a clean assessment cannot carry \`not met:\``;
 	return intentGap(text);
 }

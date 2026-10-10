@@ -17,7 +17,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { refuseCaller } from '../refusal.ts';
 import { addQuestion, blockedQuestion, openRevisions } from './ask.ts';
-import { agreementClass, agreementGap, agreementPath, agreementSha, AGREEMENT_FILE, AGREEMENT_REVIEW_FILE, ASSESSMENT_FILE, assessmentGap, assessmentHead, assessmentMaterial, assessmentVerdict, caseFiles, consequential, REVIEW_FILE, verificationCases } from './agreement.ts';
+import { agreementClass, agreementGap, agreementPath, agreementSha, AGREEMENT_FILE, AGREEMENT_REVIEW_FILE, ASSESSMENT_FILE, assessmentBlocker, assessmentGap, assessmentHead, assessmentMaterial, assessmentVerdict, caseFiles, consequential, REVIEW_FILE, verificationCases } from './agreement.ts';
 import { contractPaths as contractPathsFile } from '../project.ts';
 import { classFromFiles } from '../gates/classify.ts';
 import { changedFiles } from '../gates/check.ts';
@@ -209,14 +209,15 @@ export function nextAction(s: Snapshot): { say: string; effects: Effect[] } {
 			}
 			// Accepted explicitly: T2 reads the acceptance beside the assessment, never in silence.
 		}
-		if (verdict === 'blocked') {
-			// Unmet intent or a still-reproducing symptom: never silently passed to T2 (#113.4, #75).
-			// One recorded fix-or-accept ruling, not a question per finding.
+		if (verdict === 'blocked' && (!material || assessmentBlocker(s.files.assessment))) {
+			// Material-only blocked assessments already have their one ruling above.
+			// A genuine blocker names why autonomous repair cannot proceed; a repairable symptom uses
+			// `repair`. Neither reaches T2 without a clean assessment or an explicit ruling (#113).
 			const source = `ASSESSMENT.md#${measured ?? 'unknown'}`;
 			const ruling = (s.answered ?? []).find((q) => q.source === source);
 			if (!ruling) {
 				const unmet = (s.files.assessment ?? '').replace(/\r\n/g, '\n').split('\n').filter((l) => /(not met:|differs:|still reproduces:)/i.test(l)).map((l) => l.trim().replace(/^-\s*"[^"]*":\s*/, '')).join(' · ');
-				const q = `fix or accept: ${unmet || 'ASSESSMENT.md is blocked'} — answer \`accept\` to carry it into T2, or say how to fix it`;
+				const q = `fix or accept: ${assessmentBlocker(s.files.assessment) ?? 'ASSESSMENT.md is blocked'}${unmet ? ` · ${unmet}` : ''} — answer \`accept\` to carry it into T2, or say how to fix it`;
 				effects.push({ ask: { to: 'user', text: q, dflt: null, source } });
 				return act(`wait user: ${q}`);
 			}
