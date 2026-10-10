@@ -122,6 +122,7 @@ check('inspect says blocked only when BLOCKED.md is there', insp.facts.blocked =
 check('inspect references the session, artifacts and guidance', insp.refs.session?.id === 'sess-1234567890' && insp.refs.artifacts.includes('option-a.html') && insp.refs.guidance.includes('docs/agents') && insp.refs.guidance.some((g) => g.endsWith('ROUND.md')), JSON.stringify(insp.refs));
 check('inspect survives git that cannot read the worktree', inspectRound({ path: ir, state: irState, git: () => { throw new Error('no git'); } }).diff.files.length === 0);
 check('the inspect block names the agreement, diff, evidence, facts and refs', ['agreement:', 'diff:', 'evidence:', 'facts:', 'refs:'].every((k) => formatInspect(insp).includes(`  ${k}`)), formatInspect(insp));
+check('the inspect block shows the recorded local feedback', formatInspect(insp).includes('decision: 2026-10-10 keep it'), formatInspect(insp));
 rmSync(root, { recursive: true, force: true });
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');
 process.exit(failures ? 1 : 0);

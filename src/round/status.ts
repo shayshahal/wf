@@ -230,6 +230,9 @@ export function formatInspect(i: RoundInspect): string {
   out.push(`  evidence: ${i.evidence ? `row ${i.evidence.row ?? '?'} ${i.evidence.result}${i.evidence.content ? ` · ${i.evidence.content}` : ''}` : 'none'}`);
   const a = i.facts.assessment;
   out.push(`  facts: ${a ? `assessment ${a.verdict ?? '?'} (head ${a.head ? a.head.slice(0, 10) : '?'})` : 'no assessment'}${i.facts.blocked ? ' · blocked' : ''} · ${i.facts.questions.length} open question${i.facts.questions.length === 1 ? '' : 's'}${i.facts.t1.reviewed ? ` · T1 ${i.facts.t1.verdict ?? 'pending'}` : ''}`);
+  // The local feedback `wf decide` recorded: a person reading (or a resumed session) sees it here as
+  // well as in the build brief (`wf brief`), so a correction does not need the agreement opened.
+  for (const d of i.facts.decisions) out.push(`  decision: ${d.at.slice(0, 10)} ${d.text}`);
   const s = i.refs.session;
   out.push(`  refs: session ${s ? `${s.harness} ${s.id.slice(0, 12)}${s.transcript ? ` (${s.transcript})` : ''} at ${s.step ?? '?'}` : 'none'} · ${i.refs.artifacts.length} artifact${i.refs.artifacts.length === 1 ? '' : 's'} · guidance ${i.refs.guidance.join(', ')}`);
   return out.join('\n');
