@@ -15,14 +15,14 @@ export const VERDICTS = ['approved', 'changes-requested', 'dismissed'];
 export const verdictOf = (d: string | undefined) => (d === 'approved' || d === 'lgtm' || d === 'approved-with-notes' ? 'approved' : d === 'dismissed' ? 'dismissed' : 'changes-requested');
 
 // One annotation, as Plannotator logs it on submit. The `element*` fields and `originalText` are what the
-// annotate surface reports when its document is a raw-rendered page (planPage): no file and no blockId,
+// annotate surface reports when its document is a raw-rendered page (agreementPage): no file and no blockId,
 // but the element the comment landed on and the selector/path back to it.
 export type Annotation = { text?: string; file?: string; lineStart?: number; lineEnd?: number; blockId?: string; originalText?: string; elementSelector?: string; elementPath?: string };
 // The line a review UI returns (seams.reviewUI), or the JSON text of one. `target` is the file on
 // Plannotator's annotate surface, and what was diffed on its review surface.
 export type ReviewFeedback = { decision?: string; feedback?: string; message?: string; annotations?: Annotation[]; target?: string | { review?: { base?: string; changedFiles?: number } } };
 
-// Pure: the source line a comment on a rendered page points at. planBody tags every block `wf-src-<line>`;
+// Pure: the source line a comment on a rendered page points at. agreementBody tags every block `wf-src-<line>`;
 // Plannotator hands that tag back in elementSelector and elementPath (measured on 0.28.5, 2026-10-06: an
 // element's first class is dropped from elementPath when it has more than one — the selector keeps them
 // all — and an id survives both, while the attributes never arrive at all). The last match is the block
@@ -178,7 +178,7 @@ ${rows}
 // ── the plan page ────────────────────────────────────────────────────────────
 // The same design, rendered: SPEC.md § For T1 at T1 (.wf/SPEC-T1.html, design.ts) and PLAN.md at T2
 // (.wf/PLAN.html, review.ts). The markdown stays the file of record. At T1 the page is what the person
-// annotates, so the page has to say which SPEC.md line each block is: planBody tags them `wf-src-<line>`
+// annotates, so the page has to say which SPEC.md line each block is: agreementBody tags them `wf-src-<line>`
 // and pageLine reads the tag back out of what Plannotator reports. The page is also where SHOW-ME.md's
 // views read as views — diff blocks coloured, a mermaid block drawn, the Asks copyable, the round's own
 // HTML artifacts embedded. Mermaid comes from a CDN and its source stays readable when there is none:
@@ -206,8 +206,8 @@ const diffRow = (line: string) => {
 
 // Pure: a plan document's markdown → the small part of it wf writes. Fenced blocks keep their shape:
 // a `diff` block and a bare one (where the call stacks live) are coloured by marker, `mermaid` is left
-// for the script `planPage` adds, and a table is shown as it is because a plan's tables are read as text.
-export function planBody(md: string, base = 0): string {
+// for the script `agreementPage` adds, and a table is shown as it is because a plan's tables are read as text.
+export function agreementBody(md: string, base = 0): string {
 	const out: string[] = [];
 	const lines = md.replace(/\r\n/g, '\n').split('\n');
 	const inline = (s: string) => escapeHtml(s).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>').replace(/`([^`]+)`/g, '<code>$1</code>');
@@ -271,8 +271,8 @@ const COPY_ASK = '<script>const wfCopy=(t)=>{const a=document.createElement("tex
 
 // Pure: the standalone page for a section of a plan document. `base` is the line the section starts at in
 // the document it was cut from: with it each block's tag is a line of that document (design.ts).
-export function planPage({ title, meta, section, artifacts = [], base = 0 }: { title: string; meta: string[]; section: string; artifacts?: PlanArtifact[]; base?: number }) {
-	const body = planBody(section, base);
+export function agreementPage({ title, meta, section, artifacts = [], base = 0 }: { title: string; meta: string[]; section: string; artifacts?: PlanArtifact[]; base?: number }) {
+	const body = agreementBody(section, base);
 	const hasClass = (cls: string) => new RegExp(`class="[^"]*\\b${cls}\\b`).test(body);
 	return `<!doctype html>
 <meta charset="utf-8"><title>${escapeHtml(title)}</title>

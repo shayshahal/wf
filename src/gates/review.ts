@@ -10,7 +10,7 @@ import { openFile, openInEditor, opensWindows } from '../worktrees/editor.ts';
 import { baseBranch } from '../project.ts';
 import { ensureServers } from '../worktrees/serve.ts';
 import { resolveWorktree } from '../worktrees/worktree.ts';
-import { appendDatedSection, approvalContentGap, beforeAfterPage, captionFor, devUrlsFor, foldFeedbackLine, lastField, needsFreshReviewHeader, planPage, proofPairs, readVerdict, renderHeader, renderSkeleton, roundArtifacts } from './review-format.ts';
+import { appendDatedSection, approvalContentGap, beforeAfterPage, captionFor, devUrlsFor, foldFeedbackLine, lastField, needsFreshReviewHeader, agreementPage, proofPairs, readVerdict, renderHeader, renderSkeleton, roundArtifacts } from './review-format.ts';
 import { approvalIdentity, approvalPaperworkExcluded, trackerNotePath } from './content-identity.ts';
 import type { ContentIdentity } from './content-identity.ts';
 import { seams } from '../seams.ts';
@@ -101,7 +101,7 @@ function writeBeforeAfter(worktree: string, round: string) {
 }
 
 // The agreement as a page (.wf/AGREEMENT.html): what the diff is judged against, with its Build views
-// drawn (SHOW-ME.md, review-format.ts planPage). Null when the round has no agreement file.
+// drawn (SHOW-ME.md, review-format.ts agreementPage). Null when the round has no agreement file.
 function writeAgreement(worktree: string, round: string) {
   const state = readState(worktree);
   const folder = state.folder;
@@ -110,7 +110,7 @@ function writeAgreement(worktree: string, round: string) {
   if (!existsSync(agreement)) return null;
   const file = join(worktree, '.wf', 'AGREEMENT.html');
   mkdirSync(dirname(file), { recursive: true });
-  writeFileSync(file, planPage({
+  writeFileSync(file, agreementPage({
     title: `Agreement — ${round}`,
     meta: [`class ${state.class ?? '—'} · base ${state.base ?? baseBranch}`, 'the agreement the diff is judged against — the markdown is the file of record'],
     section: readFileSync(agreement, 'utf8'),

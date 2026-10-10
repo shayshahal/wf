@@ -12,7 +12,7 @@ import { dirname, join } from 'node:path';
 import { refuseCaller } from '../refusal.ts';
 import { openFile, openInEditor, opensWindows } from '../worktrees/editor.ts';
 import { resolveWorktree } from '../worktrees/worktree.ts';
-import { appendDatedSection, devUrlsFor, foldFeedbackLine, planPage, renderHeader, renderSkeleton, roundArtifacts } from './review-format.ts';
+import { appendDatedSection, devUrlsFor, foldFeedbackLine, agreementPage, renderHeader, renderSkeleton, roundArtifacts } from './review-format.ts';
 import { agreementPath, agreementSha, AGREEMENT_REVIEW_FILE, consequential, section } from '../round/agreement.ts';
 import { seams } from '../seams.ts';
 import { readState, roundFile } from '../round/state.ts';
@@ -65,7 +65,7 @@ export async function runAgree(argv: string[]) {
 	const toAnnotate = join(worktree, '.wf', 'AGREEMENT-T1.md');
 	writeFileSync(toAnnotate, `${material}\n<!-- extracted from ${agreement.split(/[\\/]/).pop()} § the agreed material: what T1 decides. The rest of the agreement is working detail. Annotate here -->\n`);
 	const pageFile = join(worktree, '.wf', 'AGREEMENT-T1.html');
-	writeFileSync(pageFile, planPage({
+	writeFileSync(pageFile, agreementPage({
 		title: `Agreement — ${round} · T1`,
 		meta: [`agreement-sha: ${sha ?? 'n/a'}`, 'the agreed material this round is built against'],
 		section: material,

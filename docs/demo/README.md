@@ -1,13 +1,13 @@
-# A rendered demo of the plan pages
+# A rendered demo of the agreement pages
 
-What the two newest pieces of wf look like when they run, rendered by wf's own code — not
+What the newest pieces of wf look like when they run, rendered by wf's own code — not
 hand-written HTML:
 
-1. `process/SHOW-ME.md` + `planPage` — the HTML surface at T1 and T2 (`wf design`'s `page: …`,
-   `wf review`'s `plan: …`).
-2. the `manual:` check cell — a row whose proof only a person can make (`prompts/plan.md`).
+1. `process/SHOW-ME.md` + `agreementPage` — the HTML surface at T1 and T2 (`wf agree`'s page, `wf review`'s
+   agreement page).
+2. the `manual:` verification case — a case whose proof only a person can make (`prompts/agree.md`).
 
-It is the fastest check on a `planPage` or `renderHeader` change: no round, no worktree, no server.
+It is the fastest check on a `agreementPage` or `renderHeader` change: no round, no worktree, no server.
 
 ## Regenerate
 
@@ -21,15 +21,15 @@ generated files are committed, and they drift until someone re-runs it.
 
 | file | a round writes it from | what to look at |
 |---|---|---|
-| `.wf/SPEC-T1.html` | `wf design` (it annotates this page) | the design: diff-coloured stacks, the ASK with a copy button, the mermaid flow drawn, `option-a.html` embedded, and each block's `wf-src-<line>` — the SPEC.md line a comment on it folds onto |
-| `.wf/PLAN.html` | `wf review` (prints `plan: …`) | the plan T2 reads: the Build views (call stack, shape diff, contract diff), the Commits table kept as text |
-| `.wf/REVIEW.md` | `wf review` (the header) | `manual: row 2 — …`, the step only a person can make, beside the diff |
+| `.wf/AGREEMENT-T1.html` | `wf agree` (it annotates this page) | the agreed material — `## Observed` + `## Agreed` only, diff-coloured stacks, the `option-a.html` view embedded, each block's `wf-src-<line>` (the AGREEMENT.md line a comment on it folds onto), and a wrapped bullet's continuation kept inside its list item |
+| `.wf/AGREEMENT.html` | `wf review` | the whole agreement T2 reads beside the diff — Observed, Agreed, the Verification table |
+| `.wf/REVIEW.md` | `wf review` (the header) | `manual: case 2 — …`, the step only a person can make, beside the diff |
 
 ## The round
 
 `bug-reports/DEMO-1/` is a made-up round (not a ticket): the listings badge keeps a stale count after
-a delete. `SPEC.md` is a design session's output (Class B), `PLAN.md` is the plan, and `option-a.html`
-is the round folder's one HTML artifact — the view a static block cannot carry.
+a delete. `AGREEMENT.md` is a working session's output (Class B), and `option-a.html` is the round
+folder's one HTML artifact — the view a static block cannot carry.
 
 ## Notes
 
