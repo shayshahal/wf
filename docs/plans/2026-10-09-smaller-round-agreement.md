@@ -1,10 +1,14 @@
 # Smaller round: working agreement (#110)
 
-**Status: proposal pending one approval.** Only migration/release is already decided; everything else is a recommendation. No runtime, prompt, state, hook or worktree change until you approve.
+**Status: APPROVED by Shay on 2026-10-09.** This is the agreed design basis for the runtime work in #111–#114. It is not implementation, and not the #115 evaluation.
 
-**Decided 2026-10-09 - finish before release.** Active rounds finish on current wf; PRs may publish while they finish; the new pipeline is released only after the active-round audit is clear; legacy state is refused, never silently reinterpreted. No migration command and no pinned-legacy pipeline ships beside the new code.
+## Decision record
+- **Overall workflow.** Question: "Do you approve this smaller workflow as the agreement for implementing #111–#115?" Answer: "Approve this workflow (Recommended)". The approval covers the mechanism below; the examples are illustrative and authorize no product feature.
+- **Migration/release.** Question: "Should existing rounds finish before the replacement is released, or should we implement an explicit one-time migration?" Answer: "Finish before release (Recommended)".
 
-Direction: `DIRECTION.md` (2026-10-09) and `AGENTS.md`.
+**Decided - finish before release.** Active rounds finish on current wf; PRs may publish while they finish; the new pipeline is released only after the active-round audit is clear; legacy state is refused, never silently reinterpreted. No migration command and no pinned-legacy pipeline ships beside the new code.
+
+Governing: public issues [#110](https://github.com/shayshahal/wf/issues/110)–[#115](https://github.com/shayshahal/wf/issues/115), and the repo's `AGENTS.md`.
 
 ## Target route
 `wf new -> understand+agree (T1 for B/C) -> build <-> verify+steer -> one final assessment -> T2 -> wf deliver`
@@ -17,26 +21,25 @@ Research/plan/design/replan stop being handoffs. T1 (complex work) and T2 (deliv
 - Source research, specs and prototypes may exist as optional working notes - never gates or approval contracts - and observed facts never share a line with proposals.
 
 ## Example 1 - ordinary, ticket-as-agreement (illustrative, from round BJEW-461)
-- Behavior: dismissing the cancel-confirm leaves the order modal at the same scroll position (today it jumps to the top); cancelling still cancels.
+- Behavior: dismissing the cancel-confirm leaves the order modal at the same scroll position (today it jumps to the top); cancelling still cancels. The ticket is the sole agreement: reproduce, fix, `wf check`, then actual behavior and diff at T2. No planning doc and no per-commit worker.
 - Code shape: one modal component; the scroll container stays mounted across open/close; no API, schema or contract path touched.
 - Verification: the existing cancel test plus one named assertion that fails on base and passes on the fix.
 - Shay sees the diff once, at T2, with the ticket, checks and assessment beside it.
 
 ## Example 2 - consequential, class B (illustrative shape)
-- Ticket: cancelling an order records a reason from a fixed list, and the order detail shows it.
-- `## Observed`: where cancel is handled, the current request/response fields, the detail render path - each with a source. `## Agreed`: the cancel endpoint takes a reason from a fixed set, rejects others, stores it; the detail shows the label; excluding free text and reason editing.
-- Consequential choice, two shapes: store a stable code and render its label (recommended) vs store the label itself - renaming a label must not rewrite history.
-- Units: (1) API accepts/rejects/stores the code; (2) detail renders the label - each green independently.
-- Verification: named tests execute the new cases (valid recorded, invalid rejected) and the pre-existing cancel tests still pass; the API test fails on base for the intended reason.
-- T1 approves a frozen `AGREEMENT.md` sha; T2 reads the actual diff, evidence and any deviation.
+- Ticket: reshape the order details page into a two-column layout with a persistent actions sidebar; behavior unchanged. T1 joins the build with concrete layout/code-shape choices.
+- `## Observed`: the current details-page markup and where its header/actions render - each with a source. `## Agreed`: a page-level `DetailsLayout` with a content slot and a sidebar slot, existing routes rendering through it; excluding any change to the data shown or the actions' behavior.
+- Consequential choice, two shapes: extract `DetailsLayout` with a sidebar slot (recommended) vs absolute-position the sidebar over the current single-column markup, which couples to current markup and breaks at narrow widths.
+- Units: (1) extract the layout and render the existing header/actions through it; (2) move the sidebar into the slot and add responsive rules - each green independently.
+- Verification: the existing details-page tests pass unchanged, plus one named assertion that sidebar and content render in the layout regions (it fails on base because those regions do not exist). T1 approves a frozen `AGREEMENT.md` sha; the diff and preview are inspectable at will, and T2 reads them with any deviation.
 
 ## Material change vs ordinary freedom
-Renewed agreement only for genuinely new scope or behavior: a new user-visible surface, a changed contract path, a different persistence choice, a changed verification promise, or dropping an agreed item. A new helper, file, local refactor, added test or naming stays ordinary - a changed path-classification hint alone does not renew the agreement. Detection is the existing checkpoints (contract-path measurement, agreement diff) plus judgement; no new NLP classifier.
+Helpers, files, local corrections, added tests and naming stay autonomous. Renewed agreement only for genuinely new scope or behavior: a new user-visible surface, a changed contract path, a different persistence choice, a changed verification promise, or dropping an agreed item. A changed path-classification hint alone does not renew the agreement. Detection is the existing checkpoints (contract-path measurement, agreement diff) plus judgement; no new NLP classifier.
 
 ## One final assessment, bounded repair, escalation (#113, #75)
 - Default one independent, read-only final assessment: intent (met / NOT MEASURED / left out with reason), actual behavior and evidence, consequential design, applicable standards.
 - A within-agreement fixable finding or symptom returns autonomously to build first; repairs are bounded (default 2 attempts, an evaluated default, not universal).
-- ONE contextual escalation only when repairs are exhausted, a genuine blocker exists, or the change is material - never a question per finding.
+- After two unsuccessful autonomous repair attempts, or on a genuine blocker or a material change, ONE contextual escalation - never a question per finding.
 - A still-unmet intent or still-reproducing symptom blocks T2 until fixed, accepted or the round is held - never silently passed through.
 
 ## Verification and approval identity (preserve #106-#109)
@@ -61,5 +64,5 @@ Renewed agreement only for genuinely new scope or behavior: a new user-visible s
 ## #115 evaluation
 Real product rounds run on the installed copy, not this editing clone. Distinguish real harness/product runs from simulated CLI fixtures; fixtures prove command contracts, not human attention or defects. Baselines use existing round records (`friction.ts`), not invented attention measures; report limitations, with no causality from a small sample. Reviewer/session counts and the 2 repair attempts are defaults to evaluate.
 
-## Approval question
-**Do you approve this target route and agreement model - ticket-as-agreement for ordinary rounds, one `AGREEMENT.md` for consequential work, one final assessment with autonomous within-agreement repair, and T2 blocked on unmet intent - as the design basis for #111-#114?**
+## Scope of this approval
+This document is the agreed design only. The examples are illustrative, not authorization for product features. Implementation (#111–#113), inspection (#114) and evaluation (#115) remain to be built, verified and reviewed under this agreement.
