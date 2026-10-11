@@ -29,6 +29,9 @@ There is no separate research file, plan file or spec, and nothing here is a com
 - `## Repro` — for a class A check round (`wf new --check`): `command: <the command that reproduces
   the ticket>`.
 
+For borrowed examples and external references, say what each contributes: required behavior, an
+existing convention, or optional inspiration. Borrowing an example does not adopt its entire structure.
+
 A mock, a contract sketch or a call-stack view is worth drawing only when it resolves this task's
 expensive uncertainty; it is not a universal artifact.
 

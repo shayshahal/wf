@@ -33,6 +33,8 @@ path. This file is the rest, and the rules all of them follow.
   render the artifact beside the agreement (`.wf/AGREEMENT-T1.html`; `.wf/AGREEMENT.html`,
   `.wf/before-after.html`), and a reader
   who never opens it loses nothing the agreement does not say.
+- **A prototype shows proposed behavior, not implementation proof.** A runtime capture shows
+  observed behavior only for the code revision, state and conditions captured.
 - **`NOT MEASURED — <why>` is always acceptable. Silence is not** (`PRACTICES.md`): a view asserts a
   shape; a shape nobody measured says so.
 

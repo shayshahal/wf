@@ -24,6 +24,10 @@ verification case passes and you run `wf step assess`.
   note with the reason, scope, exceptions and durable source. Keep this within the agreement and
   fence; otherwise record the affected note/check and needed change in the handoff. Review these
   updates with the implementation, using the existing review.
+- When accepted behavior changes a maintained explanation or operating instruction, update the
+  affected existing document with the implementation. Keep completed-round agreements as history.
+  Keep edits within the agreement and fence; otherwise record the affected document and needed
+  change in the handoff. Leave unrelated documentation alone.
 - Run `wf check` (or `wf check --case "<path>::<test id>@<line>"` on a class A round). It refuses
   edits outside the round, protected-test changes, and a verification that does not really execute
   the named assertion. A green run is not proof that a specific assertion line ran.
