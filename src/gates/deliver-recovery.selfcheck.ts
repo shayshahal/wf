@@ -122,12 +122,15 @@ writeFileSync(join(ROOT, 'harness.mjs'), HARNESS);
 type RemotePr = { number: number; url: string; state: string; headRefOid: string | null; headRefName: string; baseRefName: string; isCrossRepository: boolean };
 type Remote = { prs: Record<string, RemotePr[]>; create: number; edit: number; merge: number; lists?: string[][]; creates?: string[][]; edits?: string[][]; merges?: string[][] };
 
-const PLAN = ['# BJEW-1 — plan', 'Class: A', 'Cause: c', 'Approach: a', '## Commits', '| # | message | files | check |', '|---|---|---|---|', '| 1 | fix(x): y | a.ts | — |'].join('\n');
-const VALIDATION = ['# BJEW-1 — validation', 'Verdict: matches plan', '', '## Intent', '- the thing: met: before: broken, after: fixed'].join('\n');
+const TICKET = ['# BJEW-1 — the thing', '## Intent', '', '- the thing', '', '## Verification', '| # | case | files | check |', '|---|---|---|---|', '| 1 | fix(x): y | a.ts | — |'].join('\n');
+const ASSESSMENT = ['# BJEW-1 — assessment', 'Verdict: clean', '', '## Intent', '- the thing: met: a.ts:1 \u00b7 before: broken \u00b7 after: fixed'].join('\n');
 
 // A temporary repository with a local bare origin, on the round's branch, its folder and its state at
-// step pr with T2 approved: exactly where `wf deliver` runs.
-function makeRepo(name: string) {
+// step pr with T2 approved: exactly where `wf deliver` runs. `opts.base` is what .wf/state.json pins
+// (default `dev`); `opts.dropOriginDev` removes origin/dev, so the project's base branch does not
+// resolve while the round's own base still does (a round started with `wf new --base main`).
+function makeRepo(name: string, opts: { base?: string; dropOriginDev?: boolean } = {}) {
+	const base = opts.base ?? 'dev';
 	const root = join(ROOT, name);
 	const origin = join(root, 'origin.git');
 	const work = join(root, 'work');
@@ -140,23 +143,26 @@ function makeRepo(name: string) {
 	writeFileSync(join(work, 'README.md'), 'base\n');
 	must(['add', '-A'], work);
 	must(['commit', '-qm', 'base'], work);
+	// The round's own base must resolve locally when it is a local branch (main), before origin/dev is
+	// dropped: origin/dev is the project's base branch, not the round's base.
+	if (base === 'main') must(['branch', 'main'], work);
 	// origin's identity is a GitHub url; git's transport is redirected to the local bare repo, so no
 	// test touches GitHub. `git config --get remote.origin.url` still answers the GitHub url.
 	must(['remote', 'add', 'origin', GITHUB], work);
 	must(['config', `url.${pathToFileURL(origin).href}.insteadOf`, GITHUB], work);
 	must(['push', '-q', '-u', 'origin', 'dev'], work);
+	if (opts.dropOriginDev) must(['update-ref', '-d', 'refs/remotes/origin/dev'], work);
 	must(['checkout', '-qb', BRANCH], work);
 	mkdirSync(join(work, FOLDER), { recursive: true });
-	writeFileSync(join(work, FOLDER, 'TICKET.md'), '# BJEW-1 — the thing\n');
-	writeFileSync(join(work, FOLDER, 'PLAN.md'), PLAN);
-	writeFileSync(join(work, FOLDER, 'VALIDATION.md'), VALIDATION);
+	writeFileSync(join(work, FOLDER, 'TICKET.md'), TICKET);
+	writeFileSync(join(work, FOLDER, 'ASSESSMENT.md'), `head: ${must(['rev-parse', 'HEAD'], work)}\n${ASSESSMENT}`);
 	mkdirSync(join(work, '.wf'), { recursive: true });
-	const state = { round: BRANCH, class: 'A', id: 'BJEW-1', ids: ['BJEW-1'], folder: FOLDER, base: 'dev', step: 'pr', made_by: 'kit' };
+	const state = { wf_version: 2, round: BRANCH, class: 'A', id: 'BJEW-1', ids: ['BJEW-1'], folder: FOLDER, base, step: 'pr', made_by: 'kit' };
 	writeFileSync(join(work, '.wf', 'state.json'), JSON.stringify(state, null, 2) + '\n');
 	// The approval REVIEW.md must record (#106): the worktree and HEAD identities as they are at T2, so
 	// deliver's approval recheck runs against a real binding rather than refusing an unbound verdict.
 	const identity = approvalIdentity(work, FOLDER, trackerNotePath(FOLDER));
-	writeFileSync(join(work, FOLDER, 'REVIEW.md'), `round: ${BRANCH}\nbase: dev\ncontent-sha: ${identity.worktree}\nhead-sha: ${identity.head}\n\nverdict: approved\n`);
+	writeFileSync(join(work, FOLDER, 'REVIEW.md'), `round: ${BRANCH}\nbase: ${base}\ncontent-sha: ${identity.worktree}\nhead-sha: ${identity.head}\n\nverdict: approved\n`);
 	return { work, remote: join(root, 'remote.json'), head: must(['rev-parse', 'HEAD'], work) };
 }
 
@@ -251,11 +257,40 @@ function attempt(f: Fixture, mode = 'ok') {
 {
 	const f = makeRepo('round-folder-committed');
 	must(['add', '--', FOLDER, `:(exclude)${FOLDER}/REVIEW.md`], f.work);
-	must(['commit', '-qm', `docs(BJEW-1): round folder: ticket, research, plan, validation, repro`], f.work);
+	must(['commit', '-qm', `docs(BJEW-1): round folder: ticket, agreement, assessment, repro`], f.work);
 	must(['push', '-q', 'origin', `HEAD:refs/heads/${BRANCH}`], f.work);
 	setRemote(f, empty());
 	const r = attempt(f);
 	check('a retry after the round-folder commit resumes without a fresh review', r.code === 0 && readState(f).step === 'merged' && readRemote(f).create === 1 && readRemote(f).merge === 1, `${r.code}: ${r.out}`);
+}
+
+// ── the round's own base, not the project's base branch ───────────────────────────────────────────
+// deliver's commit list is measured from the round's base (state.base), not from origin/<project
+// baseBranch>. A round started with `wf new --base main` in a project whose base branch is dev has a
+// resolving state.base and no origin/dev; measuring from origin/dev after the push failed and left
+// the round stuck with a pushed branch and no PR (O3, 2026-10-10). The delivery uses the round's base
+// and completes; a base that does not resolve refuses before the push, mutating nothing.
+{
+	const f = makeRepo('round-base-main', { base: 'main', dropOriginDev: true });
+	setRemote(f, empty());
+	const r = attempt(f);
+	check('a round whose base is main (origin/dev absent) delivers', r.code === 0 && readState(f).step === 'merged' && readRemote(f).create === 1 && readRemote(f).merge === 1, `${r.code}: ${r.out}`);
+	check('…the merged branch is deleted, not left pushed', !remoteBranches(f.work).includes(BRANCH), remoteBranches(f.work).join(','));
+	const again = attempt(f);
+	check('…a retry neither creates a second PR nor merges again', again.code === 2 && readRemote(f).create === 1 && readRemote(f).merge === 1 && /already merged/.test(again.out), `${again.code}: ${again.out}`);
+}
+{
+	const f = makeRepo('round-base-origin-dev');
+	setRemote(f, empty());
+	const r = attempt(f);
+	check('control: a round whose base is origin/dev, with origin/dev present, delivers', r.code === 0 && readState(f).step === 'merged' && readRemote(f).create === 1 && readRemote(f).merge === 1, `${r.code}: ${r.out}`);
+}
+{
+	const f = makeRepo('round-base-unresolved', { base: 'no-such-base' });
+	setRemote(f, empty());
+	const r = attempt(f);
+	check('an unresolved round base refuses before the push', r.code === 2 && readState(f).step === 'pr' && readRemote(f).create === 0 && readRemote(f).edit === 0 && readRemote(f).merge === 0 && !remoteBranches(f.work).includes(BRANCH), `${r.code}: ${r.out}; branches ${remoteBranches(f.work).join(',')}`);
+	check('…the refusal is one actionable line naming the base', /^wf deliver: the round's base `no-such-base` does not resolve/m.test(r.out) && r.out.trim().split('\n').length === 1, r.out.trim());
 }
 
 // ── the PR roundtrip changed the implementation before the merge: refuse, do not merge ─────────────

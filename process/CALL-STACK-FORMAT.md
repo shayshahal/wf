@@ -1,7 +1,7 @@
 # Call-stack format
 
-How a call stack is written in `SPEC.md` (`## As-is`, and one per candidate) and in the
-implementer's `proof/CALL-STACK-AS-BUILT.md`. **A stack is written in diff syntax, because the
+How a call stack is written in `AGREEMENT.md` (`## Observed` as-is, and a candidate view under
+`## Agreed`) and in the assessment's `## Design`. **A stack is written in diff syntax, because the
 interesting part is what changes** — an unchanged hop is context, not content.
 
 A change that is not a call path — a data structure, a SQL table, an API contract, a file tree, a
@@ -26,7 +26,7 @@ stack. The stack is the default, not the only view.
 | `✗ Kind` | an error arm. **Every `✗` names where it lands** — `→ lands: <the next hop, the status, the screen>`. In `## As-is` too: a raise site listed without its landing is half a measurement |
 | `(ruled \| proposed \| assumed)` | the standing of a landing that a human decided: a decision record · an open ASK · built anyway, recorded `status: assumed` |
 | `·` | a note about a hop that does not change — "unchanged, already raises", "one caller only" |
-| `✓` | an outcome the shape makes impossible; used in as-built and in candidates that remove a defect class |
+| `✓` | an outcome the shape makes impossible; used in an assessment's `## Design` and in candidates that remove a defect class |
 
 **File-tree diff**, when a candidate adds or removes files:
 
@@ -104,11 +104,11 @@ BJEW-586 candidate D (`SPEC.md` rev 2), the shape being replaced and the shape r
 That block is doing the job of the format: the `✗` arm found the missing render site *before*
 it was built, and the `·` line marks an unmeasured claim instead of asserting it.
 
-**A presentation-only change has no call stack, and is Class A** — no design session.
+**A presentation-only change has no call stack, and is Class A** — no agreement session.
 
-## As-built
+## In the assessment
 
-`proof/CALL-STACK-AS-BUILT.md` is this format again, one table per arm of `## For T1`'s Build: the
-SPEC line, what was built, and `✓` or the deviation. It names the SPEC sha it was built against,
-lists every **addition** with the line in `## For T1` that did not model it, and lists what was
-deliberately **not** built. The rest of SPEC.md is working notes, not a reference (DESIGN-SESSION.md § 5). `wf review` refuses a B/C round without it.
+The agreement's `## Observed` is the as-is stack a build works from; an assessment's `## Design`
+is this format again for what was built, when a call path is the right view. It names the agreement
+sha it judged and lists what was left out. A view is drawn only when it resolves the task's
+expensive uncertainty, never for completeness.

@@ -1,106 +1,106 @@
 // deliver.selfcheck.ts — node deliver.selfcheck.ts → exit 0 when green.
-// Fixture PLAN.md → the PR title, the PR body, the tracker note.
-import { deliveryResume, existingNoteAction, githubPrRepo, githubRepo, hookRefused, noteComplete, originTarget, prBody, prCommitRows, prLookup, prTitle, redactRemote, refusedPushSection, t2Gap } from './deliver.ts';
+// Fixture agreement + assessment → the PR title, the PR body, the tracker note.
+import { commitRows, deliveryResume, existingNoteAction, githubPrRepo, githubRepo, hookRefused, noteComplete, originTarget, prBody, prLookup, prTitle, redactRemote, refusedPushSection, t2Gap } from './deliver.ts';
 import type { State } from '../round/state.ts';
 
 let failures = 0;
 const check = (name: string, cond: boolean, detail = '') =>
 	(console.log(cond ? `  ok   ${name}` : `  FAIL ${name}${detail ? ` — ${detail}` : ''}`) as unknown) || (cond || failures++);
 
-// JX-1221's shape: the title is TICKET.md's, the header is the plan as it stands, the revision log is
-// history, and the plan's commit rows list every file they touch.
+// The current contract is process/AGREEMENT-TEMPLATE.md and prompts/assess.md, not a legacy
+// PLAN.md/VALIDATION.md: a class B agreement (Observed + Agreed + Verification + Units) and a final
+// assessment (Verdict/head + Intent/Behavior and evidence/Design/Standards). The commit subject is
+// deliberately NOT the case name: the formatter must list the two independently (#112).
 const ticket = ['# BJEW-1 — the code never arrives', '', '## Intent', '- Shay, 2026-01-01: "the code never arrives"'].join('\r\n');
-const plan = [
-	'# BJEW-1 — plan',
-	'Class: A',
-	'Cause: the send result is discarded at auth.py:599',
-	'Approach: capture it and raise where the caller already lands',
-	'Revision (T2, 2026-01-02): the raise moves to the caller',
+const agreement = [
+	'# AGREEMENT — BJEW-1 · «the code never arrives»',
 	'',
-	'## Build',
-	'  POST /api/v1/auth/2fa/send',
-	' +    send_otp_code()            ← str → bool',
-	' ~    auth.py:599                bool CAPTURED instead of discarded',
+	'2026-01-01 · Round `fix/bjew-1`, base `dev`. Class `B`.',
 	'',
-	'## Commits',
-	'| # | message | files | check |',
+	'## Observed',
+	'',
+	'- auth.py:599 discards the send result',
+	'',
+	'## Agreed',
+	'',
+	'- **Behavior.** capture the result and raise at the caller',
+	'- **Excluding.** the SMS provider',
+	'- **Choice.** raise at the caller, not the callee',
+	'- **Verification.** the cases below',
+	'- **T2 walk.** open: /login as shay',
+	'',
+	'## Verification',
+	'',
+	'| # | case | files | check |',
 	'|---|---|---|---|',
-	'| 1 | fix(auth): x | packages/backend/app/api/auth.py | repro |',
+	'| 1 | fix(auth): the send result raises | `packages/backend/app/api/auth.py` | `packages/backend/app/api/auth.spec.ts::raises@12` |',
 	'',
-	'Row 1: commit only auth.py; the fence matches it verbatim.',
+	'## Units',
 	'',
-	'## Not doing',
-	'- the SMS provider',
-	'',
-	'## T2 walk',
-	'open: /login',
-	'',
-	'## Decisions',
-	'- 2026-01-02 which port → user: 8080',
-	'',
-	'## Revisions',
-	'2026-01-02 Shay — the raise moves to the caller',
-].join('\r\n');
-const validation = [
-	'# BJEW-1 — validation',
-	'Verdict: matches plan',
-	'',
-	'## Suites',
-	'green: abc123 — backend pytest',
-	'',
-	'## Unplanned',
-	'none',
+	'1. capture the result',
+	'2. raise at the caller',
+].join('\n');
+const assessment = [
+	'# BJEW-1 — final assessment',
+	'Verdict: clean',
+	'head: abc123',
 	'',
 	'## Intent',
-	'- "the code never arrives": met',
+	'- the code never arrives: met: auth.py:1 · before: discarded · after: raised',
 	'',
-	'## Live',
-	'VERIFIED — the code arrives',
+	'## Behavior and evidence',
+	'`wf check` green on auth.spec.ts::raises@12',
+	'',
+	'## Design',
+	'none',
+	'',
+	'## Standards',
+	'- error handling: followed',
 ].join('\n');
-const commitLines = ['- abc1234 fix(auth): x', '- def5678 docs(BJEW-1): round folder: ticket, research, plan, validation, repro'];
-const body = prBody({ ticket, plan, commitLines, validation, planPath: 'bug-reports/bjew-1/PLAN.md' });
+const commitLines = ['- abc1234 fix(auth): raise at the caller', '- def5678 docs(BJEW-1): round folder: ticket, agreement, assessment, repro'];
+const body = prBody({ ticket, agreement, commitLines, assessment, agreementPath: 'bug-reports/bjew-1/AGREEMENT.md' });
 const visible = body.slice(0, body.indexOf('<details>'));
 
-check('the PR title is the ticket\u2019s own title', prTitle({ ticket, plan, commitLines }) === 'BJEW-1 — the code never arrives');
-check('with no TICKET.md the title is the newest commit, never the oldest', prTitle({ ticket: '', plan, commitLines }) === 'fix(auth): x');
-check('the body leads with the round folder, then Intent and the plan\u2019s header', body.startsWith('Round folder: `bug-reports/bjew-1/`\n\n## Intent\n\n- Shay, 2026-01-01: "the code never arrives"\n\n## Approach\n\nClass: A\nCause: the send result'));
-check('the commits are one line each, joined to the pushed hash, with no files cell', body.includes('| 1 | abc1234 | fix(auth): x | repro |') && !body.includes('packages/backend/app/api/auth.py'));
-check('a commit no row names is listed too, and the Row N: instructions are not', body.includes('| — | def5678 | docs(BJEW-1): round folder: ticket, research, plan, validation, repro | — |') && !body.includes('Row 1: commit only auth.py'));
-check('the T2 walk and Not doing are there, as the plan wrote them', body.includes('## T2 walk\n\nopen: /login') && body.includes('## Not doing\n\n- the SMS provider'));
-check('VALIDATION.md\u2019s verdict, suites and as-built sections are there', body.includes('## Validation\n\nVerdict: matches plan\n\ngreen: abc123 — backend pytest') && body.includes('### Unplanned\n\nnone') && body.includes('### Intent\n\n- "the code never arrives": met') && body.includes('### Live\n\nVERIFIED — the code arrives'));
-check('the call stack and the plan history are folded, not cut', body.includes('<summary>Build — the call stack (3 lines)</summary>') && body.includes('+    send_otp_code()') && body.includes('<summary>Plan history — 2 revisions, 1 decisions</summary>'));
-check('the revision log is history: not in what the reviewer reads first', !visible.includes('Revision (T2') && !visible.includes('## Revisions'));
+check('the PR title is the ticket’s own title', prTitle({ ticket, agreement, commitLines }) === 'BJEW-1 — the code never arrives');
+check('with no TICKET.md the title is the newest commit, never the oldest', prTitle({ ticket: '', agreement, commitLines }) === 'fix(auth): raise at the caller');
+check('the body leads with the round folder, then Intent and the agreed material', body.startsWith('Round folder: `bug-reports/bjew-1/`\n\n## Intent\n\n- Shay, 2026-01-01: "the code never arrives"\n\n## Agreement\n\n- auth.py:599 discards the send result\n\n- **Behavior.** capture the result and raise at the caller'));
+check('the agreed behavior is the reviewer’s material, not the agreement’s template preamble', body.includes('**T2 walk.** open: /login as shay') && !body.includes('Round `fix/bjew-1`, base `dev`. Class `B`'));
+check('class A: the ticket is the agreement, so Agreement carries its Intent', prBody({ ticket, agreement: ticket, commitLines, assessment, agreementPath: 'bug-reports/bjew-1/TICKET.md' }).includes('## Agreement\n\n- Shay, 2026-01-01: "the code never arrives"'));
+// A commit is not a case (#112): the Commits table lists what landed; the Verification table lists
+// what `wf check` proves. The case name here matches no commit subject, and neither names the other.
+check('the commits are one row per pushed commit, no case, hash or check joined to them', body.includes('## Commits\n\n| commit | message |\n|---|---|\n| abc1234 | fix(auth): raise at the caller |') && body.includes('| def5678 | docs(BJEW-1): round folder: ticket, agreement, assessment, repro |'));
+check('the verification cases are listed separately, with no commit hash in them', body.includes('## Verification\n\n| # | case | check |\n|---|---|---|\n| 1 | fix(auth): the send result raises | `packages/backend/app/api/auth.spec.ts::raises@12` |') && !/## Verification[\s\S]*abc1234/.test(body));
+check('the case name and the commit subject need not match, and the files cell and Row instructions are gone', !body.includes('app/api/auth.py |') && !body.includes('Row 1:') && body.indexOf('fix(auth): raise at the caller') < body.indexOf('fix(auth): the send result raises'));
+check('the T2 walk and the assessment verdict/head/intent/evidence/design/standards are there', body.includes('## T2 walk\n\nopen: /login as shay') && body.includes('## Assessment\n\nVerdict: clean\nhead: abc123') && body.includes('### Intent\n\n- the code never arrives: met: auth.py:1 · before: discarded · after: raised') && body.includes('### Behavior and evidence\n\n`wf check` green on auth.spec.ts::raises@12') && body.includes('### Design\n\nnone') && body.includes('### Standards\n\n- error handling: followed'));
+check('the agreement’s working notes (units) are folded, not in what the reviewer reads first', body.includes('<summary>Working notes — units</summary>') && body.includes('1. capture the result') && !visible.includes('1. capture the result'));
+check('no legacy plan/validation machinery survives: no Approach, Not doing, Build, Suites or Plan history', !body.includes('## Approach') && !body.includes('## Not doing') && !body.includes('## Build') && !body.includes('## Suites') && !body.includes('## Unplanned') && !body.includes('Plan history') && !body.includes('Revision ('));
 check('a body under the budget is not called shortened', !body.includes('Shortened:') && body.trimEnd().endsWith('</details>'));
-check('an empty PLAN.md gives a table of the pushed commits alone', JSON.stringify(prCommitRows('', ['- abc1234 one'])) === JSON.stringify(['| — | abc1234 | one | — |']));
+check('an empty agreement gives a commits table of the pushed commits alone', JSON.stringify(commitRows(['- abc1234 one'])) === JSON.stringify(['| abc1234 | one |']) && JSON.stringify(commitRows(['not a commit line'])) === '[]');
 
-// Over the budget the folds go first, then VALIDATION.md's detail, then the oldest commits — and the
-// body says where the round folder's own text is.
-const row = (n: number) => `| ${n} | feat(x): row ${n} | a.ts | node --test |`;
+// Over the budget the working-notes fold goes first, then the assessment’s detail, then the oldest
+// commits — and the body says where the round folder’s own text is.
+const row = (n: number) => `| ${n} | feat(x): case ${n} | a.ts | node --test |`;
+const rows18 = Array.from({ length: 18 }, (_, i) => row(i + 1));
 const bigTicket = ['# JX-1 — a big round', '', '## Intent', '- the ask'].join('\n');
-const bigPlan = ['# JX-1 — plan', 'Class: A', 'Cause: c', 'Approach: a', '## Build', 'b'.repeat(40000), '', '## Commits', '| # | message | files | check |', ...Array.from({ length: 18 }, (_, i) => row(i + 1)), '', '## Not doing', 'nothing else', '', '## T2 walk', 'open: /users/1', '', '## Decisions', 'd'.repeat(30000)].join('\n');
-const bigCommits = Array.from({ length: 18 }, (_, i) => `- c${i}abcd feat(x): row ${i + 1}`);
-const bigValidation = `# JX-1 — validation\nVerdict: matches plan\n\n## Suites\ngreen\n\n## Unplanned\n${'u'.repeat(2000)}\n\n## Live\n${'l'.repeat(2000)}`;
-const fit = prBody({ ticket: bigTicket, plan: bigPlan, commitLines: bigCommits, validation: bigValidation, planPath: 'bug-reports/jx-1/PLAN.md' });
-check('a 70k plan gives a body under the GitHub limit', bigPlan.length > 65536 && fit.length < 65536, `${bigPlan.length} -> ${fit.length}`);
-check('the shortened body keeps Intent, Approach, the commits, T2 walk, Not doing and the verdict', fit.includes('- the ask') && fit.includes('Approach: a') && fit.includes('| 18 | c17abcd | feat(x): row 18 | node --test |') && fit.includes('nothing else') && fit.includes('open: /users/1') && fit.includes('Verdict: matches plan'));
-check('the plan history goes first, and the body says where PLAN.md is', !fit.includes('dddddddddd') && fit.includes('bbbbbbbbbb') && fit.includes('`bug-reports/jx-1/PLAN.md`'));
+const bigAgreement = ['# AGREEMENT — JX-1 · «a big round»', '', '## Observed', '', '- fact:1', '', '## Agreed', '', '- **Behavior.** a', '- **T2 walk.** open: /users/1', '', '## Verification', '| # | case | files | check |', ...rows18, '', '## Units', '', 'u'.repeat(70000)].join('\n');
+const bigCommits = Array.from({ length: 18 }, (_, i) => `- c${i}abcd feat(x): case ${i + 1}`);
+const bigAssessment = `# JX-1 — final assessment\nVerdict: clean\nhead: abc\n\n## Intent\n- the ask: met: a.ts:1 · before: red · after: green\n\n## Behavior and evidence\n${'e'.repeat(2000)}\n\n## Design\nnone`;
+const fit = prBody({ ticket: bigTicket, agreement: bigAgreement, commitLines: bigCommits, assessment: bigAssessment, agreementPath: 'bug-reports/jx-1/AGREEMENT.md' });
+check('a 70k working-notes fold gives a body under the GitHub limit', bigAgreement.length > 65536 && fit.length < 65536, `${bigAgreement.length} -> ${fit.length}`);
+check('the shortened body keeps Intent, the agreed behavior, the commits, Verification, T2 walk and the verdict', fit.includes('- the ask') && fit.includes('**Behavior.** a') && fit.includes('| c17abcd | feat(x): case 18 |') && fit.includes('## Verification') && fit.includes('open: /users/1') && fit.includes('Verdict: clean'));
+check('the working notes go first, and the body says where the agreement is', !fit.includes('uuuuuuuuuu') && fit.includes('`bug-reports/jx-1/AGREEMENT.md`') && !fit.includes('<details>'));
 
-const hugePlan = bigPlan.replace('b'.repeat(40000), 'b'.repeat(70000));
-const huge = prBody({ ticket: bigTicket, plan: hugePlan, commitLines: bigCommits, validation: bigValidation, planPath: 'bug-reports/jx-1/PLAN.md' });
-check('a plan still over with the history gone cuts the call stack too', huge.length < 65536 && !huge.includes('bbbbbbbbbb') && huge.includes('Verdict: matches plan') && huge.includes('earlier commits in the branch') === false, `${huge.length}`);
-
-// A VALIDATION.md over the budget on one section, with no fold left to give: the marker names the
-// file and the verdict and the other sections stay.
-const longValidation = `# JX-1 — validation\nVerdict: matches plan\n\n## Unplanned\n${'u'.repeat(62000)}\n\n## Intent\n- the ask: met\n\n## Live\nVERIFIED`;
-const cutValidation = prBody({ ticket, plan, commitLines, validation: longValidation, planPath: 'bug-reports/jx-1/PLAN.md' });
-check('a huge Unplanned is cut with a marker, keeping the verdict and the Intent judgement', cutValidation.length < 65536 && cutValidation.includes('### Unplanned\n\n(cut here, in `bug-reports/jx-1/VALIDATION.md`)') && !cutValidation.includes('uuuuuuuuuu') && cutValidation.includes('Verdict: matches plan') && cutValidation.includes('### Intent\n\n- the ask: met'));
-check('a plan that fits is not shortened', !prBody({ ticket, plan, commitLines: ['- a b'], validation: '' }).includes('Shortened:'));
+// Still over with the notes gone: the assessment’s detail is cut, least consequential first, and the
+// marker names the file. The verdict and the intent judgement stay.
+const hugeAssessment = `# JX-1 — final assessment\nVerdict: clean\nhead: abc\n\n## Intent\n- the ask: met: a.ts:1 · before: red · after: green\n\n## Behavior and evidence\n${'e'.repeat(70000)}`;
+const huge = prBody({ ticket: bigTicket, agreement: bigAgreement, commitLines: bigCommits, assessment: hugeAssessment, agreementPath: 'bug-reports/jx-1/AGREEMENT.md' });
+check('a huge assessment section is cut with a marker, keeping the verdict and the Intent judgement', huge.length < 65536 && !huge.includes('eeeeeeeeee') && huge.includes('### Behavior and evidence\n\n(cut here, in `bug-reports/jx-1/ASSESSMENT.md`)') && huge.includes('Verdict: clean') && huge.includes('### Intent\n\n- the ask: met: a.ts:1 · before: red · after: green'), `${huge.length}`);
+check('an agreement that fits is not shortened', !prBody({ ticket, agreement, commitLines: ['- a b'], assessment, agreementPath: 'bug-reports/bjew-1/AGREEMENT.md' }).includes('Shortened:'));
 
 // The commits alone over the budget: the oldest go, a quarter at a time, and the count says how many.
 const hugeCommits = Array.from({ length: 3000 }, (_, i) => `- c${i} feat(x): a long commit message to fill the list ${i}`);
-const hugeBody = prBody({ ticket: bigTicket, plan, commitLines: hugeCommits, validation: '' });
-check('thousands of commits are cut down to the newest, with a count of the rest', hugeBody.length < 65536 && hugeBody.includes('| — | c0 | feat(x): a long commit message to fill the list 0 | — |') && !hugeBody.includes('list 2999') && hugeBody.includes('earlier commits in the branch'), `${hugeBody.length}`);
-check('no round-folder phrase is copied in word by word', !body.includes('## As built') && !/missing:|unplanned:/.test(body));
+const hugeBody = prBody({ ticket: bigTicket, agreement: '', commitLines: hugeCommits, assessment: '', agreementPath: 'bug-reports/jx-1/AGREEMENT.md' });
+check('thousands of commits are cut down to the newest, with a count of the rest', hugeBody.length < 65536 && hugeBody.includes('| c0 | feat(x): a long commit message to fill the list 0 |') && !hugeBody.includes('list 2999') && hugeBody.includes('earlier commits in the branch'), `${hugeBody.length}`);
 
 // T2 is local and first: deliver merges, so it runs only after T2 approved (Shay, 2026-09-27).
 // A push the pre-push hook refused becomes a T2 fix (TJEW-670, 2026-09-28).

@@ -10,7 +10,7 @@ import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { baseBranch, contractPaths as contractPathsFile } from "../project.ts";
-import { CorruptStateError, readState } from "../round/state.ts";
+import { CorruptStateError, readState, resolveRoundBase } from "../round/state.ts";
 
 // Pure: the project's contract paths (one pathspec glob per line, # comments) as a gitattributes
 // file. Last match wins, so the default A comes first.
@@ -75,6 +75,12 @@ const persistedBase = () => {
 const hasOriginBase = spawnSync("git", ["rev-parse", "--verify", "-q", `origin/${baseBranch}`]).status === 0;
 const base = bi === -1 ? (persistedBase() ?? (hasOriginBase ? `origin/${baseBranch}` : baseBranch)) : (args[bi + 1] ?? baseBranch);
 const asJson = args.includes("--json");
+// 2026-10-10: next/check diagnosed an unknown base, but classify still leaked git's fatal + stack.
+// Keep its existing base-selection rules; require the selected ref to resolve before measuring it.
+if (!resolveRoundBase(top, { base }).base) {
+  console.error(`wf classify: the base \`${base}\` does not resolve — fetch it, or pass \`wf classify --base <ref>\``);
+  process.exit(2);
+}
 const names = execFileSync("git", ["diff", "--name-only", `${base}...HEAD`], { encoding: "utf8" })
   .split("\n").map((s) => s.trim()).filter(Boolean);
 // Class B is the project's own list of contract paths, read from the round's worktree, so it moves
@@ -82,7 +88,12 @@ const names = execFileSync("git", ["diff", "--name-only", `${base}...HEAD`], { e
 // went through as A (fix/role-assign-dialog, 2026-09-23).
 const listFile = join(top, contractPathsFile);
 let contractPaths: string;
-try { contractPaths = readFileSync(listFile, "utf8"); } catch { throw new Error(`classify: ${listFile} is missing; the project names its contract paths there`); }
+try { contractPaths = readFileSync(listFile, "utf8"); } catch {
+  // One actionable line, not an uncaught stack (R-9). Never a silent default to class A: a missing
+  // list is a missing fact, and reading every path as A let a B endpoint through (2026-09-23).
+  console.error(`wf classify: ${listFile} is missing — the project names its contract paths there (a missing list is not class A)`);
+  process.exit(2);
+}
 const attributesFile = join(tmpdir(), `wf-class-${process.pid}.gitattributes`);
 writeFileSync(attributesFile, classAttributes(contractPaths));
 const attrRun = names.length ? spawnSync("git", ["-c", `core.attributesFile=${attributesFile.replace(/\\/g, "/")}`, "check-attr", "--stdin", "wf-class"], { input: names.join("\n"), encoding: "utf8" }) : null;

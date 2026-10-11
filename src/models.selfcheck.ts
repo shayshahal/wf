@@ -10,7 +10,7 @@ const check = (name: string, cond: unknown, detail = '') =>
 const missing = PHASES.filter((p) => !(p in PHASE_EFFORT));
 check('every phase wf prompt composes has an effort level', !missing.length, missing.join(', '));
 check('every level has the kit\'s model', EFFORTS.every((e) => CLAUDE_CODE_MODELS[e]));
-check('the judges are low, the builders medium', modelFor('validate', CLAUDE_CODE_MODELS) === 'sonnet' && modelFor('implement', CLAUDE_CODE_MODELS) === 'opus');
+check('every smaller-route phase maps to this machine\'s medium model', modelFor('build', CLAUDE_CODE_MODELS) === 'opus' && modelFor('assess', CLAUDE_CODE_MODELS) === 'opus' && modelFor('agree', CLAUDE_CODE_MODELS) === 'opus');
 check('an effort line becomes the model line, nothing else moves', withModel('name: a\neffort: low\ntools: read\n', CLAUDE_CODE_MODELS) === 'name: a\nmodel: sonnet\ntools: read\n');
 check('no effort line: the text as it is (the agent inherits)', withModel('name: a\n', CLAUDE_CODE_MODELS) === 'name: a\n');
 

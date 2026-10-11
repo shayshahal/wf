@@ -1,6 +1,6 @@
 ---
 name: round
-description: Run a round from a ticket to a merged PR — "start 662", "start BJEW-586", "check BJEW-461", "does it reproduce", "resume", "what's waiting". One fresh agent per phase (research → plan → one per commit), deterministic checks between, the user at two gates. Use for any bug or feature ticket on the project's tracker. Replaces bug-fix-orchestrator and cr-implement-orchestrator.
+description: Run a round from a ticket to a merged PR — "start 662", "start BJEW-586", "check BJEW-461", "does it reproduce", "resume", "what's waiting". One working agreement, a build that checks and steers, one final assessment, and the user at two gates (T1 for complex work, T2 to deliver). Use for any bug or feature ticket on the project's tracker.
 ---
 
 # Round
@@ -24,23 +24,34 @@ are in *Dispatch in this harness* at the end.
 which tracker statuses to set when, who its people are, and its branches. Read it once per
 session, before *Start*: every *tracker*, *status* and *base branch* below means what it says there.
 
+## The route
+
+`wf new → agree (T1 for B/C) → build ↔ verify+steer → one assessment → T2 → wf deliver`
+
+`TICKET.md` is the sole human working document for an ordinary (class A) round — it *is* the
+agreement. For consequential work (class B/C) one `AGREEMENT.md` records the observed facts and the
+agreed behavior, exclusions, choice and verification; T1 approves it before the build. A commit is
+not a workflow transition and there is no per-commit worker: the build is one phase that resumes in
+place. After the build, one independent read-only assessment writes `ASSESSMENT.md`; its fixable
+findings return to the build autonomously, bounded; an unmet intent or a still-reproducing symptom
+blocks T2 until the user rules. T1 and T2 are the only human gates.
+
 ## Start: "start <id>"
 
 1. Fetch the ticket from the tracker (how: ROUND.md).
    Read the **whole** thread first: every update and every reply, oldest first, and every
    attachment, downloaded into the round folder and read.
-   An attachment you did not open is a fact withheld from research (BJEW-461: the 08-12
+   An attachment you did not open is a fact withheld from the agreement (BJEW-461: the 08-12
    screenshot showed the admin as the order's seller; TICKET.md said "no screenshot").
    Write `TICKET.md` — title, the thread in order, each image described by what it shows,
    reporter, and "the user said" only if their message said something. Never write a fact you did
    not check (a branch is not a deployment). Only you call the tracker; an agent never does.
    `TICKET.md` opens with `## Intent`: what was asked, in the askers' own words (the reporter's
    lines, the product owner's rules, the user's scope answers), quoted exactly, each with who and when, in thread
-   order. Never paraphrase, summarise, widen or add to it: validation judges the round against
+   order. Never paraphrase, summarise, widen or add to it: the assessment judges the round against
    it, and `wf brief` refuses a `TICKET.md` without it. Image descriptions and your notes go below.
    A ticket that is a sentence is not a ticket: ask the user ≤5 scope questions first (what it
-   must do, for whom, what it must *not* touch — widen until they say "out of scope") and write
-   the answers into `TICKET.md` under `## Scope`. That is where the plan's `## Not doing` comes from.
+   must do, for whom, what it must *not* touch) and write the answers into `TICKET.md` under `## Scope`.
 2. `wf new <branch> --id <id>` → worktree, seeded database, `{{folder}}` (the stack starts when a
    phase needs it). It refuses a third
    live round; if it does, say which two are running and stop. Set the ticket's started status.
@@ -48,13 +59,13 @@ session, before *Start*: every *tracker*, *status* and *base branch* below means
 
 ## Check: "check <id>", "does <id> reproduce"
 
-Whether the ticket reproduces, before anyone commits to fixing it: a round that stops after research.
+Whether the ticket reproduces, before anyone commits to fixing it.
 1. As *Start* 1: the ticket, the whole thread, `TICKET.md` with its `## Intent`.
 2. `wf new <branch> --id <id> --check`. No tracker status: the tracker hears nothing from a check.
-3. The loop. After research, `wf next` prints `wait user: check — …`: tell the user whether it
-   reproduced, from `RESEARCH.md`: its `## Diverges at` and `## Repro` sections, verbatim, and the
-   `## Could not find` lines. Stop.
-   - "go": `wf step plan`, set the ticket's started status, and the loop goes on as a round's.
+3. The loop. `wf next` dispatches `agree` to write `## Repro` (`command: <the command that
+   reproduces it>`) into `TICKET.md`; then it prints `check: run wf check --repro`. Run it, then
+   `wf next`: tell the user whether it reproduced, from that output and `TICKET.md`, verbatim. Stop.
+   - "go": `wf step build`, set the ticket's started status, and the loop goes on as a round's.
    - "stop": what the tracker hears is the user's call (a question to the reporter goes as they
      word it). Then the `reap` line `wf next` printed, and tell the user `<id> checked, reaped`.
    - A ticket about a deployed environment (QA, production) that the round's stack cannot show:
@@ -70,40 +81,43 @@ four replies in a row were the text before the last tool call, the files right e
 
 | `wf next` printed | do |
 |---|---|
-| `dispatch <phase> (model: <m>): <line>` | a fresh `round-worker` (*Dispatch in this harness*), named `<id> <phase>`, on model `<m>` exactly as printed (wf picks it from the phase's effort level; `wf models` shows the table), with `<line>` as its whole task: it runs `wf brief` itself, so its brief is wf's own text. `as-built`, `validate`, `critique` and `standards`: tools `read,bash,write`. When it returns, `wf next`. |
-| `wait <person>: q<n> …` | The user: ask with the question tool (*Dispatch in this harness*), all the round's `q<n>` lines in one call, each line verbatim as its question; its options: the line's `(default: …)` first, then the other answers the question names (`fix` / `accept` for a `fix or accept` one); a typed answer is always open. Someone else: tell them each line verbatim, with the round id. Stop. Ask once: a late agent report (*Dispatch in this harness*) is no reason to ask again. Their answer → `wf decide --q <n> "<their words>"` (the default option: `default`), then `wf next`: an answer against a plan Ask's default makes it dispatch `plan --revise`. An answer that says the plan must change, whatever its step or question (an Ask whose default is "return to plan", a BLOCKED, a measurement that makes a row's fix the wrong one), is recorded with `wf decide --revise [--q <n>] "<what the plan must now do>"` (no question open: the answer alone): the round goes back to plan, `wf next` dispatches `plan --revise` with it, and the commits already made stand while the rows not yet made are fresh. A `fix or accept` question is answered with a line that starts `fix` or `accept`. |
-| `wait user: …` (no q) | tell the user the line with the round id (a round held, a phase that failed twice), and when they say it is done `wf next`. Stop. **T1 waiting** (`T1 on SPEC.md`): run `wf design <branch>` yourself from the worktree — with plannotator (pi) it blocks until they submit (bash timeout 3600 s), so they annotate instead of being handed a command; read the `verdict:` line it wrote to `SPEC-REVIEW.md`, then `wf next`. `it does not reproduce`: the user has three ways on, the line names each: go on anyway (`wf step plan`), stop (the reap line), or new evidence that research must now measure. New evidence: write the facts into `TICKET.md` first (the repro verdict is keyed by the research brief, which a change to TICKET.md does not move), then `wf decide --research "<what research must now measure>"` and `wf next`: it dispatches a fresh research whose prompt carries that text, and only before plan (after it: `wf decide --revise`). |
-| `design: …` | start the design session (*Dispatch in this harness*; it reads `${CLAUDE_PLUGIN_ROOT}/process/DESIGN-SESSION.md` and TICKET/RESEARCH/PLAN). It writes `SPEC.md` with the user and, on "shared", runs `wf step design`. Then `wf next`: its T1 line names `wf design <branch>`, which prints `page: <file>` (the `## For T1` section rendered, its views drawn) — tell the person that path when no window opens. Once T1 approves it, `wf next` itself sends a plan written before the SPEC back (`dispatch plan --revise`, its prompt saying the plan must now follow the SPEC): nothing to run by hand. A SPEC.md T1 approved and that has not changed stands after a `wf decide --revise` too: no second design session or T1; a changed one needs T1 again. |
-| `suites: …` | Run the `wf check --suites` it names yourself, from the worktree (bash timeout 900 s). A recorded green or red result → `wf next`: validate reads it, and red comes back as a fix-or-accept question. Refused or timed out, with no new suites line in `.wf/checks.log` → stop and tell the user the command's error; this is harness trouble, not a result to retry. |
+| `dispatch <agree\|build\|assess> (model: <m>): <line>` | a fresh `round-worker` (*Dispatch in this harness*), named `<id> <phase>`, on model `<m>` exactly as printed (wf picks it from the phase's effort level; `wf models` shows the table), with `<line>` as its whole task: it runs `wf brief` itself, so its brief is wf's own text. When it returns, `wf next`. |
+| `wait <person>: q<n> …` | The user: ask with the question tool (*Dispatch in this harness*), all the round's `q<n>` lines in one call, each line verbatim as its question; its options: the line's `(default: …)` first, then the other answers the question names (`fix` / `accept` for a `fix or accept` one); a typed answer is always open. Someone else: tell them each line verbatim, with the round id. Stop. Their answer → `wf decide --q <n> "<their words>"` (the default option: `default`), then `wf next`. An answer that says the agreement must change, whatever its step or question, is recorded with `wf decide --revise [--q <n>] "<what the agreement must now do>"` (no question open: the answer alone): the round goes back to `agree`, `wf next` dispatches it, and a new T1 follows. A `fix or accept` question is answered with a line that starts `fix` or `accept`; `accept` is an explicit reconciliation and lets T2 open with the finding recorded beside it. |
+| `wait user: T1 on AGREEMENT.md …` | run `wf agree <branch>` yourself from the worktree — with plannotator (pi) it blocks until they submit (bash timeout 3600 s), so they annotate instead of being handed a command; read the `verdict:` line it wrote to `AGREEMENT-REVIEW.md`, then `wf next`. A T1 that asks for changes dispatches `agree` again; an approved agreement whose agreed material has not changed stands after a `wf decide --revise` too (a progress edit to `## Verification` does not renew T1). |
+| `wait user: …` (no q) | tell the user the line with the round id (a round held, a blocked build), and when they say it is done `wf next`. Stop. `blocked`: the build wrote `BLOCKED.md` with a `Question:` line; record it with `wf ask --blocked`, then ask the user (*Dispatch in this harness*), then `wf decide` with their answer. |
+| `check: run wf check --repro` | run it, then `wf next` (see *Check*). |
 | `deliver: …` | T2 approved; the approval is the merge. Run `wf deliver`: it pushes, opens the PR, merges it and deletes the branch, then prints the PR url and the tracker note it wrote. A push the project's pre-push hook refused becomes a T2 fix (`wf deliver` says so). Either way, `wf next`. |
 | `post: <ids> — …` | The tracker hears last. For each id in turn: fill its section of the note and post it with the delivered status, as ROUND.md says (which also says how to tell a section already posted by a session that died), then at once add ` (posted)` to the end of its `## <id>` line in the note. Then `wf next`. |
-| `review: …` | See the fix first (ROUND.md's *T2*, done as *Dispatch in this harness* says), then `wf review <branch>` yourself from the worktree. With plannotator (pi) it blocks until they submit: bash timeout 3600 s. Without it, it returns: under Claude Code with `REVIEW.md`'s path and `plan:`'s (PLAN.md rendered) for the person to open (the person uses the diff view: *Dispatch in this harness*), elsewhere with `REVIEW.md` open in an editor. Tell the user, stop, and go on when they say the verdict is in. Read the `verdict:` line it wrote to `REVIEW.md`, then `wf review <branch> --done` and `wf next`. T2 is local: no PR exists yet, and nothing is pushed until it approves. |
+| `review: …` | See the fix first (ROUND.md's *T2*, done as *Dispatch in this harness* says), then `wf review <branch>` yourself from the worktree. With plannotator (pi) it blocks until they submit: bash timeout 3600 s. Without it, it returns: under Claude Code with `REVIEW.md`'s path and `agreement:`'s (the agreement rendered) for the person to open, elsewhere with `REVIEW.md` open in an editor. Tell the user, stop, and go on when they say the verdict is in. Read the `verdict:` line it wrote to `REVIEW.md`, then `wf review <branch> --done` and `wf next`. T2 is local: no PR exists yet, and nothing is pushed until it approves. |
 | `done: …` | the note is posted. Run the `wf reap <branch>` it names, and tell the user `<id> merged, reaped` with the `round …` line it printed (where the round spent its time and where it was stopped; every round adds it to `~/.cache/wf-reaped/ROUNDS.md`). |
 
-A T2 that asks for a fix in a file no PLAN.md row lists first gets a new row (`fix(review): …`, its
-files, `repro`): `wf check` fences against the rows (3187601171). Every dispatch is a **fresh**
-agent: never resume or message a finished round agent, and never read its session file to "see
-what happened". If a line `wf next` printed is wrong for the round, the fix is in wf (`next.ts`),
-not a step you take around it: stop and tell the user. `wf brief` is the dispatched agent's (it refuses
-a brief `wf next` is not dispatching); to read a phase's prompt, `wf prompt`. PLAN.md is the plan
-agent's and `.wf/state.json` is wf's: you edit neither (BJEW-562, 2026-09-27: a previewed brief
-voided the plan's handoff, then the plan and the state were edited by hand).
+Within the agreement, helpers, files, local corrections, added tests and naming are the build
+agent's own. A genuinely new scope or behavior — a new user-visible surface, a changed contract
+path, a different persistence choice, or dropping an agreed item — is a renewed agreement: the
+build writes `BLOCKED.md` with a `Question:` line, or the assessment records a `material:` line, and
+the round goes back to `agree` for a new T1. The assessment's own fixable findings return to the
+build autonomously, at most twice; after that, or on a genuine blocker, `wf next` raises one
+contextual question rather than one per finding. Every dispatch is a **fresh** agent: never resume
+or message a finished round agent, and never read its session file to "see what happened". If a
+line `wf next` printed is wrong for the round, the fix is in wf (`next.ts`), not a step you take
+around it: stop and tell the user. `wf brief` is the dispatched agent's (it refuses a brief `wf
+next` is not dispatching); to read a phase's prompt, `wf prompt`. The agreement and
+`.wf/state.json` are wf's and the agents': you edit neither.
 
 ## Talking to the user
 
 Only these, only when they happen:
-- a plan is waiting (class B/C): one line with the command
-- Asks or a BLOCKED question: verbatim, each first recorded with `wf ask`, then asked with the
-  question tool, not written into the chat (BJEW-562, 2026-09-27: asked as text, then asked again
-  on each late agent report). A
-  question that is only in this chat dies with the session; `wf brief` and `wf deliver` refuse
-  while a recorded one is open, so an answer is never skipped. Someone else (ROUND.md, *People*): `--to <name>`.
+- a T1 is waiting (class B/C): one line with the command
+- a BLOCKED question or an assessment escalation: verbatim, recorded with `wf ask` first, then
+  asked with the question tool, not written into the chat. A question that is only in this chat dies
+  with the session; `wf brief` and `wf deliver` refuse while a recorded one is open, so an answer is
+  never skipped. Someone else (ROUND.md, *People*): `--to <name>`.
 - T2 is waiting: one line with where to look (*Dispatch in this harness*)
 - a round finished: `<id> merged, reaped`, and reap's `round …` line
 
 No progress narration. No summaries of what the agent did. "What's waiting?" → `wf status
---all` and paste it. Anything else the user asks about a round: answer from `RESEARCH.md` /
-`PLAN.md` / `git log`, not from memory of the transcript.
+--all` and paste it. Anything else the user asks about a round: answer from `AGREEMENT.md` /
+`ASSESSMENT.md` / `git log`, not from memory of the transcript.
 
 ## Resume: "resume <id>" or a new session
 
@@ -117,15 +131,15 @@ word. In the round's worktree, *The loop*. Nothing lives in your context that th
 | merge to the base branch | `wf deliver`, only after the person's T2 approved (it refuses otherwise) |
 | deploy | Shay |
 | tracker status and comments | you, from the tracker note; never an agent |
-| edit `repro/` or a test the row did not list | nobody inside a round — that is a plan change, through `plan --revise` |
+| edit `repro/` or a test a case did not list | nobody inside a round — that is an agreement change, through `agree` and T1 |
 | touch the base branch's checkout, another round's worktree, the harness's own config | never from a round |
 | `--no-verify`, widening a fence, lowering a threshold | never |
 
 ## When a round goes wrong
 
-A BLOCKED, a plan the user rejected, a validate that deviates, a round that took twice the budget:
-that is a harness gap, not a bad agent. Find the **earliest** handoff that lacked what the job
-needed, classify it — context missing · capability missing or hard to find · no owner for an
+A BLOCKED, an agreement the user rejected, an assessment that deviates, a round that took twice the
+budget: that is a harness gap, not a bad agent. Find the **earliest** handoff that lacked what the
+job needed, classify it — context missing · capability missing or hard to find · no owner for an
 invariant · authority · proof was an internal proxy · feedback lost — and put the smallest fix
 **at the owner**: a type, a test, a `wf` check, a doc the lenses read, a seed fixture. A prompt
 paragraph only when the gap is genuinely context, and then one line. Rerun the same round
@@ -137,32 +151,30 @@ fresh; keep the fix only if the rerun is better. Tell the user in one line what 
   agent turns.
 - **Harness trouble is not round trouble.** A worktree hook failing, a merge conflict on the base
   branch, a broken test there: fix it in its own worktree, in its own PR, with wf's `harness-fixer`
-  (*Dispatch in this harness*; its task: the trouble, its evidence, the narrowest command that
-  shows it, the worktree and branch), and tell the user in one line. You know which suite the
-  trouble came from; name the one case or step that fails, not the suite, or the agent proves its
-  fix with the whole suite (2026-10-06: 12m46s a run). It never enters a round's folder or a round agent's prompt.
+  (*Dispatch in this harness*), and tell the user in one line. You know which suite the trouble
+  came from; name the one case or step that fails, not the suite. It never enters a round's folder
+  or a round agent's prompt.
 
 ## Dispatch in this harness
 
 You are in pi if you have the `subagent` tool, in Claude Code if you have the `Agent` tool.
 
 Every agent you start is one of wf's: `round-worker`, `codebase-locator`, `codebase-analyzer`,
-`harness-fixer`, as the rows below start them (the design session's pane, below, is the one started
+`harness-fixer`, as the rows below start them (the T1 agreement session, below, is the one started
 without one). Never another agent the harness lists, and never one bent to fit with other tools:
 those carry that machine's model and role, not wf's. Work none of wf's fits goes to the user.
 
 | | pi | Claude Code (Desktop, the wf plugin) |
 |---|---|---|
 | this session runs from | anywhere in the repo | the person's clone, until `wf new`; then `EnterWorktree` with `path:` its `Worktree:` line, and the rest of the round runs there. A worktree under `.claude/worktrees/` is entered without a prompt. "resume <id>" in a new session: `wf status --all` names its worktree; enter it the same way. |
-| dispatch | `subagent({ name: "<id> <phase>", agent: "round-worker", model: <m>, tools: "read,bash,write,edit,subagent", cwd: <worktree>, task: <the line> })` — plan and later phases without `subagent` unless the prompt asks. End your turn; the harness wakes you with the result. | Agent tool: `subagent_type: "wf:round-worker"`, `model: <m>`, `description: "<id> <phase>"`, `prompt: <the line>`. It runs in the background; its result arrives as a message, then `wf next`. Never a fork: it would carry this whole conversation, and the plugin refuses it in a round. |
+| dispatch | `subagent({ name: "<id> <phase>", agent: "round-worker", model: <m>, tools: "read,bash,write,edit,subagent", cwd: <worktree>, task: <the line> })` — the agreement and assessment phases without `subagent` unless the prompt asks. End your turn; the harness wakes you with the result. | Agent tool: `subagent_type: "wf:round-worker"`, `model: <m>`, `description: "<id> <phase>"`, `prompt: <the line>`. It runs in the background; its result arrives as a message, then `wf next`. Never a fork: it would carry this whole conversation, and the plugin refuses it in a round. |
 | the agent closes | `round-worker` has `auto-exit: true`: its pane closes when its turn ends. Without it the pane waits for `subagent_done` and stays open when the agent forgets. | when its turn ends. The plugin's `SubagentStop` hook sends it back once if its handoff is missing (`wf handoff check`). |
-| research's `codebase-locator` / `codebase-analyzer` | pi agents, installed by `wf update` | the plugin's `wf:codebase-locator` / `wf:codebase-analyzer` |
-| harness trouble | `subagent({ name: "<what>", agent: "harness-fixer", cwd: <its worktree>, task: <the trouble, its evidence, the narrowest command that shows it, the worktree and branch> })`, no `model` or `tools`: the agent's own (its model is `wf models`' low). (BJEW-461, 2026-10-06: a read-only agent of the machine's, on another model, was handed a fix and a PR.) | Agent tool: `subagent_type: "wf:harness-fixer"`, `description: "<what>"`, `prompt: <the same task>` |
+| the agreement's `codebase-locator` / `codebase-analyzer` | pi agents, installed by `wf update` | the plugin's `wf:codebase-locator` / `wf:codebase-analyzer` |
+| harness trouble | `subagent({ name: "<what>", agent: "harness-fixer", cwd: <its worktree>, task: <the trouble, its evidence, the narrowest command that shows it, the worktree and branch> })`, no `model` or `tools`: the agent's own (its model is `wf models`' low). | Agent tool: `subagent_type: "wf:harness-fixer"`, `description: "<what>"`, `prompt: <the same task>` |
 | the question tool | `ask_user_question` | `AskUserQuestion` (a `header` of at most 12 characters: `q<n>`) |
-| agent reports | a dispatched agent's result wakes you | every agent runs in the background (fork mode is on in Desktop, and it cannot be asked for the foreground); its report arrives as a message. A report from an agent you did not dispatch, or from a phase that has ended, needs nothing: no step, no question asked again. |
-| design session (B/C) | `subagent` with `interactive: true`, cwd the worktree: its own pane, which the user talks to. | this session runs it: read `DESIGN-SESSION.md` and hold the conversation with the person here. T1 happens here too: show them `## For T1` (in plain words if they ask, written from it alone), then `wf design <branch>`, and write into `SPEC-REVIEW.md` what you showed them, verbatim, as a `note —` line, then their comments and verdict (DESIGN-SESSION.md § 5). |
-| T2: see the fix | `wf show` (ROUND.md's *T2*): a headed browser, logged in, on the plan's page | `wf show` makes the page's data (the plan's `setup:` lines, once) and opens no window here: it prints what to open. Do that: `mcp__Claude_Browser__preview_start` with the `name` it prints (`<slug> <app>`: `wf new` puts it in the clone's `.claude/launch.json`, where Desktop reads it), `navigate` to the page, and log in only when it asks, with the pane's form tools (the one-time code is on the page's DEV banner). Tell the person it is in the Browser pane; after a login, once: the pane's server menu has *Persist sessions*, which keeps it. |
-| T2: the verdict | `wf review` opens plannotator on the diff and waits; the before/after page it prints (`before/after: …`, when research and validate took screenshots) opens in the browser | `wf review` writes `REVIEW.md`, prints its path and returns; no editor opens. When it prints `before/after: <file>`, tell the person that page's path: the screenshots before the fix and after it, side by side. Tell the person: comment on lines in the diff view (the `+N −M` badge, *All changes* against the base branch: when it counts far more than the round's commits, its *Compare against* menu picks the base; Ctrl+Enter sends the comments to you), then say the verdict: approved or changes-requested. Write each comment into `REVIEW.md` as `path:line — text` and the `verdict:` line they said, then `wf review --done`. |
-| reap | the line as printed | `ExitWorktree` with `action: "keep"` first: the session inside the worktree holds its folder, and the reap fails to remove it (EPERM, bench, 2026-09-28). Then the reap line, from the clone. |
-| Bash commands | as you like | literal paths and values: a worktree session refuses a command whose `sed` or git arguments come from a shell variable, or that sets `GIT_CONFIG_*` (TJEW-670: four refused, each a retry). |
-
+| agent reports | a dispatched agent's result wakes you | every agent runs in the background; its report arrives as a message. A report from an agent you did not dispatch, or from a phase that has ended, needs nothing: no step, no question asked again. |
+| T1 agreement session (B/C) | `subagent` with `interactive: true`, cwd the worktree: its own pane, which the user talks to. | this session runs it: read `AGREEMENT-TEMPLATE.md` and hold the conversation with the person here. T1 happens here too: show them the agreed material (in plain words if they ask, written from it alone), then `wf agree <branch>`, and write into `AGREEMENT-REVIEW.md` what you showed them, verbatim, as a `note —` line, then their comments and verdict. |
+| T2: see the fix | `wf show` (ROUND.md's *T2*): a headed browser, logged in, on the agreement's page | `wf show` makes the page's data (the agreement's `setup:` lines, once) and opens no window here: it prints what to open. Do that: `mcp__Claude_Browser__preview_start` with the `name` it prints, `navigate` to the page, and log in only when it asks. Tell the person it is in the Browser pane. |
+| T2: the verdict | `wf review` opens plannotator on the diff and waits; the before/after page it prints opens in the browser | `wf review` writes `REVIEW.md`, prints its path and returns; no editor opens. When it prints `before/after: <file>`, tell the person that page's path. Tell the person: comment on lines in the diff view, then say the verdict: approved or changes-requested. Write each comment into `REVIEW.md` as `path:line — text` and the `verdict:` line they said, then `wf review --done`. |
+| reap | the line as printed | `ExitWorktree` with `action: "keep"` first: the session inside the worktree holds its folder, and the reap fails to remove it (EPERM). Then the reap line, from the clone. |
+| Bash commands | as you like | literal paths and values: a worktree session refuses a command whose `sed` or git arguments come from a shell variable, or that sets `GIT_CONFIG_*`. |

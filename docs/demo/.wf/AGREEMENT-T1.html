@@ -1,0 +1,77 @@
+<!doctype html>
+<meta charset="utf-8"><title>Agreement — DEMO-1 · T1</title>
+<style>
+:root{color-scheme:light dark}
+body{font:15px/1.55 system-ui,sans-serif;margin:0 auto;padding:24px;max-width:1100px}
+h1{font-size:20px;margin:0 0 4px}
+h2{font-size:17px;margin:28px 0 8px;border-bottom:1px solid #8884;padding-bottom:4px}
+h3{font-size:15px;margin:20px 0 6px}
+.meta{color:#777;font-size:13px;margin-bottom:20px}
+pre{background:#8881;border:1px solid #8883;border-radius:6px;padding:10px 12px;overflow:auto;font:13px/1.45 ui-monospace,Consolas,monospace}
+pre.diff span{display:block;white-space:pre}
+pre.diff .add{color:#187a3c;background:#2e7d3218}
+pre.diff .del{color:#a32323;background:#c6282818}
+pre.diff .chg{color:#8a6d00;background:#f9a82518}
+@media (prefers-color-scheme:dark){pre.diff .add{color:#4ade80}pre.diff .del{color:#f87171}pre.diff .chg{color:#fbbf24}.meta,figcaption{color:#aaa}footer{color:#999}}
+code{background:#8882;border-radius:3px;padding:1px 4px;font-size:.92em}
+blockquote.ask{margin:10px 0;padding:8px 12px;border-left:3px solid #4a7;background:#4a71}
+button.copy{float:right;font:11px system-ui;cursor:pointer;border:1px solid #8886;background:transparent;border-radius:4px;padding:2px 8px;color:inherit}
+figure{margin:16px 0}
+figcaption{color:#777;font-size:12px;margin-bottom:4px}
+iframe{width:100%;height:520px;border:1px solid #8884;border-radius:6px;background:#fff}
+footer{color:#888;font-size:12px;margin-top:40px;border-top:1px solid #8883;padding-top:8px}
+</style>
+<h1>Agreement — DEMO-1 · T1</h1>
+<div class="meta"><div>agreement-sha: sha256:demo</div><div>the agreed material this round is built against</div></div>
+<h2 class="wf-src-8" id="wf-src-8">Observed</h2>
+<ul>
+<li class="wf-src-10" id="wf-src-10">The delete command invalidates one key and the badge reads another:</li>
+</ul>
+<p class="wf-src-11" id="wf-src-11">  <code>packages/admin/src/lib/listings.remote.ts:31</code> calls <code>invalidate('listings')</code>, while</p>
+<p class="wf-src-12" id="wf-src-12">  <code>packages/admin/src/routes/admin/listings/ListingBadge.svelte:12</code> reads <code>stats.total</code>.</p>
+<ul>
+<li class="wf-src-13" id="wf-src-13">The API payload already carries the count the badge needs, counted in the same request:</li>
+</ul>
+<p class="wf-src-14" id="wf-src-14">  <code>packages/admin/src/lib/listings.remote.ts:18</code> (<code>GET /listings</code> → <code>stats</code>).</p>
+<ul>
+<li class="wf-src-15" id="wf-src-15">The delete can be refused; that path is unchanged and lands at</li>
+</ul>
+<p class="wf-src-16" id="wf-src-16">  <code>packages/admin/src/routes/admin/listings/+page.svelte:52</code> (<code>deleteError</code>).</p>
+<ul>
+<li class="wf-src-17" id="wf-src-17">Measured on <code>dev</code>: after a delete the badge keeps the old count until a reload.</li>
+</ul>
+<pre class="wf-src-19 diff" id="wf-src-19"><span class="ctx">  /admin/listings +page.svelte</span>
+<span class="ctx">    deleteListing                   ← id → void</span>
+<span class="ctx">      listings.remote.ts:31         invalidate('listings')      ⚠ the badge reads 'stats'</span>
+<span class="ctx">      ✗ the API refuses the delete  → lands: +page.svelte:52 deleteError</span>
+<span class="ctx">    ListingBadge.svelte:12          reads stats.total</span></pre>
+<h2 class="wf-src-27" id="wf-src-27">Agreed</h2>
+<ul>
+<li class="wf-src-29" id="wf-src-29">Deleting a listing updates the count the badge shows without a reload: the delete command</li>
+</ul>
+<p class="wf-src-30" id="wf-src-30">  invalidates the stats key beside the listings key, so the badge re-reads after a delete. Data and</p>
+<p class="wf-src-31" id="wf-src-31">  action behavior are otherwise unchanged.</p>
+<ul>
+<li class="wf-src-32" id="wf-src-32">Choice: invalidate both keys at the one delete call site, rather than adding client state or a</li>
+</ul>
+<p class="wf-src-33" id="wf-src-33">  second request for the count. Rejected: a badge watcher on <code>listings.length</code>, which duplicates the</p>
+<p class="wf-src-34" id="wf-src-34">  server's count in the client.</p>
+<ul>
+<li class="wf-src-35" id="wf-src-35">Excluded: the filtered-count debate (ASK-1) and the delete-error path; neither changes here.</li>
+<li class="wf-src-36" id="wf-src-36">Verification promise: the case below proves a delete drops the badge count, and a person confirms</li>
+</ul>
+<p class="wf-src-37" id="wf-src-37">  the badge on <code>/admin/listings</code> after a delete.</p>
+<pre class="wf-src-39 diff" id="wf-src-39"><span class="ctx"> packages/admin/src/lib/listings.remote.ts</span>
+<span class="del">-  export const deleteListing = remoteCommand(async (id) =&gt; { await api.delete(id); invalidate('listings'); })</span>
+<span class="add">+  export const deleteListing = remoteCommand(async (id) =&gt; {</span>
+<span class="add">+    await api.delete(id);</span>
+<span class="add">+    invalidate('listings', 'stats')     one call, both keys</span>
+<span class="add">+  })</span>
+<span class="ctx"> </span>
+<span class="ctx"> packages/admin/src/routes/admin/listings/ListingBadge.svelte</span>
+<span class="chg">~  :12  reads stats.total → stats.filtered ?? stats.total</span></pre>
+<h2>Views</h2>
+<figure><figcaption><a href="../bug-reports/DEMO-1/option-a.html">option-a.html</a></figcaption><iframe src="../bug-reports/DEMO-1/option-a.html" loading="lazy"></iframe></figure>
+<footer>The markdown is the file of record; this page is it rendered, with the views drawn. Generated by wf.</footer>
+
+

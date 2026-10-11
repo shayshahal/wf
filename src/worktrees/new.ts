@@ -18,7 +18,7 @@ import { refuseCaller } from '../refusal.ts';
 import { baseBranch, newRound, roundBranches, roundsDir, stackUrls } from '../project.ts';
 import { basePortForBranch, createWorktree, excludeFromGit, listWorktrees, mainCheckout, slugForBranch, urlLines } from './worktree.ts';
 import { seams } from '../seams.ts';
-import { writeState } from '../round/state.ts';
+import { writeState, WF_STATE_VERSION } from '../round/state.ts';
 
 type LaunchJson = { version?: string; configurations?: { name?: string; url?: string }[] };
 import { liveRounds, realReadState, realWorktrees } from '../round/status.ts';
@@ -160,7 +160,7 @@ export async function runNew(argv: string[]) {
 	mkdirSync(join(path, folder), { recursive: true });
 	const notes = newRound({ worktree: path, folder, port: basePortForBranch(branch) });
 	const openedBy = seams.opener?.() ?? null;
-	writeState(path, () => ({ id: ids[0] ?? branch, ...(ids.length > 1 ? { ids } : {}), folder, made_by: seams.madeBy, entry: seams.entry.replace(/\\/g, '/'), ...(openedBy ? { opened_by: openedBy } : {}), ...(argv.includes('--check') ? { check: true } : {}) }));
+	writeState(path, () => ({ wf_version: WF_STATE_VERSION, id: ids[0] ?? branch, ...(ids.length > 1 ? { ids } : {}), folder, made_by: seams.madeBy, entry: seams.entry.replace(/\\/g, '/'), ...(openedBy ? { opened_by: openedBy } : {}), ...(argv.includes('--check') ? { check: true } : {}) }));
 	if (reopen && dupes.length) {
 		const plan = (f: string) => { try { return execFileSync('git', ['show', `${base}:${f}/PLAN.md`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }); } catch { /* that round left no PLAN.md: it has no rulings */ return null; } };
 		const rulings = dupes.filter((d) => d.startsWith(`${roundsDir}/`)).map((f) => ({ folder: f, lines: decisionsOf(plan(f)) }));

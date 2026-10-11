@@ -7,6 +7,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { questionLines } from './ask.ts';
+import { agreementPath, verificationCases } from './agreement.ts';
 import { seams } from '../seams.ts';
 import { stackUrls } from '../project.ts';
 import { basePortForBranch, listWorktrees, portsAndSlugsForBranches, slugForBranch } from '../worktrees/worktree.ts';
@@ -169,14 +170,14 @@ export function liveRounds({ paths, readState }: { paths: string[]; readState: R
   return paths.map((p) => ({ path: p, state: readState(p) })).filter((r) => r.state && !(['merged', 'held'] as (string | undefined)[]).includes(r.state.step)) as { path: string; state: State }[];
 }
 
-// plan → how long PLAN.md is · implement → which commit of how many · review → the PR url.
+// agree → how long the agreement is and its verification cases · build → the last commit · review → the PR url.
 export function realDetailFor(path: string, state: State): string {
-  const plan = state.folder ? join(path, state.folder, 'PLAN.md') : null;
-  const rows = plan && existsSync(plan) ? readFileSync(plan, 'utf8').replace(/\r\n/g, '\n').trimEnd().split('\n') : null;
-  if (state.step === 'plan') return rows ? `PLAN.md ${rows.length} lines` : 'no PLAN.md yet';
-  if (state.step === 'implement') {
-    const total = rows ? rows.filter((l) => /^\|\s*\d+\s*\|/.test(l)).length : '?';
-    return `commit ${state.commit ?? '?'} of ${total}`;
+  const agreement = state.folder ? agreementPath(path, state.class ?? null, state.folder) : null;
+  const lines = agreement && existsSync(agreement) ? readFileSync(agreement, 'utf8').replace(/\r\n/g, '\n').trimEnd().split('\n') : null;
+  if (state.step === 'agree') return lines ? `${agreement!.split(/[\\/]/).pop()} ${lines.length} lines` : 'no agreement yet';
+  if (state.step === 'build') {
+    const total = lines ? verificationCases(lines.join('\n')).length : 0;
+    return `${total} verification case${total === 1 ? '' : 's'}`;
   }
   if (state.step === 'review' || state.step === 'pr') {
     const pr = spawnSync('gh', ['pr', 'view', '--json', 'url'], { cwd: path, encoding: 'utf8' });

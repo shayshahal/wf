@@ -32,17 +32,12 @@ export function timeInSteps(history: Step[], end: string): string[] {
 	return [...spent].map(([step, ms]) => `${step} ${duration(ms)}`);
 }
 
-// Pure: agents per phase ("implement 1", "implement 2" → implement). `runs` is state.briefCounts: every
-// brief the round sent. The surviving `briefs` map cannot answer it — a plan --revise voids every
-// `implement *` key on purpose (handoff.ts) — and a round from before the field falls back to it.
-export function agentsPerPhase(briefs: Record<string, { count?: number }> | undefined, runs?: Record<string, number> | null): string[] {
-	if (runs && Object.keys(runs).length) return Object.entries(runs).map(([phase, n]) => `${phase} ${n}`);
+// Pure: how many times each step was entered, from the round's history. The old per-phase brief counts
+// are gone (#112): a step is entered by `wf step`, and its history is that record.
+export function visitsPerStep(history: Step[] | undefined): string[] {
 	const per = new Map<string, number>();
-	for (const [key, b] of Object.entries(briefs ?? {})) {
-		const phase = key.split(' ')[0];
-		per.set(phase, (per.get(phase) ?? 0) + (b.count ?? 1));
-	}
-	return [...per].map(([phase, n]) => `${phase} ${n}`);
+	for (const h of history ?? []) per.set(h.step, (per.get(h.step) ?? 0) + 1);
+	return [...per].map(([step, n]) => `${step} ${n}`);
 }
 
 const jsonLines = <T,>(text: string): T[] => (text ?? '').split('\n').filter((l) => l.trim()).flatMap((l) => {
@@ -56,26 +51,15 @@ const jsonLines = <T,>(text: string): T[] => (text ?? '').split('\n').filter((l)
 // Derived from what the round already recorded: no state of its own, no new command.
 export type Outcome = 'delivered' | 'it does not reproduce' | 'not the defect' | 'nothing run' | `stopped at ${string}`;
 export function outcomeOf(state: State | null, checksLog: string): Outcome {
-	// First: a round can have had a green repro and been sent on anyway (`wf step plan`).
 	if (state?.step === 'merged') return 'delivered';
-	// What the repro settled, when the round ended where the repro is its answer: research, the step
-	// whose whole job it is, or held, waiting on the person's call about it. Keyed by the round's own
-	// research token — a verdict under a later token is another attempt's, and reading it as this
-	// round's called two merged rounds a non-reproduction (fix-bjew-669, fix-bjew-461-cancel-order-reopen,
-	// 2026-10-07). The step gate matters too: a round that went on to implement is not settled by a
-	// verdict nobody acted on.
-	const token = state?.briefs?.research?.token;
-	const settled = state?.step === 'research' || state?.step === 'held';
-	const verdict = settled
-		? jsonLines<{ row?: unknown; result?: string; token?: string }>(checksLog).filter((c) => c.row === 'repro' && token && c.token === token).at(-1)?.result
-		: undefined;
+	// What the repro settled, when the round ended where the repro is its answer: a check round parks at
+	// `agree` (waiting on the person's call), or `held`. The last repro line is the round's own: there is
+	// one repro per check round, and no token to key by any more (#112).
+	const settled = state?.step === 'agree' || state?.step === 'classify' || state?.step === 'held';
+	const verdict = settled ? jsonLines<{ row?: unknown; result?: string }>(checksLog).filter((c) => c.row === 'repro').at(-1)?.result : undefined;
 	if (verdict === 'green') return 'it does not reproduce';
-	// Red outside the repro's own code on every run: a precondition failed, and the repro never measured
-	// anything (check.ts's NOT THE DEFECT; fix-bjew-461-cancel-order ended here, 2026-10-06, and read as
-	// a stall).
 	if (verdict === 'outside') return 'not the defect';
-	// No agent was ever briefed: a bench worktree, or a round dropped before research.
-	if (state && !Object.keys(state.briefs ?? {}).length) return 'nothing run';
+	if (state && !(state.history ?? []).length) return 'nothing run';
 	return `stopped at ${state?.step ?? '?'}`;
 }
 
@@ -83,7 +67,7 @@ export function outcomeOf(state: State | null, checksLog: string): Outcome {
 // round's REVIEW.md (each T2 and each refused push is a `verdict:` line in it).
 export function frictionLine({ state, checksLog, eventsLog, reviewText, end }: { state: State | null; checksLog: string; eventsLog: string; reviewText: string; end: string }): string {
 	const history = state?.history ?? [];
-	const start = history[0]?.at ?? Object.values(state?.briefs ?? {}).map((b) => b.at).sort()[0] ?? null;
+	const start = history[0]?.at ?? null;
 	// Repro and whole suites are measurements, not a commit's check.
 	const all = jsonLines<{ row?: unknown; result: string; cause?: unknown }>(checksLog);
 	const checks = all.filter((c) => c.row !== 'repro' && c.row !== 'suites');
@@ -106,7 +90,7 @@ export function frictionLine({ state, checksLog, eventsLog, reviewText, end }: {
 		`${end.slice(0, 10)} ${state?.id ?? state?.round ?? '?'} (class ${state?.class ?? '?'}, ${state?.step ?? '?'})${start ? `: ${duration(Date.parse(end) - Date.parse(start))}` : ''}`,
 		`outcome: ${outcomeOf(state, checksLog)}`,
 		history.length ? timeInSteps(history, end).join(', ') : 'steps not recorded',
-		`agents: ${agentsPerPhase(state?.briefs, state?.briefCounts).join(', ') || 'none'}`,
+		`visits: ${visitsPerStep(state?.history).join(', ') || 'none'}`,
 		`checks ${checks.length} (${checks.filter((c) => c.result !== 'green').length} red${environment ? `, ${environment} environment` : ''})${unstable ? `, repro unstable ${unstable}` : ''}`,
 		`wf refused ${refusals.length}${away ? ` (${away} not about the round)` : ''}${about.length ? `: ${[...new Set(about.map((r) => `${r.cmd}: ${r.msg}`.slice(0, 120)))].slice(0, 3).join('; ')}` : ''}`,
 		`questions ${questions}`,

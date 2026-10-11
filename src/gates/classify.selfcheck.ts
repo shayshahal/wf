@@ -125,7 +125,7 @@ try {
   const text = cliWf(bRepo, ['classify', '--base', 'main']);
   check('wf classify (text) lists the file then the class', text.status === 0 && text.stdout === 'B\tproduct.ts\nclass: B\n', JSON.stringify(text.stdout));
   const badBase = cliWf(bRepo, ['classify', '--base', 'no-such-ref']);
-  check('--base reaches the diff: a missing ref fails the command', badBase.status !== 0, `exit ${badBase.status}, out ${JSON.stringify(badBase.stdout)}`);
+  check('--base: a missing ref refuses with one actionable line, not a git fatal or stack', badBase.status === 2 && badBase.stdout === '' && badBase.stderr.trim().split('\n').length === 1 && badBase.stderr.includes('no-such-ref') && badBase.stderr.includes('does not resolve'), `exit ${badBase.status}, err ${JSON.stringify(badBase.stderr)}`);
   // No --base: the persisted .wf/state.json base (set by `wf new`) is the one the diff uses.
   mkdirSync(join(bRepo, '.wf'), { recursive: true });
   writeFileSync(join(bRepo, '.wf', 'state.json'), `${JSON.stringify({ base: 'main' })}\n`);

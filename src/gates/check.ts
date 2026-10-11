@@ -1,16 +1,17 @@
 #!/usr/bin/env node
-// check.ts — wf check: the implementer's gate (prompts/implement.md step 2).
+// check.ts — wf check: the implementer's gate (prompts/build.md).
 // Silent + exit 0 on green; on red only the failing command and the last 40 lines
 // of its output, exit 1. Everything is derived from the working-tree diff and the
-// PLAN.md row `wf prompt implement N` recorded in .wf/state.json:
-//   fence   — no file outside row N's `files` cell may have changed
-//   project — the project's commands for the changed files and the row's test path (project.ts checks)
-//   repro   — the row's `check` cell `repro`: the command RESEARCH.md records. A row that only
+// agreement's `## Verification` cases (TICKET.md for class A, AGREEMENT.md for B/C):
+//   fence   — no file outside the selected case's `files` cell may have changed. A case-less run
+//             with a product file changed and no project check refuses rather than log an empty green
+//   project — the project's commands for the changed files and the case's test path (project.ts checks)
+//   repro   — the case's `check` cell `repro`: the command the agreement records. A case that only
 //             edits the repro runs it too, and it must be red: that run is the round's before-the-fix
 //             measurement, its output kept in checks.log (TJEW-670: the repro was fixed in a row
 //             checked `—`, and two of four subitems never had a red run)
-//   red-base — the row's own test, run with the row's change taken back to HEAD: it must fail on the
-//             framework assertion at the origin the row's check cell names (`path::test id@<line>`),
+//   red-base — the case's own test, run with the change taken back to HEAD: it must fail on the
+//             framework assertion at the origin the case's check cell names (`path::test id@<line>`),
 //             or the test cannot show the defect it claims to prove (a test that passes with and
 //             without the fix is not proof, process/PRACTICES.md). An exit code is not that proof, and
 //             neither is a failure at the line: the project's evidence policy reads the runner's own
@@ -18,43 +19,43 @@
 //             assertion (not a NameError/AttributeError/TypeError raised while evaluating it), the
 //             exact origin frame (not a caller or helper), and the named test. A missing runner, an
 //             import/collection or setup error, a failure in another file, a wrong origin, and a cell
-//             with no id or line all fail the row, which checks.log records as the run's verdict
-//             (#109, 2026-10-09). The same evidence policy must show the row's named test ran and
+//             with no id or line all fail the case, which checks.log records as the run's verdict
+//             (#109, 2026-10-09). The same evidence policy must show the case's named test ran and
 //             passed on the current (with-change) tree too: a skip, a suite total or a pass naming
 //             another case is not a green, so only a real pass shows the fix turns that assertion
-//             green (#109 review, 2026-10-09). A `refactor:` cell is a behavior-preserving row: it
+//             green (#109 review, 2026-10-09). A `refactor:` cell is a behavior-preserving case: it
 //             needs its named test green on both the current and the reverted side, never a
 //             manufactured red. The
 //             project marks that one task (`redBase`, projects/<name>/checks.ts); lint, typecheck and
 //             the hooks stay out of it, because their red would prove nothing about the test.
-// `wf check --suites` (before validate, wf next): the project's whole suites for what the round's diff
-// reaches (project.ts suites), side by side, on a committed HEAD; one checks.log line (row `suites`,
-// the head it measured, each red task's output tail; no tasks when the diff reaches no suite) that
-// validate reads and wf next keys on. Not a commit gate: it measures what the round has done to tests
-// no row touched (2026-10-05: a change broke tests outside its commit checks, unseen until the next
+// `wf check --suites` (the build runs it on the committed HEAD; the assessment reads it): the
+// project's whole suites for what the round's diff reaches (project.ts suites), side by side; one
+// checks.log line (row `suites`, the head it measured, each red task's output tail; no tasks when the
+// diff reaches no suite). Not a commit gate: it measures what the round has done to tests no case
+// touched (2026-10-05: a change broke tests outside its commit checks, unseen until the next
 // day's full-suite run).
-// `wf check --repro` (research, prompts/research.md): RESEARCH.md's repro, three times; stable only when
+// `wf check --repro` (prompts/agree.md): the agreement's repro, three times; stable only when
 // all three are red at the same place, in the round's repro files. Its line in checks.log (row
-// `repro`, result stable|unstable|green|outside) carries the research brief's token, which `wf next`
-// requires before plan.
-// Every run appends one JSON line to .wf/checks.log (row, the row's check, each task's exit,
-// green|red, and a red's `cause`: `environment` when no task ran at all). The validate agent reads
+// `repro`, result stable|unstable|green|outside) is the finding the check round decides on.
+// Every run appends one JSON line to .wf/checks.log (row, the case's check, each task's exit,
+// green|red, and a red's `cause`: `environment` when no task ran at all). The assessment agent reads
 // that, never the commit message: "the check was run"
 // is then observed, not claimed (llm-as-a-verifier: trust observed output, not narration).
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { baseBranch, checks, redBaseEvidence, reproFailure, suites } from '../project.ts';
-import { planCommitRows, rowFiles } from '../round/prompt.ts';
-import type { PlanRow } from '../round/prompt.ts';
-import { readState, roundOf, toplevelOf } from '../round/state.ts';
+import { caseFiles, verificationCases } from '../round/agreement.ts';
+import { agreementPath } from '../round/agreement.ts';
+import type { VerificationCase } from '../round/agreement.ts';
+import { readState, resolveRoundBase, roundOf, toplevelOf } from '../round/state.ts';
 import { ensureServers } from '../worktrees/serve.ts';
 import { worktreeContentSha } from './content-identity.ts';
 
 const TAIL = 40;
 // `pnpm` is a .cmd shim on Windows, so its runs need shell:true; Node then prints DEP0190
 // on every spawn, which would break "silent on green". The argv here is paths wf itself
-// derived from PLAN.md, never a user string.
+// derived from verification cells; shellArgUnsafe below rejects shell metavariables.
 process.noDeprecation = true;
 
 // One `wf check` command, or `missing`: the check the plan row names cannot run. The project's
@@ -83,10 +84,12 @@ export type RunEvidence = {
 // computed from the full output before `output` is cut to its tail (2026-10-09).
 export type CheckRun = { label: string; exit: number | null; missing?: string; expect?: 'red'; output?: string; evidence?: RunEvidence };
 
-// Everything the working tree has moved: unstaged, staged and untracked, repo-relative.
-export function changedFiles(toplevel: string) {
+// Everything the round has moved: committed on the branch since `base` (when given), plus unstaged,
+// staged and untracked, repo-relative. A committed-only product change must be seen too — a build that
+// commits before `wf check`, a repair cycle or a resumed round runs on a clean tree (#109).
+export function changedFiles(toplevel: string, base?: string | null) {
 	const git = (args: string[]) => execFileSync('git', ['-C', toplevel, ...args], { encoding: 'utf8' }).split('\n').map((l) => l.trim()).filter(Boolean);
-	return [...new Set([...git(['diff', '--name-only', 'HEAD']), ...git(['diff', '--name-only', '--cached']), ...git(['ls-files', '--others', '--exclude-standard'])])].sort();
+	return [...new Set([...(base ? git(['diff', '--name-only', `${base}...HEAD`]) : []), ...git(['diff', '--name-only', 'HEAD']), ...git(['diff', '--name-only', '--cached']), ...git(['ls-files', '--others', '--exclude-standard'])])].sort();
 }
 
 // The round's own paperwork is never fenced: the implementer writes BLOCKED.md and
@@ -169,15 +172,15 @@ export function targetGap(target: CheckTarget | null): string | null {
 // Pure: the files the red-base run takes back to HEAD — the row's changed files without the test the
 // row names (it stays, so it runs against the tree without the fix) and without the round's own
 // paperwork. Empty when the row only edits its test: there is no fix to take away.
-export function redBaseFiles({ changed, row, folder, testPath }: { changed: string[]; row: Pick<PlanRow, 'files'> | null; folder: string | null; testPath: string }): string[] {
+export function redBaseFiles({ changed, row, folder, testPath }: { changed: string[]; row: Pick<VerificationCase, 'files'> | null; folder: string | null; testPath: string }): string[] {
 	if (!row || !testPath) return [];
-	const allowed = new Set(rowFiles(row));
+	const allowed = new Set(caseFiles(row));
 	return changed.filter((f) => allowed.has(f) && f !== testPath && !isRoundPaperwork(f, folder));
 }
 
 // Pure: the row's red-base run — the project's task that carries the row's own test, and the files
 // to take back to HEAD for it — or null when the row has no test task, or only its test to revert.
-export function redBaseRun({ tasks, changed, row, folder }: { tasks: CheckTask[]; changed: string[]; row: Pick<PlanRow, 'files' | 'check'> | null; folder: string | null }): { task: CheckTask; revert: string[] } | null {
+export function redBaseRun({ tasks, changed, row, folder }: { tasks: CheckTask[]; changed: string[]; row: Pick<VerificationCase, 'files' | 'check'> | null; folder: string | null }): { task: CheckTask; revert: string[] } | null {
 	const task = tasks.find((t) => t.redBase && !t.missing);
 	if (!task) return null;
 	const revert = redBaseFiles({ changed, row, folder, testPath: checkCellTarget(row?.check)?.file ?? '' });
@@ -202,7 +205,7 @@ export function withFixReverted<T>(toplevel: string, paths: string[], run: () =>
 	}
 }
 
-// `command: <line>` under `## Repro` in RESEARCH.md.
+// `command: <line>` under `## Repro` in the round agreement (TICKET.md for class A, AGREEMENT.md for B/C).
 export function reproCommand(text: string) {
 	const body = text.replace(/\r\n/g, '\n');
 	const section = /^## Repro[ \t]*\n([\s\S]*?)(?=^## |(?![\s\S]))/m.exec(body);
@@ -211,12 +214,12 @@ export function reproCommand(text: string) {
 }
 
 // Split a command line on whitespace, honouring "double quotes" — enough for the one
-// line RESEARCH.md checks in; no shell is involved anywhere in wf.
+// line the agreement checks in; no shell is involved anywhere in wf.
 export function tokenize(line: string) {
 	return [...line.matchAll(/"([^"]*)"|(\S+)/g)].map((m) => m[1] ?? m[2]);
 }
 
-// Pure: a row's manual proof, when its `check` cell is `manual: <what to look at>` (prompts/plan.md),
+// Pure: a case's manual proof, when its `check` cell is `manual: <what to look at>` (prompts/agree.md),
 // else null. A row whose only proof is a person looking is **fence only** at `wf check` — the fence and
 // the project's checks still gate its commit — and this text is what T2 reads, as a `manual:` line
 // beside the diff (`review-format.ts` renderHeader, review.ts). Case-insensitive on purpose: a cell
@@ -228,7 +231,7 @@ export function manualCheck(cell: string | null | undefined): string | null {
 
 // Pure: the commands to run, in order. `projectTasks(target)` is the project's commands for the diff
 // plus the row's `target` (its test path, named test id and intended line, and `refactor:` — or null);
-// `repro` is the RESEARCH.md command line (or null).
+// `repro` is the agreement's command line (or null).
 export function buildTasks({ row, projectTasks, repro, reproOnly = false }: { row: { check?: string } | null | undefined; projectTasks: (target: CheckTarget | null) => CheckTask[]; repro: string | null; reproOnly?: boolean }): CheckTask[] {
 	// The command is the first `code span` when there is one — a cell may add a note after it
 	// (TJEW-700 row 6: "`vitest run …ts` (fixture carries …)" took `number)` as the path). A cell that
@@ -242,9 +245,9 @@ export function buildTasks({ row, projectTasks, repro, reproOnly = false }: { ro
 	const target = checkCellTarget(row?.check);
 	const tasks = projectTasks(check && check !== 'repro' && !reproOnly ? target : null);
 	if (check !== 'repro' && !reproOnly) return tasks;
-	if (!repro) return [...tasks, { label: 'repro', missing: 'RESEARCH.md ## Repro has no `command:` line' }];
+	if (!repro) return [...tasks, { label: 'repro', missing: 'the agreement ## Repro has no `command:` line' }];
 	const [cmd, ...args] = tokenize(repro);
-	// Research's repro reproduces the defect in the running app (prompts/research.md).
+	// The agreement's repro reproduces the defect in the running app (prompts/agree.md).
 	return [...tasks, { label: repro, cmd, args, cwd: '.', stack: true, ...(reproOnly ? { expectRed: true } : {}) }];
 }
 
@@ -258,7 +261,7 @@ export function isReproOnly(files: string[], folder: string | null) {
 
 // Why a red is red, from the task that ended the run. `environment` when no task ever ran — the stack
 // would not answer, the project's check could not be built, a task is `missing`, or the row's check
-// names a repro RESEARCH.md has no `command:` for. `code` when the run found the round's own work at
+// names a repro the agreement has no `command:` for. `code` when the run found the round's own work at
 // fault: a task ran and exited non-zero, or the fence found a file outside the row.
 // BJEW-461 (2026-10-06): the shared setup's login failed before any spec ran. The repro side got
 // `outside` for it (reproVerdict); this is the commit gate's half of the same fix — a gate that never
@@ -272,12 +275,12 @@ export function redCause(task: { exit: number | null }): RedCause {
 // Pure: the checks.log line for one run. `cause` only on a red: green has no cause to give. `content`
 // is the implementationContentSha the run finished on (content-identity.ts) — recorded so a green
 // names what it measured, never the bytes a mutating task replaced before the run ended (#106).
-export function checkRunLine({ ts, row, rowCheck, tasks, result, cause, token, content }: { ts: string; row: number | string | null; rowCheck: string | null; tasks: CheckRun[]; result: string; cause?: RedCause; token?: string; content?: string }) {
-	return JSON.stringify({ ts, row, rowCheck, tasks, result, ...(cause ? { cause } : {}), ...(token ? { token } : {}), ...(content ? { content } : {}) });
+export function checkRunLine({ ts, row, rowCheck, tasks, result, cause, content }: { ts: string; row: number | string | null; rowCheck: string | null; tasks: CheckRun[]; result: string; cause?: RedCause; content?: string }) {
+	return JSON.stringify({ ts, row, rowCheck, tasks, result, ...(cause ? { cause } : {}), ...(content ? { content } : {}) });
 }
 
 // The row identity a run measured, or undefined when git cannot read the tree: the log line still
-// records the run, and rowDone treats a line with no content as evidence it cannot bind (handoff.ts).
+// records the run; a line with no content is evidence that cannot bind an approval (#106).
 // The row scope excludes the round folder, so it equals the product/tests a row commit carries.
 const contentOf = (toplevel: string, folder: string | null): string | undefined => {
 	try {
@@ -407,10 +410,10 @@ export async function runRepro() {
 	const toplevel = toplevelOf();
 	const state = readState(toplevel);
 	const { folder } = roundOf(state, toplevel);
-	const research = join(toplevel, folder ?? '', 'RESEARCH.md');
+	const research = agreementPath(toplevel, state?.class ?? null, folder);
 	const repro = existsSync(research) ? reproCommand(readFileSync(research, 'utf8')) : null;
 	if (!repro) {
-		console.error('check --repro: RESEARCH.md ## Repro has no `command:` line yet: write it first');
+		console.error(`check --repro: ${research.split(/[\\/]/).pop()} ## Repro has no \`command:\` line yet: write it first`);
 		process.exit(1);
 	}
 	await stackOrExit(toplevel);
@@ -432,7 +435,7 @@ export async function runRepro() {
 	// A repro that rewrites the tree measures bytes other than the ones it was handed: no verdict binds.
 	// An unreadable before/after snapshot is refused too, not counted as no change.
 	const gap = identityGap(start, end);
-	appendFileSync(join(toplevel, '.wf', 'checks.log'), `${checkRunLine({ ts: new Date().toISOString(), row: 'repro', rowCheck: null, tasks, result: gap ?? verdict.result, token: state?.briefs?.research?.token, content: end })}\n`);
+	appendFileSync(join(toplevel, '.wf', 'checks.log'), `${checkRunLine({ ts: new Date().toISOString(), row: 'repro', rowCheck: null, tasks, result: gap ?? verdict.result, content: end })}\n`);
 	if (gap === 'unavailable') {
 		console.error('check --repro: could not read the implementation before and after the repro (git could not compute the tree); refusing to record a verdict.');
 		process.exit(1);
@@ -451,41 +454,81 @@ export async function runRepro() {
 		process.exit(1);
 	}
 	if (verdict.result === 'green') {
-		console.log('If the repro measures what the ticket describes, that is the finding: RESEARCH.md says it does not reproduce, and wf next asks the user.');
+		console.log('If the repro measures what the ticket describes, that is the finding: the agreement says it does not reproduce, and wf next asks the user.');
 		return;
 	}
-	console.log(`\nthe last run, for RESEARCH.md's red output:\n${runs.at(-1)!.output.split('\n').filter((l) => l.trim()).slice(-10).join('\n')}`);
+	console.log(`\nthe last run, for the agreement's red output:\n${runs.at(-1)!.output.split('\n').filter((l) => l.trim()).slice(-10).join('\n')}`);
 }
 
-export async function runCheck() {
+export async function runCheck(argv: string[] = []) {
 	const toplevel = toplevelOf();
 	const state = readState(toplevel);
 	const { folder } = roundOf(state, toplevel);
-	const changed = changedFiles(toplevel);
 	const ran: CheckRun[] = [];
 	const start = contentOf(toplevel, folder);
+	let row: VerificationCase | null = null;
 	const logRun = (result: string, cause?: RedCause) => {
 		mkdirSync(join(toplevel, '.wf'), { recursive: true });
-		appendFileSync(join(toplevel, '.wf', 'checks.log'), `${checkRunLine({ ts: new Date().toISOString(), row: state?.commit ?? null, rowCheck: row?.check ?? null, tasks: ran, result, cause, content: contentOf(toplevel, folder) })}\n`);
+		appendFileSync(join(toplevel, '.wf', 'checks.log'), `${checkRunLine({ ts: new Date().toISOString(), row: row?.n ?? null, rowCheck: row?.check ?? null, tasks: ran, result, cause, content: contentOf(toplevel, folder) })}\n`);
 	};
-	let row: PlanRow | null = null;
-	if (state?.commit && folder && existsSync(join(toplevel, folder, 'PLAN.md'))) {
-		row = planCommitRows(readFileSync(join(toplevel, folder, 'PLAN.md'), 'utf8')).find((r) => r.n === Number(state.commit)) ?? null;
-		const violations = fenceViolations(changed, rowFiles(row), folder);
-		if (violations.length) {
-			for (const f of violations) console.error(`fence: ${f} is not in PLAN.md row ${state.commit}`);
-			const fence = { label: 'fence', exit: 1 };
-			ran.push(fence);
-			logRun('red', redCause(fence));
-			process.exit(1);
-		}
+	// The round's base, so a committed-only change is part of the diff (R-1, #109). A base ref that does
+	// not resolve leaves the committed range unknown: refuse with one actionable line rather than bless
+	// a committed product change the check cannot see (N-1, fail closed).
+	const { ref, base } = resolveRoundBase(toplevel, state);
+	if (!base) {
+		const said = { label: 'base', exit: null, missing: `the round's base \`${ref}\` does not resolve — fetch it, or start the round with \`wf new --base <ref>\`` };
+		console.error(`COULD NOT RUN: ${said.missing}`);
+		ran.push(said);
+		logRun('red', redCause(said));
+		process.exit(1);
 	}
-	const research = join(toplevel, folder ?? '', 'RESEARCH.md');
-	const repro = existsSync(research) ? reproCommand(readFileSync(research, 'utf8')) : null;
-	const reproOnly = row ? isReproOnly(rowFiles(row), folder) : false;
+	const changed = changedFiles(toplevel, base);
+	// The verification cases of the round's agreement (TICKET.md for class A, AGREEMENT.md for B/C).
+	// No per-commit bookkeeping (#112): `--case N` names one, else the single case whose files this
+	// diff touches, else the single case. `--case "<path>::<id>@<line>"` names a raw cell (class A).
+	const agreementFile = agreementPath(toplevel, state?.class ?? null, folder);
+	const cases = verificationCases(existsSync(agreementFile) ? readFileSync(agreementFile, 'utf8') : '');
+	const caseIdx = argv.indexOf('--case');
+	const caseArg = caseIdx >= 0 ? argv[caseIdx + 1] : null;
+	if (caseArg != null) row = /^\d+$/.test(caseArg) ? cases.find((c) => c.n === Number(caseArg)) ?? null : { n: 0, line: '', message: caseArg, files: checkCellTarget(caseArg)?.file ?? '', check: caseArg };
+	else {
+		const matching = cases.filter((c) => caseFiles(c).some((f) => changed.includes(f)));
+		row = matching.length === 1 ? matching[0] : cases.length === 1 ? cases[0] : null;
+	}
+	if (caseArg != null && /^\d+$/.test(caseArg) && !row) {
+		console.error(`check: the agreement has no verification case ${caseArg} (cases: ${cases.map((c) => c.n).join(', ') || 'none'})`);
+		process.exit(1);
+	}
+	// Scopeprot: a changed product/test file outside the agreement's cases is refused; a round's added
+	// helper belongs in a case's `files` cell, which is mutable working detail (no renewed T1).
+	const allowed = row ? caseFiles(row) : cases.flatMap((c) => caseFiles(c));
+	const violations = allowed.length ? fenceViolations(changed, allowed, folder) : [];
+	if (violations.length) {
+		for (const f of violations) console.error(`fence: ${f} is not in the agreement's verification cases`);
+		const fence = { label: 'fence', exit: 1 };
+		ran.push(fence);
+		logRun('red', redCause(fence));
+		process.exit(1);
+	}
+	const repro = existsSync(agreementFile) ? reproCommand(readFileSync(agreementFile, 'utf8')) : null;
+	const reproOnly = row ? isReproOnly(caseFiles(row), folder) : false;
 	const target = checkCellTarget(row?.check);
 	let served = false;
 	const tasks = buildTasks({ row, projectTasks: (t) => checks({ toplevel, changed, target: t }), repro, reproOnly });
+	// Nothing to run is not a green: a case-less or fence-only run with a product file changed and no
+	// project check would log a pass that measured nothing (#109). `changed` is the same list the fence
+	// uses (committed vs base, worktree, index, untracked), so a committed-only or reverse-index (index
+	// changed, worktree back at HEAD) product change is refused too (N-2, #106: a plain `git commit`
+	// commits the index, so it is not left to deliver). A docs-only diff has nothing to check. A raw
+	// `--case "<path>::<id>@<line>"` gets its file from the cell above, so its fence and red-base run.
+	const productChanged = changed.filter((f) => !isRoundPaperwork(f, folder));
+	if (!tasks.length && productChanged.length) {
+		const nothing = { label: 'check', exit: null, missing: 'the agreement declares no verification case and the project has no check for this diff — name one: wf check --case "<path>::<test id>@<line>"' };
+		console.error(`COULD NOT RUN: ${nothing.missing}`);
+		ran.push(nothing);
+		logRun('red', redCause(nothing));
+		process.exit(1);
+	}
 	for (const task of tasks) {
 		const unsafe = task.args ? unsafeArg(task.args) : null;
 		if (task.missing || unsafe) {
@@ -533,7 +576,7 @@ export async function runCheck() {
 		ran.push(failed);
 		if (run.status === 0) {
 			if (failed.evidence && failed.evidence.verdict !== 'passed') {
-				console.error(`FAILED: the selected test is not shown to have run and passed with the change: ${failed.evidence.say}. A row checked against \`path::test id\` must run that test green on the current tree; a skip or a suite total is not a pass (prompts/plan.md).`);
+				console.error(`FAILED: the selected test is not shown to have run and passed with the change: ${failed.evidence.say}. A row checked against \`path::test id\` must run that test green on the current tree; a skip or a suite total is not a pass (prompts/agree.md).`);
 				logRun('red', redCause(failed));
 				process.exit(1);
 			}
@@ -609,15 +652,15 @@ export async function runCheck() {
 		if (evidence.verdict === want) {
 			// proven: fall through to the content guard and the green line.
 		} else if (target?.refactor) {
-			console.error(`FAILED: refactor: ${evidence.say}. A behavior-preserving row's selected test must pass with the change taken away too: make it green on both sides, or drop \`refactor:\` when the row really changes behavior (prompts/plan.md).`);
+			console.error(`FAILED: refactor: ${evidence.say}. A behavior-preserving row's selected test must pass with the change taken away too: make it green on both sides, or drop \`refactor:\` when the case really changes behavior (prompts/agree.md).`);
 			logRun('red', redCause(redBase));
 			process.exit(1);
 		} else if (evidence.verdict === 'passed') {
-			console.error(`FAILED: ${redTask.label} passes with the row's change taken away — it does not measure the defect. Make the test fail without the fix, or, when this row cannot have one, put its check cell at \`—\` — that is a plan change: write ${folder ?? 'the round folder'}/BLOCKED.md.`);
+			console.error(`FAILED: ${redTask.label} passes with the row's change taken away — it does not measure the defect. Make the test fail without the fix, or mark a genuine behavior-preserving case \`refactor:\` and prove it green on both sides. If the agreed verification cannot be met, write ${folder ?? 'the round folder'}/BLOCKED.md.`);
 			logRun('red', redCause(redBase));
 			process.exit(1);
 		} else {
-			console.error(`FAILED: red-base cannot prove the intended assertion: ${evidence.say}. Make the run fail on the assertion the row names (\`path::test id@<line>\`), or move the row's check to \`—\`/\`manual:\` — a plan change: write ${folder ?? 'the round folder'}/BLOCKED.md.`);
+			console.error(`FAILED: red-base cannot prove the intended assertion: ${evidence.say}. Make the run fail on the assertion the case names (\`path::test id@<line>\`), or correct the runner/environment problem. If the evidence still cannot be obtained, write ${folder ?? 'the round folder'}/BLOCKED.md.`);
 			logRun('red', redCause(redBase));
 			process.exit(1);
 		}
@@ -637,10 +680,10 @@ export async function runCheck() {
 		logRun('changed');
 		process.exit(1);
 	}
-	// Resolve a block before recording green: the renamed file is trailing paperwork, and computing the
-	// identity after it keeps the recorded line equal to the tree the next `wf next` sees (#106).
-	const blocked = folder && state?.commit ? join(toplevel, folder, 'BLOCKED.md') : null;
-	if (blocked && existsSync(blocked)) renameSync(blocked, join(toplevel, folder!, resolvedBlockedName(state!.commit!, readdirSync(join(toplevel, folder!)))));
+	// Resolve a block before recording green: the renamed file is trailing paperwork (a block the build
+	// got past becomes its record). The case number names it when there is one.
+	const blocked = folder ? join(toplevel, folder, 'BLOCKED.md') : null;
+	if (blocked && existsSync(blocked)) renameSync(blocked, join(toplevel, folder!, resolvedBlockedName(row?.n ?? 0, readdirSync(join(toplevel, folder!)))));
 	logRun('green');
 }
 
@@ -716,12 +759,12 @@ export async function runSuites() {
 		console.error('check --suites: a suite rewrote files while it ran; the result names bytes it did not all measure. Commit or revert them, then run `wf check --suites` again.');
 		process.exit(1);
 	}
-	if (!runs.length) return console.log(`suites: none at ${head.slice(0, 9)}, the round's diff reaches no suite. validate reads it from checks.log.`);
+	if (!runs.length) return console.log(`suites: none at ${head.slice(0, 9)}, the round's diff reaches no suite. The assessment reads it from checks.log.`);
 	const took = `${Math.round((Date.now() - start) / 1000)}s`;
 	const red = runs.filter((r) => r.exit !== 0);
 	if (!red.length) return console.log(`suites green at ${head.slice(0, 9)} in ${took}: ${runs.map((r) => r.label).join(', ')}`);
 	for (const r of red) console.error(`FAILED: ${r.label}\n${tail(r.output)}\n`);
-	console.error(`suites red at ${head.slice(0, 9)} in ${took}: ${red.map((r) => r.label).join(', ')}. validate reads it from checks.log.`);
+	console.error(`suites red at ${head.slice(0, 9)} in ${took}: ${red.map((r) => r.label).join(', ')}. The assessment reads it from checks.log.`);
 	process.exitCode = 1;
 }
 

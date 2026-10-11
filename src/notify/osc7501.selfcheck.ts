@@ -36,9 +36,9 @@ const seqOf = (s: State, o?: { progress?: number; msg?: string }) => reportsFor(
 const T2: State = { id: '662', step: 'review', waiting_on: 'user' };
 const MERGED: State = { id: '662', step: 'merged' };
 const HELD: State = { id: '662', step: 'held' };
-const CI: State = { id: '662', step: 'implement', waiting_on: 'ci', commit: 4 };
-const QUESTION: State = { id: '662', step: 'implement', waiting_on: 'einat', questions: [{ n: 3, to: 'einat', text: 'ship it?', asked: '2026-10-08T00:00:00Z' }] };
-const ANSWERED: State = { id: '662', step: 'implement', waiting_on: null, answered: [{ n: 3, to: 'einat', text: 'ship it?', asked: '2026-10-08T00:00:00Z', answer: 'yes', answered: '2026-10-08T01:00:00Z' }] };
+const CI: State = { id: '662', step: 'build', waiting_on: 'ci', repairs: 4 };
+const QUESTION: State = { id: '662', step: 'build', waiting_on: 'einat', questions: [{ n: 3, to: 'einat', text: 'ship it?', asked: '2026-10-08T00:00:00Z' }] };
+const ANSWERED: State = { id: '662', step: 'build', waiting_on: null, answered: [{ n: 3, to: 'einat', text: 'ship it?', asked: '2026-10-08T00:00:00Z', answer: 'yes', answered: '2026-10-08T01:00:00Z' }] };
 
 // The one arm that is about framing: the bytes a T2 gate puts on the wire, whole.
 eq('T2 gate: the exact bytes',
@@ -49,8 +49,8 @@ eq('T2 gate: the exact bytes',
 eq('merged: done, and it says so', parse(encode(reportsFor(MERGED)[0])), { state: 'done', id: 'wf/662', app: 'wf', title: '662', msg: 'merged' });
 eq('held: blocked:question', parse(encode(reportsFor(HELD)[0])), { state: 'blocked', id: 'wf/662', kind: 'question', app: 'wf', title: '662', msg: 'held' });
 eq('waiting on ci: working, not blocked', parse(encode(reportsFor(CI, { progress: 40 })[0])), { state: 'working', id: 'wf/662', progress: '40', app: 'wf', title: '662', msg: 'checks' });
-eq('T1: the design gate is a permission', parse(encode(reportsFor({ id: '662', step: 'design', waiting_on: 'user' })[0])), { state: 'blocked', id: 'wf/662', kind: 'permission', app: 'wf', title: '662', msg: 'T1 on SPEC.md' });
-eq('research at a bare shell: working, named by its step', parse(encode(reportsFor({ id: '662', step: 'research' })[0])), { state: 'working', id: 'wf/662', app: 'wf', title: '662', msg: 'research' });
+eq('T1: the agreement gate is a permission', parse(encode(reportsFor({ id: '662', step: 'agree', waiting_on: 'user' })[0])), { state: 'blocked', id: 'wf/662', kind: 'permission', app: 'wf', title: '662', msg: 'T1 on AGREEMENT.md' });
+eq('an agree at a bare shell: working, named by its step', parse(encode(reportsFor({ id: '662', step: 'agree' })[0])), { state: 'working', id: 'wf/662', app: 'wf', title: '662', msg: 'agree' });
 
 // The tree: a round can be working while a gate is blocked, so a question is its own record.
 eq('an open question is a child, not the round', seqOf(QUESTION).map(parse), [

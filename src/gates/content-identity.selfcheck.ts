@@ -16,10 +16,7 @@ import { pathToFileURL } from 'node:url';
 import { approvalBinding, approvalContentGap, needsFreshReviewHeader, renderSkeleton, lastField } from './review-format.ts';
 import { approvalIdentity, approvalPaperworkExcluded, commitContentSha, headContentSha, trackerNotePath, worktreeContentSha } from './content-identity.ts';
 import { t2Gap } from './deliver.ts';
-import { rowDone } from '../round/handoff.ts';
 import { checkRunLine, identityGap, suitesLine } from './check.ts';
-import { planCommitRows } from '../round/prompt.ts';
-import { snapshotOf } from '../round/next.ts';
 import { basePortForBranch } from '../worktrees/worktree.ts';
 import { WF_ROOT } from '../paths.ts';
 
@@ -30,7 +27,7 @@ const check = (name: string, cond: unknown, detail = '') =>
 // ── the exclusion encoding ───────────────────────────────────────────────────
 
 const folder = 'bug-reports/r';
-check('wf metadata, REVIEW.md, the tracker note and live auth are not the implementation', ['.wf/state.json', '.wf/PLAN.html', `${folder}/REVIEW.md`, `${folder}/JIRA.md`, `${folder}/repro/.auth`].every((f) => approvalPaperworkExcluded(f, folder, `${folder}/JIRA.md`)));
+check('wf metadata, REVIEW.md, the tracker note and live auth are not the implementation', ['.wf/state.json', '.wf/AGREEMENT.html', `${folder}/REVIEW.md`, `${folder}/JIRA.md`, `${folder}/repro/.auth`].every((f) => approvalPaperworkExcluded(f, folder, `${folder}/JIRA.md`)));
 check('the round folder is NOT paperwork: a repro/test inside it binds the approval', !approvalPaperworkExcluded(`${folder}/repro/x.spec.ts`, folder) && !approvalPaperworkExcluded(`${folder}/proof/CALL-STACK-AS-BUILT.md`, folder));
 check('what the approval was judged against stays bound', !approvalPaperworkExcluded(`${folder}/PLAN.md`, folder) && !approvalPaperworkExcluded(`${folder}/SPEC.md`, folder));
 check('a stray executable in .wf is not hidden by a blanket folder exclusion', !approvalPaperworkExcluded('.wf/evil.sh', folder));
@@ -207,21 +204,9 @@ check('the review header names the worktree and HEAD the verdict binds to', last
 check('a T1 skeleton (no diff) carries no content-sha', lastField(renderSkeleton({ round: 'r', files: [] }), 'content-sha') === null);
 check('a re-open needs a fresh header when either identity moved', needsFreshReviewHeader(null, 'tree:w', 'tree:h') && needsFreshReviewHeader({ contentSha: 'tree:w', headSha: 'tree:e' }, 'tree:w', 'tree:h') && needsFreshReviewHeader({ contentSha: 'tree:x', headSha: 'tree:h' }, 'tree:w', 'tree:h') && !needsFreshReviewHeader({ contentSha: 'tree:w', headSha: 'tree:h' }, 'tree:w', 'tree:h'));
 
-// ── rowDone: the row's last check, on its cell, on its commit's content ──────
-
-const row = { n: 2, message: '`fix(x): two`', check: '`x.test.ts`' };
-const green = (content?: string, rowCheck: string | null = '`x.test.ts`') => [{ row: 2, result: 'green', rowCheck, content }];
-check('a row is done on a green check of its own cell naming its commit content', rowDone(row, { subjects: ['fix(x): two'], checks: green('tree:c'), commitContent: { 'fix(x): two': 'tree:c' } }));
-check('a green naming another tree does not authorize the commit', !rowDone(row, { subjects: ['fix(x): two'], checks: green('tree:old'), commitContent: { 'fix(x): two': 'tree:c' } }));
-check('a legacy green with no content does not authorize a bound row', !rowDone(row, { subjects: ['fix(x): two'], checks: green(undefined), commitContent: { 'fix(x): two': 'tree:c' } }));
-check('a later red for the same row is not done (stale green)', !rowDone(row, { subjects: ['fix(x): two'], checks: [...green('tree:c'), { row: 2, result: 'red', rowCheck: '`x.test.ts`' }], commitContent: { 'fix(x): two': 'tree:c' } }));
-check('a reused row number whose cell changed does not inherit the old green', !rowDone(row, { subjects: ['fix(x): two'], checks: green('tree:c', '`old.test.ts`'), commitContent: { 'fix(x): two': 'tree:c' } }));
-check('a legacy green with no rowCheck does not authorize a row naming a cell', !rowDone(row, { subjects: ['fix(x): two'], checks: green('tree:c', null), commitContent: { 'fix(x): two': 'tree:c' } }));
-
 check('a check line records the content when it has one and omits the field when not', JSON.parse(checkRunLine({ ts: 't', row: 1, rowCheck: 'x', tasks: [], result: 'green', content: 'tree:a' })).content === 'tree:a' && !('content' in JSON.parse(checkRunLine({ ts: 't', row: 1, rowCheck: 'x', tasks: [], result: 'green' }))));
 check('a suite run that rewrote the tree records `changed`, not green', JSON.parse(suitesLine({ ts: 't', head: 'h', runs: [{ label: 's', exit: 0, output: '' }], gap: 'changed', content: 'tree:a' })).result === 'changed' && JSON.parse(suitesLine({ ts: 't', head: 'h', runs: [{ label: 's', exit: 0, output: '' }] })).result === 'green');
 check('an unreadable before/after snapshot is `unavailable`, not green and not silently unchanged', identityGap(undefined, 'tree:a') === 'unavailable' && identityGap('tree:a', undefined) === 'unavailable' && identityGap('tree:a', 'tree:b') === 'changed' && identityGap('tree:a', 'tree:a') === null);
-check('a present map missing the row commit fails closed; an absent map is a fixture', !rowDone(row, { subjects: ['fix(x): two'], checks: green('tree:c'), commitContent: {} }) && rowDone(row, { subjects: ['fix(x): two'], checks: green('tree:c') }));
 
 // ── real CLI arms ────────────────────────────────────────────────────────────
 
@@ -263,10 +248,10 @@ const cliRepo = (branch: string) => {
 	git('checkout', '-q', '-b', branch);
 	mkdirSync(join(repo, folder, 'repro'), { recursive: true });
 	writeFileSync(join(repo, folder, 'repro/run.spec.ts'), 'test\n');
-	writeFileSync(join(repo, folder, 'PLAN.md'), '# plan\n');
-	writeFileSync(join(repo, folder, 'VALIDATION.md'), '# 106 — validation\nVerdict: matches plan\n\n## Intent\n- "x": met: before: a · after: b\n');
+	writeFileSync(join(repo, folder, 'TICKET.md'), '# 106 - ticket\n\n## Intent\n\n- "x": fix the thing\n');
+	writeFileSync(join(repo, folder, 'ASSESSMENT.md'), '# 106 - assessment\nVerdict: clean\n\nhead: deadbeef\n\n## Intent\n- "x": met: src/x.ts:1 - before: a - after: b\n');
 	mkdirSync(join(repo, '.wf'), { recursive: true });
-	writeFileSync(join(repo, '.wf', 'state.json'), `${JSON.stringify({ round: '106', id: '106', folder, base: 'main', step: 'review', class: 'A' }, null, 2)}\n`);
+	writeFileSync(join(repo, '.wf', 'state.json'), `${JSON.stringify({ wf_version: 2, round: '106', id: '106', folder, base: 'main', step: 'review', class: 'A' }, null, 2)}\n`);
 	return { repo, git };
 };
 const approve = async (repo: string, branch: string) => {
@@ -315,14 +300,14 @@ const approve = async (repo: string, branch: string) => {
 		writeFileSync(join(repo, 'src/x.ts'), 'a\n');
 		const done = await runCli(repo, ['review', branch, '--done']);
 		check('a committed change hidden by a restored worktree → refused', done.status === 2 && done.out.includes('the committed implementation changed after T2 approved it'), done.out);
-		writeFileSync(join(repo, '.wf', 'state.json'), `${JSON.stringify({ round: '106', id: '106', folder, base: 'main', step: 'pr', class: 'A' }, null, 2)}\n`);
+		writeFileSync(join(repo, '.wf', 'state.json'), `${JSON.stringify({ wf_version: 2, round: '106', id: '106', folder, base: 'main', step: 'pr', class: 'A' }, null, 2)}\n`);
 		const delivered = await runCli(repo, ['deliver']);
 		check('deliver refuses it before any remote', delivered.status === 2 && delivered.out.includes('the committed implementation changed after T2 approved it') && !delivered.out.includes('git push'), delivered.out);
 	});
 	rmSync(repo, { recursive: true, force: true });
 }
 
-// a staged product change is not swept into the round-folder commit.
+// a staged (reverse-index) product change is refused by `wf check` before any commit (N-2, #106/#109).
 {
 	const branch = 'feat/106s';
 	const { repo, git } = cliRepo(branch);
@@ -336,14 +321,14 @@ const approve = async (repo: string, branch: string) => {
 		const ok = await runCli(repo, ['review', branch, '--done']);
 		check('the staged arm: approved and eligible first', ok.status === 0, ok.out);
 	});
-	// Stage EVIL, restore the working tree to the approved bytes.
+	// Stage EVIL, restore the working tree to the approved bytes: the index differs, the worktree is HEAD.
 	writeFileSync(join(repo, 'src/x.ts'), 'evil\n');
 	git('add', 'src/x.ts');
 	writeFileSync(join(repo, 'src/x.ts'), 'a\n');
-	const delivered = await runCli(repo, ['deliver'], fakeGhEnv('staged')); // the transport is nowhere: the push fails, but the round-folder commit already ran
-	const lastFiles = execFileSync('git', ['-C', repo, 'show', '--name-only', '--format=', 'HEAD'], { encoding: 'utf8' }).split('\n').filter(Boolean);
-	check('the round-folder commit carries only the round folder, not the staged product', lastFiles.length > 0 && lastFiles.every((f) => f.startsWith(`${folder}/`)), `${delivered.out}\n${lastFiles.join(',')}`);
-	check('deliver did not refuse the staged change as swept (it was not)', !delivered.out.includes('changed the implementation T2 approved') || delivered.out.includes('the push hook'), delivered.out);
+	const delivered = await runCli(repo, ['deliver'], fakeGhEnv('staged'));
+	check('a staged (reverse-index) product change is refused by wf check before any commit (N-2)', delivered.status === 1 && delivered.out.includes('COULD NOT RUN'), delivered.out);
+	const committed = execFileSync('git', ['-C', repo, 'show', 'HEAD:src/x.ts'], { encoding: 'utf8' });
+	check('the staged product was not committed (no round-folder commit swept it)', committed === 'a\n', `${delivered.out}\nHEAD:src/x.ts = ${JSON.stringify(committed)}`);
 	rmSync(repo, { recursive: true, force: true });
 }
 
@@ -371,10 +356,10 @@ const approve = async (repo: string, branch: string) => {
 {
 	const branch = 'feat/106m';
 	const { repo } = cliRepo(branch);
-	writeFileSync(join(repo, folder, 'PLAN.md'), '# plan\n\n## Commits\n\n| # | message | files | check |\n|---|---|---|---|\n| 1 | fix(x): one | src/x.ts | repro |\n');
-	writeFileSync(join(repo, folder, 'RESEARCH.md'), `# r\n\n## Repro\ncommand: node ${folder}/repro/mutate.mjs\n`);
+	writeFileSync(join(repo, folder, 'TICKET.md'), `# r\n\n## Intent\n\n- "x": fix the thing\n\n## Verification\n\n| # | case | files | check |\n|---|---|---|---|\n| 1 | fix(x): one | src/x.ts | repro |\n\n## Repro\ncommand: node ${folder}/repro/mutate.mjs\n`);
+
 	writeFileSync(join(repo, folder, 'repro/mutate.mjs'), "import { writeFileSync } from 'node:fs';\nwriteFileSync('src/x.ts', 'mutated\\n');\n");
-	writeFileSync(join(repo, '.wf', 'state.json'), `${JSON.stringify({ round: '106', id: '106', folder, base: 'main', step: 'implement', class: 'A', commit: 1 }, null, 2)}\n`);
+	writeFileSync(join(repo, '.wf', 'state.json'), `${JSON.stringify({ wf_version: 2, round: '106', id: '106', folder, base: 'main', step: 'build', class: 'A' }, null, 2)}\n`);
 	const before = worktreeContentSha(repo, folder, null, 'row');
 	await withStack(branch, async () => {
 		const res = await runCli(repo, ['check']);
@@ -384,35 +369,6 @@ const approve = async (repo: string, branch: string) => {
 	const line = JSON.parse(readFileSync(join(repo, '.wf', 'checks.log'), 'utf8').trim().split('\n').at(-1)!);
 	check('the check mutated the tree', after !== before);
 	check('the run is recorded `changed`, not green', line.result === 'changed' && line.content === after && line.content !== before, JSON.stringify(line));
-	check('rowDone rejects a `changed` run', !rowDone({ n: 1, message: 'fix(x): one', check: 'repro' }, { subjects: ['fix(x): one'], checks: [{ row: 1, result: 'changed', rowCheck: 'repro', content: after }], commitContent: { 'fix(x): one': after } }));
-	rmSync(repo, { recursive: true, force: true });
-}
-
-// a real repo: a green naming the row commit's content marks the row done; a green on another tree does not.
-{
-	const branch = 'feat/106r';
-	const { repo, git } = cliRepo(branch);
-	writeFileSync(join(repo, folder, 'PLAN.md'), '# plan\n\n## Commits\n\n| # | message | files | check |\n|---|---|---|---|\n| 1 | fix(x): one | src/x.ts | — |\n');
-	writeFileSync(join(repo, 'src/x.ts'), 'b\n');
-	git('add', '-A');
-	git('commit', '-q', '-m', 'fix(x): one');
-	writeFileSync(join(repo, '.wf', 'state.json'), `${JSON.stringify({ round: '106', id: '106', folder, base: 'main', step: 'implement', class: 'A', commit: 1 }, null, 2)}\n`);
-	const row1 = planCommitRows(readFileSync(join(repo, folder, 'PLAN.md'), 'utf8'))[0];
-	const snap = snapshotOf(repo);
-	check('snapshotOf carries the row commit\'s content identity', typeof snap.commitContent?.['fix(x): one'] === 'string' && snap.commitContent!['fix(x): one'] === commitContentSha(repo, 'HEAD', folder, null, 'row'), JSON.stringify(snap.commitContent));
-	const withGreen = { ...snap, checks: [{ row: 1, result: 'green', rowCheck: '—', content: snap.commitContent!['fix(x): one'] }] };
-	check('a green naming the row commit marks it done in the snapshot', rowDone(row1, withGreen));
-	check('a green on another tree does not', !rowDone(row1, { ...withGreen, checks: [{ row: 1, result: 'green', rowCheck: '—', content: 'tree:old' }] }));
-	// The same row message committed twice (a re-commit after a fix): the newest commit is bound.
-	writeFileSync(join(repo, 'src/x.ts'), 'c\n');
-	git('add', '-A');
-	git('commit', '-q', '-m', 'fix(x): one');
-	const newest = snapshotOf(repo);
-	const oldContent = snap.commitContent!['fix(x): one'];
-	const newContent = newest.commitContent!['fix(x): one'];
-	check('a repeated row message binds the newest commit, not the oldest', newContent !== oldContent && newContent === commitContentSha(repo, 'HEAD', folder, null, 'row'), JSON.stringify({ oldContent, newContent }));
-	check('the old green does not authorize the new unchecked HEAD', !rowDone(row1, { ...newest, checks: [{ row: 1, result: 'green', rowCheck: '—', content: oldContent }] }));
-	check('a fresh green naming the new HEAD does', rowDone(row1, { ...newest, checks: [{ row: 1, result: 'green', rowCheck: '—', content: newContent }] }));
 	rmSync(repo, { recursive: true, force: true });
 }
 
@@ -476,7 +432,7 @@ const approve = async (repo: string, branch: string) => {
 // a push hook that mutates after approval cannot keep the approval and reach a merge.
 {
 	const branch = 'feat/106hk';
-	const { repo, git } = cliRepo(branch);
+	const { repo } = cliRepo(branch);
 	const bare = mkdtempSync(join(tmpdir(), 'wf-bare-'));
 	execFileSync('git', ['init', '-q', '--bare', bare], { encoding: 'utf8' });
 	// A github.com origin deliver can pin, with git's transport rewritten to the local bare repo (#108):
@@ -484,13 +440,12 @@ const approve = async (repo: string, branch: string) => {
 	execFileSync('git', ['-C', repo, 'remote', 'add', 'origin', 'https://github.com/o/r.git'], { encoding: 'utf8' });
 	execFileSync('git', ['-C', repo, 'config', `url.${pathToFileURL(bare).href}.insteadOf`, 'https://github.com/o/r.git'], { encoding: 'utf8' });
 	writeFileSync(join(repo, folder, 'PLAN.md'), '# plan\n\n## Commits\n\n| # | message | files | check |\n|---|---|---|---|\n| 1 | fix(x): one | src/x.ts | — |\n');
-	writeFileSync(join(repo, 'src/x.ts'), 'b\n');
-	git('add', '-A');
-	git('commit', '-q', '-m', 'fix(x): one');
+	// The round is docs-only for `wf check` (no product change in the diff), so deliver reaches the push;
+	// the hook below mutates a product file after the approval, which the approval recheck must catch.
 	await withStack(branch, async () => {
 		await approve(repo, branch);
 	});
-	writeFileSync(join(repo, '.wf', 'state.json'), `${JSON.stringify({ round: '106', id: '106', folder, base: 'main', step: 'pr', class: 'A' }, null, 2)}\n`);
+	writeFileSync(join(repo, '.wf', 'state.json'), `${JSON.stringify({ wf_version: 2, round: '106', id: '106', folder, base: 'main', step: 'pr', class: 'A' }, null, 2)}\n`);
 	const hook = join(repo, '.git', 'hooks', 'pre-push');
 	mkdirSync(join(repo, '.git', 'hooks'), { recursive: true });
 	writeFileSync(hook, '#!/bin/sh\necho h >> src/x.ts\n');

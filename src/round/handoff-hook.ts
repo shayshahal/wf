@@ -1,56 +1,42 @@
 // handoff-hook.ts — wf handoff <check | no-fork>: the Claude Code plugin's hooks (claude/hooks.json),
-// fed the hook's JSON on stdin (kit and env plan, step 5).
+// fed the hook's JSON on stdin.
 //   check    a wf:round-worker handing back (PreToolUse on SubagentHandback) or stopping
-//            (SubagentStop): sends it back, once per brief, while the handoff its last brief asked
-//            for is missing (handoff.ts). In auto mode the report goes through SubagentHandback,
-//            which reaches the orchestrator before SubagentStop fires: BJEW-562 (2026-09-27), the
-//            stop hook sent validate back and it fixed VALIDATION.md, but the orchestrator had
-//            already run wf next on the report and asked Shay. pi has no such hook; wf next catches
-//            it there one step later.
-//   no-fork  PreToolUse on Agent: in a round, a fork is refused. A fork carries the orchestrator's
-//            whole conversation, which is what a fresh phase agent exists not to have; a plugin
-//            cannot ship the Agent(fork) permission rule (its settings take only agent and
-//            subagentStatusLine), but it can ship this hook.
+//            (SubagentStop): sends it back, once per step, while the phase its round is at still owes
+//            its handoff. The old per-brief token is gone (#112): the round's step is the phase, and
+//            the handoff is the agreement file (agree), `wf step assess` (build) or ASSESSMENT.md
+//            (assess). pi has no such hook; wf next catches it there one step later.
+//   no-fork  PreToolUse on Agent: in a round, a fork is refused.
 // Outside a round both allow everything.
 import { execFileSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { handoffFile, handoffGap, rowDone } from './handoff.ts';
-import { snapshotOf } from './next.ts';
-import type { Snapshot } from './next.ts';
-import { planCommitRows } from './prompt.ts';
-import { CorruptStateError, readState, writeState } from './state.ts';
-import type { Brief } from './state.ts';
+import { agreementGap, agreementPath, ASSESSMENT_FILE, assessmentGap, consequential, section } from './agreement.ts';
+import { CorruptStateError, legacyStateGap, readState, writeState } from './state.ts';
+import type { State } from './state.ts';
 
 type HookInput = { cwd?: string; stop_hook_active?: boolean; agent_type?: string; hook_event_name?: string; tool_input?: { subagent_type?: string } };
 
-// Pure: the most recent brief, as { key, phase, n, arg }, or null: n is implement's row, arg the
-// key's second word as it is (standards' check id).
-export function lastBrief(briefs: Record<string, Brief> = {}): { key: string; phase: string; n: number | null; arg: string | null } | null {
-	const [key] = Object.entries(briefs).sort(([, a], [, b]) => String(b.at).localeCompare(String(a.at)))[0] ?? [];
-	if (!key) return null;
-	const [phase, arg] = key.split(' ');
-	return { key, phase, n: phase === 'implement' && arg ? Number(arg) : null, arg: arg ?? null };
-}
-
-// Pure: null when the round-worker may end, else what it still owes. Its phase is the last brief's.
-export function stopGap(s: Snapshot): string | null {
-	const last = lastBrief(s.briefs);
-	if (!last) return null;
-	if (last.phase === 'implement') {
-		const row = planCommitRows(s.files.plan ?? '').find((r) => r.n === last.n);
-		if (!row || s.files.blocked || rowDone(row, s)) return null;
-		return `commit ${last.n} is not made: its row's message, after \`wf check\` is green, or BLOCKED.md if you cannot`;
+// Pure: null when the round-worker may end, else what its phase still owes. Keyed on the round's step,
+// which is the phase it is at; the sent-back marker holds it to one hand-back per *visit* to the step
+// (`step@since`), so a build that returns after a repair is sent back again (#112).
+export function stopGap(state: State | null, files: { agreement: string | null; assessment: string | null; blocked: boolean; commits: boolean }): string | null {
+	if (!state || state.handoff_sent_back === `${state.step ?? ''}@${state.since ?? ''}`) return null;
+	const klass = state.class ?? null;
+	if (state.step === 'agree') {
+		if (!files.agreement) return `write ${consequential(klass) ? 'AGREEMENT.md' : 'TICKET.md'} (its sections) before you end`;
+		if (consequential(klass)) return agreementGap(files.agreement, klass, null);
+		if (!section(files.agreement, 'Intent')) return 'TICKET.md has no `## Intent` — the requester\'s words, verbatim';
+		return null;
 	}
-	if (last.phase === 'standards') {
-		const c = (s.standards ?? []).find((x) => x.id === last.arg);
-		const gap = c && handoffGap('standards', c.text, s.briefs[last.key], handoffFile('standards', c.id));
-		return gap ? `${gap}. Your brief's Handoff section says what to write before you end.` : null;
+	if (state.step === 'build') {
+		if (files.blocked || files.commits) return null;
+		return 'the build has no commit yet: when the agreement\'s verification cases pass, commit and run `wf step assess`, or write BLOCKED.md';
 	}
-	const file = ({ research: 'research', plan: 'plan', 'as-built': 'asBuilt', validate: 'validation', critique: 'critique' } as Partial<Record<string, keyof Snapshot['files']>>)[last.phase];
-	if (!file) return null; // fix-review: its commit is counted by wf next
-	const gap = handoffGap(last.phase, s.files[file], s.briefs[last.key], undefined, s.branch);
-	return gap ? `${gap}. Your brief's Handoff section says what to write before you end.` : null;
+	if (state.step === 'assess') {
+		if (!files.assessment) return `write ${ASSESSMENT_FILE} (with its Verdict: and head: lines) before you end`;
+		return assessmentGap(files.assessment);
+	}
+	return null;
 }
 
 // Pure: why an Agent call is refused, or null.
@@ -72,7 +58,6 @@ function roundAt(cwd: string): string | null {
 		// A state file that is not the round's is the round's, not "no round here": rethrow so the hook
 		// can block instead of letting a worker end or fork past its gate (issue #107).
 		if (e instanceof CorruptStateError) throw e;
-		// Not a git checkout: no round here, and the hook lets the agent be.
 		return null;
 	}
 }
@@ -84,8 +69,6 @@ export async function runHandoff(argv: string[]): Promise<void> {
 		toplevel = roundAt(input.cwd ?? process.cwd());
 	} catch (e) {
 		if (!(e instanceof CorruptStateError)) throw e;
-		// The round's state cannot be read: deny/block whichever event the harness is running, so a
-		// corrupt round never fails open (issue #107).
 		const reason = `wf handoff: ${e.message}`;
 		process.stdout.write(JSON.stringify(input.hook_event_name === 'PreToolUse'
 			? { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } }
@@ -94,20 +77,33 @@ export async function runHandoff(argv: string[]): Promise<void> {
 	}
 	if (!toplevel) return;
 	if (argv[0] === 'check') {
-		// Once per brief: a second hand-back or stop goes through, and wf next redispatches (a hook
-		// loop would burn the agent). The brief records it, so the two events share the one.
+		// Once per step: a second hand-back or stop goes through, and wf next redispatches (a hook loop
+		// would burn the agent).
 		if (input.stop_hook_active || !/round-worker/.test(input.agent_type ?? '')) return;
-		const s = snapshotOf(toplevel);
-		const last = lastBrief(s.briefs);
-		if (!last || s.briefs[last.key].sent_back) return;
-		const gap = stopGap(s);
-		if (!gap) return;
-		// From the state under the write lock: a brief another process recorded meanwhile keeps its
-		// key, only this one's `sent_back` is added (issue #107).
-		writeState(toplevel, (state) => {
-			const brief = state.briefs?.[last.key];
-			return brief ? { briefs: { ...state.briefs, [last.key]: { ...brief, sent_back: true } } } : {};
+		const state = readState(toplevel);
+		if (!state) return;
+		// A state from the old runtime is refused before the hook writes anything (finish-before-release,
+		// #110): the handoff hook is the one producer that runs outside the dispatcher's guard.
+		const legacy = legacyStateGap(state);
+		if (legacy) {
+			const reason = `wf handoff: ${legacy}`;
+			process.stdout.write(JSON.stringify(input.hook_event_name === 'PreToolUse'
+				? { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } }
+				: { decision: 'block', reason }));
+			return;
+		}
+		const folder = state.folder ?? null;
+		const agreementFile = agreementPath(toplevel, state.class ?? null, folder);
+		const read = (name: string) => (folder && existsSync(join(toplevel, folder, name)) ? readFileSync(join(toplevel, folder, name), 'utf8') : null);
+		const commits = (() => { try { return execFileSync('git', ['-C', toplevel, 'log', '--format=%H', `${state.base ?? 'HEAD~1'}..HEAD`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim().length > 0; } catch { return false; } })();
+		const gap = stopGap(state, {
+			agreement: existsSync(agreementFile) ? readFileSync(agreementFile, 'utf8') : null,
+			assessment: read(ASSESSMENT_FILE),
+			blocked: existsSync(join(toplevel, folder ?? '', 'BLOCKED.md')),
+			commits,
 		});
+		if (!gap) return;
+		writeState(toplevel, (current) => ({ handoff_sent_back: `${current.step ?? ''}@${current.since ?? ''}` }));
 		const out = input.hook_event_name === 'PreToolUse'
 			? { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: `not yet: ${gap}` } }
 			: { decision: 'block', reason: gap };

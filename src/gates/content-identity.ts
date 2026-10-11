@@ -5,11 +5,11 @@
 //
 // Two scopes share one exclusion encoding:
 //   approval — the bytes a person judged: everything but wf's own metadata, REVIEW.md, the tracker
-//     note and the repro's live login. PLAN.md, SPEC.md, the as-built call stack and a round folder's
-//     repro/tests all bind, so a change to any invalidates.
-//   row — the product and tests OUTSIDE the round folder that a `wf check` measured. The round
-//     folder's paper is committed only at deliver, so a row commit carries product/tests; excluding
-//     the folder makes a check's content equal its commit's, which is what binds a row's green. The
+//     note and the repro's live login. TICKET.md, AGREEMENT.md, ASSESSMENT.md, an optional call stack
+//     and a round folder's repro/tests all bind, so a change to any invalidates.
+//   row — the product and tests OUTSIDE the round folder that a verification case or suite measured.
+//     This is a check's scope, not a planned-commit/dispatch row. The round folder's paper is committed
+//     only at deliver; excluding it keeps paperwork from changing the measured product identity. The
 //     round folder's repro is NOT in this scope (it is untracked until deliver); the approval scope
 //     above covers it, so a repro change blocks the merge even though it does not block `wf next`.
 // The identity is a git tree hash, so modes and symlinks come through git's own encoding. It is
@@ -21,8 +21,8 @@ import { join } from 'node:path';
 import { trackerNote } from '../project.ts';
 
 // wf's own files, by exact path (never the whole .wf folder: a stray executable there stays part of
-// the identity). The names come from state.ts, check.ts, serve.ts, design.ts and review.ts. The lock,
-// its acquisition guard and the state-trace log are state.ts's own (issue #107): a concurrent
+// the identity). The names come from state.ts, check.ts, serve.ts and review.ts. The lock and its
+// acquisition guard are state.ts's own (issue #107): a concurrent
 // writeState leaves them while another command reads the implementation, so they are wf's, not it.
 const WF_METADATA = [
 	'.wf/state.json',
@@ -30,13 +30,12 @@ const WF_METADATA = [
 	'.wf/state.json.lock.acquiring',
 	'.wf/checks.log',
 	'.wf/events.log',
-	'.wf/state-writes.log',
 	'.wf/serve.pid',
 	'.wf/logs',
 	'.wf/before-after.html',
-	'.wf/PLAN.html',
-	'.wf/SPEC-T1.md',
-	'.wf/SPEC-T1.html',
+	'.wf/AGREEMENT.html',
+	'.wf/AGREEMENT-T1.md',
+	'.wf/AGREEMENT-T1.html',
 ];
 
 // wf's own atomic writes, and the token each writes after `<pid>`:
@@ -86,7 +85,7 @@ export function trackerNotePath(folder: string | null): string | null {
 }
 
 // The one exclusion encoding, per scope. `approval`: wf metadata + REVIEW.md + the tracker note + the
-// repro's live login. `row`: wf metadata + the whole round folder (a row commit carries product/tests,
+// repro's live login. `row`: wf metadata + the whole round folder (verification measures product/tests,
 // not the paper committed at deliver).
 export function approvalExclusions(folder: string | null, notePath: string | null, scope: ContentScope = 'approval'): string[] {
 	const f = folder?.replace(/\\/g, '/') ?? null;

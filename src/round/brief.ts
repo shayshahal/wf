@@ -1,122 +1,56 @@
 #!/usr/bin/env node
-// brief.ts — wf brief <research | plan [--revise] | implement N | as-built | validate [--answer] | critique | standards <check> | fix-review>
+// brief.ts — wf brief <agree | build | assess>
 // What a phase agent runs first: the orchestrator dispatches one line, "run `wf brief <phase>` and do
-// exactly what it prints" (wf next prints it), so the agent's brief is wf's own text, never a summary
-// or a shell expression (kit and env plan, step 4). The prompt is `wf prompt`'s, plus a handoff with
-// a token recorded in .wf/state.json `briefs` (handoff.ts). It refuses while the handoff it
-// starts from is missing or stale: RESEARCH.md for plan, PLAN.md's rows for implement.
-// Implement and fix-review hand off a commit, so their brief carries no token line.
-import { execFileSync } from 'node:child_process';
+// exactly what it prints", so the agent's brief is wf's own text, never a summary or a shell
+// expression. The old per-phase handoff token (a `<!-- brief: … -->` line recording which brief a
+// file answered) is gone (#112): a phase is identified by the round's step, and a build ends by
+// running `wf step assess`, not by matching a commit subject or a row number.
 import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { pendingRevisions } from './ask.ts';
-import { briefsAfter, handoffFile, handoffGap, HANDOFF_FILES, newToken, runsAfter, tokenLine, tokenOf } from './handoff.ts';
 import { nextAction, snapshotOf } from './next.ts';
 import { composePrompt } from './prompt.ts';
-import { specShaFor } from '../gates/review-format.ts';
+import { agreementFile, consequential } from './agreement.ts';
 import { ensureServers } from '../worktrees/serve.ts';
-import { readState, toplevelOf, writeState } from './state.ts';
-import type { State } from './state.ts';
+import { readState, toplevelOf } from './state.ts';
 
-// Pure: the handoff a phase's brief ends with.
-export function handoffText({ phase, folder, token, file = HANDOFF_FILES[phase] }: { phase: string; folder: string | null; token: string; file?: string }): string {
-	const line = `\`${tokenLine(token)}\``;
-	if (phase === 'implement') return `\n## Handoff\n\nYour handoff is the commit: the row's message exactly, made after \`wf check\` is green; or \`${folder}/BLOCKED.md\`.\n`;
-	if (phase === 'fix-review') return '\n## Handoff\n\nYour handoff is the one `fix(review):` commit, made after `wf check` is green.\n';
-	return `\n## Handoff\n\nEnd \`${folder}/${file}\` with this line, exactly: ${line}\nWithout it the file is not taken as this brief's answer, and the round does not move on.\n`;
+// The phases that drive the app in a browser: their brief starts the stack and waits for it. The
+// build runs `wf check`, which starts what it needs; the assessment may look at the app itself.
+export const USES_STACK = new Set(['assess']);
+
+// Pure: the handoff a phase's brief ends with. No token is minted: the build's handoff is the step
+// transition `wf step assess`, the assessment's the ASSESSMENT.md it writes.
+export function handoffText(phase: string, folder: string | null, klass: string | null): string {
+	if (phase === 'build') return `\n## Handoff\n\nWhen the agreement's \`## Verification\` cases pass (\`wf check\`), commit, then run \`wf step assess\`. Or write \`${folder}/BLOCKED.md\` if you cannot proceed.\n`;
+	if (phase === 'assess') return `\n## Handoff\n\nWrite \`${folder}/ASSESSMENT.md\` whole, with its \`Verdict:\` line and \`head:\` line; then \`wf next\`.\n`;
+	return `\n## Handoff\n\nWrite \`${folder}/${agreementFile(klass as 'A' | 'B' | 'C')}\` (class ${klass}: ${consequential(klass as 'A' | 'B' | 'C') ? 'the agreement with `## Observed`, `## Agreed` and `## Verification`' : 'the ticket, with `## Repro` for a check round'}); then \`wf next\`.\n`;
 }
 
-const readIf = (file: string) => (existsSync(file) ? readFileSync(file, 'utf8') : null);
-
-// The phase whose handoff a brief starts from.
-const STARTS_FROM: Record<string, string> = { plan: 'research', implement: 'plan', critique: 'validate' };
-
-// Null, or why the phase before `phase` has not handed off (the files as they are now).
-export function startGap(phase: string, toplevel: string, state: State | null): string | null {
-	const from = STARTS_FROM[phase];
-	if (!from) return null;
-	const file = join(toplevel, state?.folder ?? '', HANDOFF_FILES[from]);
-	return handoffGap(from, existsSync(file) ? readFileSync(file, 'utf8') : null, state?.briefs?.[from], undefined, state?.round ?? null);
-}
-
-// Pure: null when `wf next` (its printed `say`) dispatches exactly this brief, else why not. A
-// brief records a new token, and the last brief's handoff stops counting: BJEW-562 (2026-09-27),
-// the orchestrator ran `wf brief plan --revise` to preview it, and the build it then dispatched
-// refused, the plan no longer handed off.
+// Pure: null when `wf next` dispatches exactly this brief, else why not. A brief read out of turn
+// would run a phase the round is not at (the old token was what made a stale file not count).
 export function briefGap(argv: string[], say: string): string | null {
 	const label = argv.join(' ');
 	if (say.split('\n').some((l) => l.startsWith(`dispatch ${label}:`) || l.startsWith(`dispatch ${label} (model: `))) return null;
-	return `wf next is not dispatching \`${label}\` (it says: ${say.split('\n')[0]}). A brief records a new token and voids the last one's handoff; to read a phase's prompt, \`wf prompt ${label}\``;
+	return `wf next is not dispatching \`${label}\` (it says: ${say.split('\n')[0]}). To read a phase's prompt, \`wf prompt ${label}\``;
 }
 
-// The chain a critique and an answering validation are part of (gates/critique.ts): a critique records
-// the validation it judges and which exchange it is, `validate --answer` the exchange it answers. A
-// validation not briefed as an answer (the first, or one after a fix) starts a new chain.
-function critiqueFields(phase: string, argv: string[], state: State | null, toplevel: string, folder: string | null) {
-	if (phase === 'critique') {
-		return { of: tokenOf(readIf(join(toplevel, folder ?? '', HANDOFF_FILES.validate))), exchange: (state?.briefs?.validate?.answers ?? 0) + 1 };
-	}
-	if (phase === 'validate' && argv.includes('--answer')) return { answers: state?.briefs?.critique?.exchange ?? 1 };
-	return {};
-}
-
-// Pure: how many agents this phase's brief makes. A critique of a new validation and a research asked for
-// again are firsts (`fresh`, `again`). A validate briefed on a HEAD other than the last validate brief's is
-// one too: the count is the agents of one validated tree, not of the round. JX-1221 (2026-10-07): 6 briefs
-// over 3 heads (3 + 2 + 1), and `wf next` held the round as a harness gap on the first bad validation of
-// the third. A `--answer` on the same HEAD still counts: it is the same tree judged again, and two agents
-// that cannot hand it off is the gap. An old record with no head counts as before.
-export function briefCount({ phase, fresh, again, last, lastValidate, head }: { phase: string; fresh: boolean; again: boolean; last: { count?: number } | undefined; lastValidate: { head?: string } | undefined; head: string }): number {
-	const newTree = phase === 'validate' && lastValidate?.head !== undefined && lastValidate.head !== head;
-	return fresh || again || newTree ? 1 : (last?.count ?? 0) + 1;
-}
-
-// The phases that drive the app in a browser: their brief starts the stack and waits for it, since
-// nothing serves a worktree from its creation (2026-10-04, serve.ts).
-export const USES_STACK = new Set(['research', 'validate']);
-
-// `stack` is ensureServers; the self-check plugs in a stack that never answers.
 export async function runBrief(argv: string[], { stack = ensureServers }: { stack?: typeof ensureServers } = {}): Promise<void> {
 	const phase = argv[0];
 	let composed: ReturnType<typeof composePrompt>;
 	try {
 		const toplevel = toplevelOf();
-		const gap = startGap(phase, toplevel, readState(toplevel)) ?? briefGap(argv, nextAction(snapshotOf(toplevel)).say);
+		const gap = briefGap(argv, nextAction(snapshotOf(toplevel)).say);
 		if (gap) throw new Error(`${phase}: ${gap}`);
 		composed = composePrompt(argv);
 	} catch (e) {
 		console.error(`wf brief ${(e as Error).message}`);
 		process.exit(2);
 	}
-	const { toplevel, folder, key } = composed;
-	// The stack comes first, and the brief is recorded only once it is about to go out. The wait runs up
-	// to 3 minutes, and a stack that does not answer holds the brief back for all of it: BJEW-461
-	// (2026-10-06), the validate agent's piped `wf brief validate` hung on a dev server busy with a
-	// backlog of reloads, its caller gave up and ran it again, and the record, written before the wait,
-	// counted two agents for one; `wf next` then refused to dispatch validate. A brief that never got
-	// out is not an agent. On stderr, so the brief on stdout stays the prompt alone. A stack that will
-	// not start does not stop the brief: a backend-only round's research still has work to do without it.
+	const { toplevel, folder, state } = composed;
+	// The stack comes first. A stack that will not start does not stop the brief: the build can start
+	// without it, and `wf check` starts its own.
 	if (USES_STACK.has(phase)) {
-		try { console.error(await stack(toplevel, { wait: true })); } catch (e) { /* the brief still goes out: research can start without the app */ console.error((e as Error).message); }
+		try { console.error(await stack(toplevel, { wait: true })); } catch (e) { /* the brief still goes out */ console.error((e as Error).message); }
 	}
-	const token = newToken();
-	// head: the commit a phase was briefed on. wf next re-runs validate once a fix(review) commit lands
-	// after it (TJEW-670: the PR shipped a validation of the tree before its review fix).
-	const head = execFileSync('git', ['-C', toplevel, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
-	const spec = phase === 'plan' ? specShaFor(toplevel) : null;
-	const at = new Date().toISOString();
-	// briefs and briefCounts are built from the state as it is under the write lock, not from a copy
-	// read before it: a brief another command recorded meanwhile is not erased (issue #107). The count
-	// is how many agents this phase has had; wf next stops at two without a handoff. A critique of a
-	// new validation is that validation's first, not the round's next; a research asked for again
-	// (`wf decide --research`) is a new first too (MAX_BRIEFS counts the agents of one ask).
-	writeState(toplevel, (state) => {
-		const fresh = phase === 'critique' && state.briefs?.critique?.of !== tokenOf(readIf(join(toplevel, folder ?? '', HANDOFF_FILES.validate)));
-		const again = phase === 'research' && pendingRevisions(state.researchRequests, state.briefs?.research?.at).length > 0;
-		const count = briefCount({ phase, fresh, again, last: state.briefs?.[key], lastValidate: state.briefs?.validate, head });
-		return { briefs: { ...briefsAfter(phase, argv, state.briefs), [key]: { token, at, count, head, ...(phase === 'plan' ? { spec } : {}), ...critiqueFields(phase, argv, state, toplevel, folder) } }, briefCounts: runsAfter(state.briefCounts, phase) };
-	});
-	process.stdout.write(`${composed.text.trimEnd()}\n${handoffText({ phase, folder, token, file: handoffFile(phase, argv[1]) })}`);
+	process.stdout.write(`${composed.text.trimEnd()}\n${handoffText(phase, folder, readState(toplevel)?.class ?? state?.class ?? null)}`);
 }
 
 if (process.argv[1]?.endsWith('brief.ts')) await runBrief(process.argv.slice(2));
