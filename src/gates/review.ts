@@ -86,13 +86,15 @@ export function reviewFiles(diff: string[], assessment: string, onDisk: boolean)
 }
 
 // The round's before/after page (.wf/before-after.html, outside the round folder: deliver commits that
-// folder, and the PNGs it shows are gitignored), or null when neither research nor validate took one.
+// folder, and the PNGs it shows are gitignored), or null when the round has no before/after pictures.
 function writeBeforeAfter(worktree: string, round: string) {
   const folder = readState(worktree).folder;
   const proof = folder ? join(worktree, folder, 'proof') : null;
   const pairs = proof && existsSync(proof) ? proofPairs(readdirSync(proof)) : [];
   if (!pairs.length) return null;
-  const texts = [agreementPath(worktree, readState(worktree).class ?? null, folder), 'ASSESSMENT.md'].map((f) => (f && existsSync(join(worktree, f)) ? readFileSync(join(worktree, f), 'utf8') : ''));
+  // Both are round-owned absolute paths: joining the agreement to worktree again lost its caption,
+  // and the bare assessment name read a root-level decoy instead of the round's assessment (#114).
+  const texts = [agreementPath(worktree, readState(worktree).class ?? null, folder), folder ? join(worktree, folder, ASSESSMENT_FILE) : null].map((f) => (f && existsSync(f) ? readFileSync(f, 'utf8') : ''));
   const captions = Object.fromEntries((pairs.flatMap((p) => [p.before, p.after]).filter(Boolean) as string[]).map((n) => [n, captionFor(n, texts)]));
   const file = join(worktree, '.wf', 'before-after.html');
   mkdirSync(dirname(file), { recursive: true });

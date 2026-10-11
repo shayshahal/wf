@@ -175,20 +175,21 @@ ${rows}
 `;
 }
 
-// ── the plan page ────────────────────────────────────────────────────────────
-// The same design, rendered: SPEC.md § For T1 at T1 (.wf/SPEC-T1.html, design.ts) and PLAN.md at T2
-// (.wf/PLAN.html, review.ts). The markdown stays the file of record. At T1 the page is what the person
-// annotates, so the page has to say which SPEC.md line each block is: agreementBody tags them `wf-src-<line>`
-// and pageLine reads the tag back out of what Plannotator reports. The page is also where SHOW-ME.md's
-// views read as views — diff blocks coloured, a mermaid block drawn, the Asks copyable, the round's own
-// HTML artifacts embedded. Mermaid comes from a CDN and its source stays readable when there is none:
-// the page is opened on the person's machine, never fetched by wf (and under Claude Code the screen that
-// shows it is the review UI, editor.ts).
-export type PlanArtifact = { title: string; src: string };
+// ── the agreement page ──────────────────────────────────────────────────────
+// The agreement, rendered: `wf agree` shows the agreed material at T1 (.wf/AGREEMENT-T1.html) and
+// `wf review` shows the whole AGREEMENT.md at T2 (.wf/AGREEMENT.html). The markdown stays the file of
+// record. At T1 the page is what the person annotates, so the page has to say which AGREEMENT.md line
+// each block is: agreementBody tags them `wf-src-<line>` and pageLine reads the tag back out of what
+// Plannotator reports. The page is also where SHOW-ME.md's views read as views — diff blocks coloured,
+// a mermaid block drawn, the Asks copyable, the round's own HTML artifacts embedded. Mermaid comes
+// from a CDN and its source stays readable when there is none: the page is opened on the person's
+// machine, never fetched by wf (and under Claude Code the screen that shows it is the review UI,
+// editor.ts).
+export type AgreementArtifact = { title: string; src: string };
 
 // Pure: the round folder's own HTML files (SHOW-ME.md artifacts), as the page embeds them. `from` is
 // the folder the page is written in (.wf), so each src is relative to it.
-export function roundArtifacts(roundDir: string, from: string): PlanArtifact[] {
+export function roundArtifacts(roundDir: string, from: string): AgreementArtifact[] {
 	if (!existsSync(roundDir)) return [];
 	const base = relative(from, roundDir).replace(/\\/g, '/');
 	return readdirSync(roundDir).filter((f) => f.endsWith('.html')).sort()
@@ -204,9 +205,10 @@ const diffRow = (line: string) => {
 	return `<span class="${marker ? MARKERS[marker] : 'ctx'}">${escapeHtml(line) || ' '}</span>`;
 };
 
-// Pure: a plan document's markdown → the small part of it wf writes. Fenced blocks keep their shape:
+// Pure: an agreement's markdown → the small part of it wf writes. Fenced blocks keep their shape:
 // a `diff` block and a bare one (where the call stacks live) are coloured by marker, `mermaid` is left
-// for the script `agreementPage` adds, and a table is shown as it is because a plan's tables are read as text.
+// for the script `agreementPage` adds, and a table is shown as it is because an agreement's tables are
+// read as text.
 export function agreementBody(md: string, base = 0): string {
 	const out: string[] = [];
 	const lines = md.replace(/\r\n/g, '\n').split('\n');
@@ -219,7 +221,14 @@ export function agreementBody(md: string, base = 0): string {
 	const openTag = (name: string, i: number, cls = '') => `<${name} class="${[`wf-src-${base + i + 1}`, cls].filter(Boolean).join(' ')}" id="wf-src-${base + i + 1}">`;
 	let list = false;
 	let table = false;
-	const close = () => { if (list) { out.push('</ul>'); list = false; } if (table) { out.push('</pre>'); table = false; } };
+	// The indentation of each open nested <ul>, innermost last: a nested bullet is its own list inside
+	// the open <li>, so a comment on it folds onto its own line instead of flattening into the parent
+	// (#114 closure, F7). A plain indented line (no bullet) is still a wrapped continuation.
+	const nest: number[] = [];
+	const close = () => {
+		if (list) { while (nest.length) { out.push('</ul></li>'); nest.pop(); } out.push('</ul>'); list = false; }
+		if (table) { out.push('</pre>'); table = false; }
+	};
 	for (let i = 0; i < lines.length; i++) {
 		const line = lines[i];
 		const fence = /^```(\w*)\s*$/.exec(line);
@@ -242,13 +251,30 @@ export function agreementBody(md: string, base = 0): string {
 		const head = /^(#{1,3})\s+(.*)$/.exec(line);
 		if (head) { close(); out.push(`${openTag(`h${head[1].length}`, i)}${inline(head[2])}</h${head[1].length}>`); continue; }
 		const item = /^[-*]\s+(.*)$/.exec(line);
-		if (item) { if (!list) { out.push('<ul>'); list = true; } out.push(`${openTag('li', i)}${inline(item[1])}</li>`); continue; }
+		if (item) { if (!list) { out.push('<ul>'); list = true; } while (nest.length) { out.push('</ul></li>'); nest.pop(); } out.push(`${openTag('li', i)}${inline(item[1])}</li>`); continue; }
+		const nested = /^(\s+)[-*]\s+(.*)$/.exec(line);
+		if (list && nested) {
+			const indent = nested[1].length;
+			while (nest.length && indent < nest[nest.length - 1]) { out.push('</ul></li>'); nest.pop(); }
+			if (!nest.length || indent > nest[nest.length - 1]) { out[out.length - 1] = out[out.length - 1].replace(/<\/li>$/, ''); out.push('<ul>'); nest.push(indent); }
+			out.push(`${openTag('li', i)}${inline(nested[2])}</li>`);
+			continue;
+		}
 		if (/^>/.test(line)) {
 			close();
 			const start = i;
 			const quote = [line.replace(/^>\s?/, '')];
 			while (i + 1 < lines.length && /^>/.test(lines[i + 1])) quote.push(lines[++i].replace(/^>\s?/, ''));
 			out.push(`${openTag('blockquote', start, 'ask')}${quote.map(inline).join('<br>')}<button class="copy" type="button">copy</button></blockquote>`);
+			continue;
+		}
+		// An indented line under an open list item continues it. The agreement template wraps a long
+		// bullet onto a 2-space continuation line; closing the list here split the sentence out as a
+		// sibling <p> on every T1/T2 page (render-check, 2026-10-10). The continuation keeps its own
+		// `wf-src-<line>` so a comment on it still folds onto its agreement line (review-format.ts pageLine).
+		if (list && /^\s+\S/.test(line)) {
+			const n = base + i + 1;
+			out[out.length - 1] = out[out.length - 1].replace(/<\/li>$/, ` <span class="wf-src-${n}" id="wf-src-${n}">${inline(line.trim())}</span></li>`);
 			continue;
 		}
 		if (!line.trim()) continue;
@@ -269,9 +295,9 @@ const MERMAID = '<script type="module">import mermaid from "https://cdn.jsdelivr
 // fallback, so the button does something rather than nothing when the API says no.
 const COPY_ASK = '<script>const wfCopy=(t)=>{const a=document.createElement("textarea");a.value=t;document.body.appendChild(a);a.select();let ok=false;try{ok=document.execCommand("copy")}catch(e){ok=false /* no clipboard in this frame: the person copies by hand */}a.remove();return ok};document.addEventListener("click",(e)=>{const b=e.target.closest("button.copy");if(!b)return;const t=b.parentElement.innerText.replace(/copy$/,"").trim();const done=()=>{b.textContent="copied"};if(navigator.clipboard)navigator.clipboard.writeText(t).then(done,()=>{wfCopy(t);done()});else{wfCopy(t);done()}});</script>';
 
-// Pure: the standalone page for a section of a plan document. `base` is the line the section starts at in
-// the document it was cut from: with it each block's tag is a line of that document (design.ts).
-export function agreementPage({ title, meta, section, artifacts = [], base = 0 }: { title: string; meta: string[]; section: string; artifacts?: PlanArtifact[]; base?: number }) {
+// Pure: the standalone page for an agreement section. `base` is the line the section starts at in the
+// document it was cut from: with it each block's tag is a line of that document (agree.ts, review.ts).
+export function agreementPage({ title, meta, section, artifacts = [], base = 0 }: { title: string; meta: string[]; section: string; artifacts?: AgreementArtifact[]; base?: number }) {
 	const body = agreementBody(section, base);
 	const hasClass = (cls: string) => new RegExp(`class="[^"]*\\b${cls}\\b`).test(body);
 	return `<!doctype html>

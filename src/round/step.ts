@@ -17,7 +17,6 @@ import { CLASSIFY } from '../paths.ts';
 import { agreementGap, agreementPath, agreementSha, AGREEMENT_REVIEW_FILE, consequential } from './agreement.ts';
 import { lastField, readVerdict } from '../gates/review-format.ts';
 import { people } from '../project.ts';
-import { seams } from '../seams.ts';
 import { roundFile, readState, writeState, WF_STATE_VERSION } from './state.ts';
 import type { RoundClass, State } from './state.ts';
 import { stepHistory } from './friction.ts';
@@ -141,14 +140,4 @@ export async function runStep(argv: string[], { quiet = false } = {}) {
 		process.exit(2);
 	}
 	if (!quiet) console.log(JSON.stringify(state));
-	await notifyAdapters(state);
-}
-
-// Tell whatever the machine plugged in (seams.notify) — a failing one never fails the command.
-export async function notifyAdapters(state: State) {
-	for (const notify of seams.notify) {
-		try {
-			await notify(state);
-		} catch { /* best-effort */ }
-	}
 }

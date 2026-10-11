@@ -117,7 +117,10 @@ Only these, only when they happen:
 
 No progress narration. No summaries of what the agent did. "What's waiting?" → `wf status
 --all` and paste it. Anything else the user asks about a round: answer from `AGREEMENT.md` /
-`ASSESSMENT.md` / `git log`, not from memory of the transcript.
+`ASSESSMENT.md` / `git log`, not from memory of the transcript. When the user asks to *see* the
+round's work — the agreement, the current (uncommitted) diff, the last check, the recorded facts and
+the session it is running in — run `wf status --inspect` in the round's worktree and show it; it is
+anytime, not a checkpoint, and adds no approval.
 
 ## Resume: "resume <id>" or a new session
 

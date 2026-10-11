@@ -9,9 +9,11 @@
 - Files are repo-relative from the root: `packages/backend/…`, `packages/frontend/<app>/…`, `verification/…`.
 - A verification case's `check` cell: a pytest file (`packages/backend/tests/test_x.py`), a vitest file
   (`vitest run packages/frontend/b2b/src/tests/x.test.ts`), or a spec under `verification/`.
-- The `## T2 walk` `open:` line is exactly `open: <b2b|admin> </path under the app> as <buyer|seller|admin> [mobile]`:
-  `wf show` parses it and opens that page, logged in. The path is the page itself: seed ids are fixed
-  (docs/agents/seed.md), so a seed product's variants page is `/inventory/<its id>/variants`, not `/inventory`.
+- The `## Agreed` T2 walk bullet's `open:` line is exactly `open: <b2b|admin> </path under the app> as <buyer|seller|admin> [mobile]`:
+  `wf show` parses it and opens that page, logged in. The bullet is optional (a round with nothing to
+  look at writes none); when it is there, `wf show` with no arguments uses it. The path is the page
+  itself: seed ids are fixed (docs/agents/seed.md), so a seed product's variants page is
+  `/inventory/<its id>/variants`, not `/inventory`.
 - A `setup:` line is exactly `setup: api <sdk function> <its JSON options, one line> as <buyer|seller|admin>`.
 - The repro is spec files in `{{folder}}/repro/`, nothing else. Its command: the verification skill's
   `docs/agents/verify-jewelryx/repro.config.ts`, else `{{folder}}/repro/playwright.config.ts`.
