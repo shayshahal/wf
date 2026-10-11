@@ -8,6 +8,8 @@ Code, on Windows.
 It lives outside every project's repo on purpose. A project's repo keeps only the round memory each
 round commits (for JewelryX, `bug-reports/<round>/`).
 
+**Changing wf:** read [DIRECTION.md](DIRECTION.md) for the consolidation target. This README describes the current implementation.
+
 ## Where things are
 
 - `wf.mjs`: the kit's entry. The code is under `src/`, one module per command; the pure functions are
