@@ -24,3 +24,8 @@ Add this section to `ASSESSMENT.md` under `## Behavior and evidence`:
 ```
 
 A `NOT VERIFIED` makes the verdict `blocked`; an `INCONCLUSIVE` does not, but name it.
+For a verification gap, distinguish a product regression, broken harness, stale recipe or missing
+scenario setup; if the cause is unknown, say so. Under `## Behavior and evidence`, name the affected
+path or missing capability, the needed change and the command to rerun. Protected-test updates go
+through bugs-to-tests / cr-to-tests on a `verification/*` branch. Keep this assessment read-only;
+a product regression needs a product fix, not a weaker assertion.

@@ -13,5 +13,9 @@
   are in `.wf/logs/dev.log`.
 - On a `fix/*` or `feat/*` branch add nothing under `verification/` or `JewelryX-Tools/`: the repo's
   lefthook `oracle-guard` fails the push, and `wf check` refuses it.
+- When verification exposes reusable setup knowledge or a harness defect, update the existing
+  project verification asset within the round's scope and rerun the affected check. Preserve only
+  what you verified, not every exploratory step. If the update is out of scope or protected, record
+  the exact path, needed change and rerun command in the round's existing notes instead.
 - Earlier rounds are in `bug-reports/<slug>/`; decision records in `verification/decisions/`. Tell
   `codebase-locator` to read `docs/agents/layout.md` first.
