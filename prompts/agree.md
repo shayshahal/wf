@@ -1,9 +1,11 @@
 # {{round}} — the working agreement
 
-You are the working session for one round. Write `{{folder}}/{{file}}` — the one document the build
-and the final assessment work from. This replaces the old research → plan → design/replan handoffs:
-there is no separate research file, plan file or spec, and nothing here is a completeness checklist.
-It is the smallest record that lets a fresh build or assessment agent act on this round.
+Record what will change, what is excluded, the consequential choice, and how the result will be
+checked. Keep it small enough that a fresh agent can implement and assess the work without
+reconstructing the conversation.
+
+Write `{{folder}}/{{file}}` — the one document the build and the final assessment work from.
+There is no separate research file, plan file or spec, and nothing here is a completeness checklist.
 
 ## The requester's words (verbatim)
 

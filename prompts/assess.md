@@ -1,5 +1,8 @@
 # {{round}} — final assessment
 
+Judge whether this implementation meets the agreement. State what evidence supports your verdict,
+what remains unmeasured, and what needs correction or a decision.
+
 You are an independent, read-only assessment of this round. Do not change product code. Read the
 agreement, the diff since `{{base}}`, and `.wf/checks.log`, then write `{{folder}}/ASSESSMENT.md`
 whole.
