@@ -8,6 +8,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { refuseCaller } from '../refusal.ts';
+import { changedFiles, isRoundPaperwork } from '../gates/check.ts';
 import { baseBranch, directUrls, guidance, name as projectName } from '../project.ts';
 import { WF_HOME, WF_ROOT } from '../paths.ts';
 import { anchorToolPaths } from '../plugin/anchor.ts';
@@ -16,7 +17,7 @@ import { basePortForBranch } from '../worktrees/worktree.ts';
 import { agreementFile, agreementPath, agreementSha, ASSESSMENT_FILE, caseFiles, consequential, section, TICKET_FILE, verificationCases } from './agreement.ts';
 import { openQuestionGate, openRevisions, overruledAsks } from './ask.ts';
 import { guidanceSection, notesFor, readNotes } from './guidance.ts';
-import { readState, roundOf, toplevelOf } from './state.ts';
+import { readState, resolveRoundBase, roundOf, toplevelOf } from './state.ts';
 
 export function renderPrompt(template: string, vars: Record<string, unknown>) {
 	return template.replace(/\{\{(\w+)\}\}/g, (m, key: string) => (key in vars ? String(vars[key]) : m));
@@ -83,7 +84,11 @@ export function composePrompt(argv: string[]) {
 	if (phase === 'build' || phase === 'assess') {
 		const cases = verificationCases(agreementText);
 		vars.cases = cases.length ? cases.map((c) => c.line).join('\n') : '(none: class A — name the case with `wf check --case "<path>::<test id>@<line>"`)';
-		files = cases.flatMap((c) => caseFiles(c));
+		// 2026-10-10: case-only matching left ordinary rounds and newly discovered helpers without
+		// guidance. Share the check gate's full diff (including committed and index-only work).
+		const { ref, base } = resolveRoundBase(toplevel, state);
+		if (!base) throw new Error(`${phase}: the round's base \`${ref}\` does not resolve — fetch it, or start the round with \`wf new --base <ref>\``);
+		files = [...new Set([...cases.flatMap((c) => caseFiles(c)), ...changedFiles(toplevel, base).filter((f) => !isRoundPaperwork(f, folder))])];
 	}
 	if (phase === 'build' && existsSync(join(toplevel, folder ?? '', ASSESSMENT_FILE))) {
 		const a = readFileSync(join(toplevel, folder!, ASSESSMENT_FILE), 'utf8');

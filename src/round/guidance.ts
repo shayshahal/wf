@@ -1,7 +1,7 @@
-// guidance.ts — the project's notes for the files a commit touches, put in that commit's brief. A
+// guidance.ts — the project's notes for the build and assessment's files, put in their briefs. A
 // project's notes on an area (its backend's conventions, its components') live in its repo, beside
 // the notes the phase prompts name by path (project.ts `guidance`). One that says which files it is
-// about, in its frontmatter, reaches `wf brief build` when the case's files match it, inline,
+// about, in its frontmatter, reaches both briefs when a case file or actual changed file matches it,
 // so the agent spends none of its calls finding it, and a build that touches none of them carries
 // none of it. Amp's AGENTS.md globs, the same frontmatter (ampcode.com/news/globs-in-AGENTS.md,
 // 2026-10-03):
@@ -51,7 +51,7 @@ export function notesFor(notes: Note[], files: string[]): (Note & { files: strin
 export function guidanceSection(notes: (Note & { files: string[] })[]): string {
 	if (!notes.length) return '';
 	const parts = notes.map((n) => `### \`${n.path}\` (for ${n.files.map((f) => `\`${f}\``).join(', ')})\n\n${n.body}`);
-	return `\n## This project's notes for these files\n\nFrom its repository, for the files in this row. They rank below the agreement and the fence above.\n\n${parts.join('\n\n')}\n`;
+	return `\n## This project's notes for these files\n\nFrom its repository, for the case files and actual changed files. They rank below the agreement and the fence above.\n\n${parts.join('\n\n')}\n`;
 }
 
 // The notes under `dir` (the worktree's, recursively) that name globs.

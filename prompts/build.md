@@ -19,6 +19,11 @@ verification case passes and you run `wf step assess`.
 - A renewed agreement is for genuinely new scope or behavior only — a new user-visible surface, a
   changed contract path, a different persistence choice, or dropping an agreed item. If you find one,
   write `{{folder}}/BLOCKED.md` with a `Question:` line; do not decide it alone.
+- When a reviewed correction is likely to recur or protects a consequential project boundary,
+  prefer preserving it as a test/check. For remaining judgment, update an existing scoped project
+  note with the reason, scope, exceptions and durable source. Keep this within the agreement and
+  fence; otherwise record the affected note/check and needed change in the handoff. Review these
+  updates with the implementation, using the existing review.
 - Run `wf check` (or `wf check --case "<path>::<test id>@<line>"` on a class A round). It refuses
   edits outside the round, protected-test changes, and a verification that does not really execute
   the named assertion. A green run is not proof that a specific assertion line ran.

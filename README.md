@@ -107,8 +107,9 @@ holds everything wf knows about it, and `index.ts` there is the only file the re
 - `checks`: the commands `wf check` runs for a diff
 - its round folder, base branch, round branches, people, contract-paths file, tracker note
 - `guidance`: the folder of its notes for agents, in its own repo. A note whose frontmatter has
-  `globs:` (Amp's AGENTS.md form, from the repo root) is put in the brief of each commit whose row
-  touches a matching file (`src/round/guidance.ts`); the rest are named by the phase prompts
+  `globs:` (Amp's AGENTS.md form, from the repo root) is put in the build and assessment briefs when
+  a verification case file or actual changed file matches (`src/round/guidance.ts`); the rest are
+  named by the phase prompts
 - `commands`: wf subcommands only this project has (JewelryX: `seed`, `show`)
 
 Next to it: `ROUND.md` (tracker, statuses, people, branches: read by the round skill),

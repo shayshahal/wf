@@ -1,11 +1,12 @@
 // prompt.selfcheck.ts — node prompt.selfcheck.ts → exit 0 when green.
 // The agreement's `## Verification` cases, the agreed material a build reads, {{...}} substitution,
 // TICKET.md's `## Intent`, and the state merge.
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { WF_ROOT } from '../paths.ts';
+import { guidance } from '../project.ts';
 import { agreedMaterial, renderPrompt, ticketIntent } from './prompt.ts';
 import { caseFiles, verificationCases } from './agreement.ts';
 import { readState, writeState } from './state.ts';
@@ -90,6 +91,59 @@ rmSync(dir, { recursive: true, force: true });
 			const count = (prompt.match(/keep the existing button/g) ?? []).length;
 			check(`the decision reaches the ${phase} prompt exactly once`, count === 1, `count=${count}`);
 		}
+	} finally { rmSync(repo, { recursive: true, force: true }); }
+}
+
+// Scoped guidance follows the real diff too: an ordinary ticket has no case table, and a build can
+// discover helpers outside the predicted case files. Committed, unstaged, index-only and untracked
+// work must all reach both prompts without loading unrelated or round-paperwork-only notes.
+{
+	const repo = mkdtempSync(join(tmpdir(), 'wf-prompt-guidance-'));
+	try {
+		const git = (...args: string[]) => execFileSync('git', ['-C', repo, '-c', 'core.autocrlf=false', '-c', 'user.name=t', '-c', 'user.email=t@e.invalid', ...args], { encoding: 'utf8' }).trim();
+		git('init', '-q', '-b', 'main');
+		git('config', 'core.autocrlf', 'false');
+		mkdirSync(join(repo, 'src'), { recursive: true });
+		mkdirSync(join(repo, guidance), { recursive: true });
+		for (const file of ['committed', 'unstaged', 'staged']) writeFileSync(join(repo, 'src', `${file}.txt`), 'base\n');
+		for (const file of ['committed', 'unstaged', 'staged', 'helper', 'planned', 'unrelated']) {
+			writeFileSync(join(repo, guidance, `${file}.md`), `---\nglobs: src/${file}.txt\n---\nGUIDANCE-${file}\n`);
+		}
+		writeFileSync(join(repo, guidance, 'paperwork.md'), '---\nglobs: [".wf/**", "bug-reports/**"]\n---\nGUIDANCE-paperwork\n');
+		git('add', '-A'); git('commit', '-qm', 'base');
+		git('checkout', '-qb', 'fix/guidance');
+		writeFileSync(join(repo, 'src/committed.txt'), 'changed\n');
+		git('add', 'src/committed.txt'); git('commit', '-qm', 'implementation');
+		writeFileSync(join(repo, 'src/unstaged.txt'), 'changed\n');
+		writeFileSync(join(repo, 'src/staged.txt'), 'changed\n'); git('add', 'src/staged.txt');
+		writeFileSync(join(repo, 'src/staged.txt'), 'base\n'); // Only the index differs from HEAD.
+		writeFileSync(join(repo, 'src/helper.txt'), 'new helper\n');
+		const folder = 'bug-reports/guidance';
+		mkdirSync(join(repo, folder), { recursive: true });
+		mkdirSync(join(repo, '.wf'), { recursive: true });
+		const ticket = '# Guidance\n## Intent\n- preserve the existing behavior\n';
+		const state = { wf_version: 2, round: 'fix/guidance', id: 'guidance', folder, base: 'main', step: 'build', class: 'A' };
+		const wf = (...args: string[]) => execFileSync(process.execPath, [join(WF_ROOT, 'wf.mjs'), ...args], { cwd: repo, encoding: 'utf8' });
+		for (const withCases of [false, true]) {
+			writeFileSync(join(repo, folder, 'TICKET.md'), ticket + (withCases ? '\n## Verification\n| # | case | files | check |\n|---|---|---|---|\n| 1 | refactor: existing behavior | src/planned.txt src/committed.txt | — |\n' : ''));
+			writeFileSync(join(repo, '.wf/state.json'), JSON.stringify(state));
+			const label = withCases ? 'case files plus diff' : 'ordinary ticket without cases';
+			for (const phase of ['build', 'assess']) {
+				const prompt = wf('prompt', phase);
+				for (const file of ['committed', 'unstaged', 'staged', 'helper']) {
+					check(`${phase}: ${label} receives ${file} guidance`, prompt.includes(`GUIDANCE-${file}`));
+				}
+				check(`${phase}: ${label} retains case-only guidance`, prompt.includes('GUIDANCE-planned') === withCases);
+				check(`${phase}: ${label} omits unrelated and paperwork-only guidance`, !prompt.includes('GUIDANCE-unrelated') && !prompt.includes('GUIDANCE-paperwork'));
+				check(`${phase}: ${label} lists a matched file once`, prompt.includes(`### \`${guidance}/committed.md\` (for \`src/committed.txt\`)`));
+			}
+		}
+		writeFileSync(join(repo, '.wf/state.json'), JSON.stringify({ ...state, base: 'missing/base' }));
+		for (const phase of ['build', 'assess']) {
+			const refused = spawnSync(process.execPath, [join(WF_ROOT, 'wf.mjs'), 'prompt', phase], { cwd: repo, encoding: 'utf8' });
+			check(`${phase}: an unresolved base refuses rather than silently omitting committed guidance`, refused.status === 2 && refused.stdout === '' && refused.stderr.includes('missing/base') && refused.stderr.includes('does not resolve'), refused.stderr);
+		}
+		check('agree does not require a resolved diff base', wf('prompt', 'agree').includes('preserve the existing behavior'));
 	} finally { rmSync(repo, { recursive: true, force: true }); }
 }
 
