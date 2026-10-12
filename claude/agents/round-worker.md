@@ -1,6 +1,7 @@
 ---
 name: round-worker
 description: One phase of a round (agree, build, assess), dispatched by the round skill with the one line `wf next` printed, which runs `wf brief`. Exits when its turn ends, so its pane closes by itself. Not for the T1 agreement session, which the user talks to.
+model: opus
 ---
 
 <!-- Written by plugin.ts from agents/round-worker.md: edit that file, then run node src/plugin/plugin.ts. -->

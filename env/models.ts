@@ -1,14 +1,15 @@
 // env/models.ts — the model each effort level runs on in pi (src/models.ts), and what pi resolves it
 // to. pi takes `provider/pattern[:thinking]`: a pattern that is no model id matches the ids that
 // contain it, and pi picks the newest undated one (its core/model-resolver.js tryMatchModel, read at
-// 0.73.1, 2026-10-03). So `anthropic/opus` is the newest Opus pi knows, as `opus` is in Claude Code,
+// 0.73.1, 2026-10-03). So `anthropic/sonnet` is the newest Sonnet pi knows, as `sonnet` is in Claude Code,
 // and a new model needs no change here. `wf models` asks pi which models it has (`--list-models`:
 // the ones it has credentials for) and prints what each level becomes; pi's own `--model` picks among
 // every model it knows, so the two differ only for a provider pi has no key for.
 import { spawnSync } from 'node:child_process';
 import type { Models } from '../src/models.ts';
 
-export const PI_MODELS: Models = { low: 'anthropic/sonnet', medium: 'anthropic/opus:medium' };
+// Round-worker's default and explicit agree/build/assess dispatch share medium (Shay, 2026-10-12).
+export const PI_MODELS: Models = { low: 'anthropic/sonnet', medium: 'anthropic/sonnet:high' };
 
 const THINKING = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh'];
 
