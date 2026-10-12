@@ -17,6 +17,8 @@ import { approvalBinding, approvalContentGap, needsFreshReviewHeader, renderSkel
 import { approvalIdentity, approvalPaperworkExcluded, commitContentSha, headContentSha, trackerNotePath, worktreeContentSha } from './content-identity.ts';
 import { t2Gap } from './deliver.ts';
 import { checkRunLine, identityGap, suitesLine } from './check.ts';
+import { initializeSlices, parseBuildUnits } from '../round/build-units.ts';
+import { verificationCases } from '../round/agreement.ts';
 import { basePortForBranch } from '../worktrees/worktree.ts';
 import { WF_ROOT } from '../paths.ts';
 
@@ -48,6 +50,13 @@ check('a state temp the #107 writer cannot produce (numeric pid, alphanumeric se
 check('an unowned numeric-prefix note temp is not hidden', [`${folder}/JIRA.md.1evil.2evil.tmp`, `${folder}/JIRA.md.1.2.3.tmp`].every((f) => !approvalPaperworkExcluded(f, folder, noteStem)));
 check('a glob-like note stem is matched literally: its own temp is wf\u2019s, the sibling\u2019s is not', approvalPaperworkExcluded('bug-reports/r[1]/JIRA.md.1234.ab12cd.tmp', 'bug-reports/r[1]', 'bug-reports/r[1]/JIRA.md') && !approvalPaperworkExcluded('bug-reports/r1/JIRA.md.1234.ab12cd.tmp', 'bug-reports/r[1]', 'bug-reports/r[1]/JIRA.md'));
 check('a lookalike sibling round is not this round\'s REVIEW.md', !approvalPaperworkExcluded('bug-reports/r2/REVIEW.md', folder));
+// A planned round's checkpoint review record is review paperwork like REVIEW.md (build-units.ts): T2
+// writes its verdict into one after the header bound the identity, so binding it would make every
+// checkpoint approval stale the moment it was written. The name is exact and directly in the round
+// folder: the unit assessment (like ASSESSMENT.md), a deeper file and a lookalike elsewhere still bind.
+check('a planned round\'s checkpoint review is review paperwork', approvalPaperworkExcluded(`${folder}/REVIEW-unit-1.md`, folder, `${folder}/JIRA.md`) && approvalPaperworkExcluded(`${folder}/REVIEW-unit-12.md`, folder));
+check('the unit assessment still binds (like ASSESSMENT.md)', !approvalPaperworkExcluded(`${folder}/ASSESSMENT-unit-1.md`, folder));
+check('a checkpoint-review lookalike elsewhere still binds', !approvalPaperworkExcluded('other/REVIEW-unit-1.md', folder) && !approvalPaperworkExcluded(`${folder}/sub/REVIEW-unit-1.md`, folder) && !approvalPaperworkExcluded(`${folder}/REVIEW-unit-1.md.bak`, folder) && !approvalPaperworkExcluded(`${folder}/REVIEW-unit-x.md`, folder));
 check('the project\'s tracker note path is the project\'s own file name', trackerNotePath(folder) === `${folder}/JIRA.md` && trackerNotePath(null) === null);
 
 // ── the identities on a real repo ────────────────────────────────────────────
@@ -481,6 +490,99 @@ const approve = async (repo: string, branch: string) => {
 	check('a push hook that mutates after approval is refused before the PR/merge', delivered.status === 2 && delivered.out.includes('the push hook changed the implementation T2 approved') && !delivered.out.includes('FAILED: gh'), delivered.out);
 	rmSync(repo, { recursive: true, force: true });
 	rmSync(bare, { recursive: true, force: true });
+}
+
+// ── a planned round's checkpoint review (review.ts, build-units.ts) ──────────
+// A unit with a `review after` label stops T2 at REVIEW-unit-<n>.md, judged from the previous
+// checkpoint. Approving it advances the plan and starts the next build — never `pr`;
+// changes-requested keeps the same unit; a stale or wrong-scope approval is refused. Driven through
+// the public CLI on a real repo, as the single-round arms above are.
+const unitAgreement = `# 9 — units\n\n## Intent\n\n- "x": fix the thing\n\n## Verification\n\n| # | case | files | check |\n|---|---|---|---|\n| 1 | fix(x): one | src/x.ts | repro |\n| 2 | fix(x): two | src/y.ts | repro |\n\n## Units\n\n| # | unit | cases | depends on | review after |\n|---|---|---|---|---|\n| 1 | the first | 1 | — | the API shape |\n| 2 | the second | 2 | 1 | — |\n\n## Repro\n\ncommand: node ${folder}/repro/run.mjs\n`;
+const unitRepo = (branch: string) => {
+	const repo = mkdtempSync(join(tmpdir(), 'wf-units-'));
+	const git = (...args: string[]) => execFileSync('git', ['-C', repo, '-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { encoding: 'utf8' });
+	git('init', '-q', '-b', 'main');
+	git('config', 'core.autocrlf', 'false');
+	mkdirSync(join(repo, 'src'), { recursive: true });
+	writeFileSync(join(repo, 'src/x.ts'), 'a\n');
+	writeFileSync(join(repo, 'src/y.ts'), 'a\n');
+	git('add', '-A');
+	git('commit', '-q', '-m', 'base');
+	const baseCommit = git('rev-parse', 'HEAD').trim();
+	git('checkout', '-q', '-b', branch);
+	mkdirSync(join(repo, folder, 'repro'), { recursive: true });
+	writeFileSync(join(repo, folder, 'TICKET.md'), unitAgreement);
+	// Unit 1's implementation, committed: the checkpoint review diffs the committed branch.
+	writeFileSync(join(repo, 'src/x.ts'), 'b\n');
+	git('add', '-A');
+	git('commit', '-q', '-m', 'fix(x): one');
+	const head = git('rev-parse', 'HEAD').trim();
+	const plan = parseBuildUnits(unitAgreement);
+	if (plan.kind !== 'units') throw new Error('fixture: the agreement does not parse as units');
+	const slices = initializeSlices(plan, baseCommit);
+	mkdirSync(join(repo, '.wf'), { recursive: true });
+	writeFileSync(join(repo, '.wf', 'state.json'), `${JSON.stringify({ wf_version: 2, round: '9', id: '9', folder, base: 'main', step: 'review', class: 'A', slices }, null, 2)}\n`);
+	writeFileSync(join(repo, folder, 'ASSESSMENT-unit-1.md'), `# 9 — unit 1\nVerdict: clean\nhead: ${head}\nscope: unit:1\nbase: ${baseCommit}\n\n## Intent\n- "x": met: src/x.ts:1 · before: a · after: b\n`);
+	const content = worktreeContentSha(repo, folder, null, 'row');
+	writeFileSync(join(repo, '.wf', 'checks.log'), `${verificationCases(unitAgreement).map((c) => JSON.stringify({ ts: 't', row: c.n, rowCheck: c.check, tasks: [], result: 'green', content, scope: 'unit:1' })).join('\n')}\n`);
+	return { repo };
+};
+const checkpoint = async (repo: string, branch: string, verdict: string, edit: (text: string) => string = (t) => t) => {
+	const opened = await runCli(repo, ['review', branch]);
+	const file = join(repo, folder, 'REVIEW-unit-1.md');
+	if (!existsSync(file)) return { status: opened.status, out: `review wrote no ${file}\n${opened.out}` };
+	writeFileSync(file, `${edit(readFileSync(file, 'utf8'))}\nverdict: ${verdict}\n`);
+	return runCli(repo, ['review', branch, '--done']);
+};
+const stateOf = (repo: string) => JSON.parse(readFileSync(join(repo, '.wf', 'state.json'), 'utf8'));
+// An approved checkpoint advances its unit and starts the next build; it is never delivery.
+{
+	const branch = 'feat/units-ok';
+	const { repo } = unitRepo(branch);
+	await withStack(branch, async () => {
+		const done = await checkpoint(repo, branch, 'approved');
+		const state = stateOf(repo);
+		check('approving a checkpoint advances the plan', done.status === 0, done.out);
+		check('the approved unit is recorded reviewed and the next unit is active', state.slices.unit === 2 && state.slices.completed.length === 1 && state.slices.completed[0].reviewed === true, JSON.stringify(state.slices));
+		check('the reviewed head is the review base for the next chunk', state.slices.reviewBase === state.slices.completed[0].head, JSON.stringify(state.slices));
+		check('a checkpoint hand-off is build, never pr, and waits on nobody', state.step === 'build' && state.waiting_on === null, `${state.step}/${state.waiting_on}`);
+	});
+	rmSync(repo, { recursive: true, force: true });
+}
+// changes-requested keeps the same unit: the completion receipt is not written and the build returns.
+{
+	const branch = 'feat/units-cr';
+	const { repo } = unitRepo(branch);
+	await withStack(branch, async () => {
+		const back = await checkpoint(repo, branch, 'changes-requested');
+		const state = stateOf(repo);
+		check('changes-requested returns to the same unit', back.status === 0 && state.slices.unit === 1 && state.slices.completed.length === 0 && state.step === 'build', `${back.out}\n${JSON.stringify(state.slices)}`);
+	});
+	rmSync(repo, { recursive: true, force: true });
+}
+// A product change after a checkpoint's approval makes that approval stale.
+{
+	const branch = 'feat/units-stale';
+	const { repo } = unitRepo(branch);
+	await withStack(branch, async () => {
+		await runCli(repo, ['review', branch]);
+		const file = join(repo, folder, 'REVIEW-unit-1.md');
+		writeFileSync(file, `${readFileSync(file, 'utf8')}\nverdict: approved\n`);
+		writeFileSync(join(repo, 'src/x.ts'), 'evil\n');
+		const stale = await runCli(repo, ['review', branch, '--done']);
+		check('a product change after a checkpoint approval is refused', stale.status === 2 && stale.out.includes('working tree changed after T2 approved it'), stale.out);
+	});
+	rmSync(repo, { recursive: true, force: true });
+}
+// The verdict binds its own scope in its own section: a unit:1 review cannot approve as unit:2.
+{
+	const branch = 'feat/units-scope';
+	const { repo } = unitRepo(branch);
+	await withStack(branch, async () => {
+		const wrong = await checkpoint(repo, branch, 'approved', (t) => t.replace('scope: unit:1', 'scope: unit:2'));
+		check('an approval scoped to another unit is refused', wrong.status === 2 && wrong.out.includes('not unit:1'), wrong.out);
+	});
+	rmSync(repo, { recursive: true, force: true });
 }
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');

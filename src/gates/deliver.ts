@@ -19,7 +19,9 @@ import { runCheck } from './check.ts';
 import { baseBranch, trackerNote } from '../project.ts';
 import { agreementPath, assessmentGap, ASSESSMENT_FILE, TICKET_FILE, verificationCases } from '../round/agreement.ts';
 import { openQuestionGate } from '../round/ask.ts';
-import { readVerdict, approvalBinding, approvalContentGap } from './review-format.ts';
+import { readVerdict, approvalBinding, approvalContentGap, lastField, reviewScopeBinding } from './review-format.ts';
+import { parseBuildUnits, sliceProgressGap } from '../round/build-units.ts';
+import type { BuildUnitsParse, SliceProgress } from '../round/build-units.ts';
 import { headContentSha, trackerNotePath, worktreeContentSha } from './content-identity.ts';
 import type { ContentIdentity } from './content-identity.ts';
 import { readState, resolveRoundBase, roundOf, toplevelOf, writeState } from '../round/state.ts';
@@ -195,11 +197,41 @@ export function prBody({ ticket, agreement, commitLines, assessment, agreementPa
 // is given, the worktree and HEAD still match the bytes REVIEW.md recorded. Else why deliver, which
 // merges, may not run yet. A product/test/repro change after approval, committed or not, makes the
 // verdict stale: deliver pushes HEAD, so a restored working tree is not enough (#106).
-export function t2Gap(state: State | null, reviewText: string | null, current?: ContentIdentity) {
+// `plan` is the agreement's build plan (build-units.ts parseBuildUnits): with one, a planned round must
+// also have finished every unit and passed the integration review (sliceDeliveryGap).
+export function t2Gap(state: State | null, reviewText: string | null, current?: ContentIdentity, plan?: BuildUnitsParse) {
 	if (state?.step !== 'pr' || readVerdict(reviewText ?? '') !== 'approved') return 'T2 has not approved this round. deliver merges, so it comes after `wf review <branch> --done` with verdict: approved';
+	if (!plan && state.slices?.unit !== undefined && state.slices.unit !== null) return `unit ${state.slices.unit} is still being built — unit approval is not delivery approval`;
+	const sliced = plan ? sliceDeliveryGap(plan, state.slices, reviewText) : null;
+	if (sliced) return sliced;
 	// The binding is the same check `wf review --done` made; `current` absent is the pure verdict-only
 	// arm a caller not at the delivery boundary uses.
 	return current ? approvalContentGap(reviewText ?? '', current) : null;
+}
+
+// Pure: null when a round built in units (the agreement's `## Units`) may be delivered, else why not:
+// the plan the units were built on is the plan now, the integration is active (`unit: null`), every unit
+// completed with its checkpoint review approved where it has one, and REVIEW.md's verdict is scoped
+// `integration`. A checkpoint approval reviewed one chunk (REVIEW-unit-<n>.md), never the merge, and a
+// direct `wf step pr` must not turn it into one. A single-build round (no table, no progress) passes.
+export function sliceDeliveryGap(plan: BuildUnitsParse, slices: SliceProgress | null | undefined, reviewText: string | null): string | null {
+	if (plan.kind === 'invalid') return `the agreement's build plan cannot be read (${plan.why}) — deliver cannot tell what was built`;
+	if (plan.kind === 'single') return slices ? 'the round recorded build units (state.slices) but the agreement no longer plans any — the plan changed under the build; renew the agreement' : null;
+	if (!slices) return 'the agreement plans this round in build units and none was built through them (no state.slices) — `wf next` starts the units';
+	const malformed = sliceProgressGap(slices);
+	if (malformed) return `invalid build progress: ${malformed}`;
+	if (slices.planSha !== plan.sha) return 'the agreement\'s `## Units` changed after its units were built — the progress belongs to another plan';
+	if (slices.unit !== null) return `unit ${slices.unit} is still being built — a planned round delivers after its last unit and the integration review`;
+	for (const unit of plan.units) {
+		const done = slices.completed.find((c) => c.n === unit.n);
+		if (!done) return `unit ${unit.n} (${unit.title}) was never completed`;
+		if (unit.reviewAfter !== null && !done.reviewed) return `unit ${unit.n}'s checkpoint review (${unit.reviewAfter}) was never approved`;
+	}
+	if (slices.completed.length !== plan.units.length || slices.completed.some((done, i) => done.n !== plan.units[i]?.n)) return 'completed units do not match the plan in order — delivery requires the exact unit receipts';
+	if (slices.base !== slices.completed.at(-1)?.head || (slices.completed.some((done) => done.reviewed) && slices.reviewBase !== slices.completed.filter((done) => done.reviewed).at(-1)?.head)) return 'unit progress does not name its last completed and reviewed heads';
+	const scope = reviewScopeBinding(reviewText ?? '').scope;
+	if (scope !== 'integration') return `REVIEW.md's verdict is ${scope ? `scoped ${scope}` : 'unscoped'}, not integration — a planned round delivers on the final integration review (\`wf review <branch>\` once every unit is done)`;
+	return null;
 }
 
 // Pure: whether a failed push was the project's pre-push hook refusing it (not the network or auth).
@@ -569,14 +601,16 @@ export async function runDeliver() {
 		console.error(`wf deliver: ${what} changed the implementation T2 approved (REVIEW.md worktree ${binding.contentSha ?? 'none'}, HEAD ${binding.headSha ?? 'none'}; now worktree ${now.worktree}, HEAD ${now.head}) — the approval no longer covers it. Commit or revert the change, re-run \`wf check\`, and re-run \`wf review <round>\` + T2`);
 		process.exit(2);
 	};
-	const t2 = t2Gap(state, reviewText, identityNow());
+	const plan = parseBuildUnits(readFileSync(agreementFile, 'utf8'));
+	const t2 = t2Gap(state, reviewText, identityNow(), plan);
 	if (t2) {
 		console.error(`wf deliver: ${t2}`);
 		process.exit(2);
 	}
 	// The PR carries the assessment: it must be the completed final assessment, with a verdict (#113).
 	const assessmentFile = join(toplevel, folder, ASSESSMENT_FILE);
-	const vGap = assessmentGap(existsSync(assessmentFile) ? readFileSync(assessmentFile, 'utf8') : null);
+	const assessmentText = existsSync(assessmentFile) ? readFileSync(assessmentFile, 'utf8') : null;
+	const vGap = assessmentGap(assessmentText) ?? (plan.kind === 'units' && lastField(assessmentText ?? '', 'scope') !== 'integration' ? 'ASSESSMENT.md must judge scope: integration — a unit assessment is not the final assessment' : null);
 	if (vGap) {
 		console.error(`wf deliver: ${vGap}`);
 		process.exit(2);
@@ -633,8 +667,9 @@ export async function runDeliver() {
 	// path (exit 1, "paths are ignored"), so the exclude is only needed while it is not ignored.
 	const ignored = (path: string) => spawnSync('git', ['-C', toplevel, 'check-ignore', '-q', path]).status === 0;
 	// REVIEW.md and the tracker note are the round's own paperwork, read by nobody after it: they stay
-	// uncommitted, and reap keeps them in ~/.cache/wf-reaped (Shay, 2026-09-27).
-	const keep = ['--', folder, ...[`${folder}/repro/.auth`, `${folder}/REVIEW.md`].filter((path) => !ignored(path)).map((path) => `:(exclude)${path}`)];
+	// uncommitted, and reap keeps them in ~/.cache/wf-reaped (Shay, 2026-09-27). A planned round's
+	// checkpoint reviews (REVIEW-unit-<n>.md) are the same paperwork.
+	const keep = ['--', folder, ...[`${folder}/repro/.auth`, `${folder}/REVIEW.md`].filter((path) => !ignored(path)).map((path) => `:(exclude)${path}`), `:(exclude)${folder}/REVIEW-unit-*.md`];
 	if (git(toplevel, ['status', '--porcelain', ...keep])) {
 		git(toplevel, ['add', ...keep]);
 		// Pathspec, not a bare commit: a product file staged for another purpose is not swept into the

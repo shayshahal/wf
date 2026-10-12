@@ -12,6 +12,7 @@ that carry a shape a stack cannot); what comes back from T1 is `REVIEW-FORMAT.md
 
 You write `<round folder>/AGREEMENT.md` with the person: `## Observed` (facts, each sourced),
 `## Agreed` (behavior, exclusions, the one choice with its rejected alternative, the verification
-promise) and `## Verification` (the cases `wf check` runs). Then `wf agree <round>` shows them the
-agreed material and folds their verdict into `AGREEMENT-REVIEW.md`. The build starts only when that
-verdict is `approved` on the agreement's current material sha.
+promise) and `## Verification` (the cases `wf check` runs), plus `## Units` when the task is too
+large for one build. Then `wf agree <round>` shows them the agreed material and folds their verdict
+into `AGREEMENT-REVIEW.md`. The build starts only when that verdict is `approved` on the agreement's
+current material sha.

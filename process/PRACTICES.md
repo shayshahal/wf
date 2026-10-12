@@ -24,8 +24,8 @@ every claim in `REPORT.md`. A statement about the product with no artifact
 behind it is an opinion, and an inherited measurement is not evidence:
 re-run it or mark it inherited.
 
-**One subagent per task.** Dispatch one of wf's own agents (`agents/`) per task and let it own
-its stack. While it runs, do not re-do its work or read its transcript —
+**One subagent per bounded task.** Dispatch one of wf's own agents (`agents/`) per build unit
+and let it own that scope. Each unit's assessment and the next unit get fresh agents. While it runs, do not re-do its work or read its transcript —
 wait for the return, then verify its artifacts exist on disk before
 calling anything done. Parallel rounds run in parallel worktrees, never
 in one.
@@ -36,8 +36,9 @@ axes kept apart: standards (does it follow this repo's rules?) and spec
 (does it do what was asked, no more?). The two reports are presented side by
 side, never merged, so one axis cannot mask the other. In a round, behavior/evidence is
 one axis and the repository's rules are another (STANDARDS.md). One independent,
-read-only assessment covers both by default, its findings distinguishable by axis; a within-agreement
-finding returns to the build, at most twice, and a genuine blocker is one contextual escalation
-(`src/round/next.ts`; Adversarial Review, arXiv 2608.18167).
+read-only assessment covers both (per unit on a large task, then one over the whole round), its
+findings distinguishable by axis; a within-agreement finding returns to the build, at most twice,
+and a genuine blocker is one contextual escalation (`src/round/next.ts`; Adversarial Review,
+arXiv 2608.18167).
 
 superpowers implements these if installed; the practices don't depend on it.

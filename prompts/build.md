@@ -1,8 +1,12 @@
 # {{round}} — build
 
-Implement the agreement at `{{folder}}/{{file}}`. A commit is not a workflow transition and there is
-no per-commit worker: build in inspectable steps and resume in place. The phase ends when every
-verification case passes and you run `wf step assess`.
+Implement the agreement at `{{folder}}/{{file}}`, within the scope below. A commit is not a workflow
+transition and there is no per-commit worker: build in inspectable steps and resume in place. The
+phase ends when every verification case in scope passes and you run `wf step assess`.
+
+## Scope
+
+{{scope}}
 
 ## The agreed material
 
@@ -10,18 +14,25 @@ verification case passes and you run `wf step assess`.
 
 {{review}}
 
-## The verification cases
+{{verificationRepairs}}
+
+## The verification cases in scope
 
 {{cases}}
 
 ## How to work
 
+- The scope says what you own. A normal unit build owns that unit: make its cases green and return,
+  leaving later units' cases and intent to their own builds. After checkpoint criticism, the scope
+  includes the whole reviewed chunk: fix its corrections and rerun every case in that chunk. A final
+  integration build owns the whole agreement and repairs the failures between units, within it.
 - Implement within the agreement. New helpers, new files, local corrections, added tests and naming
   are yours: ordinary implementation freedom, never a renewed agreement.
-- Repair T2 corrections against the existing agreed behavior, using the review's screenshots and
-  references. A layout regression or missing agreed item returns to this build, not a new T1.
-  Genuinely new scope or behavior (a new surface, contract or persistence choice, or dropping an
-  agreed item) needs `{{folder}}/BLOCKED.md` with a `Question:` line.
+- Repair review corrections (a unit checkpoint's or T2's) against the existing agreed behavior,
+  using the review's screenshots and references. A layout regression or missing agreed item returns
+  to this build, not a new T1. Genuinely new scope or behavior (a new surface, contract or
+  persistence choice, or dropping an agreed item) needs `{{folder}}/BLOCKED.md` with a `Question:`
+  line.
 - When a reviewed correction is likely to recur or protects a consequential project boundary,
   prefer preserving it as a test/check. For remaining judgment, update an existing scoped project
   note with the reason, scope, exceptions and durable source. Keep this within the agreement and
@@ -38,8 +49,10 @@ verification case passes and you run `wf step assess`.
   later product change makes it stale. If `wf check` cannot run at all (stack, git, a missing
   runner), do not retry blind: write `{{folder}}/BLOCKED.md` with a `Question:` line naming what
   could not run.
-- Run `wf check --suites` on the committed HEAD: the whole suites the round's diff reaches, so a test
-  no case touched cannot break unseen. The assessment reads its result from `.wf/checks.log`.
-- When every case passes, the tree is committed, and `wf check` is green on it, run `wf step assess`.
+- For a single-task build or final integration, run `wf check --suites` on the committed HEAD: the
+  whole suites the round's diff reaches, so a test no case touched cannot break unseen. A unit checks
+  its cases and affected integration; the final assessment requires the whole-suite result.
+- When every case in scope passes, the tree is committed, and `wf check` is green on it, run
+  `wf step assess`.
 
 {{assessment}}

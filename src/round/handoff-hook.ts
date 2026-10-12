@@ -14,6 +14,8 @@ import { agreementGap, agreementPath, ASSESSMENT_FILE, assessmentGap, consequent
 import { CorruptStateError, legacyStateGap, readState, writeState } from './state.ts';
 import { hookSession, isRoundWorker, recordSession } from './session.ts';
 import type { State } from './state.ts';
+import { sliceContext } from './build-units.ts';
+import { lastField } from '../gates/review-format.ts';
 
 // Everything the hook contract hands us that wf reads. When the hook fires inside a subagent the event
 // carries `agent_id`/`agent_type`, and SubagentStop adds `agent_transcript_path` (Claude Code 2.1.280,
@@ -39,8 +41,15 @@ export function stopGap(state: State | null, files: { agreement: string | null; 
 		return 'the build has no commit yet: when the agreement\'s verification cases pass, commit and run `wf step assess`, or write BLOCKED.md';
 	}
 	if (state.step === 'assess') {
-		if (!files.assessment) return `write ${ASSESSMENT_FILE} (with its Verdict: and head: lines) before you end`;
-		return assessmentGap(files.assessment);
+		const context = sliceContext(files.agreement, state.slices);
+		if (context.kind === 'invalid') return context.why;
+		const file = context.kind === 'unit' ? context.assessmentFile : ASSESSMENT_FILE;
+		if (!files.assessment) return `write ${file} (with its Verdict: and head: lines) before you end`;
+		if (context.kind === 'unit' || context.kind === 'integration') {
+			const scope = context.kind === 'unit' ? `unit:${context.unit.n}` : 'integration';
+			if (lastField(files.assessment, 'scope') !== scope) return `${file} must name scope: ${scope}`;
+		}
+		return assessmentGap(files.assessment, context.kind === 'unit' ? context.plan.units.filter((u) => u.n > context.unit.n).map((u) => u.n) : []);
 	}
 	return null;
 }
@@ -108,9 +117,11 @@ export async function runHandoff(argv: string[]): Promise<void> {
 		const agreementFile = agreementPath(toplevel, state.class ?? null, folder);
 		const read = (name: string) => (folder && existsSync(join(toplevel, folder, name)) ? readFileSync(join(toplevel, folder, name), 'utf8') : null);
 		const commits = (() => { try { return execFileSync('git', ['-C', toplevel, 'log', '--format=%H', `${state.base ?? 'HEAD~1'}..HEAD`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim().length > 0; } catch { return false; } })();
+		const agreement = existsSync(agreementFile) ? readFileSync(agreementFile, 'utf8') : null;
+		const context = sliceContext(agreement, state.slices);
 		const gap = stopGap(state, {
-			agreement: existsSync(agreementFile) ? readFileSync(agreementFile, 'utf8') : null,
-			assessment: read(ASSESSMENT_FILE),
+			agreement,
+			assessment: read(context.kind === 'unit' ? context.assessmentFile : ASSESSMENT_FILE),
 			blocked: existsSync(join(toplevel, folder ?? '', 'BLOCKED.md')),
 			commits,
 		});

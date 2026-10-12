@@ -72,6 +72,15 @@ const tempStems = (notePath: string | null): { stem: string; kind: WriterKind }[
 ];
 const producerTemp = (file: string, notePath: string | null): boolean => tempStems(notePath).some(({ stem, kind }) => writerTemp(file, stem, kind));
 
+// A planned round's checkpoint review records (`REVIEW-unit-<n>.md`, build-units.ts) are review
+// paperwork like REVIEW.md: the person writes the chunk's verdict into one after its header bound the
+// identity, so binding it would make every checkpoint approval stale the moment it was written.
+// Matched by exact shape directly in the round folder, so a lookalike elsewhere stays bound.
+const unitReviewRecord = (file: string, folder: string | null): boolean => {
+	const f = folder?.replace(/\\/g, '/');
+	return !!f && file.startsWith(`${f}/`) && /^REVIEW-unit-\d+\.md$/.test(file.slice(f.length + 1));
+};
+
 // The identity of the content a scope covers, for a check line and for the review header.
 export type ContentScope = 'approval' | 'row';
 // The worktree bytes and the HEAD bytes. deliver pushes HEAD, so both must be the approved ones.
@@ -104,7 +113,7 @@ const pathIn = (file: string, excluded: string[], notePath: string | null) => {
 // The same owner predicate and exact list drive the identity's literal pathspecs, so the predicate
 // and the tree hash cannot drift — an unowned file is never hidden.
 export function approvalPaperworkExcluded(file: string, folder: string | null, notePath: string | null = null): boolean {
-	return pathIn(file, approvalExclusions(folder, notePath, 'approval'), notePath);
+	return pathIn(file, approvalExclusions(folder, notePath, 'approval'), notePath) || unitReviewRecord(file.replace(/\\/g, '/'), folder);
 }
 
 // git runs with GIT_DIR set in a hook (absolute in a linked worktree), and a `-C toplevel` command
@@ -144,10 +153,10 @@ const dropExcluded = (toplevel: string, env: NodeJS.ProcessEnv, excluded: string
 // removed by literal path through the one owner predicate (producerTemp), so the working, HEAD and
 // commit hashes exclude exactly what the predicate calls wf's — no glob to drift from. An unreadable
 // index throws, so the identity fails closed rather than hashing without the exclusions.
-const dropProducerTemps = (toplevel: string, env: NodeJS.ProcessEnv, notePath: string | null) => {
+const dropProducerTemps = (toplevel: string, env: NodeJS.ProcessEnv, notePath: string | null, folder: string | null) => {
 	const owned = execFileSync('git', ['-C', toplevel, 'ls-files', '-z'], { env, encoding: 'utf8' })
 		.split('\0')
-		.filter((file) => file && producerTemp(file, notePath))
+		.filter((file) => file && (producerTemp(file, notePath) || unitReviewRecord(file, folder)))
 		.map((file) => `:(literal)${file}`);
 	if (owned.length) execFileSync('git', ['-C', toplevel, 'rm', '-r', '-q', '--cached', '--ignore-unmatch', '--', ...owned], { env });
 };
@@ -160,7 +169,7 @@ export function worktreeContentSha(toplevel: string, folder: string | null, note
 		try { copyFileSync(realIndexPath(toplevel), index); } catch { /* no index yet: `add -A` fills an empty one */ }
 		execFileSync('git', ['-C', toplevel, 'add', '-A', '--', '.'], { env });
 		dropExcluded(toplevel, env, excluded);
-		dropProducerTemps(toplevel, env, notePath);
+		dropProducerTemps(toplevel, env, notePath, folder);
 	});
 }
 
@@ -170,7 +179,7 @@ export function headContentSha(toplevel: string, folder: string | null, notePath
 	return tempTree(toplevel, (env) => {
 		execFileSync('git', ['-C', toplevel, 'read-tree', 'HEAD'], { env });
 		dropExcluded(toplevel, env, excluded);
-		dropProducerTemps(toplevel, env, notePath);
+		dropProducerTemps(toplevel, env, notePath, folder);
 	});
 }
 
@@ -180,7 +189,7 @@ export function commitContentSha(toplevel: string, sha: string, folder: string |
 	return tempTree(toplevel, (env) => {
 		execFileSync('git', ['-C', toplevel, 'read-tree', sha], { env });
 		dropExcluded(toplevel, env, excluded);
-		dropProducerTemps(toplevel, env, notePath);
+		dropProducerTemps(toplevel, env, notePath, folder);
 	});
 }
 

@@ -99,7 +99,7 @@ check('N-5: the material question offers only accept and --revise, not hold/end'
 
 // ── T2 / delivery
 check('an open question holds the round before anything else', say(base({ step: 'assess', questions: [{ n: 3, to: 'einat', text: 'which label?', asked: 't' }] })) === 'wait einat: q3 which label?');
-check('a review dismissed without a verdict waits on the user', say(base({ step: 'review', files: { agreement: null, assessment: null, review: 'verdict: dismissed\n', blocked: null } })).startsWith('wait user: T2 was closed'), say(base({ step: 'review' })));
+check('a review dismissed without a verdict waits on the user', say(base({ step: 'review', files: { agreement: null, assessment: ASSESS(), review: 'verdict: dismissed\n', blocked: null } })).startsWith('wait user: T2 was closed'), say(base({ step: 'review' })));
 check('pr → deliver', say(base({ step: 'pr' })).startsWith('deliver: T2 approved'));
 check('merged with no note sections left → done and reap', say(base({ step: 'merged', note: { file: 'bug-reports/r/NOTE.md', text: '## JX-1 (posted)\n' } })) === 'done: `node C:/wf/wf.mjs reap fix/r`');
 check('merged with an unposted section → post it first', say(base({ step: 'merged', note: { file: 'bug-reports/r/NOTE.md', text: '## JX-1\n' } })).startsWith('post: JX-1'));
@@ -188,6 +188,8 @@ const gapSource = asks(inconclusive)[0]?.source ?? 'none';
 const ruled = (answer: string, src = gapSource, snap = inconclusive) => ({ ...snap, answered: [{ n: 1, to: 'user', text: 'x', source: src, answer, asked: 't', answered: 't' }] });
 check('an explicit accept of the gap opens T2', asks(ruled('accept: separate ticket')).length === 0 && say(ruled('accept: separate ticket')).startsWith('review: T2'), say(ruled('accept')));
 check('a fix ruling returns to build', steps(ruled('fix the mobile case')).join() === 'build' && say(ruled('fix the mobile case')).startsWith('dispatch build'), say(ruled('fix')));
+const latestAcceptance = { ...inconclusive, answered: [...ruled('fix the mobile case').answered, { ...ruled('accept: defer it').answered[0], n: 2 }] };
+check('the latest explicit ruling on the same verification source wins', say(latestAcceptance).startsWith('review: T2'), say(latestAcceptance));
 const otherGap = { ...inconclusive, files: filesWith(ASSESS() + '\n## Live\n- Intent 1: NOT VERIFIED — LTR header overlaps — proof/none\n') };
 check('an accept for another gap on the same HEAD does not carry over', asks(ruled('accept', gapSource, otherGap)).length === 1 && !say(ruled('accept', gapSource, otherGap)).startsWith('review: T2'), say(ruled('accept', gapSource, otherGap)));
 check('NOT MEASURED in a clean Intent is a stated gap too', asks({ ...inconclusive, files: filesWith(ASSESS({ intent: '- "x": NOT MEASURED — the app did not start' })) }).length === 1);
@@ -197,6 +199,23 @@ check('a red suite at these bytes is not waived by prose ("file untouched, unrel
 check('a user accept of the red suites opens T2', say(ruled('accept: red on base too', asks(redSuite)[0]?.source ?? 'none', redSuite)).startsWith('review: T2'));
 check('a red suites line of other bytes is not this implementation\'s gap', asks({ ...redSuite, checks: ev([GREEN('tree:w1'), SUITES('red', 'tree:w0')]) }).length === 0);
 check('a green suites line is no gap', asks({ ...redSuite, checks: ev([GREEN('tree:w1'), SUITES('green', 'tree:w1')]) }).length === 0);
+
+// #127, JX-275: review and the assess policy must agree after HEAD/check evidence moves.
+for (const [name, snapshot] of [
+	['moved HEAD', base({ step: 'assess', checks: ev([GREEN('tree:w1')]), files: filesWith(ASSESS({ head: 'H3' })) })],
+	['changed implementation', stale],
+	['code red', base({ step: 'assess', checks: ev([CODE_RED('tree:w1')]), files: filesWith(ASSESS()) })],
+	['missing assessment', base({ step: 'assess', checks: ev([GREEN('tree:w1')]) })],
+	['harness failure', harness],
+	['open verification', inconclusive],
+] satisfies [string, Snapshot][]) {
+	const assessed = nextAction(snapshot);
+	const reviewed = nextAction({ ...snapshot, step: 'review' });
+	check(`#127: review applies the assess policy for ${name}`, reviewed.say === assessed.say && !reviewed.say.startsWith('review: T2'), reviewed.say);
+	if (assessed.say.startsWith('dispatch assess')) check(`#127: ${name} moves review back to assess`, reviewed.effects.some((e) => e.step?.join(' ') === 'assess'));
+}
+check('#127: dismissed but stale review still repairs freshness first', say({ ...stale, step: 'review', files: { ...stale.files, review: 'verdict: dismissed\n' } }).startsWith('dispatch build'));
+check('#127: fresh review continues to T2 without state effects', say(base({ step: 'review', checks: ev([GREEN('tree:w1')]), files: filesWith(ASSESS()) })).startsWith('review: T2') && steps(base({ step: 'review', checks: ev([GREEN('tree:w1')]), files: filesWith(ASSESS()) })).length === 0);
 
 // ── helpers
 check('unpostedSections names the sections without (posted)', unpostedSections('## A (posted)\n## B\n').join() === 'B');
@@ -298,6 +317,19 @@ check('suitesGap names the red suites of these bytes only', suitesGap(ev([SUITES
 	git(repo, 'commit', '-q', '-am', 'product after the check');
 	const after = cli(repo, 'step', 'review');
 	check('CLI: a product change after the last green is refused at the next boundary', after.code === 2 && after.out.includes('changed since'), after.out);
+	const backToBuild = cli(repo, 'next');
+	check('#127 CLI: next repairs stale checks at review instead of recommending a refused review', backToBuild.code === 0 && backToBuild.out.startsWith('dispatch build') && readState(repo)?.step === 'build', backToBuild.out);
+	logGreen();
+	writeFileSync(join(repo, 'bug-reports/r/ASSESSMENT.md'), ASSESS({ head: git(repo, 'rev-parse', 'HEAD').trim() }));
+	cli(repo, 'step', 'review');
+	git(repo, 'add', 'bug-reports/r'); git(repo, 'commit', '-qm', 'paperwork moves assessed HEAD, not implementation');
+	const staleReview = cli(repo, 'step', 'review');
+	check('#127 CLI: review gate identifies a moved assessed HEAD with unchanged checks', staleReview.code === 2 && staleReview.out.includes('HEAD is'), staleReview.out);
+	const backToAssess = cli(repo, 'next');
+	check('#127 CLI: next dispatches assess and persists assess after a moved HEAD', backToAssess.code === 0 && backToAssess.out.startsWith('dispatch assess') && readState(repo)?.step === 'assess', backToAssess.out);
+	writeFileSync(join(repo, 'bug-reports/r/ASSESSMENT.md'), ASSESS({ head: git(repo, 'rev-parse', 'HEAD').trim() }));
+	const freshReview = cli(repo, 'next');
+	check('#127 CLI: a fresh assessment restores a review the step gate accepts', freshReview.out.startsWith('review: T2') && cli(repo, 'step', 'review').code === 0, freshReview.out);
 	rmSync(repo, { recursive: true, force: true });
 }
 

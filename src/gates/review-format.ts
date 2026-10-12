@@ -96,8 +96,11 @@ export function lookAtLines(urls: string | null, files: string[], pageFor: (file
 // (content-identity.ts): deliver pushes HEAD, so both must match. `assessment` is the one final
 // assessment's summary, not the former per-rule standards reports. SPEC has no producer in the
 // replacement and must not remain another rendered document contract (#111/#113 audit, 2026-10-10).
-export type ReviewHeader = { round: string; klass?: string; base?: string | null; agreementSha?: string | null; contentSha?: string | null; headSha?: string | null; date?: string; urls?: string | null; files?: string[]; beforeAfter?: string | null; assessment?: string[]; manual?: string[] };
-export function renderHeader({ round, klass = '—', base = null, agreementSha = null, contentSha = null, headSha = null, date = today(), urls = null, files = [], beforeAfter = null, assessment = [], manual = [] }: ReviewHeader) {
+// `scope` names what a planned round's review judges — `unit:<n>` for a checkpoint chunk, `integration`
+// for the final review — and binds the verdict written under it (reviewScopeBinding). `chunk` is the
+// checkpoint's own lines: its label and the units it covers. Both are absent on a single-build round.
+export type ReviewHeader = { round: string; klass?: string; base?: string | null; agreementSha?: string | null; contentSha?: string | null; headSha?: string | null; scope?: string | null; chunk?: string[]; date?: string; urls?: string | null; files?: string[]; beforeAfter?: string | null; assessment?: string[]; manual?: string[] };
+export function renderHeader({ round, klass = '—', base = null, agreementSha = null, contentSha = null, headSha = null, scope = null, chunk = [], date = today(), urls = null, files = [], beforeAfter = null, assessment = [], manual = [] }: ReviewHeader) {
   return [
     `# Review — ${round}`,
     ``,
@@ -107,6 +110,8 @@ export function renderHeader({ round, klass = '—', base = null, agreementSha =
     ...(agreementSha ? [`agreement-sha: ${agreementSha}`] : []),
     ...(contentSha ? [`content-sha: ${contentSha}`] : []),
     ...(headSha ? [`head-sha: ${headSha}`] : []),
+    ...(scope ? [`scope: ${scope}`] : []),
+    ...chunk,
     `date: ${date}`,
     urls ?? `urls: n/a — port not derivable without wt (see REVIEW-FORMAT.md)`,
     ...(asBuiltFile(files) ? [`look at: ${asBuiltFile(files)}  ← the call stack as built, diffed against the agreement — read first`] : []),
@@ -376,14 +381,33 @@ function reviewSections(text: string): string[] {
   for (let i = 0; i < starts.length; i++) out.push(body.slice(starts[i], starts[i + 1] ?? body.length));
   return out;
 }
-export function approvalBinding(text: string): { verdict: string | null; contentSha: string | null; headSha: string | null } {
+function verdictSection(text: string): { verdict: string; field: (key: string) => string | null } | null {
   for (const section of reviewSections(text).reverse()) {
     const verdicts = [...section.matchAll(/^verdict:\s*(\S+)\s*$/gm)].map((m) => m[1]).filter((v) => (VERDICTS as string[]).includes(v));
     if (!verdicts.length) continue;
     const field = (key: string) => [...section.matchAll(new RegExp(`^${key}:\\s*(\\S+)\\s*$`, 'gm'))].at(-1)?.[1] ?? null;
-    return { verdict: verdicts.at(-1)!, contentSha: field('content-sha'), headSha: field('head-sha') };
+    return { verdict: verdicts.at(-1)!, field };
   }
-  return { verdict: null, contentSha: null, headSha: null };
+  return null;
+}
+export function approvalBinding(text: string): { verdict: string | null; contentSha: string | null; headSha: string | null } {
+  const found = verdictSection(text);
+  return found ? { verdict: found.verdict, contentSha: found.field('content-sha'), headSha: found.field('head-sha') } : { verdict: null, contentSha: null, headSha: null };
+}
+
+// Pure: approvalBinding plus the `scope:` of the same section. A planned round's chunk approval
+// (`unit:<n>`, REVIEW-unit-<n>.md) and its final one (`integration`, REVIEW.md) are bound to their scope
+// in the verdict's own section, so neither can stand for the other, and a REVIEW.md section written
+// before the round was planned (no scope) cannot stand for the integration review.
+export function reviewScopeBinding(text: string): { verdict: string | null; contentSha: string | null; headSha: string | null; scope: string | null } {
+  return { ...approvalBinding(text), scope: verdictSection(text)?.field('scope') ?? null };
+}
+
+// Pure: approvalContentGap for a planned round's review, which must also be of `scope`.
+export function scopedApprovalGap(reviewText: string, current: ContentIdentity, scope: string): string | null {
+  const bound = reviewScopeBinding(reviewText).scope;
+  if (bound !== scope) return `the verdict's section is ${bound ? `scoped ${bound}` : 'unscoped'}, not ${scope} — an approval of one review (a checkpoint chunk, or the whole round) cannot stand for another; re-run \`wf review <round>\` and set the verdict under its header`;
+  return approvalContentGap(reviewText, current);
 }
 
 // Pure: whether `wf review` must append a fresh dated header: the first open, or a re-open (no review

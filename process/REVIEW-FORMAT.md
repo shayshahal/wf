@@ -13,10 +13,16 @@ base: <git ref the diff is against | n/a (agreement review)>
 agreement-sha: <sha256:<hex> of the agreement's agreed material (## Observed + ## Agreed) | absent on T2>
 content-sha: <the worktree identity the verdict binds to (#106) | absent on T1>
 head-sha: <the HEAD identity the verdict binds to | absent on T1>
+scope: <unit:<n> | integration | absent on T1 and on a single-build round>
 date: <YYYY-MM-DD>
 urls: <one `<app>: <url>` line per app, worktree.ts urlLines
       | n/a — a detached worktree has no stack>
 ```
+
+`scope` names what a planned round's review judges: `unit:<n>` for a unit checkpoint's chunk, in
+`REVIEW-unit-<n>.md`, and `integration` for the final review, in `REVIEW.md`. It binds with the
+verdict written under the same header, so a chunk's approval never stands for the integration's, or
+the reverse. A single-build round has no `scope` line.
 
 The names come from the worktree's branch (`worktree.ts`, the slug and port rules in
 `ports.ts`); a detached worktree has no stack — omit the URLs and say so, never invent one.

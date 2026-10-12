@@ -3,8 +3,10 @@
 Shay's agent workflow: a ticket becomes a merged PR through one working agreement (TICKET.md for
 an ordinary round, AGREEMENT.md for a consequential one), a build that checks and steers,
 deterministic checks (`wf check`), one final independent assessment, and two human gates (T1 on the
-agreement for consequential work, T2 on the diff, both in plannotator). Runs in pi and in Claude
-Code, on Windows.
+agreement for consequential work, T2 on the diff, both in plannotator). A large task's agreement
+cuts the build into units, each assessed on its own, with the review checkpoints it names before
+the final integration assessment and T2 (`process/AGREEMENT-TEMPLATE.md`). Runs in pi and in
+Claude Code, on Windows.
 
 It lives outside every project's repo on purpose. A project's repo keeps only the round memory each
 round commits (for JewelryX, `bug-reports/<round>/`).
@@ -34,7 +36,8 @@ round commits (for JewelryX, `bug-reports/<round>/`).
   - `src/gates/`: what a round has to pass. `classify`, T1 (`agree.ts`) and T2 (`review.ts`,
     both written through `review-format.ts`), `wf check` (`check.ts`; `--repro`, the three runs of
     a repro case; `--suites`, the whole suites the round's diff reaches; and, on a verification
-    case, the case's own test with the change taken back to HEAD — red-base; `--case` names one),
+    case, the case's own test with the fix reverted — red-base (a unit's starting commit, the round's
+    base during final integration, HEAD on the single-task route); `--case` names one),
     and `wf deliver`
   - `src/worktrees/`: `worktree.ts` is the one interface to worktrees: list, ports and slugs
     (`ports.ts`), create (`wf new`), remove (`wf reap`). Where no env plugs its own in,

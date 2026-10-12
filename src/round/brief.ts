@@ -19,9 +19,9 @@ export const USES_STACK = new Set(['assess']);
 
 // Pure: the handoff a phase's brief ends with. No token is minted: the build's handoff is the step
 // transition `wf step assess`, the assessment's the ASSESSMENT.md it writes.
-export function handoffText(phase: string, folder: string | null, klass: string | null): string {
-	if (phase === 'build') return `\n## Handoff\n\nWhen the agreement's \`## Verification\` cases pass (\`wf check\`), commit, then run \`wf step assess\`: it refuses unless \`wf check\` recorded a green of the implementation as it now stands. If \`wf check\` cannot run (stack, git, a missing runner), do not retry blind: write \`${folder}/BLOCKED.md\` with a \`Question:\` naming what could not run. Write it too if you cannot proceed.\n`;
-	if (phase === 'assess') return `\n## Handoff\n\nWrite \`${folder}/ASSESSMENT.md\` whole, with its \`Verdict:\` line and \`head:\` line; then \`wf next\`.\n`;
+export function handoffText(phase: string, folder: string | null, klass: string | null, assessmentFile = 'ASSESSMENT.md'): string {
+	if (phase === 'build') return `\n## Handoff\n\nWhen the verification cases in this brief pass (\`wf check\`), commit, then run \`wf step assess\`: it refuses unless \`wf check\` recorded a green of the implementation as it now stands. If \`wf check\` cannot run (stack, git, a missing runner), do not retry blind: write \`${folder}/BLOCKED.md\` with a \`Question:\` naming what could not run. Write it too if you cannot proceed.\n`;
+	if (phase === 'assess') return `\n## Handoff\n\nWrite \`${folder}/${assessmentFile}\` whole, with its \`Verdict:\` line and \`head:\` line; then \`wf next\`.\n`;
 	return `\n## Handoff\n\nWrite \`${folder}/${agreementFile(klass as 'A' | 'B' | 'C')}\` (class ${klass}: ${consequential(klass as 'A' | 'B' | 'C') ? 'the agreement with `## Observed`, `## Agreed` and `## Verification`' : 'the ticket, with `## Repro` for a check round'}); then \`wf next\`.\n`;
 }
 
@@ -55,7 +55,7 @@ export async function runBrief(argv: string[], { stack = ensureServers }: { stac
 	if (USES_STACK.has(phase)) {
 		try { console.error(await stack(toplevel, { wait: true })); } catch (e) { /* the brief still goes out */ console.error((e as Error).message); }
 	}
-	process.stdout.write(`${composed.text.trimEnd()}\n${handoffText(phase, folder, readState(toplevel)?.class ?? state?.class ?? null)}`);
+	process.stdout.write(`${composed.text.trimEnd()}\n${handoffText(phase, folder, readState(toplevel)?.class ?? state?.class ?? null, composed.assessmentFile)}`);
 }
 
 if (process.argv[1]?.endsWith('brief.ts')) await runBrief(process.argv.slice(2));

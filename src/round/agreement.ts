@@ -104,18 +104,22 @@ export function agreementGap(text: string | null | undefined, klass: RoundClass 
 // Pure: null when every `## Intent` line of an assessment is one verdict and every `met:` has a
 // measurement on each side; else the first line that is not. A claim is measured before and after,
 // or visibly NOT MEASURED, never met from the code alone (#109's intent discipline).
-export function intentGap(text: string | null | undefined): string | null {
+export function intentGap(text: string | null | undefined, deferredUnits: readonly number[] = []): string | null {
 	const body = section(text, 'Intent');
 	const lines = (body ?? '').split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('<!--'));
 	if (!lines.length) return `${ASSESSMENT_FILE} has no \`## Intent\` lines`;
+	let current = false;
 	for (const l of lines) {
+		const deferred = /\bdeferred:\s*unit\s+(\d+)\s*$/i.exec(l);
+		if (deferred && deferredUnits.includes(Number(deferred[1]))) continue;
+		current = true;
 		const notMet = /\bnot met:/.test(l);
 		const met = !notMet && /\bmet:/.test(l);
 		if (!met && !notMet && !/\bNOT MEASURED\b/.test(l) && !/\bleft out:/.test(l)) return `${ASSESSMENT_FILE} ## Intent: "${l.slice(0, 80)}" has no verdict (met | NOT MEASURED | not met | left out)`;
 		if (/\bleft out:\s*$/.test(l)) return `${ASSESSMENT_FILE} ## Intent: "${l.slice(0, 80)}" is left out with no reason`;
 		if (met && !(/\bbefore:/.test(l) && /\bafter:/.test(l))) return `${ASSESSMENT_FILE} ## Intent: "${l.slice(0, 80)}" is met without a before: and an after: measurement — or it is NOT MEASURED`;
 	}
-	return null;
+	return current ? null : `${ASSESSMENT_FILE} has no current-scope Intent measurement — every line was deferred`;
 }
 
 // Pure: ASSESSMENT.md's `Verdict:` line — clean | repair | blocked — or null.
@@ -140,13 +144,13 @@ export function assessmentMaterial(text: string | null | undefined): string | nu
 // binds it to the tree it judged, so a missing one is refused; a `clean` verdict may not carry an
 // unmet item (`not met:`/`differs:`/`still reproduces:`) — that is a blocked round wearing a clean
 // label (#113.4).
-export function assessmentGap(text: string | null | undefined): string | null {
+export function assessmentGap(text: string | null | undefined, deferredUnits: readonly number[] = []): string | null {
 	if (text == null) return `no ${ASSESSMENT_FILE}`;
 	const verdict = assessmentVerdict(text);
 	if (!verdict) return `${ASSESSMENT_FILE} has no \`Verdict: clean | repair | blocked\` line`;
 	if (!assessmentHead(text)) return `${ASSESSMENT_FILE} has no \`head: <commit>\` line — the assessment names the tree it judged`;
 	if (verdict === 'clean' && /(not met:|differs:|still reproduces:)/i.test(text)) return `${ASSESSMENT_FILE} says clean but states an unmet item — a clean assessment cannot carry \`not met:\``;
-	return intentGap(text);
+	return intentGap(text, deferredUnits);
 }
 
 // Pure: the verification gaps an assessment states about itself — a line in `## Intent`, `## Live` or

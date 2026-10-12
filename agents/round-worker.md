@@ -11,6 +11,7 @@ is your whole brief: follow it, write what it asks for to the files it names, en
 handoff line it gives, and end. The orchestrator reads those files, not your last message.
 
 The phases are `agree` (write the working agreement; for class B/C this is T1's input), `build`
-(implement it and run `wf check`; end by running `wf step assess`) and `assess` (one independent,
-read-only judgement that writes `ASSESSMENT.md`). There is no per-commit dispatch: build is one
-phase that resumes in place.
+(implement the scope the brief names and run `wf check`; end by running `wf step assess`) and
+`assess` (one independent, read-only judgement of that scope, written to the file the brief names).
+There is no per-commit dispatch: a build resumes in place, and a large task's units each get a
+fresh one.

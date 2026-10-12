@@ -1,6 +1,6 @@
 ---
 name: round
-description: Run a round from a ticket to a merged PR — "start 662", "start BJEW-586", "check BJEW-461", "does it reproduce", "resume", "what's waiting". One working agreement, a build that checks and steers, one final assessment, and the user at two gates (T1 for complex work, T2 to deliver). Use for any bug or feature ticket on the project's tracker.
+description: Run a round from a ticket to a merged PR — "start 662", "start BJEW-586", "check BJEW-461", "does it reproduce", "resume", "what's waiting". One working agreement, a build that checks and steers (in agreed units when large), one final assessment, and the user at T1 for complex work, any agreed unit checkpoints, and T2 to deliver. Use for any bug or feature ticket on the project's tracker.
 ---
 
 # Round
@@ -26,15 +26,23 @@ session, before *Start*: every *tracker*, *status* and *base branch* below means
 
 ## The route
 
-`wf new → agree (T1 for B/C) → build ↔ verify+steer → one assessment → T2 → wf deliver`
+`wf new → agree (T1 for B/C) → build ↔ assess [repeat per unit, review named chunks] → integration → T2 → wf deliver`
+
+Without `## Units`, build and assess happen once; that assessment is the final one.
+
+A large task: `… → per unit: build → unit assessment [→ checkpoint] → … → integration assessment → T2 → …`
 
 `TICKET.md` is the sole human working document for an ordinary (class A) round — it *is* the
 agreement. For consequential work (class B/C) one `AGREEMENT.md` records the observed facts and the
 agreed behavior, exclusions, choice and verification; T1 approves it before the build. A commit is
-not a workflow transition and there is no per-commit worker: the build is one phase that resumes in
-place. After the build, one independent read-only assessment writes `ASSESSMENT.md`; its fixable
-findings return to the build autonomously, bounded; an unmet intent or a still-reproducing symptom
-blocks T2 until the user rules. T1 and T2 are the only human gates.
+not a workflow transition and there is no per-commit worker: an ordinary task's build is one phase
+that resumes in place, then one independent read-only assessment writes `ASSESSMENT.md`. A large
+task's agreement plans `## Units` (`process/AGREEMENT-TEMPLATE.md`): each unit is a fresh build and
+an assessment scoped to it (`ASSESSMENT-unit-<n>.md`); a unit whose `review after` names a label
+stops at a checkpoint (`REVIEW-unit-<n>.md`); after the last unit, one integration assessment writes
+`ASSESSMENT.md`. Fixable findings return to the build autonomously, bounded; an unmet intent or a
+still-reproducing symptom blocks T2 until the user rules. T1, the agreed checkpoints and T2 are the
+only human gates, and only T2's approval is the merge.
 
 ## Start: "start <id>"
 
@@ -83,7 +91,7 @@ four replies in a row were the text before the last tool call, the files right e
 
 | `wf next` printed | do |
 |---|---|
-| `dispatch <agree\|build\|assess> (model: <m>): <line>` | a fresh `round-worker` (*Dispatch in this harness*), named `<id> <phase>`, on model `<m>` exactly as printed (wf picks it from the phase's effort level; `wf models` shows the table), with `<line>` as its whole task: it runs `wf brief` itself, so its brief is wf's own text. When it returns, `wf next`. |
+| `dispatch <agree\|build\|assess> (model: <m>): <line>` | a fresh `round-worker` (*Dispatch in this harness*), named `<id> <phase> [unit <n>|integration]` from the current scope, on model `<m>` exactly as printed (wf picks it from the phase's effort level; `wf models` shows the table), with `<line>` as its whole task: it runs `wf brief` itself, so its brief is wf's own text. When it returns, `wf next`. |
 | `wait <person>: q<n> …` | Follow *Round questions* below. |
 | `wait user: T1 on AGREEMENT.md …` | run `wf agree <branch>` yourself from the worktree — with plannotator (pi) it blocks until they submit (bash timeout 3600 s), so they annotate instead of being handed a command; read the `verdict:` line it wrote to `AGREEMENT-REVIEW.md`, then `wf next`. A T1 that asks for changes dispatches `agree` again; an approved agreement whose agreed material has not changed stands after a `wf decide --revise` too (a progress edit to `## Verification` does not renew T1). |
 | `wait user: harness — …` | Start the separate harness-fixer (*Harness trouble* below) from the named failure, before any more build or assessment dispatch. Once fixed, run `wf check` in the round, then `wf next`. |
@@ -91,22 +99,24 @@ four replies in a row were the text before the last tool call, the files right e
 | `check: run wf check --repro` | run it, then `wf next` (see *Check*). |
 | `deliver: …` | T2 approved; the approval is the merge. Run `wf deliver`: it pushes, opens the PR, merges it and deletes the branch, then prints the PR url and the tracker note it wrote. A push the project's pre-push hook refused becomes a T2 fix (`wf deliver` says so). Either way, `wf next`. |
 | `post: <ids> — …` | The tracker hears last. For each id in turn: fill its section of the note and post it with the delivered status, as ROUND.md says (which also says how to tell a section already posted by a session that died), then at once add ` (posted)` to the end of its `## <id>` line in the note. Then `wf next`. |
-| `review: …` | See the fix first (ROUND.md's *T2*, done as *Dispatch in this harness* says), then `wf review <branch>` yourself from the worktree. With plannotator (pi) it blocks until they submit: bash timeout 3600 s. Without it, it returns: under Claude Code with `REVIEW.md`'s path and `agreement:`'s (the agreement rendered) for the person to open, elsewhere with `REVIEW.md` open in an editor. Tell the user, stop, and go on when they say the verdict is in. Read the `verdict:` line it wrote to `REVIEW.md`, then `wf review <branch> --done` and `wf next`. T2 is local: no PR exists yet, and nothing is pushed until it approves. |
+| `review: …` | See the fix first (ROUND.md's *T2*, done as *Dispatch in this harness* says), then `wf review <branch>` yourself from the worktree. With plannotator (pi) it blocks until they submit: bash timeout 3600 s. Without it, it returns with the review file's path (`REVIEW.md` for final T2, `REVIEW-unit-<n>.md` for a chunk) and `agreement:`'s rendered agreement for the person to open. Tell the user, stop, and go on when they say the verdict is in. Read the `verdict:` line in the file it named, then `wf review <branch> --done` and `wf next`. T2 is local: no PR exists yet, and nothing is pushed until it approves. A unit checkpoint runs the same way and writes `REVIEW-unit-<n>.md`: changes-requested returns to the active builder with the reviewed chunk's cases (including earlier unreviewed units) in scope; recheck those cases and reassess before reapproval. Approved starts the next unit, never a merge. |
 | `done: …` | the note is posted. Run the `wf reap <branch>` it names, and tell the user `<id> merged, reaped` with the `round …` line it printed (where the round spent its time and where it was stopped; every round adds it to `~/.cache/wf-reaped/ROUNDS.md`). |
 
 Within the agreement, helpers, files, local corrections, added tests and naming are the build
 agent's own. T2 layout corrections repair the existing agreed behavior in build; the brief carries
-REVIEW.md's latest corrections and screenshot references. They do not, by themselves, renew T1. A genuinely new scope or behavior — a new user-visible surface, a changed contract
+the active review file's latest corrections and screenshot references. They do not, by themselves, renew T1. A genuinely new scope or behavior — a new user-visible surface, a changed contract
 path, a different persistence choice, or dropping an agreed item — is a renewed agreement: the
 build writes `BLOCKED.md` with a `Question:` line, or the assessment records a `material:` line, and
 the round goes back to `agree` for a new T1. The assessment's own fixable findings return to the
-build autonomously, at most twice; after that, or on a genuine blocker, `wf next` raises one
-contextual question rather than one per finding. Every dispatch is a **fresh** agent: never resume
+build autonomously, at most twice per unit or final integration; after that, or on a genuine blocker,
+`wf next` raises one contextual question rather than one per finding. Every dispatch is a **fresh** agent: never resume
 or message a finished round agent, and never read its session file to "see what happened". If a
 line `wf next` printed is wrong for the round, the fix is in wf (`next.ts`), not a step you take
 around it: stop and tell the user. `wf brief` is the dispatched agent's (it refuses a brief `wf
 next` is not dispatching); to read a phase's prompt, `wf prompt`. The agreement and
-`.wf/state.json` are wf's and the agents': you edit neither.
+`.wf/state.json` are wf's and the agents': you edit neither. If the unit plan changes, renew changed
+agreed behavior first, then explicitly restart with `wf step build --restart-units`; the old completion
+receipts no longer apply.
 
 ## Round questions
 
@@ -135,7 +145,7 @@ Only these, only when they happen:
   sent through *Round questions*, not written into the chat. A question that is only in this chat dies
   with the session; `wf brief` and `wf deliver` refuse while a recorded one is open, so an answer is
   never skipped. Someone else (ROUND.md, *People*): `--to <name>`.
-- T2 is waiting: one line with where to look (*Dispatch in this harness*)
+- T2 or a unit checkpoint is waiting: one line with where to look (*Dispatch in this harness*)
 - a round finished: `<id> merged, reaped`, and reap's `round …` line
 
 No progress narration. No summaries of what the agent did. "What's waiting?" → `wf status
@@ -201,6 +211,6 @@ those carry that machine's model and role, not wf's. Work none of wf's fits goes
 | agent reports | a dispatched agent's result wakes you | every agent runs in the background; its report arrives as a message. A report from an agent you did not dispatch, or from a phase that has ended, needs nothing: no step, no question asked again. |
 | T1 agreement session (B/C) | `subagent` with `interactive: true`, cwd the worktree: its own pane, which the user talks to. | this session runs it: read `AGREEMENT-TEMPLATE.md` and hold the conversation with the person here. T1 happens here too: show them the agreed material (in plain words if they ask, written from it alone), then `wf agree <branch>`, and write into `AGREEMENT-REVIEW.md` what you showed them, verbatim, as a `note —` line, then their comments and verdict. |
 | T2: see the fix | `wf show` (ROUND.md's *T2*): a headed browser, logged in, on the agreement's page | `wf show` makes the page's data (the agreement's `setup:` lines, once) and opens no window here: it prints what to open. Do that: `mcp__Claude_Browser__preview_start` with the `name` it prints, `navigate` to the page, and log in only when it asks. Tell the person it is in the Browser pane. |
-| T2: the verdict | `wf review` opens plannotator on the diff and waits; the before/after page it prints opens in the browser | `wf review` writes `REVIEW.md`, prints its path and returns; no editor opens. When it prints `before/after: <file>`, tell the person that page's path. Tell the person: comment on lines in the diff view, then say the verdict: approved or changes-requested. Write each comment into `REVIEW.md` as `path:line — text` and the `verdict:` line they said, then `wf review --done`. |
+| T2: the verdict | `wf review` opens plannotator on the diff and waits; the before/after page it prints opens in the browser | `wf review` writes `REVIEW.md`, prints its path and returns; no editor opens. When it prints `before/after: <file>`, tell the person that page's path. Tell the person: comment on lines in the diff view, then say the verdict: approved or changes-requested. Write each comment into the review file it printed as `path:line — text` and the `verdict:` line they said, then `wf review --done`. |
 | reap | the line as printed | `ExitWorktree` with `action: "keep"` first: the session inside the worktree holds its folder, and the reap fails to remove it (EPERM). Then the reap line, from the clone. |
 | Bash commands | as you like | literal paths and values: a worktree session refuses a command whose `sed` or git arguments come from a shell variable, or that sets `GIT_CONFIG_*`. |

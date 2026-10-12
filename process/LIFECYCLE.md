@@ -30,9 +30,11 @@ while the worktree exists, then removes it and runs the same teardown again (eac
 Pipeline cutover follows the agreed finish-before-release policy: finish active legacy rounds on
 that installed runtime before installing the replacement. There is no state converter or second
 pipeline. Planned-commit rows, their completion tokens and their decided-skip obligations (#74)
-are retired with that protocol, not imported into version 2. The replacement resumes one build
-phase; it cannot redispatch an obsolete `implement N` row. Verification cases remain working detail,
-not commit-completion obligations.
+are retired with that protocol, not imported into version 2. The replacement uses one build phase
+for a small task; a large agreement's structured `## Units` creates bounded build/assessment slices
+and named review checkpoints. An existing prose units note stays on the single-task route; no
+active round is silently reinterpreted. These slices are not obsolete `implement N` commit rows.
+Verification cases remain working detail, not commit-completion obligations.
 
 One round is one PR to the base branch: CI runs on it, T2 approves it, and it merges with
 `gh pr merge <n> --merge` (a merge commit, not a squash). The round folder merges with it and stays: it is the round's memory. Then

@@ -17,6 +17,7 @@ import { WF_ROOT } from '../paths.ts';
 import { guidance as guidanceDir, name as projectName, stackUrls } from '../project.ts';
 import { basePortForBranch, listWorktrees, portsAndSlugsForBranches, slugForBranch } from '../worktrees/worktree.ts';
 import type { State } from './state.ts';
+import { sliceContext } from './build-units.ts';
 
 export type PullRequest = { headRefName: string; number: number; isDraft: boolean; reviewDecision: string | null; statusCheckRollup: { conclusion?: string; state?: string; status?: string }[] | null };
 export type StatusRow = { path: string; state: State | null; pr: string; stack: { port: number; up: boolean; name: string | null } | null; processes?: number; inspect?: RoundInspect };
@@ -136,7 +137,7 @@ export function formatRow(r: StatusRow, now = Date.now()): string {
   const stack = `${r.stack ? ` · stack ${r.stack.name ?? `:${r.stack.port}`} ${r.stack.up ? '✓' : '✗'}` : ''}${r.processes === undefined ? '' : ` · ${r.processes} procs`}`;
   if (!s) return `${r.path}  —${stack}`;
   const you = s.waiting_on === 'user' ? ` ${WF_YOU_MARKER}` : '';
-  return `${s.round} · ${s.class ?? '—'} · ${s.step} · ${s.waiting_on ?? '—'} · ${formatAgeSince(s.since, now)} · ${r.pr}${stack}${you}`;
+  return `${s.round} · ${s.class ?? '—'} · ${s.step}${s.slices ? ` [${s.slices.unit === null ? 'integration' : `unit ${s.slices.unit}`}]` : ''} · ${s.waiting_on ?? '—'} · ${formatAgeSince(s.since, now)} · ${r.pr}${stack}${you}`;
 }
 
 // ── what is on the round now: the inspect block ──────────────────────────────
@@ -168,6 +169,7 @@ export type T1Fact = { sha: string | null; reviewed: string | null; verdict: str
 // null = the binding could not be recomputed). Null when the round has no REVIEW.md.
 export type T2Fact = { verdict: string | null; contentSha: string | null; headSha: string | null; fresh: boolean | null };
 export type RoundInspect = {
+  scope?: { label: string; assessment: string; review: string };
   agreement: { file: string; sha: string | null; exists: boolean };
   // `files` null = git could not read the worktree (UNKNOWN, never an empty-as-clean list); it is the
   // whole base..worktree change set — committed (name-status vs base) + staged + unstaged + untracked
@@ -289,6 +291,9 @@ export function inspectRound({ path, state, git, guidance = [], wfRoot = WF_ROOT
   const folder = state.folder ?? '';
   const agreementName = agreementFile(klass);
   const agreement = { file: [folder, agreementName].filter(Boolean).join('/'), sha: agreementSha(path, klass, state.folder ?? null), exists: existsSync(agreementPath(path, klass, state.folder ?? null)) };
+  const context = sliceContext(agreement.exists ? readFileSync(join(path, agreement.file), 'utf8') : '', state.slices);
+  const assessmentFile = context.kind === 'unit' ? context.assessmentFile : ASSESSMENT_FILE;
+  const reviewFile = context.kind === 'unit' ? context.reviewFile : REVIEW_FILE;
   const base = state.base ?? null;
   // Three independent attempts: a base git cannot resolve must not take the worktree listing with it.
   const statusOut = attempt(() => git(['status', '--porcelain', '-z']));
@@ -308,9 +313,9 @@ export function inspectRound({ path, state, git, guidance = [], wfRoot = WF_ROOT
     statError: statOut === null ? `could not resolve base ${base ?? 'HEAD'}` : null,
   };
   const checksLog = (() => { try { return readFileSync(join(path, '.wf', 'checks.log'), 'utf8'); } catch { /* no checks run here: the inspect block says evidence: none */ return ''; } })();
-  const assessmentText = (() => { try { return readFileSync(join(path, folder, ASSESSMENT_FILE), 'utf8'); } catch { /* no assessment yet: facts.assessment is null */ return null; } })();
+  const assessmentText = (() => { try { return readFileSync(join(path, folder, assessmentFile), 'utf8'); } catch { /* no assessment yet: facts.assessment is null */ return null; } })();
   const reviewText = (() => { try { return readFileSync(join(path, folder, AGREEMENT_REVIEW_FILE), 'utf8'); } catch { /* T1 has not run: its fields read as null */ return null; } })();
-  const t2Text = (() => { try { return readFileSync(join(path, folder, REVIEW_FILE), 'utf8'); } catch { /* T2 has not run: facts.t2 is null */ return null; } })();
+  const t2Text = (() => { try { return readFileSync(join(path, folder, reviewFile), 'utf8'); } catch { /* T2 has not run: facts.t2 is null */ return null; } })();
   // wf's own rendered pages, when they are there (the round folder's own HTML, then .wf/): an actual
   // file, never a promised one (2026-10-10 review, P3 artifacts).
   const artifacts = (() => {
@@ -321,6 +326,7 @@ export function inspectRound({ path, state, git, guidance = [], wfRoot = WF_ROOT
   const evidence = lastEvidence(checksLog);
   const currentRow = evidence.case?.content ? attempt(() => identity(path, state.folder ?? null)) : null;
   return {
+    ...(context.kind === 'unit' || context.kind === 'integration' ? { scope: { label: context.kind === 'unit' ? `unit ${context.unit.n}: ${context.unit.title}${context.reviewRepair ? ' · repairing review chunk' : ''}${context.unit.reviewAfter ? ` · checkpoint ${context.unit.reviewAfter}` : ''}` : 'integration · final delivery approval', assessment: `${folder}/${assessmentFile}`, review: `${folder}/${reviewFile}` } } : {}),
     agreement,
     diff,
     evidence: { ...evidence, binding: evidenceBinding(evidence.case, currentRow) },
@@ -390,6 +396,7 @@ function evidenceLine(e: RoundInspect['evidence']): string {
 // Pure: the inspect block for a person. One line per fact, references as paths.
 export function formatInspect(i: RoundInspect): string {
   const out: string[] = [];
+  if (i.scope) out.push(`  scope: ${i.scope.label} · ${i.scope.assessment} · ${i.scope.review}`);
   out.push(`  agreement: ${i.agreement.file}${i.agreement.exists ? '' : ' (absent)'}${i.agreement.sha ? ` · sha ${i.agreement.sha.slice(0, 12)}` : ''}`);
   const d = i.diff;
   if (d.files === null) {
@@ -441,7 +448,7 @@ export function allLines({ paths, readState, detailFor, now = Date.now(), inspec
   const rounds = paths.map((p) => ({ path: p, state: readState(p) })).filter((r) => r.state) as { path: string; state: State }[];
   for (const { path, state } of rounds) {
     const group = state.step === 'held' ? 'held' : state.waiting_on === 'user' ? 'waiting on you' : 'running';
-    const cells = [state.id ?? state.round, state.step, state.waiting_on ?? 'running', formatAgeSince(state.since, now), detailFor(path, state) ?? ''];
+    const cells = [state.id ?? state.round, `${state.step}${state.slices ? ` [${state.slices.unit === null ? 'integration' : `unit ${state.slices.unit}`}]` : ''}`, state.waiting_on ?? 'running', formatAgeSince(state.since, now), detailFor(path, state) ?? ''];
     // Open questions (wf ask) under their round: what the round waits for, not only on whom.
     groups[group].push({ line: cells.join('  ').trimEnd(), questions: questionLines(state), ...(inspectFor ? { inspect: inspectFor(path, state) } : {}) });
   }
@@ -459,6 +466,10 @@ export function realDetailFor(path: string, state: State): string {
   const agreement = state.folder ? agreementPath(path, state.class ?? null, state.folder) : null;
   const lines = agreement && existsSync(agreement) ? readFileSync(agreement, 'utf8').replace(/\r\n/g, '\n').trimEnd().split('\n') : null;
   if (state.step === 'agree') return lines ? `${agreement!.split(/[\\/]/).pop()} ${lines.length} lines` : 'no agreement yet';
+  const context = sliceContext(lines?.join('\n'), state.slices);
+  if (context.kind === 'invalid') return `units: ${context.why}`;
+  if (context.kind === 'unit') return `${context.unit.title} · cases ${context.cases.join(', ')}${context.reviewRepair ? ' · repairing review chunk' : ''}${context.unit.reviewAfter ? ` · checkpoint: ${context.unit.reviewAfter}` : ''}`;
+  if (context.kind === 'integration') return 'whole-round integration · final approval permits delivery';
   if (state.step === 'build') {
     const total = lines ? verificationCases(lines.join('\n')).length : 0;
     return `${total} verification case${total === 1 ? '' : 's'}`;

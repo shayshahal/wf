@@ -179,6 +179,24 @@ check('red-base runs against HEAD and puts the working change back', atBase === 
 writeFileSync(join(redRepo, 'new.ts'), 'new\n');
 const goneAtBase = withFixReverted(redRepo, ['new.ts'], () => existsSync(join(redRepo, 'new.ts')));
 check('red-base takes an untracked row file away for the run and restores it', goneAtBase === false && existsSync(join(redRepo, 'new.ts')));
+const unitBase = redGit(['rev-parse', 'HEAD']).trim();
+writeFileSync(join(redRepo, 'prerequisite.txt'), 'earlier unit\n');
+redGit(['add', '-A']);
+redGit(['-c', 'user.name=wf', '-c', 'user.email=wf@selfcheck', 'commit', '-qm', 'committed unit']);
+writeFileSync(join(redRepo, 'unrelated.txt'), 'other work\n');
+redGit(['stash', 'push', '--include-untracked', '-m', 'unrelated', '--', 'unrelated.txt']);
+const previousStash = redGit(['rev-parse', 'refs/stash']).trim();
+const committedAtBase = withFixReverted(redRepo, ['product.ts', 'new.ts'], () => ({ product: readFileSync(join(redRepo, 'product.ts'), 'utf8'), newFile: existsSync(join(redRepo, 'new.ts')), prerequisite: readFileSync(join(redRepo, 'prerequisite.txt'), 'utf8') }), unitBase);
+check('a committed unit is measured from its start without reverting prerequisites', committedAtBase.product === 'fixed\n' && !committedAtBase.newFile && committedAtBase.prerequisite === 'earlier unit\n');
+check('committed product and added files are restored after red-base', readFileSync(join(redRepo, 'product.ts'), 'utf8') === 'fix\n' && existsSync(join(redRepo, 'new.ts')) && !redGit(['status', '--porcelain']).trim());
+check('a clean committed measurement never pops an unrelated stash', redGit(['rev-parse', 'refs/stash']).trim() === previousStash && !existsSync(join(redRepo, 'unrelated.txt')));
+let failedRun = false;
+try { withFixReverted(redRepo, ['product.ts', 'new.ts'], () => { throw new Error('probe: runner failed'); }, unitBase); } catch { /* intentional failing runner: restoration is the measured behavior */ failedRun = true; }
+check('a failed runner restores the committed slice', failedRun && readFileSync(join(redRepo, 'product.ts'), 'utf8') === 'fix\n' && existsSync(join(redRepo, 'new.ts')));
+writeFileSync(join(redRepo, 'product.ts'), 'staged repair\n');
+redGit(['add', 'product.ts']);
+withFixReverted(redRepo, ['product.ts'], () => readFileSync(join(redRepo, 'product.ts'), 'utf8'), unitBase);
+check('red-base preserves the staged repair as well as its working bytes', redGit(['show', ':product.ts']) === 'staged repair\n' && readFileSync(join(redRepo, 'product.ts'), 'utf8') === 'staged repair\n');
 rmSync(redRepo, { recursive: true, force: true });
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');

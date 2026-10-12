@@ -1,6 +1,8 @@
 // deliver.selfcheck.ts — node deliver.selfcheck.ts → exit 0 when green.
 // Fixture agreement + assessment → the PR title, the PR body, the tracker note.
-import { commitRows, deliveryResume, existingNoteAction, githubPrRepo, githubRepo, hookRefused, noteComplete, originTarget, prBody, prLookup, prTitle, redactRemote, refusedPushSection, t2Gap } from './deliver.ts';
+import { commitRows, deliveryResume, existingNoteAction, githubPrRepo, githubRepo, hookRefused, noteComplete, originTarget, prBody, prLookup, prTitle, redactRemote, refusedPushSection, sliceDeliveryGap, t2Gap } from './deliver.ts';
+import { initializeSlices, parseBuildUnits } from '../round/build-units.ts';
+import type { BuildPlan } from '../round/build-units.ts';
 import type { State } from '../round/state.ts';
 
 let failures = 0;
@@ -185,6 +187,28 @@ check('deliver\u2019s own interrupted write is completed, not refused forever', 
 // of the note deliver would write, so it is completed rather than silently kept (issue 108).
 check('a scaffold truncated after one body line is completed though noteComplete calls it complete', noteComplete(cutAfterOneLine, ['BJEW-1']) && existingNoteAction(cutAfterOneLine, scaffold, ['BJEW-1']) === 'replace');
 check('a note deliver cannot account for is refused', existingNoteAction('## BJEW-9\nx\n', scaffold, ['BJEW-1']) === 'refuse' && existingNoteAction('<!-- wf: cut off -->\n', scaffold, ['BJEW-1']) === 'refuse');
+
+// A planned round delivers only after every unit is done, each checkpoint approved, and REVIEW.md's
+// verdict is scoped `integration`. A chunk's approval (REVIEW-unit-<n>.md, scope unit:<n>) is never a
+// merge, and an active unit is never deliverable (build-units.ts, HUMAN-TOUCHPOINTS.md).
+const planUnitsText = '## Verification\n\n| # | case | files | check |\n|---|---|---|---|\n| 1 | a | x.ts | \u2014 |\n| 2 | b | y.ts | \u2014 |\n\n## Units\n\n| # | unit | cases | depends on | review after |\n|---|---|---|---|---|\n| 1 | the schema | 1 | \u2014 | shape |\n| 2 | the API | 2 | 1 | \u2014 |\n';
+const planUnits = parseBuildUnits(planUnitsText) as BuildPlan;
+const planStart = initializeSlices(planUnits, 'h0');
+const scopedVerdict = (scope: string) => `base: h0\nscope: ${scope}\nverdict: approved\n`;
+const doneUnits = { ...planStart, unit: null, base: 'h2', reviewBase: 'h1', completed: [{ n: 1, head: 'h1', reviewed: true }, { n: 2, head: 'h2', reviewed: false }] };
+check('an active unit cannot be delivered', (sliceDeliveryGap(planUnits, planStart, scopedVerdict('unit:1')) ?? '').includes('still being built'), sliceDeliveryGap(planUnits, planStart, scopedVerdict('unit:1')) ?? '');
+check('a chunk approval is not the integration', (sliceDeliveryGap(planUnits, doneUnits, scopedVerdict('unit:1')) ?? '').includes('not integration'), sliceDeliveryGap(planUnits, doneUnits, scopedVerdict('unit:1')) ?? '');
+check('an unscoped verdict is not the integration either', (sliceDeliveryGap(planUnits, doneUnits, 'verdict: approved\n') ?? '').includes('not integration'));
+check('every unit reviewed with scope integration delivers', sliceDeliveryGap(planUnits, doneUnits, scopedVerdict('integration')) === null);
+const gapUnit1 = { ...doneUnits, completed: [{ n: 1, head: 'h1', reviewed: false }, { n: 2, head: 'h2', reviewed: false }] };
+check('a unit whose checkpoint was never approved blocks delivery', (sliceDeliveryGap(planUnits, gapUnit1, scopedVerdict('integration')) ?? '').includes('checkpoint review'), sliceDeliveryGap(planUnits, gapUnit1, scopedVerdict('integration')) ?? '');
+const notDone = { ...doneUnits, unit: null, completed: [{ n: 1, head: 'h1', reviewed: true }] };
+check('a plan whose later unit never finished blocks delivery', (sliceDeliveryGap(planUnits, notDone, scopedVerdict('integration')) ?? '').includes('never completed'), sliceDeliveryGap(planUnits, notDone, scopedVerdict('integration')) ?? '');
+check('progress made against another plan is refused', (sliceDeliveryGap(planUnits, { ...doneUnits, planSha: 'other' }, scopedVerdict('integration')) ?? '').includes('changed'));
+check('a single-build plan with no slices delivers on the verdict alone', sliceDeliveryGap({ kind: 'single' }, undefined, 'verdict: approved\n') === null);
+check('slices without a plan now is a changed plan, not a delivery', (sliceDeliveryGap({ kind: 'single' }, planStart, 'verdict: approved\n') ?? '').includes('plan changed'));
+check('a plan with no slices at all is refused', (sliceDeliveryGap(planUnits, undefined, scopedVerdict('integration')) ?? '').includes('no state.slices'));
+check('an invalid table refuses delivery', (sliceDeliveryGap({ kind: 'invalid', why: 'bad' }, undefined, scopedVerdict('integration')) ?? '').includes('cannot be read'));
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');
 process.exit(failures ? 1 : 0);

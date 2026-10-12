@@ -42,10 +42,11 @@
 // that, never the commit message: "the check was run"
 // is then observed, not claimed (llm-as-a-verifier: trust observed output, not narration).
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
-import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { baseBranch, checks, redBaseEvidence, reproFailure, suites } from '../project.ts';
 import { caseFiles, verificationCases } from '../round/agreement.ts';
+import { sliceContext } from '../round/build-units.ts';
 import { agreementPath } from '../round/agreement.ts';
 import type { VerificationCase } from '../round/agreement.ts';
 import { readState, resolveRoundBase, roundOf, toplevelOf } from '../round/state.ts';
@@ -190,17 +191,36 @@ export function redBaseRun({ tasks, changed, row, folder }: { tasks: CheckTask[]
 // Runs `run()` with `paths` back at HEAD, then puts them back. `git stash push` is the one command
 // that both restores HEAD and keeps the working change — tracked or new, staged or not — so a pop
 // that fails is a refusal naming the stash, never a green.
-export function withFixReverted<T>(toplevel: string, paths: string[], run: () => T): T {
+export function withFixReverted<T>(toplevel: string, paths: string[], run: () => T, base = 'HEAD'): T {
 	const git = (args: string[]) => spawnSync('git', ['-C', toplevel, ...args], { encoding: 'utf8' });
+	const stash = () => git(['rev-parse', '--verify', 'refs/stash']).stdout.trim();
+	const before = stash();
 	const push = git(['stash', 'push', '--include-untracked', '-m', 'wf red-base', '--', ...paths]);
 	if (push.status !== 0) throw new Error(`git stash push: ${(push.stderr || push.stdout).trim()}`);
+	const ownStash = stash() !== before;
+	const restore = (source: string) => {
+		const tree = git(['ls-tree', '-r', '--name-only', '-z', source, '--', ...paths]);
+		if (tree.status !== 0) throw new Error(`red-base restore: cannot read ${source}: ${tree.stderr.trim()}`);
+		const present = tree.stdout.split('\0').filter(Boolean);
+		if (present.length) {
+			const result = git(['restore', '--source', source, '--worktree', '--', ...present]);
+			if (result.status !== 0) throw new Error(`red-base restore: ${result.stderr.trim()}`);
+		}
+		for (const path of paths.filter((p) => !present.includes(p))) rmSync(join(toplevel, path), { force: true });
+	};
 	try {
+		// A committed unit is compared with its starting commit, keeping its prerequisite units intact.
+		if (base !== 'HEAD') restore(base);
 		return run();
 	} finally {
-		const pop = git(['stash', 'pop']);
-		if (pop.status !== 0) {
-			console.error(`FAILED: git stash pop — the row's changes are in the stash (git stash list): ${(pop.stderr || pop.stdout).trim()}`);
-			process.exit(1);
+		if (base !== 'HEAD') restore('HEAD');
+		// A clean committed slice creates no stash. Never pop a stash belonging to earlier work.
+		if (ownStash) {
+			const pop = git(['stash', 'pop', '--index']);
+			if (pop.status !== 0) {
+				console.error(`FAILED: git stash pop — the row's changes are in the stash (git stash list): ${(pop.stderr || pop.stdout).trim()}`);
+				process.exit(1);
+			}
 		}
 	}
 }
@@ -275,8 +295,8 @@ export function redCause(task: { exit: number | null }): RedCause {
 // Pure: the checks.log line for one run. `cause` only on a red: green has no cause to give. `content`
 // is the implementationContentSha the run finished on (content-identity.ts) — recorded so a green
 // names what it measured, never the bytes a mutating task replaced before the run ended (#106).
-export function checkRunLine({ ts, row, rowCheck, tasks, result, cause, content }: { ts: string; row: number | string | null; rowCheck: string | null; tasks: CheckRun[]; result: string; cause?: RedCause; content?: string }) {
-	return JSON.stringify({ ts, row, rowCheck, tasks, result, ...(cause ? { cause } : {}), ...(content ? { content } : {}) });
+export function checkRunLine({ ts, row, rowCheck, tasks, result, cause, content, scope }: { ts: string; row: number | string | null; rowCheck: string | null; tasks: CheckRun[]; result: string; cause?: RedCause; content?: string; scope?: string }) {
+	return JSON.stringify({ ts, row, rowCheck, tasks, result, ...(cause ? { cause } : {}), ...(content ? { content } : {}), ...(scope ? { scope } : {}) });
 }
 
 // The row identity a run measured, or undefined when git cannot read the tree: the log line still
@@ -464,12 +484,28 @@ export async function runCheck(argv: string[] = []) {
 	const toplevel = toplevelOf();
 	const state = readState(toplevel);
 	const { folder } = roundOf(state, toplevel);
+	const agreementFile = agreementPath(toplevel, state?.class ?? null, folder);
+	const agreement = existsSync(agreementFile) ? readFileSync(agreementFile, 'utf8') : '';
+	const context = sliceContext(agreement, state?.slices);
+	if (context.kind === 'invalid' || context.kind === 'pending') {
+		console.error(`check: ${context.kind === 'invalid' ? context.why : 'start the declared units with wf next first'}`);
+		process.exit(1);
+	}
+	const allCases = verificationCases(agreement);
+	const scoped = context.kind === 'unit' || context.kind === 'integration';
+	const scope = context.kind === 'unit' ? `unit:${context.unit.n}` : context.kind === 'integration' ? 'integration' : undefined;
+	const cases = context.kind === 'unit' ? allCases.filter((c) => context.cases.includes(c.n)) : allCases;
+	// A slice hands off all its named assertions, not an arbitrary one green from the whole ticket.
+	if (scoped && !argv.includes('--case') && cases.length > 1) {
+		for (const c of cases) await runCheck([...argv, '--case', String(c.n)]);
+		return;
+	}
 	const ran: CheckRun[] = [];
 	const start = contentOf(toplevel, folder);
 	let row: VerificationCase | null = null;
 	const logRun = (result: string, cause?: RedCause) => {
 		mkdirSync(join(toplevel, '.wf'), { recursive: true });
-		appendFileSync(join(toplevel, '.wf', 'checks.log'), `${checkRunLine({ ts: new Date().toISOString(), row: row?.n ?? null, rowCheck: row?.check ?? null, tasks: ran, result, cause, content: contentOf(toplevel, folder) })}\n`);
+		appendFileSync(join(toplevel, '.wf', 'checks.log'), `${checkRunLine({ ts: new Date().toISOString(), row: row?.n ?? null, rowCheck: row?.check ?? null, tasks: ran, result, cause, content: contentOf(toplevel, folder), scope })}\n`);
 	};
 	// The round's base, so a committed-only change is part of the diff (R-1, #109). A base ref that does
 	// not resolve leaves the committed range unknown: refuse with one actionable line rather than bless
@@ -486,10 +522,12 @@ export async function runCheck(argv: string[] = []) {
 	// The verification cases of the round's agreement (TICKET.md for class A, AGREEMENT.md for B/C).
 	// No per-commit bookkeeping (#112): `--case N` names one, else the single case whose files this
 	// diff touches, else the single case. `--case "<path>::<id>@<line>"` names a raw cell (class A).
-	const agreementFile = agreementPath(toplevel, state?.class ?? null, folder);
-	const cases = verificationCases(existsSync(agreementFile) ? readFileSync(agreementFile, 'utf8') : '');
 	const caseIdx = argv.indexOf('--case');
 	const caseArg = caseIdx >= 0 ? argv[caseIdx + 1] : null;
+	if (scoped && caseArg != null && (!/^\d+$/.test(caseArg) || !cases.some((c) => c.n === Number(caseArg)))) {
+		console.error(`check: ${scope} owns cases ${cases.map((c) => c.n).join(', ')} — a different or raw case cannot hand off this slice`);
+		process.exit(1);
+	}
 	if (caseArg != null) row = /^\d+$/.test(caseArg) ? cases.find((c) => c.n === Number(caseArg)) ?? null : { n: 0, line: '', message: caseArg, files: checkCellTarget(caseArg)?.file ?? '', check: caseArg };
 	else {
 		const matching = cases.filter((c) => caseFiles(c).some((f) => changed.includes(f)));
@@ -501,8 +539,12 @@ export async function runCheck(argv: string[] = []) {
 	}
 	// Scopeprot: a changed product/test file outside the agreement's cases is refused; a round's added
 	// helper belongs in a case's `files` cell, which is mutable working detail (no renewed T1).
-	const allowed = row ? caseFiles(row) : cases.flatMap((c) => caseFiles(c));
+	const allowed = scoped ? allCases.flatMap((c) => caseFiles(c)) : row ? caseFiles(row) : cases.flatMap((c) => caseFiles(c));
 	const violations = allowed.length ? fenceViolations(changed, allowed, folder) : [];
+	if (context.kind === 'unit') {
+		const unitFiles = cases.flatMap((c) => caseFiles(c));
+		violations.push(...fenceViolations(changedFiles(toplevel, context.base), unitFiles, folder));
+	}
 	if (violations.length) {
 		for (const f of violations) console.error(`fence: ${f} is not in the agreement's verification cases`);
 		const fence = { label: 'fence', exit: 1 };
@@ -593,7 +635,15 @@ export async function runCheck(argv: string[] = []) {
 	// without the fix is not proof (docs/plans/2026-09-27-kit-and-env.md step 4: a jsdom test that
 	// laid nothing out, counted green). The project marks the row's test task (`redBase`); every other
 	// task stays out, because a lint or typecheck red would prove nothing about the test.
-	const redBasePlan = redBaseRun({ tasks, changed, row, folder });
+	// A chunk repair reruns earlier units too: their red baseline is their own start, not the
+	// current unit's start (which already contains those earlier fixes).
+	let redBaseRef = context.kind === 'unit' ? context.base : base;
+	if (context.kind === 'unit' && context.reviewRepair && row) {
+		const caseN = row.n;
+		const ownerIndex = context.plan.units.findIndex((u) => u.cases.includes(caseN));
+		redBaseRef = state?.slices?.completed[ownerIndex - 1]?.head ?? context.reviewBase;
+	}
+	const redBasePlan = redBaseRun({ tasks, changed: context.kind === 'unit' ? changedFiles(toplevel, redBaseRef) : changed, row, folder });
 	if (redBasePlan) {
 		const { task: redTask, revert } = redBasePlan;
 		const gap = targetGap(target);
@@ -622,7 +672,7 @@ export async function runCheck(argv: string[] = []) {
 		// is the environment, never a green.
 		const run = (() => {
 			try {
-				return withFixReverted(toplevel, revert, () => spawnSync(redTask.cmd!, shellArgv(redTask.args!), { cwd: join(toplevel, redTask.cwd!), env: { ...process.env, ...redTask.env }, encoding: 'utf8', shell: process.platform === 'win32' }));
+				return withFixReverted(toplevel, revert, () => spawnSync(redTask.cmd!, shellArgv(redTask.args!), { cwd: join(toplevel, redTask.cwd!), env: { ...process.env, ...redTask.env }, encoding: 'utf8', shell: process.platform === 'win32' }), scoped ? redBaseRef : 'HEAD');
 			} catch (e) {
 				return e as Error;
 			}

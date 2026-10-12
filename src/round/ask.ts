@@ -15,14 +15,15 @@ import { people } from '../project.ts';
 import { agreementSha } from './agreement.ts';
 import { readState, roundFile, toplevelOf, writeState } from './state.ts';
 import type { Question, State } from './state.ts';
+import { isAssessmentRulingSource } from './assessment-rulings.ts';
 
 const PEOPLE = ['user', ...people];
 
 // Pure: the state with one more open question. The round now waits on the oldest open question's person.
-export function addQuestion(state: State, { to, text, dflt = null, source = null }: { to: string; text: string; dflt?: string | null; source?: string | null }, now = new Date().toISOString()): State & { questions: Question[] } {
+export function addQuestion(state: State, { to, text, dflt = null, source = null, verification_gaps }: { to: string; text: string; dflt?: string | null; source?: string | null; verification_gaps?: string[] }, now = new Date().toISOString()): State & { questions: Question[] } {
 	const questions: Question[] = [...(state.questions ?? [])];
 	const n = Math.max(state.last_question ?? 0, ...questions.map((q) => q.n)) + 1;
-	questions.push({ n, to, text, ...(dflt ? { default: dflt } : {}), ...(source ? { source } : {}), asked: now });
+	questions.push({ n, to, text, ...(dflt ? { default: dflt } : {}), ...(source ? { source } : {}), ...(verification_gaps ? { verification_gaps: [...verification_gaps] } : {}), asked: now });
 	return { ...state, questions, last_question: n, waiting_on: questions[0].to, since: now };
 }
 
@@ -171,7 +172,7 @@ export async function runDecide(argv: string[]): Promise<void> {
 	// Where the answer is read is checked before the state is written: a missing agreement refuses
 	// while the question is still open, instead of closing it with nowhere to record the answer.
 	const blocked = open.find((q) => q.n === target)?.source?.startsWith('BLOCKED.md') ?? false;
-	const assessmentSource = open.find((q) => q.n === target)?.source?.startsWith('ASSESSMENT.md') ?? false;
+	const assessmentSource = isAssessmentRulingSource(open.find((q) => q.n === target)?.source);
 	if (!blocked && !assessmentSource && !existsSync(agreement)) {
 		console.error(`wf decide: no ${agreement} to record q${target}'s answer in`);
 		process.exit(2);

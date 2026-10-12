@@ -3,7 +3,7 @@
 // (2026-10-10): the agreement template wraps a long bullet onto a continuation line, and a comment on
 // that line must fold onto the agreement's own line.
 import { isDeepStrictEqual } from 'node:util';
-import { pageLine, agreementBody, proofPairs, unpairedProofImages } from './review-format.ts';
+import { pageLine, agreementBody, proofPairs, unpairedProofImages, renderHeader, reviewScopeBinding, scopedApprovalGap } from './review-format.ts';
 
 let failures = 0;
 const check = (name: string, cond: boolean, detail = '') =>
@@ -49,6 +49,18 @@ check("no picture is dropped for sharing a number or a label with another", twin
 check("jpg, jpeg, webp and upper-case names are screenshots too", proofPairs(["after-a.JPG", "after-b.jpeg", "before-c.webp"]).length === 3);
 check("only before-/after- pictures pair: other files and other pictures do not", proofPairs(["listing.png", "trace.zip", "after.md", "afterwards-1.png", "before-.png"]).length === 0);
 check("pictures proof/ has that no pair takes are named, so a post can say it refused them", unpairedProofImages(["listing.png", "after-1.png", "trace.zip", "video.webm", "Shot.JPG"]).join() === "listing.png,Shot.JPG", unpairedProofImages(["listing.png", "after-1.png", "trace.zip", "Shot.JPG"]).join());
+
+// A planned round's review binds its `scope:` in the verdict's own section, so a chunk's approval and
+// the integration's cannot stand for each other (build-units.ts, HUMAN-TOUCHPOINTS.md).
+const chunk = 'round: r\nbase: h0\ncontent-sha: tree:w\nhead-sha: tree:h\nscope: unit:1\n\nverdict: approved\n';
+check('the scope is read from the verdict\u2019s own section', reviewScopeBinding(chunk).scope === 'unit:1' && reviewScopeBinding(chunk).verdict === 'approved', JSON.stringify(reviewScopeBinding(chunk)));
+check('a verdict cannot borrow a later section\u2019s scope', reviewScopeBinding('scope: unit:1\ncontent-sha: tree:a\nhead-sha: tree:a\nverdict: approved\n\n## 2026-10-12\nscope: integration\ncontent-sha: tree:w\nhead-sha: tree:h\nverdict: pending (\u2026)\n').scope === 'unit:1');
+check('a scope-less verdict reads as unscoped', reviewScopeBinding('content-sha: tree:w\nhead-sha: tree:h\nverdict: approved\n').scope === null);
+check('a chunk approval does not stand for the integration', (scopedApprovalGap(chunk, { worktree: 'tree:w', head: 'tree:h' }, 'integration') ?? '').includes('not integration'));
+check('a chunk approval stands for the chunk it names', scopedApprovalGap(chunk, { worktree: 'tree:w', head: 'tree:h' }, 'unit:1') === null);
+check('a scoped approval still refuses stale content', (scopedApprovalGap(chunk, { worktree: 'tree:x', head: 'tree:h' }, 'unit:1') ?? '').includes('working tree changed'));
+check('the header carries the scope and the chunk\u2019s own lines', (() => { const h = renderHeader({ round: 'r', base: 'h0', contentSha: 'tree:w', headSha: 'tree:h', scope: 'unit:1', chunk: ['chunk: unit 1 \u2014 the API shape', 'cases: 1, 2'] }); return h.includes('scope: unit:1') && h.includes('chunk: unit 1 \u2014 the API shape') && h.includes('cases: 1, 2'); })());
+check('a single-build header has no scope line', !renderHeader({ round: 'r', base: 'main', contentSha: 'tree:w', headSha: 'tree:h' }).includes('scope:'));
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');
 process.exit(failures ? 1 : 0);

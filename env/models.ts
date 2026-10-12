@@ -8,8 +8,8 @@
 import { spawnSync } from 'node:child_process';
 import type { Models } from '../src/models.ts';
 
-// Round-worker's default and explicit agree/build/assess dispatch share medium (Shay, 2026-10-12).
-export const PI_MODELS: Models = { low: 'anthropic/sonnet', medium: 'anthropic/sonnet:high' };
+// Shay, 2026-10-12: every pi worker uses DeepSeek 4.1 Flash; no Anthropic fallback.
+export const PI_MODELS: Models = { low: 'opencode-go/deepseek-v4.1-flash', medium: 'opencode-go/deepseek-v4.1-flash' };
 
 const THINKING = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh'];
 

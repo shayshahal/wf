@@ -10,6 +10,9 @@ import { randomUUID } from 'node:crypto';
 import { linkSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { baseBranch, roundsDir } from '../project.ts';
+import { sliceProgressGap } from './build-units.ts';
+import type { SliceProgress } from './build-units.ts';
+import { verificationQuestionGap } from './assessment-rulings.ts';
 
 export type RoundClass = 'A' | 'B' | 'C';
 // The latest received answer in its thread's message order; transport alone grants no authority.
@@ -17,6 +20,8 @@ export type QuestionReply = { ref: string; text: string; sequence: number };
 // A question `wf ask` opened; `wf decide` moves it to `answered` with its answer (ask.ts).
 export type Question = {
 	n: number; to: string; text: string; default?: string; source?: string; asked: string; answer?: string | null; answered?: string;
+	/** Exact verification lines this fix-or-accept ruling answers; absent on pre-#126 questions. */
+	verification_gaps?: string[];
 	// Save the exact envelope before sending: a retry after a wf update must reuse the old template.
 	inbox_message?: { key: string; subject: string; body: string };
 	// The transport reference survives a session restart; a received reply is not yet a round ruling.
@@ -48,9 +53,11 @@ export type State = {
 	session?: { harness: string; id: string; transcript: string | null; step: string | null; at: string };
 	entry?: string;
 	check?: boolean;
-	// How many autonomous repairs an assessment has already sent back to build (#113.3): bounded by
-	// MAX_REPAIRS in next.ts. Reset is not needed — the assessment's `head:` names the tree it judged.
+	// Autonomous repairs of the current build scope, bounded by MAX_REPAIRS; unit advancement resets
+	// the counter so one early unit does not exhaust every later unit's repair budget.
 	repairs?: number;
+	/** Executable units and review receipts; absent on the single-task route. */
+	slices?: SliceProgress;
 	// The step a round-worker was sent back for by `wf handoff check` (handoff-hook.ts): one hand-back
 	// per step, so a hook loop cannot burn the agent.
 	handoff_sent_back?: string;
@@ -165,6 +172,17 @@ export function readState(toplevel: string): State | null {
 		throw new CorruptStateError(file, e instanceof Error ? e.message : String(e));
 	}
 	if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) throw new CorruptStateError(file, 'it is not a JSON object');
+	if ('slices' in parsed) {
+		const gap = sliceProgressGap(parsed.slices);
+		if (gap) throw new CorruptStateError(file, gap);
+	}
+	for (const field of ['questions', 'answered']) {
+		const questions = Reflect.get(parsed, field);
+		if (Array.isArray(questions)) for (const question of questions) {
+			const gap = verificationQuestionGap(question);
+			if (gap) throw new CorruptStateError(file, `${field}: ${gap}`);
+		}
+	}
 	return parsed as State;
 }
 

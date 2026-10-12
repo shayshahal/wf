@@ -10,15 +10,19 @@ import { openFile, openInEditor, opensWindows } from '../worktrees/editor.ts';
 import { baseBranch, ticketChanges } from '../project.ts';
 import { ensureServers } from '../worktrees/serve.ts';
 import { resolveWorktree } from '../worktrees/worktree.ts';
-import { appendDatedSection, approvalContentGap, beforeAfterPage, captionFor, devUrlsFor, foldFeedbackLine, lastField, needsFreshReviewHeader, agreementPage, proofPairs, readVerdict, renderHeader, renderSkeleton, roundArtifacts } from './review-format.ts';
+import { appendDatedSection, approvalContentGap, beforeAfterPage, captionFor, devUrlsFor, foldFeedbackLine, lastField, needsFreshReviewHeader, agreementPage, proofPairs, readVerdict, renderHeader, renderSkeleton, roundArtifacts, scopedApprovalGap } from './review-format.ts';
 import { approvalIdentity, approvalPaperworkExcluded, trackerNotePath } from './content-identity.ts';
 import type { ContentIdentity } from './content-identity.ts';
 import { seams } from '../seams.ts';
 import { manualCheck } from './check.ts';
-import { agreementPath, ASSESSMENT_FILE, caseFiles, verificationCases } from '../round/agreement.ts';
-import { roundFile } from '../round/state.ts';
+import { agreementPath, ASSESSMENT_FILE, caseFiles, REVIEW_FILE, verificationCases } from '../round/agreement.ts';
+import { roundFile, writeState } from '../round/state.ts';
 import type { State } from '../round/state.ts';
+import { advanceSlice, sliceContext, unitAssessmentFile } from '../round/build-units.ts';
+import type { SliceProgress } from '../round/build-units.ts';
+import { stepHistory } from '../round/friction.ts';
 import { runStep } from '../round/step.ts';
+import { nextAction, snapshotOf } from '../round/next.ts';
 
 const usage: () => never = () => {
   console.error('usage: wf review <round> [--base dev] | wf review <round> --done');
@@ -39,7 +43,6 @@ const readState = (worktree: string): State => {
   const file = join(worktree, '.wf', 'state.json');
   return existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : {};
 };
-const persistedBase = (worktree: string) => readState(worktree).base ?? null;
 // A diff git cannot take stops T2: it used to read as no files, and the header listed nothing to review.
 const changedFiles = (worktree: string, base: string): string[] => {
   try {
@@ -87,14 +90,22 @@ export function reviewFiles(diff: string[], assessment: string, onDisk: boolean)
 
 // The round's before/after page (.wf/before-after.html, outside the round folder: deliver commits that
 // folder, and the PNGs it shows are gitignored), or null when the round has no before/after pictures.
-function writeBeforeAfter(worktree: string, round: string) {
+/** Checkpoint pictures come from its own unit assessments, not every round's before/after pair. */
+export function chunkProofPairs(names: string[], assessments: string[]) {
+  return proofPairs(names).filter((p) => assessments.some((text) => [p.before, p.after].some((name) => name && text.includes(`proof/${name}`))));
+}
+
+function writeBeforeAfter(worktree: string, round: string, assessmentFiles: string[], chunk: boolean) {
   const folder = readState(worktree).folder;
   const proof = folder ? join(worktree, folder, 'proof') : null;
-  const pairs = proof && existsSync(proof) ? proofPairs(readdirSync(proof)) : [];
+  const assessments = assessmentFiles.map((name) => folder ? join(worktree, folder, name) : null).map((f) => f && existsSync(f) ? readFileSync(f, 'utf8') : '');
+  const names = proof && existsSync(proof) ? readdirSync(proof) : [];
+  const pairs = chunk ? chunkProofPairs(names, assessments) : proofPairs(names);
   if (!pairs.length) return null;
   // Both are round-owned absolute paths: joining the agreement to worktree again lost its caption,
   // and the bare assessment name read a root-level decoy instead of the round's assessment (#114).
-  const texts = [agreementPath(worktree, readState(worktree).class ?? null, folder), folder ? join(worktree, folder, ASSESSMENT_FILE) : null].map((f) => (f && existsSync(f) ? readFileSync(f, 'utf8') : ''));
+  const agreement = agreementPath(worktree, readState(worktree).class ?? null, folder);
+  const texts = [existsSync(agreement) ? readFileSync(agreement, 'utf8') : '', ...assessments];
   const captions = Object.fromEntries((pairs.flatMap((p) => [p.before, p.after]).filter(Boolean) as string[]).map((n) => [n, captionFor(n, texts)]));
   const file = join(worktree, '.wf', 'before-after.html');
   mkdirSync(dirname(file), { recursive: true });
@@ -121,10 +132,11 @@ function writeAgreement(worktree: string, round: string) {
   return file;
 }
 
-// The header's assessment line: the one final assessment's verdict (#113), read from ASSESSMENT.md.
-function assessmentFor(worktree: string): string[] {
+// The header's assessment line: the slice's assessment verdict, read from its own file — the whole
+// round's ASSESSMENT.md, or the active unit's ASSESSMENT-unit-<n>.md (#113, build-units.ts).
+function assessmentFor(worktree: string, assessmentFile: string): string[] {
   const folder = readState(worktree).folder ?? '';
-  const file = [folder, ASSESSMENT_FILE].filter(Boolean).join('/');
+  const file = [folder, assessmentFile].filter(Boolean).join('/');
   if (!existsSync(join(worktree, file))) return [`assessment: no ${file} yet — the assessment phase writes it before T2`];
   const text = readFileSync(join(worktree, file), 'utf8');
   const verdict = /^Verdict:[ \t]*(\w+)/m.exec(text)?.[1] ?? 'unknown';
@@ -132,35 +144,108 @@ function assessmentFor(worktree: string): string[] {
 }
 
 // The cases whose proof is a person looking (check cell `manual: …`, prompts/agree.md): T2 reads each
-// as a `manual:` line beside the diff. `wf check` gated the build itself (the fence and the project's
-// checks).
-function manualFor(worktree: string): string[] {
+// as a `manual:` line beside the diff. `caseNs` scopes them to the active unit's cases (null = the whole
+// round). `wf check` gated the build itself (the fence and the project's checks).
+function manualFor(worktree: string, caseNs: number[] | null): string[] {
   const state = readState(worktree);
   const folder = state.folder;
   const agreement = folder && agreementPath(worktree, state.class ?? null, folder);
   if (!agreement || !existsSync(agreement)) return [];
   return verificationCases(readFileSync(agreement, 'utf8')).flatMap((c) => {
+    if (caseNs && !caseNs.includes(c.n)) return [];
     const text = manualCheck(c.check);
     return text ? [`manual: case ${c.n} — ${text}`] : [];
   });
+}
+
+// The review a round's build state asks for. A planned round's active unit is a chunk since its
+// previous checkpoint (`base`), writes `REVIEW-unit-<n>.md` beside `ASSESSMENT-unit-<n>.md`, and binds a
+// `unit:<n>` verdict; the integration and a single-build round review the whole round from its own base.
+// A unit with no `review after` label has no checkpoint — the build continues into the next unit, so
+// there is nothing for T2 to read or approve. Pure, so the routing is checked without a repo.
+export type ReviewTarget =
+  | { kind: 'refuse'; why: string }
+  | { kind: 'single' | 'integration' | 'unit'; reviewFile: string; assessmentFile: string; assessmentFiles: string[]; base: string; expectedBase: string | null; scope: string | null; chunk: string[]; caseNs: number[] | null; unit: number | null };
+
+export function reviewTarget(agreement: string | null | undefined, slices: SliceProgress | undefined, roundBase: string): ReviewTarget {
+  const context = sliceContext(agreement, slices);
+  if (context.kind === 'invalid') return { kind: 'refuse', why: `this round's build units cannot be read: ${context.why}` };
+  if (context.kind === 'pending') return { kind: 'refuse', why: 'this round plans build units and none has started — run wf next to start the first unit' };
+  if (context.kind === 'unit') {
+    if (context.unit.reviewAfter === null) return { kind: 'refuse', why: `unit ${context.unit.n} (${context.unit.title}) has no checkpoint review — its build continues into the next unit, so there is nothing to review here` };
+    return {
+      kind: 'unit', unit: context.unit.n,
+      reviewFile: context.reviewFile, assessmentFile: context.assessmentFile,
+      assessmentFiles: context.reviewUnits.map((u) => unitAssessmentFile(u.n)),
+      base: context.reviewBase, expectedBase: context.reviewBase,
+      scope: `unit:${context.unit.n}`,
+      chunk: [`chunk: unit ${context.unit.n} — ${context.unit.reviewAfter}`, `units: ${context.reviewUnits.map((u) => u.n).join(', ')}`, `cases: ${context.reviewUnits.flatMap((u) => u.cases).join(', ')}`],
+      caseNs: context.reviewUnits.flatMap((u) => u.cases),
+    };
+  }
+  return {
+    kind: context.kind === 'integration' ? 'integration' : 'single',
+    reviewFile: context.kind === 'integration' ? REVIEW_FILE : 'REVIEW.md',
+    assessmentFile: ASSESSMENT_FILE, assessmentFiles: [ASSESSMENT_FILE],
+    base: roundBase, expectedBase: roundBase,
+    scope: context.kind === 'integration' ? 'integration' : null,
+    chunk: [], caseNs: null, unit: null,
+  };
+}
+
+// The checkpoint approval: the reviewed unit is recorded and the next one gets a fresh builder. One
+// writeState, so the receipt, the step and the repairs reset move together. A planned round's `pr` is
+// never written here; deliver.ts and step.ts also refuse a unit as delivery. Returns the unit now active
+// (`null` after the last unit = the integration).
+function advanceCheckpoint(worktree: string, target: ReviewTarget & { kind: 'single' | 'integration' | 'unit' }, review: string): number | null {
+  const head = execFileSync('git', ['-C', worktree, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+  const since = new Date().toISOString();
+  const state = writeState(worktree, (current) => {
+    const agreementFile = agreementPath(worktree, current.class ?? null, current.folder ?? null);
+    const context = sliceContext(existsSync(agreementFile) ? readFileSync(agreementFile, 'utf8') : '', current.slices);
+    if (context.kind !== 'unit' || context.unit.n !== target.unit || context.reviewBase !== target.base || context.unit.reviewAfter === null || !current.slices) {
+      throw new Error('the build moved while the checkpoint was being approved — run wf review again');
+    }
+    // --done is a public boundary too: a bound verdict alone cannot bypass current verification.
+    const decision = nextAction({ ...snapshotOf(worktree), step: 'assess' });
+    if (!decision.say.startsWith('review: T2')) throw new Error(`${decision.say} — run wf next before approving this checkpoint`);
+    const binding = scopedApprovalGap(review, currentIdentity(worktree), `unit:${context.unit.n}`);
+    if (binding) throw new Error(binding);
+    return { slices: advanceSlice(context, current.slices, head, { reviewed: true }), repairs: 0, step: 'build', since, waiting_on: null, history: stepHistory(current.history, 'build', since) };
+  });
+  return state.slices?.unit ?? null;
 }
 
 export async function runReview(argv: string[]) {
   const round = argv.find((a) => !a.startsWith('-'));
   if (!round) usage();
   const { path: worktree } = resolveWorktree(round);
-  if (argv.includes('--done')) return runReviewDone(worktree, round);
-  // Base: --base, else the round's persisted base (wf new --base), else dev. A round cut from
-  // tools/wf-runtime reviewed against dev showed 124 files and class B — the runtime's own commits.
+  const state = readState(worktree);
+  const agreementFile = agreementPath(worktree, state.class ?? null, state.folder ?? null);
+  const target = reviewTarget(existsSync(agreementFile) ? readFileSync(agreementFile, 'utf8') : '', state.slices, state.base ?? baseBranch);
+  if (target.kind === 'refuse') {
+    console.error(`wf review: ${target.why}`);
+    process.exit(2);
+  }
+  if (argv.includes('--done')) return runReviewDone(worktree, round, target);
+  // Base: a planned round's checkpoint is bounded to the commit its last checkpoint reached, so --base
+  // does not apply; a single-build round keeps --base, else the persisted base (wf new --base), else dev.
+  // A round cut from tools/wf-runtime reviewed against dev showed 124 files and class B — the runtime's own commits.
   const bi = argv.indexOf('--base');
-  const base = bi === -1 ? (persistedBase(worktree) ?? baseBranch) : (argv[bi + 1] ?? usage());
+  if (target.kind === 'unit' && bi !== -1) {
+    console.error(`wf review: a checkpoint is bounded to its previous checkpoint (${target.base}) — --base does not apply`);
+    process.exit(2);
+  }
+  const base = bi === -1 ? target.base : (argv[bi + 1] ?? usage());
   // The stored class is the asserted one (B/C never downgrade); the measurement is only a fallback.
-  const klass = readState(worktree).class ?? classify(worktree, base);
-  const assessmentRel = [readState(worktree).folder, ASSESSMENT_FILE].filter(Boolean).join('/');
-  const files = reviewFiles(changedFiles(worktree, base), assessmentRel, existsSync(join(worktree, assessmentRel)));
+  const klass = state.class ?? classify(worktree, base);
+  const files = target.assessmentFiles.reduce((files, name) => {
+    const rel = [state.folder, name].filter(Boolean).join('/');
+    return reviewFiles(files, rel, existsSync(join(worktree, rel)));
+  }, changedFiles(worktree, base));
   // T2 sees the committed diff, so uncommitted product cannot be approved: it was never shown. Refuse
   // before the stack is started, so a dirty tree does not wait on servers it will not use (#106 review).
-  const folder = readState(worktree).folder ?? null;
+  const folder = state.folder ?? null;
   const notePath = trackerNotePath(folder);
   const uncommitted = dirtyProduct(worktree, folder, notePath);
   if (uncommitted.length) {
@@ -184,7 +269,7 @@ export async function runReview(argv: string[]) {
   // T2 opens the round's pages: the stack is started for it, since nothing serves a worktree from its
   // creation (2026-10-04, serve.ts). A stack that will not start leaves the diff to review, and says so.
   try { console.log(await ensureServers(worktree, { wait: true })); } catch (e) { /* the diff is still reviewable: the line says why there are no pages */ console.error((e as Error).message); }
-  const beforeAfter = writeBeforeAfter(worktree, round);
+  const beforeAfter = writeBeforeAfter(worktree, round, target.assessmentFiles, target.kind === 'unit');
   if (beforeAfter) {
     console.log(`before/after: ${beforeAfter}`);
     openFile(beforeAfter);
@@ -194,15 +279,15 @@ export async function runReview(argv: string[]) {
     console.log(`agreement: ${agreementHtml}`);
     openFile(agreementHtml);
   }
-  const assessment = assessmentFor(worktree);
-  const manual = manualFor(worktree);
+  const assessment = target.assessmentFiles.flatMap((name) => assessmentFor(worktree, name));
+  const manual = manualFor(worktree, target.caseNs);
   // The identities the verdict is bound to, computed once at open and printed in every header this run
   // writes. T2 computes them again at --done; a change since makes the approval stale (content-identity.ts).
   const identity = currentIdentity(worktree);
   const contentSha = identity.worktree;
   const headSha = identity.head;
-  const header = () => renderHeader({ round, klass, base, contentSha, headSha, urls: devUrlsFor(worktree), files, beforeAfter, assessment, manual });
-  const file = roundFile(worktree, 'REVIEW.md');
+  const header = () => renderHeader({ round, klass, base, contentSha, headSha, scope: target.scope, chunk: target.chunk, urls: devUrlsFor(worktree), files, beforeAfter, assessment, manual });
+  const file = roundFile(worktree, target.reviewFile);
   const previous = existsSync(file) ? readFileSync(file, 'utf8') : null;
   // First review: the skeleton. Re-opened after the implementation moved (no review screen to append
   // its own header): a fresh dated header with the new shas, so the person writes the verdict under
@@ -211,7 +296,7 @@ export async function runReview(argv: string[]) {
   // HEAD (#106 final review). Same worktree and HEAD: nothing, the verdict stands.
   const previousBinding = previous === null ? null : { contentSha: lastField(previous, 'content-sha'), headSha: lastField(previous, 'head-sha') };
   if (previous === null || (!seams.reviewUI?.available() && needsFreshReviewHeader(previousBinding, contentSha, headSha))) {
-    appendDatedSection(file, renderSkeleton({ round, klass, base, contentSha, headSha, urls: devUrlsFor(worktree), files, beforeAfter, assessment, manual }));
+    appendDatedSection(file, renderSkeleton({ round, klass, base, contentSha, headSha, scope: target.scope, chunk: target.chunk, urls: devUrlsFor(worktree), files, beforeAfter, assessment, manual }));
   }
   // The machine's review screen when it has one (seams.reviewUI: plannotator on Shay's), else an editor.
   if (!seams.reviewUI?.available()) {
@@ -231,19 +316,19 @@ export async function runReview(argv: string[]) {
   console.log(`wrote ${file}`);
 }
 
-async function runReviewDone(worktree: string, round: string) {
-  const file = roundFile(worktree, 'REVIEW.md');
+async function runReviewDone(worktree: string, round: string, target: ReviewTarget & { kind: 'single' | 'integration' | 'unit' }) {
+  const file = roundFile(worktree, target.reviewFile);
   if (!existsSync(file)) {
     console.error(`no ${file} — run wf review ${round} first`);
     process.exit(2);
   }
   const text = readFileSync(file, 'utf8');
-  // The review must be of THIS round's diff: header base and (with the adapter) the base
-  // plannotator actually showed must both equal the persisted base.
-  const expected = persistedBase(worktree);
+  // The review must be of THIS chunk or whole round: header base and (with the adapter) the base
+  // plannotator actually showed must both equal the base this review is bounded to — the active unit's
+  // previous checkpoint, or the round's own base for the integration and a single-build round.
   for (const [key, shown] of [['base', lastField(text, 'base')], ['reviewed', lastField(text, 'reviewed')]]) {
-    if (expected && shown && shown !== expected) {
-      console.error(`wf review --done: ${key}: ${shown} but the round's base is ${expected} — that verdict is about a different diff; re-run wf review ${round}`);
+    if (target.expectedBase && shown && shown !== target.expectedBase) {
+      console.error(`wf review --done: ${key}: ${shown} but this review is of ${target.expectedBase} — that verdict is about a different diff; re-run wf review ${round}`);
       process.exit(2);
     }
   }
@@ -253,16 +338,50 @@ async function runReviewDone(worktree: string, round: string) {
     process.exit(2);
   }
   // An approval is only for the implementation it judged: changes-requested and dismissed need no
-  // binding, but advancing to delivery on a stale approval is the #106 hole (2026-10-09).
+  // binding, but advancing on a stale approval is the #106 hole (2026-10-09). A planned round's review
+  // is also bound to its `scope:` — a unit chunk's approval is not the integration's, or the reverse.
   if (verdict === 'approved') {
-    const gap = approvalContentGap(text, currentIdentity(worktree));
+    const current = currentIdentity(worktree);
+    const gap = target.scope ? scopedApprovalGap(text, current, target.scope) : approvalContentGap(text, current);
     if (gap) {
       console.error(`wf review --done: ${gap}`);
       process.exit(2);
     }
   }
-  if (verdict === 'approved') await inWorktree(worktree, round, 'pr');
-  else if (verdict === 'changes-requested') await inWorktree(worktree, round, 'build');
+  if (verdict === 'approved') {
+    // A checkpoint's approval advances its unit and starts the next build; it is never delivery. The
+    // final integration approval is the one that reaches `pr` (deliver.ts re-checks the whole plan).
+    if (target.kind === 'unit') {
+      let next: number | null;
+      try { next = advanceCheckpoint(worktree, target, text); } catch (e) {
+        console.error(`wf review --done: ${(e as Error).message}`);
+        process.exit(2);
+      }
+      console.log(`checkpoint approved: unit ${target.unit} reviewed — ${next === null ? 'the integration' : `unit ${next}`} is next; \`wf next\` dispatches it`);
+      return;
+    }
+    if (target.kind === 'integration') {
+      const decision = nextAction({ ...snapshotOf(worktree), step: 'assess' });
+      if (!decision.say.startsWith('review: T2')) {
+        console.error(`wf review --done: ${decision.say} — finish the integration assessment before delivery approval`);
+        process.exit(2);
+      }
+    }
+    await inWorktree(worktree, round, 'pr');
+  } else if (verdict === 'changes-requested') {
+    if (target.kind === 'unit') {
+      try { writeState(worktree, (current) => {
+        const agreementFile = agreementPath(worktree, current.class ?? null, current.folder ?? null);
+        const context = sliceContext(existsSync(agreementFile) ? readFileSync(agreementFile, 'utf8') : '', current.slices);
+        if (context.kind !== 'unit' || context.unit.n !== target.unit || context.reviewBase !== target.base || !current.slices) throw new Error('the chunk moved before its feedback was recorded — run wf review again');
+        const since = new Date().toISOString();
+        return { slices: { ...current.slices, reviewRepair: true }, repairs: 0, step: 'build', since, waiting_on: current.questions?.[0]?.to ?? null, history: stepHistory(current.history, 'build', since) };
+      }); } catch (e) {
+        console.error(`wf review --done: ${(e as Error).message}`);
+        process.exit(2);
+      }
+    } else await inWorktree(worktree, round, 'build');
+  }
   else {
     console.error(`review was dismissed — re-run wf review ${round}`);
     process.exit(2);
