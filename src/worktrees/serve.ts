@@ -15,6 +15,7 @@ import { serve, stackUrls } from '../project.ts';
 import { seams } from '../seams.ts';
 import type { RemovalStep } from '../seams.ts';
 import { realProbeStack } from '../round/status.ts';
+import { PROCESS_CWD_PS } from '../process-cwd.ts';
 import { basePortForBranch, slugForBranch, urlLines } from './worktree.ts';
 
 export const pidFile = (worktree: string) => join(worktree, '.wf', 'serve.pid');
@@ -37,28 +38,6 @@ export function stopServersStep(pid: number, platform: NodeJS.Platform = process
 		? { label: 'stop servers', cmd: 'taskkill', args: ['/PID', String(pid), '/T', '/F'] } satisfies RemovalStep
 		: { label: 'stop servers', cmd: 'kill', args: ['-TERM', `-${pid}`] } satisfies RemovalStep;
 }
-
-// Windows: reads a process's working directory out of its PEB (the same walk env/adapters/processes.ts
-// does for `wf status`): a process holds its folder through its cwd, and WMI names only the command line.
-// Wrapped in try/catch so this arm never stops the command-line match below it.
-const CWD_READER = `Add-Type -TypeDefinition @"
-using System; using System.Runtime.InteropServices; using System.Text;
-public static class WfSweepCwd {
-  [DllImport("ntdll.dll")] static extern int NtQueryInformationProcess(IntPtr h, int c, ref PBI p, int l, out int r);
-  [DllImport("kernel32.dll")] static extern IntPtr OpenProcess(int a, bool i, int pid);
-  [DllImport("kernel32.dll")] static extern bool ReadProcessMemory(IntPtr h, IntPtr b, byte[] buf, int n, out IntPtr r);
-  [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr h);
-  [StructLayout(LayoutKind.Sequential)] struct PBI { public IntPtr a; public IntPtr Peb; public IntPtr b; public IntPtr c; public IntPtr d; public IntPtr e; }
-  static IntPtr Ptr(IntPtr h, IntPtr at) { var b = new byte[8]; IntPtr r; return ReadProcessMemory(h, at, b, 8, out r) ? (IntPtr)BitConverter.ToInt64(b, 0) : IntPtr.Zero; }
-  public static string Get(int pid) {
-    IntPtr h = OpenProcess(0x0410, false, pid); if (h == IntPtr.Zero) return null;
-    try { var p = new PBI(); int r; if (NtQueryInformationProcess(h, 0, ref p, Marshal.SizeOf(p), out r) != 0) return null;
-      IntPtr pp = Ptr(h, p.Peb + 0x20); if (pp == IntPtr.Zero) return null;
-      var us = new byte[16]; IntPtr rr; if (!ReadProcessMemory(h, pp + 0x38, us, 16, out rr)) return null;
-      int len = BitConverter.ToUInt16(us, 0); IntPtr buf = (IntPtr)BitConverter.ToInt64(us, 8);
-      var s = new byte[len]; if (!ReadProcessMemory(h, buf, s, len, out rr)) return null; return Encoding.Unicode.GetString(s);
-    } finally { CloseHandle(h); } } }
-"@`;
 
 // Pure: the step that ends every process still running from the worktree but this one, so its folder
 // can go: a live process holds it on Windows (EPERM), and the round's stack is not the only one.
@@ -83,10 +62,9 @@ function WfHolds($cwd, $cmd) {
   if ($cwd -like ('*' + '${bck}' + '*')) { return $true }
   return $false
 }
-try { ${CWD_READER}
-} catch {}
+try { ${PROCESS_CWD_PS} } catch {}
 Get-CimInstance Win32_Process | Where-Object { $names -contains $_.Name -and $_.ProcessId -ne ${pid} } | ForEach-Object {
-  $cwd = $null; try { $cwd = [WfSweepCwd]::Get($_.ProcessId) } catch {}
+  $cwd = WfCwdOf $_.ProcessId
   if (WfHolds $cwd $_.CommandLine) { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 }`;
 	return { label: 'kill stragglers', cmd: 'powershell', args: ['-NoProfile', '-EncodedCommand', Buffer.from(ps, 'utf16le').toString('base64')] } satisfies RemovalStep;

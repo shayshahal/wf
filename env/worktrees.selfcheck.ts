@@ -26,7 +26,7 @@ check('the straggler sweep matches both path spellings and spares this process',
 // 2026-10-12: the sweep also reads each process's working directory and covers the portless launcher
 // chain (cmd -> portless -> mise -> app): those name the worktree nowhere in their command line, so the
 // command-line match alone left fix/jx-810's proxy holding the folder after its round merged.
-check('the sweep also matches by working directory', sweep.includes('WfSweepCwd') && sweep.includes('WfHolds $cwd $_.CommandLine'), sweep);
+check('the sweep also matches by working directory', /WfCwdOf \$_.ProcessId/.test(sweep) && sweep.includes('WfHolds $cwd $_.CommandLine'), sweep);
 check('the sweep covers node, python and the portless launchers', ['node.exe', 'python.exe', 'portless.exe', 'mise.exe', 'cmd.exe'].every((n) => sweep.includes(n)), sweep);
 check('rm is in-process, not a command', plan[at('rm -rf worktree')].rm === 'C:\\wt\\fix-bjew-1' && !plan[at('rm -rf worktree')].cmd);
 const posix = removalPlan({ branch: 'fix/bjew-1', path: '/wt/fix-bjew-1', slug: 'fix-bjew-1', pid: 4242 }, 'linux');
