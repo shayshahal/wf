@@ -38,17 +38,57 @@ export function stopServersStep(pid: number, platform: NodeJS.Platform = process
 		: { label: 'stop servers', cmd: 'kill', args: ['-TERM', `-${pid}`] } satisfies RemovalStep;
 }
 
-// Pure: the step that ends every node and python process still running from the worktree but this
-// one, so its folder can go: a live process holds it on Windows (EPERM), and the round's stack is not
-// the only one. Measured: 23 processes at an env reap (2026-09-24); BJEW-562's kit reap (2026-09-27)
-// left the folder to the playwright daemon of `wf show`'s headed window. git reports the path with
-// forward slashes, a command line carries backslashes: match either spelling. -EncodedCommand, not
-// -Command: reap runs steps through cmd.exe on Windows, which cut the script at its first `|`.
+// Windows: reads a process's working directory out of its PEB (the same walk env/adapters/processes.ts
+// does for `wf status`): a process holds its folder through its cwd, and WMI names only the command line.
+// Wrapped in try/catch so this arm never stops the command-line match below it.
+const CWD_READER = `Add-Type -TypeDefinition @"
+using System; using System.Runtime.InteropServices; using System.Text;
+public static class WfSweepCwd {
+  [DllImport("ntdll.dll")] static extern int NtQueryInformationProcess(IntPtr h, int c, ref PBI p, int l, out int r);
+  [DllImport("kernel32.dll")] static extern IntPtr OpenProcess(int a, bool i, int pid);
+  [DllImport("kernel32.dll")] static extern bool ReadProcessMemory(IntPtr h, IntPtr b, byte[] buf, int n, out IntPtr r);
+  [DllImport("kernel32.dll")] static extern bool CloseHandle(IntPtr h);
+  [StructLayout(LayoutKind.Sequential)] struct PBI { public IntPtr a; public IntPtr Peb; public IntPtr b; public IntPtr c; public IntPtr d; public IntPtr e; }
+  static IntPtr Ptr(IntPtr h, IntPtr at) { var b = new byte[8]; IntPtr r; return ReadProcessMemory(h, at, b, 8, out r) ? (IntPtr)BitConverter.ToInt64(b, 0) : IntPtr.Zero; }
+  public static string Get(int pid) {
+    IntPtr h = OpenProcess(0x0410, false, pid); if (h == IntPtr.Zero) return null;
+    try { var p = new PBI(); int r; if (NtQueryInformationProcess(h, 0, ref p, Marshal.SizeOf(p), out r) != 0) return null;
+      IntPtr pp = Ptr(h, p.Peb + 0x20); if (pp == IntPtr.Zero) return null;
+      var us = new byte[16]; IntPtr rr; if (!ReadProcessMemory(h, pp + 0x38, us, 16, out rr)) return null;
+      int len = BitConverter.ToUInt16(us, 0); IntPtr buf = (IntPtr)BitConverter.ToInt64(us, 8);
+      var s = new byte[len]; if (!ReadProcessMemory(h, buf, s, len, out rr)) return null; return Encoding.Unicode.GetString(s);
+    } finally { CloseHandle(h); } } }
+"@`;
+
+// Pure: the step that ends every process still running from the worktree but this one, so its folder
+// can go: a live process holds it on Windows (EPERM), and the round's stack is not the only one.
+// Measured: 23 processes at an env reap (2026-09-24); BJEW-562's kit reap (2026-09-27) left the folder
+// to the playwright daemon of `wf show`'s headed window. git reports the path with forward slashes, a
+// command line carries backslashes: match either spelling. -EncodedCommand, not -Command: reap runs
+// steps through cmd.exe on Windows, which cut the script at its first `|`.
+// It matches each process by its command line or by its working directory. The second is not optional:
+// a portless app starts as cmd -> portless -> mise -> app, and the first three name the worktree in no
+// command line, only as their working directory (so the proxy survived its serve tree's taskkill, and
+// matches the process-name filter yet not its path) — it held fix/jx-810's folder past its reap
+// (2026-10-12). The names therefore cover those launchers; the cwd arm scopes them to the worktree, and
+// killing by pid, not the tree, is what reaches an orphan whose launcher is already dead.
 export function stragglersStep(path: string, pid: number, platform: NodeJS.Platform = process.platform) {
 	if (platform !== 'win32') return { label: 'kill stragglers', cmd: 'pkill', args: ['-f', path] } satisfies RemovalStep;
 	const fwd = path.replace(/\\/g, '/').replace(/'/g, "''");
 	const bck = fwd.replace(/\//g, '\\');
-	const ps = `$ProgressPreference = 'SilentlyContinue'; Get-CimInstance Win32_Process -Filter "Name='node.exe' or Name='python.exe'" | Where-Object { ($_.CommandLine -like '*${fwd}*' -or $_.CommandLine -like '*${bck}*') -and $_.ProcessId -ne ${pid} } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`;
+	const ps = `$ProgressPreference = 'SilentlyContinue';
+$names = @('node.exe', 'python.exe', 'portless.exe', 'mise.exe', 'cmd.exe');
+function WfHolds($cwd, $cmd) {
+  if ($cmd) { foreach ($p in @('${fwd}', '${bck}')) { if ($cmd -like ('*' + $p + '*')) { return $true } } }
+  if ($cwd -like ('*' + '${bck}' + '*')) { return $true }
+  return $false
+}
+try { ${CWD_READER}
+} catch {}
+Get-CimInstance Win32_Process | Where-Object { $names -contains $_.Name -and $_.ProcessId -ne ${pid} } | ForEach-Object {
+  $cwd = $null; try { $cwd = [WfSweepCwd]::Get($_.ProcessId) } catch {}
+  if (WfHolds $cwd $_.CommandLine) { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+}`;
 	return { label: 'kill stragglers', cmd: 'powershell', args: ['-NoProfile', '-EncodedCommand', Buffer.from(ps, 'utf16le').toString('base64')] } satisfies RemovalStep;
 }
 

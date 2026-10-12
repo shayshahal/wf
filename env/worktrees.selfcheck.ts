@@ -23,7 +23,11 @@ check('stragglers, the project\'s teardown, then wt\'s three steps', plan.map((s
 check('the database is dropped while the folder is still there', at('drop database') > 0 && at('drop database') < at('rm -rf worktree'));
 check('wt remove keeps the branch and runs in the foreground', plan[at('wt remove')].args!.join(' ') === 'remove fix/bjew-1 --no-delete-branch --force --foreground -y', plan[at('wt remove')].args!.join(' '));
 check('the straggler sweep matches both path spellings and spares this process', sweep.includes('C:\\wt\\fix-bjew-1') && sweep.includes('-ne 4242'), sweep);
-check('the sweep only targets node and python', sweep.includes("Name='node.exe' or Name='python.exe'"));
+// 2026-10-12: the sweep also reads each process's working directory and covers the portless launcher
+// chain (cmd -> portless -> mise -> app): those name the worktree nowhere in their command line, so the
+// command-line match alone left fix/jx-810's proxy holding the folder after its round merged.
+check('the sweep also matches by working directory', sweep.includes('WfSweepCwd') && sweep.includes('WfHolds $cwd $_.CommandLine'), sweep);
+check('the sweep covers node, python and the portless launchers', ['node.exe', 'python.exe', 'portless.exe', 'mise.exe', 'cmd.exe'].every((n) => sweep.includes(n)), sweep);
 check('rm is in-process, not a command', plan[at('rm -rf worktree')].rm === 'C:\\wt\\fix-bjew-1' && !plan[at('rm -rf worktree')].cmd);
 const posix = removalPlan({ branch: 'fix/bjew-1', path: '/wt/fix-bjew-1', slug: 'fix-bjew-1', pid: 4242 }, 'linux');
 check('off Windows the sweep is pkill on the tree\'s path, the rest the same', posix[0].cmd === 'pkill' && posix[0].args!.join(' ') === '-f /wt/fix-bjew-1' && posix.slice(1).map((s) => s.label).join() === plan.slice(1).map((s) => s.label).join(), JSON.stringify(posix[0]));

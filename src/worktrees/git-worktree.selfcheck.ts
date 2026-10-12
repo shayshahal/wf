@@ -26,8 +26,13 @@ check('a stack started: it stops first', labels().startsWith('stop servers → k
 check('the stop names the recorded pid', removalPlan({ path: tree, slug: 'fix-a' } as Parameters<typeof removalPlan>[0])[0].args!.includes(process.platform === 'win32' ? '31337' : '-31337'));
 check('the folder goes in-process, no path through the shell', removalPlan({ path: tree, slug: 'fix-a' } as Parameters<typeof removalPlan>[0]).filter((s) => s.label !== 'kill stragglers').every((s) => !s.args?.includes(tree)));
 const sweep = Buffer.from(stragglersStep('C:/wt/fix-a', 4242, 'win32').args[2], 'base64').toString('utf16le');
+// 2026-10-12: portless starts an app as cmd -> portless -> mise -> app; the first three name the
+// worktree only as their working directory, so the command-line match alone left them holding
+// fix/jx-810's folder after its round merged. The cwd arm is what reaches them.
 check('the sweep matches both path spellings and spares reap itself', sweep.includes('C:/wt/fix-a') && sweep.includes(String.raw`C:\wt\fix-a`) && sweep.includes('-ne 4242'), sweep);
-check('elsewhere: pkill on the path', stragglersStep('/wt/fix-a', 1, 'darwin').args.join(' ') === '-f /wt/fix-a');
+check('the sweep reads each process\'s working directory too (the portless launcher names the worktree nowhere else)', sweep.includes('WfSweepCwd') && sweep.includes('$cwd =') && sweep.includes('WfHolds $cwd $_.CommandLine'), sweep);
+check('the sweep covers the portless launchers, not only node and python', ['portless.exe', 'mise.exe', 'cmd.exe'].every((n) => sweep.includes(n)), sweep);
+check('elsewhere: pkill on the path, no portless names', stragglersStep('/wt/fix-a', 1, 'darwin').args.join(' ') === '-f /wt/fix-a');
 rmSync(tree, { recursive: true, force: true });
 
 // A base git cannot check out (a git~1 entry: invalid path on every platform) fails the add after
