@@ -75,6 +75,10 @@ export type State = {
 	// The tracker note `wf deliver` wrote, from the worktree's top: `wf next` reads which of its
 	// sections are posted (src/round/next.ts, unpostedSections).
 	note?: string;
+	// When a person last re-read the ticket against the round's paperwork after it changed
+	// (`wf post --ticket-reread`): changes before it are read; the round's first step is the baseline
+	// until then (projects/jewelryx/ticket-changes.ts).
+	ticket_read?: string;
 };
 
 export function toplevelOf(cwd = process.cwd()): string {

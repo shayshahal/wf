@@ -59,6 +59,13 @@ before *Start*.
 - `wf post` refuses, posting nothing, when a section still has a `<...>` line, or when the session
   has no `JIRA_EMAIL` or `JIRA_TOKEN`: tell the user the session started without them, and stop; a
   new session, after they set them, picks the round up with "resume <id>".
+- `wf post` (and `wf review`, as T2 opens) also refuses when the ticket got an edited description or
+  title, or a comment added or edited by anyone but this round's own post, since the round's first
+  step (JX-810, 2026-10-12: the requirement was rewritten mid-round and the round posted "fixed"
+  against the old one). It names who, when and which. Show the user the changes, and stop. Once they
+  have read them: re-fetch the ticket into `TICKET.md` (and revise the agreement if the requirement
+  moved, which can send the round back to T1), then `wf post --ticket-reread` records it. It refuses
+  while `TICKET.md` is older than the last change.
 
 ## People
 

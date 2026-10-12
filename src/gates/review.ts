@@ -7,7 +7,7 @@ import { dirname, join } from 'node:path';
 import { refuseCaller } from '../refusal.ts';
 import { CLASSIFY } from '../paths.ts';
 import { openFile, openInEditor, opensWindows } from '../worktrees/editor.ts';
-import { baseBranch } from '../project.ts';
+import { baseBranch, ticketChanges } from '../project.ts';
 import { ensureServers } from '../worktrees/serve.ts';
 import { resolveWorktree } from '../worktrees/worktree.ts';
 import { appendDatedSection, approvalContentGap, beforeAfterPage, captionFor, devUrlsFor, foldFeedbackLine, lastField, needsFreshReviewHeader, agreementPage, proofPairs, readVerdict, renderHeader, renderSkeleton, roundArtifacts } from './review-format.ts';
@@ -166,6 +166,19 @@ export async function runReview(argv: string[]) {
   if (uncommitted.length) {
     console.error(`wf review: ${uncommitted.join(', ')} changed but not committed — the review screen shows the committed branch, so T2 cannot approve it; commit it, then run wf review ${round} again`);
     process.exit(2);
+  }
+  // The tickets are read again before the person is asked to judge: JX-810 (2026-10-12) reached T2, and
+  // the post after it, on requirements rewritten mid-round. Unreadable (no credentials, tracker down) is
+  // said and T2 goes on: wf post refuses to post unchecked, so the gate itself is still there.
+  try {
+    const changed = await ticketChanges(readState(worktree));
+    if (changed) {
+      console.error(`wf review: ${changed}`);
+      process.exit(2);
+    }
+  } catch (e) {
+    /* T2 goes on unchecked, said: wf post fails closed on the same trouble */
+    console.error(`wf review: tickets not checked for changes (${(e as Error).message}); wf post checks again`);
   }
   await inWorktree(worktree, round, 'review');
   // T2 opens the round's pages: the stack is started for it, since nothing serves a worktree from its
