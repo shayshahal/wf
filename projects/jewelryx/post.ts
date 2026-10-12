@@ -7,10 +7,12 @@
 // the user to attach, and the reap after it deleted them. Atlassian's MCP cannot put a picture in a
 // comment; REST v2 can: wiki markup `!name|thumbnail!` shows an attachment of the issue (tried on a
 // throwaway issue, 2026-10-07: Jira stored it as the comment's own media).
-import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { proofPairs, unpairedProofImages } from '../../src/gates/review-format.ts';
-import { readState, toplevelOf } from '../../src/round/state.ts';
+import { readState, roundFile, toplevelOf, writeState } from '../../src/round/state.ts';
+import type { State } from '../../src/round/state.ts';
+import { baselineOf, changesOf, isOwnPost, jiraTime, refusalText } from './ticket-changes.ts';
 
 const SITE = 'https://raynw.atlassian.net';
 const DELIVERED = 'Fixed in Local';
@@ -69,13 +71,77 @@ export function commentBody(text: string, pictures: ReturnType<typeof picturesOf
 export const markPosted = (note: string, key: string) =>
 	note.replace(new RegExp(`^## ${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[ \\t]*$`, 'm'), `## ${key} (posted)`);
 
-async function jira(auth: string, path: string, init: RequestInit = {}) {
+export async function jira(auth: string, path: string, init: RequestInit = {}) {
 	const r = await fetch(`${SITE}/rest/api/${path}`, { ...init, headers: { authorization: `Basic ${auth}`, accept: 'application/json', ...init.headers } });
 	if (!r.ok) throw new Error(`Jira ${init.method ?? 'GET'} ${path}: ${r.status} ${(await r.text()).slice(0, 300)}`);
 	return r.status === 204 ? null : r.json();
 }
 
-export async function runPost(): Promise<void> {
+const JIRA_KEY = /^[A-Z][A-Z0-9]*-\d+$/;
+
+type Own = (key: string) => (body: string) => boolean;
+const noOwn: Own = () => () => false;
+
+// What changed on the round's tickets after it began. Throws when it cannot look (no credentials,
+// Jira down, no start time): wf post must not post unchecked, and wf review's caller says so.
+// `own` tells a section's own earlier post, so a session that died between the post and the mark
+// is not refused for its comment.
+async function ticketChangesOf(state: State | null, keys: string[], own: Own) {
+	const { JIRA_EMAIL: email, JIRA_TOKEN: token } = process.env;
+	if (!email || !token) throw new Error('this session has no JIRA_EMAIL or JIRA_TOKEN');
+	const since = baselineOf(state);
+	if (!since) throw new Error('the round recorded no first step, so there is no start time to compare the ticket against');
+	const auth = Buffer.from(`${email}:${token}`).toString('base64');
+	const checkedAt = new Date().toISOString();
+	const found = [];
+	for (const key of keys.filter((k) => JIRA_KEY.test(k))) found.push({ key, changes: await changesOf((path) => jira(auth, path), key, since, own(key)) });
+	return { since, checkedAt, found };
+}
+
+// The refusal for a round whose tickets changed after it began, or null.
+export async function ticketRefusal(state: State | null, keys: string[], then: string, own: Own = noOwn): Promise<string | null> {
+	const { since, found } = await ticketChangesOf(state, keys, own);
+	return refusalText(since, found, then);
+}
+
+const roundKeys = (state: State | null, sections: Section[]) => [...new Set([...(state?.ids ?? (state?.id ? [state.id] : [])), ...sections.map((s) => s.key)])];
+const ownOf = (sections: Section[]): Own => (key) => {
+	const s = sections.find((n) => n.key === key);
+	return (body) => s !== undefined && isOwnPost(body, s.text, prNumberOf(s.text));
+};
+
+// wf post --ticket-reread: a person has read what changed on the ticket and the round's paperwork
+// was updated. Recorded in state (`ticket_read`), only when TICKET.md was written after the last change;
+// the time recorded is the one the check began, so a change made while it ran is still seen next time.
+async function runTicketReread(): Promise<void> {
+	const toplevel = toplevelOf();
+	const state = readState(toplevel);
+	const sections = state?.note && existsSync(join(toplevel, state.note)) ? sectionsOf(readFileSync(join(toplevel, state.note), 'utf8')) : [];
+	let seen;
+	try {
+		seen = await ticketChangesOf(state, roundKeys(state, sections), ownOf(sections));
+	} catch (e) {
+		console.error(`wf post --ticket-reread: could not read the ticket: ${(e as Error).message}`);
+		process.exit(1);
+	}
+	const changes = seen.found.flatMap((f) => f.changes.map((c) => ({ key: f.key, ...c })));
+	if (!changes.length) {
+		console.log(`wf post --ticket-reread: nothing changed since ${seen.since}; nothing to record`);
+		return;
+	}
+	const latest = Math.max(...changes.map((c) => jiraTime(c.at)));
+	const ticketFile = roundFile(toplevel, 'TICKET.md');
+	const written = existsSync(ticketFile) ? statSync(ticketFile).mtimeMs : 0;
+	if (written <= latest) {
+		console.error(`wf post --ticket-reread: ${ticketFile} was last written ${written ? new Date(written).toISOString() : '(it is missing)'}, before the last change (${new Date(latest).toISOString()}): re-fetch the ticket into it first; nothing recorded`);
+		process.exit(1);
+	}
+	writeState(toplevel, () => ({ ticket_read: seen.checkedAt }));
+	console.log(`wf post --ticket-reread: recorded ${seen.checkedAt}; changes before it are read:\n${changes.map((c) => `  - ${c.key}: ${c.who}, ${c.at}: ${c.what}`).join('\n')}`);
+}
+
+export async function runPost(argv: string[] = []): Promise<void> {
+	if (argv.includes('--ticket-reread')) return runTicketReread();
 	const { JIRA_EMAIL: email, JIRA_TOKEN: token } = process.env;
 	if (!email || !token) {
 		console.error('wf post: this session has no JIRA_EMAIL or JIRA_TOKEN (set them, then start a new session and "resume <id>"); nothing posted');
@@ -90,10 +156,23 @@ export async function runPost(): Promise<void> {
 		process.exit(1);
 	}
 	let note = readFileSync(notePath, 'utf8');
-	const todo = sectionsOf(note).filter((s) => !s.posted);
+	const sections = sectionsOf(note);
+	const todo = sections.filter((s) => !s.posted);
 	const gaps = todo.map(unfilled).filter((g) => g !== null);
 	if (gaps.length) {
 		console.error(`wf post: fill the note first (${state!.note}); nothing posted\n${gaps.join('\n')}`);
+		process.exit(1);
+	}
+	// Before anything goes up: a ticket that changed since the round began is not what the round built to.
+	let refusal: string | null;
+	try {
+		refusal = await ticketRefusal(state, todo.map((s) => s.key), 'run wf post again', ownOf(sections));
+	} catch (e) {
+		console.error(`wf post: could not check the ticket for changes: ${(e as Error).message}; nothing posted`);
+		process.exit(1);
+	}
+	if (refusal) {
+		console.error(`wf post: ${refusal}\nNothing posted.`);
 		process.exit(1);
 	}
 	const proofDir = join(toplevel, state!.folder ?? '', 'proof');
@@ -129,4 +208,4 @@ export async function runPost(): Promise<void> {
 	}
 }
 
-if (process.argv[1]?.endsWith('post.ts')) await runPost();
+if (process.argv[1]?.endsWith('post.ts')) await runPost(process.argv.slice(2));

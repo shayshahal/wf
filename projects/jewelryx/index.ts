@@ -12,6 +12,7 @@ import type { CheckTarget, CheckTask } from '../../src/gates/check.ts';
 import { dropDatabase, dropStrandedTestDatabases, worktreeDatabase } from './db.ts';
 import { seams } from '../../src/seams.ts';
 import type { Command, RemovalStep } from '../../src/seams.ts';
+import type { State } from '../../src/round/state.ts';
 import { listWorktrees, mainCheckout } from '../../src/worktrees/worktree.ts';
 import { linkVerifySkill, unlinkCompetingSkills, verifyStackEnv, writeReproConfig } from './round.ts';
 
@@ -294,10 +295,16 @@ export function trackerNote({ ids, url }: { ids: string[]; url: string }): { fil
 	return { file: 'JIRA.md', text: `${[head, ...ids.map(section)].join('\n\n')}\n` };
 }
 
+/** Why the round's tickets no longer say what the round read (an edited description or title, a comment added or edited since the round began), or null. Throws when it cannot look. wf review asks it at T2's opening; wf post asks it again before posting (post.ts). */
+export async function ticketChanges(state: State | null): Promise<string | null> {
+	const { ticketRefusal } = await import('./post.ts');
+	return ticketRefusal(state, state?.ids ?? (state?.id ? [state.id] : []), 'run wf review again');
+}
+
 // ── JewelryX's own wf commands ───────────────────────────────────────────────
 
 export const commands: Record<string, Command> = {
 	seed: async (argv) => (await import('./seed.ts')).runSeed(argv),
 	show: async (argv) => (await import('./show.ts')).runShow(argv),
-	post: async () => (await import('./post.ts')).runPost(),
+	post: async (argv) => (await import('./post.ts')).runPost(argv),
 };
