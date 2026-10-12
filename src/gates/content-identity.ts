@@ -131,10 +131,11 @@ function tempTree(toplevel: string, fill: (env: NodeJS.ProcessEnv) => void): str
 	}
 }
 
-const pathspecs = (excluded: string[]) => excluded.map((p) => `:(exclude,literal)${p}`);
 const dropExcluded = (toplevel: string, env: NodeJS.ProcessEnv, excluded: string[]) => {
-	// An excluded path already in the seeded index survives `add -A`; drop it from the tree. `literal`
-	// here too: a round folder named `r[1]` must not glob its sibling `r1` out of the identity.
+	// An excluded path is added with the rest and dropped here, by `literal` path: a round folder named
+	// `r[1]` must not glob its sibling `r1` out of the identity. It is not left out of `add -A` by an
+	// `:(exclude)` pathspec because git 2.54 exits 1 on one that names a gitignored path (`.wf`, `*.log`),
+	// which failed every `wf check` and `wf review` (2026-10-12).
 	execFileSync('git', ['-C', toplevel, 'rm', '-r', '-q', '--cached', '--ignore-unmatch', '--', ...excluded.map((p) => `:(literal)${p}`)], { env });
 };
 
@@ -156,7 +157,7 @@ export function worktreeContentSha(toplevel: string, folder: string | null, note
 	return tempTree(toplevel, (env) => {
 		const index = env.GIT_INDEX_FILE!;
 		try { copyFileSync(realIndexPath(toplevel), index); } catch { /* no index yet: `add -A` fills an empty one */ }
-		execFileSync('git', ['-C', toplevel, 'add', '-A', '--', '.', ...pathspecs(excluded)], { env });
+		execFileSync('git', ['-C', toplevel, 'add', '-A', '--', '.'], { env });
 		dropExcluded(toplevel, env, excluded);
 		dropProducerTemps(toplevel, env, notePath);
 	});

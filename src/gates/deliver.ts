@@ -631,10 +631,10 @@ export async function runDeliver() {
 	// repro/.auth, which holds a live login session. PNGs are gitignored (bug-reports/**/*.png).
 	// Once .gitignore covers bug-reports/**/.auth/, git add refuses an exclude that names the ignored
 	// path (exit 1, "paths are ignored"), so the exclude is only needed while it is not ignored.
-	const authIgnored = spawnSync('git', ['-C', toplevel, 'check-ignore', '-q', `${folder}/repro/.auth`]).status === 0;
+	const ignored = (path: string) => spawnSync('git', ['-C', toplevel, 'check-ignore', '-q', path]).status === 0;
 	// REVIEW.md and the tracker note are the round's own paperwork, read by nobody after it: they stay
 	// uncommitted, and reap keeps them in ~/.cache/wf-reaped (Shay, 2026-09-27).
-	const keep = ['--', folder, ...(authIgnored ? [] : [`:(exclude)${folder}/repro/.auth`]), `:(exclude)${folder}/REVIEW.md`];
+	const keep = ['--', folder, ...[`${folder}/repro/.auth`, `${folder}/REVIEW.md`].filter((path) => !ignored(path)).map((path) => `:(exclude)${path}`)];
 	if (git(toplevel, ['status', '--porcelain', ...keep])) {
 		git(toplevel, ['add', ...keep]);
 		// Pathspec, not a bare commit: a product file staged for another purpose is not swept into the

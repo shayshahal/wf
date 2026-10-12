@@ -181,6 +181,28 @@ const repoOf = () => {
 	rmSync(repo, { recursive: true, force: true });
 }
 
+// git 2.54 exits 1 on `add -A` with an `:(exclude)` pathspec naming a gitignored path (`.wf`, `*.log`):
+// the identity must still compute, with ignored and excluded files out of the tree and a source file in.
+{
+	const { repo, git } = repoOf();
+	writeFileSync(join(repo, '.gitignore'), '.wf/\n*.log\n');
+	git('add', '-A');
+	git('commit', '-q', '-m', 'ignore');
+	mkdirSync(join(repo, '.wf'), { recursive: true });
+	const note = trackerNotePath(folder);
+	let before = '';
+	try { before = worktreeContentSha(repo, folder, note, 'approval'); } catch (error) { check('the identity computes when excluded paths are gitignored', false, String(error).split('\n')[0]); }
+	if (before) {
+		writeFileSync(join(repo, '.wf/checks.log'), 'log\n');
+		writeFileSync(join(repo, '.wf/state.json'), '{}\n');
+		writeFileSync(join(repo, 'build.log'), 'ignored\n');
+		check('ignored and excluded files stay out of the tree', worktreeContentSha(repo, folder, note, 'approval') === before);
+		writeFileSync(join(repo, 'src.ts'), 'changed\n');
+		check('\u2026while a source change still moves it', worktreeContentSha(repo, folder, note, 'approval') !== before);
+	}
+	rmSync(repo, { recursive: true, force: true });
+}
+
 // ── binding the verdict to the identities, in its own section ────────────────
 
 const reviewText = (worktree: string, head: string) => `round: r\nbase: main\ncontent-sha: ${worktree}\nhead-sha: ${head}\n\nverdict: approved\n`;
