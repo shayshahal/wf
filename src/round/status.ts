@@ -454,11 +454,6 @@ export function allLines({ paths, readState, detailFor, now = Date.now(), inspec
   return out;
 }
 
-// Rounds that still hold a worktree — `wf new` refuses a third one.
-export function liveRounds({ paths, readState }: { paths: string[]; readState: ReadState }): { path: string; state: State }[] {
-  return paths.map((p) => ({ path: p, state: readState(p) })).filter((r) => r.state && !(['merged', 'held'] as (string | undefined)[]).includes(r.state.step)) as { path: string; state: State }[];
-}
-
 // agree → how long the agreement is and its verification cases · build → the last commit · review → the PR url.
 export function realDetailFor(path: string, state: State): string {
   const agreement = state.folder ? agreementPath(path, state.class ?? null, state.folder) : null;

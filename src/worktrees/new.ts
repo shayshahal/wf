@@ -5,8 +5,7 @@
 // round for that id already exists (a round folder or a commit naming it) —
 // BJEW-585 was fixed under a sibling item and the round burned 26 min rediscovering
 // it (pilot note 10). To proceed anyway, rerun without --id.
-// It also refuses a third live round (SKILL.md: two at once, max — the box cannot run
-// three stacks); --force overrides. --id records id + folder in the new worktree's state
+// --id records id + folder in the new worktree's state
 // and creates <folder>, then the project adds what a round starts with (project.ts newRound) —
 // that folder is what every `wf prompt` substitutes. --check makes the round a check: wf next stops
 // after research, waiting on Shay (next.ts).
@@ -21,7 +20,6 @@ import { seams } from '../seams.ts';
 import { writeState, WF_STATE_VERSION } from '../round/state.ts';
 
 type LaunchJson = { version?: string; configurations?: { name?: string; url?: string }[] };
-import { liveRounds, realReadState, realWorktrees } from '../round/status.ts';
 
 // Where round work lives: the base branch and the round branches. Not --all: the tooling branches
 // (tools/*, wf2/*) write *about* rounds in their subjects without being one (BJEW-603, 2026-09-23).
@@ -124,11 +122,6 @@ export async function runNew(argv: string[]) {
 	const klass = ci === -1 ? null : argv[ci + 1];
 	if (ci !== -1 && !['B', 'C'].includes(klass!)) { console.error('wf new: --class is B or C (A is the measured default)'); refuseCaller(); }
 	const ids = argv.flatMap((a, i) => (a === '--id' && argv[i + 1] ? [argv[i + 1]] : []));
-	const live = liveRounds({ paths: realWorktrees(), readState: realReadState });
-	if (live.length >= 2 && !argv.includes('--force')) {
-		console.error(`wf new: two rounds are already live — finish or hold one first:\n  ${live.map((r) => `${r.state!.id ?? r.state!.round} · ${r.state!.step} · ${r.path}`).join('\n  ')}\n(--force to cut a third anyway)`);
-		process.exit(1);
-	}
 	// Neither wt nor git fetches: a clone days behind branched its round off a stale base (the kit
 	// plan's step 3 review, 2026-09-27). Offline, the round starts from the base this clone has.
 	const fetch = fetchFor(base);

@@ -5,7 +5,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { plug } from '../seams.ts';
-import { allLines, collectRows, formatRow, liveRounds, prLabel, formatAgeSince, processesIn, realDetailFor, inspectRound, porcelainEntries, nameStatusEntries, lastEvidence, evidenceBinding, formatInspect } from './status.ts';
+import { allLines, collectRows, formatRow, prLabel, formatAgeSince, processesIn, realDetailFor, inspectRound, porcelainEntries, nameStatusEntries, lastEvidence, evidenceBinding, formatInspect } from './status.ts';
 import { agreementSha } from './agreement.ts';
 import type { Question, State } from './state.ts';
 
@@ -86,7 +86,6 @@ check('an open question sits under its round, not sorted away from it', all[2] =
 check('a round nobody waits on reads "running"', all[4] === '  BJEW-1  build  running  3m  2 verification cases', JSON.stringify(all[4]));
 check('a worktree with no state is not a round', !all.join('|').includes('wt-bare'), all.join('|'));
 check('no rounds → no lines', allLines({ paths: [bare], readState: readAll, detailFor: () => '', now }).length === 0);
-check('liveRounds counts everything but merged and held', liveRounds({ paths: [old, mine, mid, bare], readState: readAll }).map((r) => r.state.id).join() === 'BJEW-1,BJEW-2', JSON.stringify(liveRounds({ paths: [old, mine, mid, bare], readState: readAll }).map((r) => r.state.id)));
 const allWithInspect = allLines({ paths: [old], readState: readAll, detailFor: () => '', now, inspectFor: () => '  agreement: x' });
 check('--all --inspect carries the per-round block under its line', allWithInspect.some((l) => l === '  agreement: x'), allWithInspect.join('|'));
 mkdirSync(join(old, 'bug-reports', 'BJEW-1'), { recursive: true });

@@ -1,8 +1,32 @@
 // new.selfcheck.ts — node new.selfcheck.ts → exit 0 when green.
-// Pure arms: the fetch before a round branches, and the worktree's .claude/launch.json for Claude
-// Code Desktop's Browser pane (new.ts).
-import { cloneLaunch, decisionsOf, earlierText, fetchFor, launchConfig, namesId } from './new.ts';
-import { entryGap } from '../round/state.ts';
+// Creation with more than two live rounds, plus pure arms: the fetch before a round branches,
+// and the worktree's .claude/launch.json for Claude Code Desktop's Browser pane (new.ts).
+import { execFileSync, spawnSync } from 'node:child_process';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { cloneLaunch, decisionsOf, earlierText, fetchFor, launchConfig, namesId, runNew } from './new.ts';
+import { entryGap, readState, writeState, WF_STATE_VERSION } from '../round/state.ts';
+import { plug } from '../seams.ts';
+import { contractPaths } from '../project.ts';
+import { addWorktree } from './git-worktree.ts';
+import { excludeWfFolder, slugForBranch } from './worktree.ts';
+
+// Exercise the real creation command and git worktrees, without a project's dependency setup.
+// A child contains runNew's CLI exits, so a refusal still lets the parent clean up its fixture.
+const [, , mode, repo, branch] = process.argv;
+if (mode === 'new-round' && repo && branch) {
+	process.chdir(repo);
+	plug({ createWorktree: ({ branch, base }) => {
+		const path = join(repo, 'trees', slugForBranch(branch));
+		addWorktree({ branch, base, path });
+		excludeWfFolder(path);
+		return { path, branch };
+	} });
+	await runNew([branch, '--base', 'HEAD']);
+	process.exit(0);
+}
 
 type Launch = { version: string; configurations: { name: string; url: string; runtimeExecutable?: string; program?: string }[] };
 
@@ -45,6 +69,32 @@ const kitRound = { made_by: 'kit', entry: 'C:/Users/x/.claude/plugins/cache/wf/w
 check("the env's wf is refused in a kit round, naming the kit's", entryGap(kitRound, 'env')?.includes('node "C:/Users/x/.claude/plugins/cache/wf/wf/0.1.0/wf.mjs"') && entryGap(kitRound, 'env')!.includes('CLAUDE_PLUGIN_ROOT'), entryGap(kitRound, 'env'));
 check("the kit's wf is refused in an env round", entryGap({ made_by: 'env', entry: 'C:/h/.local/share/wf/env/wf.mjs' }, 'kit')?.startsWith('this round was made by the env'));
 check('the same wf, a round from before the field, or no round: allowed', entryGap(kitRound, 'kit') === null && entryGap({ id: 'x' }, 'env') === null && entryGap(null, 'kit') === null);
+
+// Shay owns the parallel-round budget (2026-10-12): two existing live rounds must not block
+// the third or fourth, require --force, or change the earlier rounds' state.
+const fixture = mkdtempSync(join(tmpdir(), 'wf-new-parallel-'));
+try {
+	execFileSync('git', ['init', '-q'], { cwd: fixture });
+	mkdirSync(dirname(join(fixture, contractPaths)), { recursive: true });
+	writeFileSync(join(fixture, contractPaths), '# no contracts in this fixture\n');
+	execFileSync('git', ['add', '.'], { cwd: fixture });
+	execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'fixture'], { cwd: fixture });
+	const existing = ['round/first', 'round/second'].map((branch) => {
+		const path = join(fixture, 'trees', slugForBranch(branch));
+		addWorktree({ branch, base: 'HEAD', path, cwd: fixture });
+		writeState(path, () => ({ wf_version: WF_STATE_VERSION, round: branch, step: 'build' }));
+		return { path, before: readFileSync(join(path, '.wf/state.json'), 'utf8') };
+	});
+	for (const branch of ['round/third', 'round/fourth']) {
+		const result = spawnSync(process.execPath, [fileURLToPath(import.meta.url), 'new-round', fixture, branch], { encoding: 'utf8' });
+		const path = join(fixture, 'trees', slugForBranch(branch));
+		const state = existsSync(join(path, '.wf/state.json')) ? readState(path) : null;
+		check(`${branch} starts without --force while the earlier rounds remain live`, result.status === 0 && state?.round === branch && state.step === 'classify', `${result.stdout}\n${result.stderr}`);
+	}
+	check('starting more rounds preserves the existing rounds', existing.every(({ path, before }) => readFileSync(join(path, '.wf/state.json'), 'utf8') === before));
+} finally {
+	rmSync(fixture, { recursive: true, force: true });
+}
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');
 process.exit(failures ? 1 : 0);

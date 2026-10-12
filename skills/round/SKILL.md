@@ -53,8 +53,7 @@ blocks T2 until the user rules. T1 and T2 are the only human gates.
    A ticket that is a sentence is not a ticket: ask the user ≤5 scope questions first (what it
    must do, for whom, what it must *not* touch) and write the answers into `TICKET.md` under `## Scope`.
 2. `wf new <branch> --id <id>` → worktree, seeded database, `{{folder}}` (the stack starts when a
-   phase needs it). It refuses a third
-   live round; if it does, say which two are running and stop. Set the ticket's started status.
+   phase needs it). Set the ticket's started status.
 3. The loop below, from the round's worktree.
 
 ## Check: "check <id>", "does <id> reproduce"
@@ -167,10 +166,10 @@ invariant · authority · proof was an internal proxy · feedback lost — and p
 paragraph only when the gap is genuinely context, and then one line. Rerun the same round
 fresh; keep the fix only if the rerun is better. Tell the user in one line what changed and why.
 
-## Two rules that override everything
+## Rules that override everything
 
-- **Two rounds live at once, max.** The box cannot run three stacks; every flake is repaid in
-  agent turns.
+- **Shay decides how many rounds run in parallel.** Follow any limit he sets; otherwise start
+  requested rounds regardless of how many are live.
 - **Harness trouble is not round trouble.** A worktree hook failing, a merge conflict on the base
   branch, a broken test there: fix it in its own worktree, in its own PR, with wf's `harness-fixer`
   (*Dispatch in this harness*), and tell the user in one line. You know which suite the trouble
