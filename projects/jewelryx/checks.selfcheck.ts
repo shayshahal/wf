@@ -1,10 +1,16 @@
 // checks.selfcheck.ts — node projects/jewelryx/checks.selfcheck.ts → exit 0 when green.
 // Pure: JewelryX's commands for a diff and a plan row, through core's buildTasks (the row's check
-// cell, the repro) with this project's checkTasks, as `wf check` runs them. No git, no runners.
+// cell, the repro) with this project's checkTasks, plus the real CLI against a temporary repository
+// and a faithful runner stub for committed and uncommitted red-base measurements.
 import { buildTasks as coreBuildTasks } from '../../src/gates/check.ts';
 import type { CheckTarget } from '../../src/gates/check.ts';
 import { checkTasks, oracleGuardTask, parseStackEnv, oracleCaseGap, seedActorsEnv, suitesTouched } from './checks.ts';
 import type { PkgFor } from './checks.ts';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { delimiter, join } from 'node:path';
+import { WF_ROOT } from '../../src/paths.ts';
 
 // A check-cell target with no id or line: what `checkTasks` gets for a row whose test it must run whole.
 const target = (file: string, id: string | null = null, line: number | null = null, refactor = false): CheckTarget => ({ refactor, file, id, line });
@@ -150,6 +156,74 @@ check('no oracle file differing: no guard task', oracleGuardTask([]) === null);
 const guardRow = checkTasks({ changed: ['verification/tests/login-relogin.spec.ts'], target: target('verification/tests/login-relogin.spec.ts'), pkgFor, pushHook: true, oracleTouched: ['verification/tests/login-relogin.spec.ts'] });
 check('row 1 of BJEW-617: an oracle edit in the diff makes the row check red at once, before lefthook, with the rule', guardRow.length === 1 && guardRow[0].label === 'oracle-guard' && guardRow[0].missing?.includes('verification/tests/login-relogin.spec.ts') === true && guardRow[0].missing.includes('bugs-to-tests / cr-to-tests'), JSON.stringify(guardRow));
 check('and the same row with no oracle diff runs as before', labels(checkTasks({ changed: ['verification/tests/login-relogin.spec.ts'], target: target('verification/tests/login-relogin.spec.ts'), pkgFor, pushHook: true })).join() === 'lefthook pre-commit,playwright verification/tests/login-relogin.spec.ts,lefthook pre-push');
+
+// JX-718, 2026-10-12: deliver rechecks an already committed single-build fix. HEAD contains the
+// fix then; its red baseline must be the round's merge-base, not HEAD or the advancing base tip.
+const root = mkdtempSync(join(tmpdir(), 'wf-single-redbase-'));
+try {
+  const repo = join(root, 'repo');
+  const bin = join(root, 'bin');
+  mkdirSync(repo);
+  mkdirSync(bin);
+  const env = { ...Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('GIT_'))), CLAUDECODE: '1', PATH: `${bin}${delimiter}${process.env.PATH}` };
+  const git = (...args: string[]) => execFileSync('git', ['-C', repo, '-c', 'user.name=wf', '-c', 'user.email=wf@selfcheck', ...args], { env, encoding: 'utf8' }).trim();
+  const product = 'packages/backend/app/product.py';
+  const test = 'packages/backend/tests/test_product.py';
+  const folder = 'bug-reports/r';
+  git('init', '-q', '-b', 'dev');
+  git('config', 'core.autocrlf', 'false');
+  mkdirSync(join(repo, 'packages/backend/app'), { recursive: true });
+  mkdirSync(join(repo, 'packages/backend/tests'), { recursive: true });
+  writeFileSync(join(repo, product), 'FIXED = False\n');
+  git('add', '-A');
+  git('commit', '-qm', 'defect');
+  const base = git('rev-parse', 'HEAD');
+  git('checkout', '-qb', 'fix/r');
+  mkdirSync(join(repo, folder), { recursive: true });
+  mkdirSync(join(repo, '.wf'));
+  writeFileSync(join(repo, '.wf/state.json'), JSON.stringify({ wf_version: 2, round: 'fix/r', class: 'A', base: 'dev', folder, step: 'pr', made_by: 'kit' }));
+  writeFileSync(join(repo, `${folder}/TICKET.md`), `# r\n## Verification\n| # | case | files | check |\n|---|---|---|---|\n| 1 | fix the defect | ${product} ${test} | ${test}::test_fix@3 |\n`);
+  writeFileSync(join(repo, test), 'from app.product import FIXED\ndef test_fix():\n    assert FIXED is True\n');
+  writeFileSync(join(repo, product), 'FIXED = True\n');
+  // The stub reads the actual reverted product and keeps pytest's named-case/assertion protocol.
+  // Lint is inert; no Python, packages, stack, network or production stash is involved.
+  writeFileSync(join(bin, 'runner.cjs'), `const { readFileSync } = require('node:fs');
+if (process.argv.includes('ruff')) process.exit(0);
+if (!process.argv.includes('pytest')) process.exit(2);
+readFileSync('tests/test_product.py');
+const passed = process.env.WF_TEST_NOOP === '1' || readFileSync('app/product.py', 'utf8').startsWith('FIXED = True');
+console.log(passed ? 'PASSED tests/test_product.py::test_fix\\n1 passed' : '___ test_fix ___\\n>       assert FIXED is True\\nE       assert False is True\\ntests/test_product.py:3: AssertionError\\n=== short test summary info ===\\nFAILED tests/test_product.py::test_fix - assert False is True\\n1 failed');
+process.exit(passed ? 0 : 1);
+`);
+  const win = process.platform === 'win32';
+  writeFileSync(join(bin, win ? 'uv.cmd' : 'uv'), win ? `@"${process.execPath}" "%~dp0runner.cjs" %*\r\n` : `#!/bin/sh\nexec "${process.execPath}" "$(dirname "$0")/runner.cjs" "$@"\n`, win ? {} : { mode: 0o755 });
+  const attempt = (noop = false) => spawnSync(process.execPath, [join(WF_ROOT, 'wf.mjs'), 'check'], { cwd: repo, env: { ...env, WF_TEST_NOOP: noop ? '1' : '0' }, encoding: 'utf8' });
+  const working = attempt();
+  check('single-build check measures the defect before the fix is committed', working.status === 0, `${working.stdout}${working.stderr}`);
+  git('add', product, test, folder);
+  git('commit', '-qm', 'fix');
+  // The base branch independently gains the fix: only its merge-base is the before-fix tree.
+  git('checkout', '-q', 'dev');
+  writeFileSync(join(repo, product), 'FIXED = True\n');
+  git('add', product);
+  git('commit', '-qm', 'base advanced independently');
+  git('checkout', '-q', 'fix/r');
+  check('fixture: base tip advanced but the round merge-base is still the defect', git('merge-base', 'dev', 'HEAD') === base && git('rev-parse', 'dev') !== base);
+  writeFileSync(join(repo, 'other.txt'), 'unrelated work\n');
+  git('stash', 'push', '--include-untracked', '-m', 'unrelated', '--', 'other.txt');
+  const stash = git('rev-parse', 'refs/stash');
+  const head = git('rev-parse', 'HEAD');
+  const index = git('write-tree');
+  const committed = attempt();
+  check('single-build check still measures the defect after the fix is committed', committed.status === 0, `${committed.stdout}${committed.stderr}`);
+  const line = JSON.parse(readFileSync(join(repo, '.wf/checks.log'), 'utf8').trim().split('\n').at(-1) ?? '{}');
+  check('committed single-build logs green with behavioral red-base evidence', line.result === 'green' && line.tasks.some((task: { expect?: string; evidence?: { verdict: string } }) => task.expect === 'red' && task.evidence?.verdict === 'behavioral-failure'), JSON.stringify(line));
+  const noop = attempt(true);
+  check('a test that passes without the fix is still refused', noop.status === 1 && noop.stderr.includes('does not measure the defect'), `${noop.stdout}${noop.stderr}`);
+  check('single-build rechecks preserve the committed fix, index, HEAD and unrelated stash', readFileSync(join(repo, product), 'utf8') === 'FIXED = True\n' && git('write-tree') === index && git('rev-parse', 'HEAD') === head && git('rev-parse', 'refs/stash') === stash && !git('diff', 'HEAD', '--', product, test));
+} finally {
+  rmSync(root, { recursive: true, force: true });
+}
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');
 process.exit(failures ? 1 : 0);

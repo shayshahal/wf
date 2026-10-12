@@ -10,7 +10,8 @@
 //             edits the repro runs it too, and it must be red: that run is the round's before-the-fix
 //             measurement, its output kept in checks.log (TJEW-670: the repro was fixed in a row
 //             checked `—`, and two of four subitems never had a red run)
-//   red-base — the case's own test, run with the change taken back to HEAD: it must fail on the
+//   red-base — the case's own test, run with the change taken back to the round's merge-base
+//             (or the unit's starting commit): it must fail on the
 //             framework assertion at the origin the case's check cell names (`path::test id@<line>`),
 //             or the test cannot show the defect it claims to prove (a test that passes with and
 //             without the fix is not proof, process/PRACTICES.md). An exit code is not that proof, and
@@ -170,7 +171,7 @@ export function targetGap(target: CheckTarget | null): string | null {
 	return null;
 }
 
-// Pure: the files the red-base run takes back to HEAD — the row's changed files without the test the
+// Pure: the files the red-base run takes back to its baseline — the row's changed files without the test the
 // row names (it stays, so it runs against the tree without the fix) and without the round's own
 // paperwork. Empty when the row only edits its test: there is no fix to take away.
 export function redBaseFiles({ changed, row, folder, testPath }: { changed: string[]; row: Pick<VerificationCase, 'files'> | null; folder: string | null; testPath: string }): string[] {
@@ -180,7 +181,7 @@ export function redBaseFiles({ changed, row, folder, testPath }: { changed: stri
 }
 
 // Pure: the row's red-base run — the project's task that carries the row's own test, and the files
-// to take back to HEAD for it — or null when the row has no test task, or only its test to revert.
+// to take back to its baseline for it — or null when the row has no test task, or only its test to revert.
 export function redBaseRun({ tasks, changed, row, folder }: { tasks: CheckTask[]; changed: string[]; row: Pick<VerificationCase, 'files' | 'check'> | null; folder: string | null }): { task: CheckTask; revert: string[] } | null {
 	const task = tasks.find((t) => t.redBase && !t.missing);
 	if (!task) return null;
@@ -631,12 +632,13 @@ export async function runCheck(argv: string[] = []) {
 	}
 
 	// Red-base (process/PRACTICES.md, TDD): the row's own test must fail with the row's change taken
-	// back to HEAD, or it cannot show the defect it claims to prove — a test that passes with and
+	// back to its baseline, or it cannot show the defect it claims to prove — a test that passes with and
 	// without the fix is not proof (docs/plans/2026-09-27-kit-and-env.md step 4: a jsdom test that
 	// laid nothing out, counted green). The project marks the row's test task (`redBase`); every other
 	// task stays out, because a lint or typecheck red would prove nothing about the test.
-	// A chunk repair reruns earlier units too: their red baseline is their own start, not the
-	// current unit's start (which already contains those earlier fixes).
+	// A committed single-build fix is already in HEAD at deliver: use the round's merge-base
+	// instead (2026-10-12). A chunk repair reruns earlier units too: their red baseline is their own
+	// start, not the current unit's start (which already contains those earlier fixes).
 	let redBaseRef = context.kind === 'unit' ? context.base : base;
 	if (context.kind === 'unit' && context.reviewRepair && row) {
 		const caseN = row.n;
@@ -672,7 +674,7 @@ export async function runCheck(argv: string[] = []) {
 		// is the environment, never a green.
 		const run = (() => {
 			try {
-				return withFixReverted(toplevel, revert, () => spawnSync(redTask.cmd!, shellArgv(redTask.args!), { cwd: join(toplevel, redTask.cwd!), env: { ...process.env, ...redTask.env }, encoding: 'utf8', shell: process.platform === 'win32' }), scoped ? redBaseRef : 'HEAD');
+				return withFixReverted(toplevel, revert, () => spawnSync(redTask.cmd!, shellArgv(redTask.args!), { cwd: join(toplevel, redTask.cwd!), env: { ...process.env, ...redTask.env }, encoding: 'utf8', shell: process.platform === 'win32' }), redBaseRef);
 			} catch (e) {
 				return e as Error;
 			}
