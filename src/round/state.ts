@@ -12,8 +12,16 @@ import { join } from 'node:path';
 import { baseBranch, roundsDir } from '../project.ts';
 
 export type RoundClass = 'A' | 'B' | 'C';
+// The latest received answer in its thread's message order; transport alone grants no authority.
+export type QuestionReply = { ref: string; text: string; sequence: number };
 // A question `wf ask` opened; `wf decide` moves it to `answered` with its answer (ask.ts).
-export type Question = { n: number; to: string; text: string; default?: string; source?: string; asked: string; answer?: string | null; answered?: string };
+export type Question = {
+	n: number; to: string; text: string; default?: string; source?: string; asked: string; answer?: string | null; answered?: string;
+	// Save the exact envelope before sending: a retry after a wf update must reuse the old template.
+	inbox_message?: { key: string; subject: string; body: string };
+	// The transport reference survives a session restart; a received reply is not yet a round ruling.
+	inbox?: { ref: string; url: string; reply?: QuestionReply };
+};
 // .wf/state.json. Every field is optional: each command writes only its own (writeState merges),
 // and a hand-cut worktree has only what `wf step` wrote.
 // `wf_version` is the runtime that wrote the state (2 = the smaller route, #110/#111). A state from

@@ -11,7 +11,8 @@ export const dataDir = (worktree: string) => join(worktree, '.wf', 'plannotator'
 // The binary: PATH first; else the Windows installer's dir, because a harness started
 // before the install (pi, herdr) keeps its old PATH and would otherwise fall back to $EDITOR.
 const installedExe = () => (process.env.LOCALAPPDATA ? join(process.env.LOCALAPPDATA, 'plannotator', 'plannotator.exe') : null);
-function plannotatorBin() {
+// Shared by the review and Inbox adapters; a harness may have kept its pre-install PATH.
+export function plannotatorBin() {
   try {
     execFileSync(process.platform === 'win32' ? 'where' : 'which', ['plannotator'], { stdio: 'ignore' });
     return 'plannotator';

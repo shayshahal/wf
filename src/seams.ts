@@ -9,6 +9,7 @@ import { WF_ROOT } from './paths.ts';
 import { CLAUDE_CODE_MODELS } from './models.ts';
 import type { Models } from './models.ts';
 import type { ReviewFeedback } from './gates/review-format.ts';
+import type { QuestionReply } from './round/state.ts';
 
 // One step `wf reap` runs: a command, a folder removed in-process, or a function run in-process
 // (its arguments never pass through the shell).
@@ -23,6 +24,11 @@ export type ReviewUI = {
 	annotate: (o: { worktree: string; file: string; since: string }) => ReviewFeedback | null;
 	reviewDiff: (o: { worktree: string; base: string; diffType?: string; since: string }) => ReviewFeedback | null;
 };
+// A question inbox carries messages, not round decisions or human gate approvals.
+export type QuestionInbox = {
+	post: (o: { worktree: string; key: string; subject: string; body: string }) => Promise<{ ref: string; url: string }>;
+	read: (o: { worktree: string; ref: string }) => Promise<QuestionReply | null>;
+};
 export type Command = (argv: string[]) => unknown;
 // One `gh` call for the remote wf delivers to: argv, the folder to run it in, and what it printed.
 // The kit's default shells out to gh; a delivery test plugs a faithful fake so a retry can be proven
@@ -35,6 +41,7 @@ export type Seams = {
 	createWorktree: ((o: { branch: string; base: string; log: string }) => Worktree | Promise<Worktree>) | null;
 	removalPlan: ((o: { branch: string; path: string; slug: string; pid: number }) => RemovalStep[] | Promise<RemovalStep[]>) | null;
 	reviewUI: ReviewUI | null;
+	inbox: QuestionInbox | null;
 	commands: Record<string, Command>;
 	models: Models;
 	resolveModel: ((model: string) => string | null) | null;
@@ -60,6 +67,8 @@ export const seams: Seams = {
 	// { available(), annotate({ worktree, file, since }), reviewDiff({ worktree, base, diffType, since }) }
 	// → the one feedback line T1/T2 fold, or null. Without one, T1/T2 open the file in an editor.
 	reviewUI: null,
+	// Optional async question transport. Replies are saved by `wf inbox`, ruled on by `wf decide`.
+	inbox: null,
 	// wf subcommands the env adds: name → (argv) => void.
 	commands: {},
 	// The model each effort level runs on (models.ts): what `wf next` names in a dispatch, and what

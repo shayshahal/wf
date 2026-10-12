@@ -29,7 +29,8 @@ round commits (for JewelryX, `bug-reports/<round>/`).
     agreement (which file it is, the agreed-material sha T1 binds, the verification cases);
     `brief.ts` + `prompt.ts` are `wf brief <phase>`, what a phase agent runs first;
     `step`, `ask`/`decide` (`decide --revise` sends a round back to `agree` for a new T1),
-    `status`, `notes`, and `handoff-hook.ts` (`wf handoff`, the Claude Code hooks)
+    `inbox` (posts user questions through the env's optional transport and saves replies; `decide`
+    records the ruling), `status`, `notes`, and `handoff-hook.ts` (`wf handoff`, the Claude Code hooks)
   - `src/gates/`: what a round has to pass. `classify`, T1 (`agree.ts`) and T2 (`review.ts`,
     both written through `review-format.ts`), `wf check` (`check.ts`; `--repro`, the three runs of
     a repro case; `--suites`, the whole suites the round's diff reaches; and, on a verification
@@ -155,6 +156,19 @@ Claude Code, plus what the project's `setup` runs (JewelryX: pnpm, uv, docker, p
 After a push to `main`, the next `wf` command installs it by itself and prints
 `wf: updated <old> → <new>`. `wf update` fetches first. After changing `env/hook.ts` or the project's
 `setup` steps: `wf hook install` again.
+
+## Async round questions
+
+On Shay's entry, `wf inbox` sends open `wf ask` questions addressed to `user` to Plannotator
+Inbox (CLI 0.28.9+). The round skill runs it when a question waits, and again on a reply or resume.
+Each question has a retry-safe message reference in `.wf/state.json`; replies are saved there
+until the agent records the person's ruling with `wf decide --q <n>`. Agreement changes still
+use `--revise`; T1/T2 still use `wf agree`/`wf review`. `wf next` never polls the Inbox.
+
+Inbox uses the shared Plannotator data directory, unlike the worktree-local T1/T2 reviews.
+Pi's enabled Inbox integration wakes the sending session; after a session ends, `wf inbox` in
+the round's worktree retrieves its replies. The kit without a transport, or an unavailable CLI,
+falls back to asking directly and `wf decide`. No runtime packages are needed.
 
 ## Self-checks
 

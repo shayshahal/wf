@@ -82,9 +82,9 @@ four replies in a row were the text before the last tool call, the files right e
 | `wf next` printed | do |
 |---|---|
 | `dispatch <agree\|build\|assess> (model: <m>): <line>` | a fresh `round-worker` (*Dispatch in this harness*), named `<id> <phase>`, on model `<m>` exactly as printed (wf picks it from the phase's effort level; `wf models` shows the table), with `<line>` as its whole task: it runs `wf brief` itself, so its brief is wf's own text. When it returns, `wf next`. |
-| `wait <person>: q<n> …` | The user: ask with the question tool (*Dispatch in this harness*), all the round's `q<n>` lines in one call, each line verbatim as its question; its options: the line's `(default: …)` first, then the other answers the question names (`fix` / `accept` for a `fix or accept` one); a typed answer is always open. Someone else: tell them each line verbatim, with the round id. Stop. Their answer → `wf decide --q <n> "<their words>"` (the default option: `default`), then `wf next`. An answer that says the agreement must change, whatever its step or question, is recorded with `wf decide --revise [--q <n>] "<what the agreement must now do>"` (no question open: the answer alone): the round goes back to `agree`, `wf next` dispatches it, and a new T1 follows. A `fix or accept` question is answered with a line that starts `fix` or `accept`; `accept` is an explicit reconciliation and lets T2 open with the finding recorded beside it. |
+| `wait <person>: q<n> …` | Follow *Round questions* below. |
 | `wait user: T1 on AGREEMENT.md …` | run `wf agree <branch>` yourself from the worktree — with plannotator (pi) it blocks until they submit (bash timeout 3600 s), so they annotate instead of being handed a command; read the `verdict:` line it wrote to `AGREEMENT-REVIEW.md`, then `wf next`. A T1 that asks for changes dispatches `agree` again; an approved agreement whose agreed material has not changed stands after a `wf decide --revise` too (a progress edit to `## Verification` does not renew T1). |
-| `wait user: …` (no q) | tell the user the line with the round id (a round held, a blocked build), and when they say it is done `wf next`. Stop. `blocked`: the build wrote `BLOCKED.md` with a `Question:` line; record it with `wf ask --blocked`, then ask the user (*Dispatch in this harness*), then `wf decide` with their answer. |
+| `wait user: …` (no q) | tell the user the line with the round id (a round held, a blocked build), and when they say it is done `wf next`. Stop. `blocked`: the build wrote `BLOCKED.md` with a `Question:` line; record it with `wf ask --blocked`, then follow *Round questions*. |
 | `check: run wf check --repro` | run it, then `wf next` (see *Check*). |
 | `deliver: …` | T2 approved; the approval is the merge. Run `wf deliver`: it pushes, opens the PR, merges it and deletes the branch, then prints the PR url and the tracker note it wrote. A push the project's pre-push hook refused becomes a T2 fix (`wf deliver` says so). Either way, `wf next`. |
 | `post: <ids> — …` | The tracker hears last. For each id in turn: fill its section of the note and post it with the delivered status, as ROUND.md says (which also says how to tell a section already posted by a session that died), then at once add ` (posted)` to the end of its `## <id>` line in the note. Then `wf next`. |
@@ -104,12 +104,31 @@ around it: stop and tell the user. `wf brief` is the dispatched agent's (it refu
 next` is not dispatching); to read a phase's prompt, `wf prompt`. The agreement and
 `.wf/state.json` are wf's and the agents': you edit neither.
 
+## Round questions
+
+For recorded user questions, run `wf inbox` in the round's worktree. It posts each question once
+and saves any replies in `.wf/state.json`, tied to that round's `q<n>`. If waiting, end your turn;
+on an Inbox wake-up or a resumed session, run `wf inbox` there again. Read its saved reply, then
+`wf decide --q <n> "<their words>"` and `wf next`. A skipped or unclear answer stays open: ask for
+clarification in that question's Inbox thread. Use the saved URL/reference to reach it; keep the
+original question's mapping. Inbox transport alone neither closes a question nor approves T1/T2.
+
+An answer changing agreed behavior uses `wf decide --revise --q <n> "<the renewed behavior>"`:
+a fresh agreement and T1 follow. An unsolicited agreement change uses the same command without
+`--q`. A `fix or accept` ruling starts with `fix` or `accept`; record only the person's answer,
+not the Inbox's headings or delivery wrapper. Choosing the question's default records `default`.
+
+If `wf inbox` says unavailable or fails, ask directly with the harness question tool (*Dispatch in
+this harness*): all open `q<n>` lines in one call, each verbatim, its default first among the
+options, then the other answers it names, with a typed answer open. Record with `wf decide` as
+above. Questions to someone else stay direct: tell them each line verbatim with the round id.
+
 ## Talking to the user
 
 Only these, only when they happen:
 - a T1 is waiting (class B/C): one line with the command
 - a BLOCKED question or an assessment escalation: verbatim, recorded with `wf ask` first, then
-  asked with the question tool, not written into the chat. A question that is only in this chat dies
+  sent through *Round questions*, not written into the chat. A question that is only in this chat dies
   with the session; `wf brief` and `wf deliver` refuse while a recorded one is open, so an answer is
   never skipped. Someone else (ROUND.md, *People*): `--to <name>`.
 - T2 is waiting: one line with where to look (*Dispatch in this harness*)

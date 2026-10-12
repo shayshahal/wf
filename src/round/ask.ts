@@ -58,7 +58,7 @@ export function appendAnswer(blockedText: string, answer: string, date = new Dat
 
 // Pure: `wf status --all` lines under a round.
 export function questionLines(state: State | null): string[] {
-	return (state?.questions ?? []).map((q) => `? q${q.n} → ${q.to}: ${q.text}${q.default ? ` (default: ${q.default})` : ''}`);
+	return (state?.questions ?? []).map((q) => `? q${q.n} → ${q.to}: ${q.text}${q.default ? ` (default: ${q.default})` : ''}${q.inbox ? ` · ${q.inbox.reply ? 'reply saved — wf inbox, then wf decide' : q.inbox.url}` : ''}`);
 }
 
 export type Args<V extends string, B extends string> = { positionals: string[] } & { [K in V]?: string } & { [K in B]?: true };
