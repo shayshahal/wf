@@ -4,13 +4,15 @@
 // material-change escalation. A real CLI arm builds a temp git repo and drives wf step/next through
 // the ordinary and complex examples (the command path, not only the pure snapshot).
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { nextAction, unpostedSections } from './next.ts';
 import type { Snapshot } from './next.ts';
+import { checkGap, suitesGap } from './step.ts';
 import { readState, legacyStateGap } from './state.ts';
 import { WF_ROOT } from '../paths.ts';
+import { worktreeContentSha } from '../gates/content-identity.ts';
 
 let failures = 0;
 const check = (name: string, cond: boolean, detail = '') =>
@@ -154,6 +156,48 @@ check('R-6: the fix-or-accept question names the unmet finding and the literal a
 const spentAnswered = { ...spent, answered: [{ n: 1, to: 'user', text: 'x', source: asks(spent)[0].source, answer: 'accept: it is a separate ticket', asked: 't', answered: 't' }] };
 check('an answered repair-cap escalation does not repeat', asks(spentAnswered).length === 0 && say(spentAnswered).startsWith('review: T2'), say(spentAnswered));
 
+// ── verification handoff (JX-1239): a build cannot hand off to assess without a wf-recorded green of
+// this implementation; harness trouble stops with a named cause; a clean assessment cannot silently
+// pass a stated verification gap or a red suite
+const line = (o: object) => JSON.stringify({ ts: 't', row: null, rowCheck: null, tasks: [], ...o });
+const GREEN = (content?: string) => line({ result: 'green', ...(content ? { content } : {}) });
+const ENV_RED = (content?: string) => line({ tasks: [{ label: 'stack', exit: null, missing: 'the stack would not answer' }], result: 'red', cause: 'environment', ...(content ? { content } : {}) });
+const CODE_RED = (content: string) => line({ tasks: [{ label: 'unit', exit: 1 }], result: 'red', cause: 'code', content });
+const SUITES = (result: string, content: string, labels = ['unit']) => line({ row: 'suites', head: 'H4', tasks: labels.map((label) => ({ label, exit: result === 'green' ? 0 : 1 })), result, content });
+const ev = (log: string[], content: string | null = 'tree:w1') => ({ log: log.map((l) => `${l}\n`).join(''), content });
+const filesWith = (assessment: string) => ({ agreement: null, assessment, review: null, blocked: null });
+const cleanLive = ASSESS() + '\n## Live\n- Intent 1: INCONCLUSIVE — mobile/LTR not driven, no scenario setup — proof/none\n';
+
+const noCheck = base({ step: 'assess', checks: ev([]), files: filesWith(ASSESS()) });
+check('assess with no wf check on record goes back to build, never to the assessor or T2', steps(noCheck).join() === 'build' && say(noCheck).startsWith('dispatch build') && say(noCheck).includes('wf check'), say(noCheck));
+const stale = base({ step: 'assess', checks: ev([GREEN('tree:w0')]), files: filesWith(ASSESS()) });
+check('assess whose last green measured other bytes is stale: back to build', steps(stale).join() === 'build' && say(stale).includes('changed since'), say(stale));
+check('assess whose last check at these bytes is red: back to build', steps(base({ step: 'assess', checks: ev([GREEN('tree:w0'), CODE_RED('tree:w1')]), files: filesWith(ASSESS()) })).join() === 'build');
+check('a green of these bytes (paperwork commits do not move its content) lets the assessment stand', say(base({ step: 'assess', checks: ev([GREEN('tree:w1')]), files: filesWith(ASSESS()) })).startsWith('review: T2'));
+const harness = base({ step: 'assess', checks: ev([], null), files: filesWith(ASSESS()) });
+check('git cannot compute the tree: an actionable stop naming the harness, not a build dispatch', say(harness).startsWith('wait user: harness') && steps(harness).length === 0, say(harness));
+const envRed = base({ step: 'build', checks: ev([ENV_RED('tree:w1')]) });
+check('a build that ended on an environment red of these bytes stops on the harness, not another dispatch', say(envRed).startsWith('wait user: harness') && say(envRed).includes('the stack would not answer'), say(envRed));
+check('an environment red of older bytes is not a stop: the build changed since and is dispatched', say(base({ step: 'build', checks: ev([ENV_RED('tree:w0')]) })).startsWith('dispatch build'));
+check('a build with a code red is dispatched again (product trouble, not harness)', say(base({ step: 'build', checks: ev([CODE_RED('tree:w1')]) })).startsWith('dispatch build'));
+check('a first build dispatch with an empty log is not a harness stop', say(base({ step: 'build', checks: ev([]) })).startsWith('dispatch build'));
+
+const inconclusive = base({ step: 'assess', checks: ev([GREEN('tree:w1')]), files: filesWith(cleanLive) });
+check('a clean assessment with an INCONCLUSIVE item asks one fix-or-accept, not T2', asks(inconclusive).length === 1 && asks(inconclusive)[0].text.includes('INCONCLUSIVE — mobile/LTR') && asks(inconclusive)[0].text.includes('answer `accept`') && !say(inconclusive).startsWith('review: T2'), say(inconclusive));
+const gapSource = asks(inconclusive)[0]?.source ?? 'none';
+const ruled = (answer: string, src = gapSource, snap = inconclusive) => ({ ...snap, answered: [{ n: 1, to: 'user', text: 'x', source: src, answer, asked: 't', answered: 't' }] });
+check('an explicit accept of the gap opens T2', asks(ruled('accept: separate ticket')).length === 0 && say(ruled('accept: separate ticket')).startsWith('review: T2'), say(ruled('accept')));
+check('a fix ruling returns to build', steps(ruled('fix the mobile case')).join() === 'build' && say(ruled('fix the mobile case')).startsWith('dispatch build'), say(ruled('fix')));
+const otherGap = { ...inconclusive, files: filesWith(ASSESS() + '\n## Live\n- Intent 1: NOT VERIFIED — LTR header overlaps — proof/none\n') };
+check('an accept for another gap on the same HEAD does not carry over', asks(ruled('accept', gapSource, otherGap)).length === 1 && !say(ruled('accept', gapSource, otherGap)).startsWith('review: T2'), say(ruled('accept', gapSource, otherGap)));
+check('NOT MEASURED in a clean Intent is a stated gap too', asks({ ...inconclusive, files: filesWith(ASSESS({ intent: '- "x": NOT MEASURED — the app did not start' })) }).length === 1);
+check('a clean assessment with every line verified goes to T2 with no ask', asks(base({ step: 'assess', checks: ev([GREEN('tree:w1')]), files: filesWith(ASSESS() + '\n## Live\n- Intent 1: VERIFIED — drove it — proof/a.png\n') })).length === 0);
+const redSuite = base({ step: 'assess', checks: ev([GREEN('tree:w1'), SUITES('red', 'tree:w1', ['unit', 'e2e'])]), files: filesWith(ASSESS() + '\n## Behavior and evidence\nthe 3 red cases are in a file this round never touched, so unrelated\n') });
+check('a red suite at these bytes is not waived by prose ("file untouched, unrelated"): one fix-or-accept ask', asks(redSuite).length === 1 && asks(redSuite)[0].text.includes('suites red') && asks(redSuite)[0].text.includes('unit, e2e') && !say(redSuite).startsWith('review: T2'), say(redSuite));
+check('a user accept of the red suites opens T2', say(ruled('accept: red on base too', asks(redSuite)[0]?.source ?? 'none', redSuite)).startsWith('review: T2'));
+check('a red suites line of other bytes is not this implementation\'s gap', asks({ ...redSuite, checks: ev([GREEN('tree:w1'), SUITES('red', 'tree:w0')]) }).length === 0);
+check('a green suites line is no gap', asks({ ...redSuite, checks: ev([GREEN('tree:w1'), SUITES('green', 'tree:w1')]) }).length === 0);
+
 // ── helpers
 check('unpostedSections names the sections without (posted)', unpostedSections('## A (posted)\n## B\n').join() === 'B');
 
@@ -202,6 +246,58 @@ const cli = (repo: string, ...args: string[]) => {
 	writeFileSync(join(repo, '.wf', 'state.json'), `${JSON.stringify({ round: 'r', id: 'r', folder: 'bug-reports/r', step: 'review' }, null, 2)}\n`);
 	const legacyNext = cli(repo, 'next');
 	check('CLI: wf next refuses a versionless state parked at review', legacyNext.code === 1 && /older wf/.test(legacyNext.out), legacyNext.out);
+	rmSync(repo, { recursive: true, force: true });
+}
+
+// pure: the evidence readers next and step share
+check('checkGap: a green of these bytes is no gap; null content is a harness gap', checkGap(ev([GREEN('tree:w1')])) === null && checkGap(ev([], null))?.kind === 'harness');
+check('checkGap: an unavailable line with no content is the harness; changed or code red are product trouble', checkGap(ev([line({ result: 'unavailable' })]))?.kind === 'harness' && checkGap(ev([line({ result: 'changed', content: 'tree:w1' })]))?.kind === 'check' && checkGap(ev([CODE_RED('tree:w1')]))?.kind === 'check');
+check('checkGap: a later green of the same bytes outweighs an earlier environment red; repro and suites lines are not checks', checkGap(ev([ENV_RED('tree:w1'), GREEN('tree:w1')])) === null && checkGap(ev([line({ row: 'repro', result: 'stable', content: 'tree:w1' }), SUITES('green', 'tree:w1')]))?.say === 'no wf check has run in this round');
+check('checkGap: a later unavailable check supersedes an older green even without a content identity', checkGap(ev([GREEN('tree:w1'), line({ result: 'unavailable' })]))?.kind === 'harness');
+check('checkGap: a truncated log line is skipped, not fatal', checkGap({ log: `${GREEN('tree:w1')}
+{"ts":"t","re`, content: 'tree:w1' }) === null);
+check('suitesGap names the red suites of these bytes only', suitesGap(ev([SUITES('red', 'tree:w1', ['a', 'b'])])) === 'suites red at this implementation: a, b' && suitesGap(ev([SUITES('red', 'tree:w0')])) === null && suitesGap(ev([SUITES('red', 'tree:w1'), SUITES('green', 'tree:w1')])) === null);
+
+// ── real CLI: the handoff boundary is enforced on a direct `wf step`, not only through wf next
+{
+	const repo = mkdtempSync(join(tmpdir(), 'wf-handoff-'));
+	git(repo, 'init', '-q', '-b', 'main');
+	git(repo, 'config', 'core.autocrlf', 'false');
+	writeFileSync(join(repo, 'a.txt'), 'a\n');
+	writeFileSync(join(repo, '.gitignore'), '.wf/\n');
+	git(repo, 'add', '-A');
+	git(repo, 'commit', '-q', '-m', 'base');
+	git(repo, 'checkout', '-q', '-b', 'fix/r');
+	mkdirSync(join(repo, 'bug-reports/r'), { recursive: true });
+	writeFileSync(join(repo, 'bug-reports/r/TICKET.md'), TICKET);
+	mkdirSync(join(repo, '.wf'), { recursive: true });
+	writeFileSync(join(repo, '.wf', 'state.json'), `${JSON.stringify({ wf_version: 2, round: 'r', id: 'r', folder: 'bug-reports/r', base: 'main', step: 'build', class: 'A' }, null, 2)}\n`);
+	const logGreen = () => appendFileSync(join(repo, '.wf', 'checks.log'), `${GREEN(worktreeContentSha(repo, 'bug-reports/r', null, 'row'))}\n`);
+	writeFileSync(join(repo, 'a.txt'), 'b\n');
+	git(repo, 'commit', '-q', '-am', 'fix');
+	const noLog = cli(repo, 'step', 'assess');
+	check('CLI: wf step assess with no wf check on record is refused and the state stays at build', noLog.code === 2 && noLog.out.includes('wf check') && readState(repo)?.step === 'build', noLog.out);
+	appendFileSync(join(repo, '.wf', 'checks.log'), `${ENV_RED()}\n`);
+	const envLog = cli(repo, 'step', 'review');
+	check('CLI: wf step review is the same boundary, and a harness trouble says BLOCKED.md', envLog.code === 2 && envLog.out.includes('BLOCKED.md') && readState(repo)?.step === 'build', envLog.out);
+	logGreen();
+	writeFileSync(join(repo, 'bug-reports/r/ASSESSMENT.md'), 'paperwork\n');
+	git(repo, 'add', '-A');
+	git(repo, 'commit', '-q', '-m', 'paper');
+	const ok = cli(repo, 'step', 'assess');
+	check('CLI: a green of this implementation hands off, and a paperwork-only commit after it does not regress it', ok.code === 0 && readState(repo)?.step === 'assess', ok.out);
+	writeFileSync(join(repo, 'bug-reports/r/ASSESSMENT.md'), ASSESS({ head: git(repo, 'rev-parse', 'HEAD').trim() }) + '\n## Live\n- INCONCLUSIVE — mobile path not driven\n');
+	const openReview = cli(repo, 'step', 'review');
+	check('CLI: direct review cannot bypass an unresolved assessment gap', openReview.code === 2 && openReview.out.includes('INCONCLUSIVE') && readState(repo)?.step === 'assess', openReview.out);
+	const question = cli(repo, 'next');
+	check('CLI: next records the verification gap as one contextual question', question.out.includes('INCONCLUSIVE') && readState(repo)?.questions?.length === 1, question.out);
+	const acceptedReview = cli(repo, 'decide', 'accept: mobile verification deferred');
+	const review = cli(repo, 'step', 'review');
+	check('CLI: direct review obeys the recorded explicit acceptance', acceptedReview.code === 0 && review.code === 0 && readState(repo)?.step === 'review', acceptedReview.out + review.out);
+	writeFileSync(join(repo, 'a.txt'), 'c\n');
+	git(repo, 'commit', '-q', '-am', 'product after the check');
+	const after = cli(repo, 'step', 'review');
+	check('CLI: a product change after the last green is refused at the next boundary', after.code === 2 && after.out.includes('changed since'), after.out);
 	rmSync(repo, { recursive: true, force: true });
 }
 

@@ -12,6 +12,7 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { hashPort, sanitizeBranch } from './ports.ts';
 import { seams } from '../seams.ts';
+import { approvalExclusions } from '../gates/content-identity.ts';
 import type { RemovalStep, Seams, Worktree } from '../seams.ts';
 
 const norm = (p: string) => p.replace(/\\/g, '/').replace(/\/+$/, '');
@@ -85,10 +86,17 @@ export async function removalPlan(o: Parameters<NonNullable<Seams['removalPlan']
 	return (seams.removalPlan ?? (await import('./git-worktree.ts')).removalPlan)(o);
 }
 
-// wf's own files in a worktree (.wf/: state, logs) stay out of git without the project naming
-// them: the exclude file is shared by every worktree of the repository.
-export function excludeWfFolder(worktree: string) {
-	excludeFromGit(worktree, '.wf/');
+/** Keep round metadata ignored by this worktree, without editing shared Git configuration. */
+export function excludeWfFolder(worktree: string): void {
+	// JX-1239, 2026-10-12: a parallel round's workaround toggled the shared info/exclude
+	// during checks. A local rule makes that toggle irrelevant to the other round's bytes.
+	const folder = join(worktree, '.wf');
+	const ignore = join(folder, '.gitignore');
+	mkdirSync(folder, { recursive: true });
+	const existing = (existsSync(ignore) ? readFileSync(ignore, 'utf8') : '').split(/\r?\n/);
+	// Use the identity owner's exact metadata paths, not `*`: an unowned .wf script is source.
+	const missing = approvalExclusions(null, null, 'row').map((p) => `/${p.slice('.wf/'.length)}`).filter((p) => !existing.includes(p));
+	if (missing.length) appendFileSync(ignore, `\n${missing.join('\n')}\n`);
 }
 
 // `pattern` joins the repository's exclude file (info/exclude, shared by all its worktrees), once.

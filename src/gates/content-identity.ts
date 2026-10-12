@@ -25,6 +25,7 @@ import { trackerNote } from '../project.ts';
 // acquisition guard are state.ts's own (issue #107): a concurrent
 // writeState leaves them while another command reads the implementation, so they are wf's, not it.
 const WF_METADATA = [
+	'.wf/.gitignore',
 	'.wf/state.json',
 	'.wf/state.json.lock',
 	'.wf/state.json.lock.acquiring',

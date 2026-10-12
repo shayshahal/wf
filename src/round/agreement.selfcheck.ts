@@ -5,7 +5,7 @@
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { agreementClass, agreementFile, agreementGap, agreementPath, agreementSha, assessmentGap, assessmentHead, assessmentMaterial, assessmentVerdict, ASSESSMENT_FILE, caseFiles, consequential, intentGap, section, verificationCases } from './agreement.ts';
+import { agreementClass, agreementFile, agreementGap, agreementPath, agreementSha, assessmentGap, assessmentHead, assessmentMaterial, assessmentOpenGaps, assessmentVerdict, ASSESSMENT_FILE, caseFiles, consequential, intentGap, section, verificationCases } from './agreement.ts';
 
 let failures = 0;
 const check = (name: string, cond: boolean, detail = '') =>
@@ -75,6 +75,17 @@ check('an intent line with no verdict is a gap', (assessmentGap(assess({ intent:
 check('a met line without before/after is a gap', (assessmentGap(assess({ intent: '- "x": met: a.ts:1' })) ?? '').includes('before'));
 check('NOT MEASURED and left out: are verdicts', intentGap('## Intent\n- "x": NOT MEASURED\n- "y": left out: moved to a new ticket\n') === null);
 check('an empty left out: is a gap', (intentGap('## Intent\n- "y": left out:\n') ?? '').includes('no reason'));
+
+const live = (l: string) => `${assess()}## Live
+${l}
+`;
+check('INCONCLUSIVE / NOT VERIFIED / NOT MEASURED lines of Intent, Live and Behavior are open gaps', assessmentOpenGaps(live('- Intent 1: INCONCLUSIVE — mobile/LTR not driven')).join() === 'Intent 1: INCONCLUSIVE — mobile/LTR not driven' && assessmentOpenGaps(assess({ intent: '- "x": NOT MEASURED — app down' })).length === 1 && assessmentOpenGaps(`${assess()}## Behavior and evidence
+NOT VERIFIED: LTR
+`).length === 1);
+check('a fully verified assessment has no open gap, and prose outside those sections is not read', assessmentOpenGaps(live('- Intent 1: VERIFIED — drove it')).length === 0 && assessmentOpenGaps(`${assess()}## Design
+INCONCLUSIVE naming
+`).length === 0);
+check('no assessment has no open gaps', assessmentOpenGaps(null).length === 0);
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');
 process.exit(failures ? 1 : 0);

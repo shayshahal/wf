@@ -10,6 +10,7 @@ import { cloneLaunch, decisionsOf, earlierText, fetchFor, launchConfig, namesId,
 import { entryGap, readState, writeState, WF_STATE_VERSION } from '../round/state.ts';
 import { plug } from '../seams.ts';
 import { contractPaths } from '../project.ts';
+import { WF_ROOT } from '../paths.ts';
 import { addWorktree } from './git-worktree.ts';
 import { excludeWfFolder, slugForBranch } from './worktree.ts';
 
@@ -24,7 +25,7 @@ if (mode === 'new-round' && repo && branch) {
 		excludeWfFolder(path);
 		return { path, branch };
 	} });
-	await runNew([branch, '--base', 'HEAD']);
+	await runNew([branch, '--base', 'HEAD', '--class', 'A']);
 	process.exit(0);
 }
 
@@ -69,6 +70,14 @@ const kitRound = { made_by: 'kit', entry: 'C:/Users/x/.claude/plugins/cache/wf/w
 check("the env's wf is refused in a kit round, naming the kit's", entryGap(kitRound, 'env')?.includes('node "C:/Users/x/.claude/plugins/cache/wf/wf/0.1.0/wf.mjs"') && entryGap(kitRound, 'env')!.includes('CLAUDE_PLUGIN_ROOT'), entryGap(kitRound, 'env'));
 check("the kit's wf is refused in an env round", entryGap({ made_by: 'env', entry: 'C:/h/.local/share/wf/env/wf.mjs' }, 'kit')?.startsWith('this round was made by the env'));
 check('the same wf, a round from before the field, or no round: allowed', entryGap(kitRound, 'kit') === null && entryGap({ id: 'x' }, 'env') === null && entryGap(null, 'kit') === null);
+
+// JX-1239 chose a server-side API change before creation, but an empty diff defaulted the
+// round to A and built before T1. The creation boundary must require that choice explicitly.
+const unclassifiedDir = mkdtempSync(join(tmpdir(), 'wf-unclassified-'));
+try {
+	const unclassified = spawnSync(process.execPath, [join(WF_ROOT, 'wf.mjs'), 'new', 'round/unclassified', '--base', 'HEAD'], { cwd: unclassifiedDir, encoding: 'utf8' });
+	check('new refuses a build round without an explicit class before worktree creation', unclassified.status === 2 && unclassified.stderr.includes('--class A|B|C') && !unclassified.stdout.includes('worktree ready'), `${unclassified.stdout}\n${unclassified.stderr}`);
+} finally { rmSync(unclassifiedDir, { recursive: true, force: true }); }
 
 // Shay owns the parallel-round budget (2026-10-12): two existing live rounds must not block
 // the third or fourth, require --force, or change the earlier rounds' state.

@@ -23,7 +23,8 @@ Add this section to `ASSESSMENT.md` under `## Behavior and evidence`:
 <for each Intent line: `VERIFIED | NOT VERIFIED | INCONCLUSIVE — <what you did and saw> — proof/<file>`>
 ```
 
-A `NOT VERIFIED` makes the verdict `blocked`; an `INCONCLUSIVE` does not, but name it.
+A `NOT VERIFIED` makes the verdict `blocked`. Name every `INCONCLUSIVE` and the missing check;
+wf requires it to be fixed or explicitly accepted before T2.
 For a verification gap, distinguish a product regression, broken harness, stale recipe or missing
 scenario setup; if the cause is unknown, say so. Under `## Behavior and evidence`, name the affected
 path or missing capability, the needed change and the command to rerun. Protected-test updates go

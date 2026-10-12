@@ -158,7 +158,6 @@ export async function runReview(argv: string[]) {
   const klass = readState(worktree).class ?? classify(worktree, base);
   const assessmentRel = [readState(worktree).folder, ASSESSMENT_FILE].filter(Boolean).join('/');
   const files = reviewFiles(changedFiles(worktree, base), assessmentRel, existsSync(join(worktree, assessmentRel)));
-  await inWorktree(worktree, round, 'review');
   // T2 sees the committed diff, so uncommitted product cannot be approved: it was never shown. Refuse
   // before the stack is started, so a dirty tree does not wait on servers it will not use (#106 review).
   const folder = readState(worktree).folder ?? null;
@@ -168,6 +167,7 @@ export async function runReview(argv: string[]) {
     console.error(`wf review: ${uncommitted.join(', ')} changed but not committed — the review screen shows the committed branch, so T2 cannot approve it; commit it, then run wf review ${round} again`);
     process.exit(2);
   }
+  await inWorktree(worktree, round, 'review');
   // T2 opens the round's pages: the stack is started for it, since nothing serves a worktree from its
   // creation (2026-10-04, serve.ts). A stack that will not start leaves the diff to review, and says so.
   try { console.log(await ensureServers(worktree, { wait: true })); } catch (e) { /* the diff is still reviewable: the line says why there are no pages */ console.error((e as Error).message); }

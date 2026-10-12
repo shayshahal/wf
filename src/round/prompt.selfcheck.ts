@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { WF_ROOT } from '../paths.ts';
 import { guidance } from '../project.ts';
-import { agreedMaterial, renderPrompt, ticketIntent } from './prompt.ts';
+import { agreedMaterial, renderPrompt, reviewRepairText, ticketIntent } from './prompt.ts';
 import { caseFiles, verificationCases } from './agreement.ts';
 import { readState, writeState } from './state.ts';
 
@@ -46,6 +46,12 @@ check('no ## Verification section → no cases', verificationCases('# x\nnothing
 check('agreedMaterial for B/C is Observed + Agreed, never the cases', agreedMaterial(agreement, 'B').includes('the header renders at the top') && agreedMaterial(agreement, 'B').includes('two columns') && !agreedMaterial(agreement, 'B').includes('sidebar renders'), agreedMaterial(agreement, 'B'));
 check('agreedMaterial carries the person\u2019s ## Decisions too (a wf decide ruling binds the build)', agreedMaterial(`${agreement}\n## Decisions\n- 2026-10-10 which port \u2192 user: 8080\n`, 'B').includes('## Decisions') && agreedMaterial(`# t\n## Intent\n- the ask\n## Decisions\n- 2026-10-10 which port \u2192 user: 8080\n`, 'A').includes('8080'), agreedMaterial(`# t\n## Intent\n- the ask\n## Decisions\n- x\n`, 'A'));
 check('a decide ruling has one projection in the agreed material', (agreedMaterial(`${agreement}\n## Decisions\n- 2026-10-10 keep the existing button\n`, 'B').match(/keep the existing button/g) ?? []).length === 1, agreedMaterial(`${agreement}\n## Decisions\n- 2026-10-10 keep the existing button\n`, 'B'));
+
+// JX-1239: T2 layout corrections lived only in REVIEW.md; the next build prompt omitted them,
+// so the dispatcher renewed the agreement just to deliver the feedback to the implementation.
+const rejectedReview = 'note — old correction\nverdict: changes-requested\n\n## 2026-10-12\n\nAGREEMENT.md:0 — inputs should be wider; see proof/after-he-1280.png\nverdict: changes-requested\n';
+check('review repair contains the newest T2 correction and its evidence reference, not old feedback', reviewRepairText(rejectedReview)?.includes('inputs should be wider') === true && reviewRepairText(rejectedReview)?.includes('proof/after-he-1280.png') === true && !reviewRepairText(rejectedReview)?.includes('old correction'));
+check('an approved review does not redispatch old corrections', reviewRepairText(`${rejectedReview}\n## 2026-10-12\nverdict: approved\n`) === null);
 
 const out = renderPrompt('round {{round}} folder {{folder}} file {{file}}\n{{agreement}}\n{{unknown}}', { round: 'BJEW-1', folder: 'bug-reports/x', file: 'AGREEMENT.md', agreement: 'x' });
 check('every known placeholder substituted', out.includes('round BJEW-1 folder bug-reports/x file AGREEMENT.md'), out);
@@ -86,6 +92,9 @@ rmSync(dir, { recursive: true, force: true });
 		wf('decide', 'keep the existing button');
 		const st = JSON.parse(readFileSync(join(repo, '.wf', 'state.json'), 'utf8')) as { step?: string; decisions?: { text: string }[] };
 		check('a non-revise decide keeps the step and records state.decisions', st.step === 'build' && st.decisions?.[0]?.text === 'keep the existing button', JSON.stringify(st));
+		writeFileSync(join(repo, folder, 'REVIEW.md'), rejectedReview);
+		const repairPrompt = wf('prompt', 'build');
+		check('a normal T2 repair reaches the real build brief without renewing T1', repairPrompt.includes('inputs should be wider') && repairPrompt.includes('proof/after-he-1280.png') && readState(repo)?.step === 'build', repairPrompt);
 		for (const phase of ['build', 'assess']) {
 			const prompt = wf('prompt', phase);
 			const count = (prompt.match(/keep the existing button/g) ?? []).length;

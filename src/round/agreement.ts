@@ -148,3 +148,15 @@ export function assessmentGap(text: string | null | undefined): string | null {
 	if (verdict === 'clean' && /(not met:|differs:|still reproduces:)/i.test(text)) return `${ASSESSMENT_FILE} says clean but states an unmet item — a clean assessment cannot carry \`not met:\``;
 	return intentGap(text);
 }
+
+// Pure: the verification gaps an assessment states about itself — a line in `## Intent`, `## Live` or
+// `## Behavior and evidence` marked INCONCLUSIVE, NOT VERIFIED or NOT MEASURED. A `clean` verdict does
+// not carry them silently: wf next asks the user to fix or accept them (an explicit ruling tied to this
+// assessment's head and these lines). 2026-10-12 JX-1239: an assessment said clean with its mobile/LTR
+// lines INCONCLUSIVE, and T2 opened as though they had been checked.
+export function assessmentOpenGaps(text: string | null | undefined): string[] {
+	return ['Intent', 'Live', 'Behavior and evidence']
+		.flatMap((name) => (section(text, name) ?? '').split('\n'))
+		.map((l) => l.trim().replace(/^[-*]\s*/, ''))
+		.filter((l) => /\b(INCONCLUSIVE|NOT VERIFIED|NOT MEASURED)\b/i.test(l));
+}

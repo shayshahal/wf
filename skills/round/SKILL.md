@@ -52,7 +52,10 @@ blocks T2 until the user rules. T1 and T2 are the only human gates.
    it, and `wf brief` refuses a `TICKET.md` without it. Image descriptions and your notes go below.
    A ticket that is a sentence is not a ticket: ask the user ≤5 scope questions first (what it
    must do, for whom, what it must *not* touch) and write the answers into `TICKET.md` under `## Scope`.
-2. `wf new <branch> --id <id>` → worktree, seeded database, `{{folder}}` (the stack starts when a
+2. Classify the ticket **and scope answers** before building (`process/CLASSES.md`): A for ordinary
+   work, B for a contract or persistence change, C for an owed product decision. An empty diff says
+   nothing about the requested work. `wf new <branch> --class <A|B|C> --id <id>` → worktree, seeded
+   database, `{{folder}}` (the stack starts when a
    phase needs it). Set the ticket's started status.
 3. The loop below, from the round's worktree.
 
@@ -83,6 +86,7 @@ four replies in a row were the text before the last tool call, the files right e
 | `dispatch <agree\|build\|assess> (model: <m>): <line>` | a fresh `round-worker` (*Dispatch in this harness*), named `<id> <phase>`, on model `<m>` exactly as printed (wf picks it from the phase's effort level; `wf models` shows the table), with `<line>` as its whole task: it runs `wf brief` itself, so its brief is wf's own text. When it returns, `wf next`. |
 | `wait <person>: q<n> …` | Follow *Round questions* below. |
 | `wait user: T1 on AGREEMENT.md …` | run `wf agree <branch>` yourself from the worktree — with plannotator (pi) it blocks until they submit (bash timeout 3600 s), so they annotate instead of being handed a command; read the `verdict:` line it wrote to `AGREEMENT-REVIEW.md`, then `wf next`. A T1 that asks for changes dispatches `agree` again; an approved agreement whose agreed material has not changed stands after a `wf decide --revise` too (a progress edit to `## Verification` does not renew T1). |
+| `wait user: harness — …` | Start the separate harness-fixer (*Harness trouble* below) from the named failure, before any more build or assessment dispatch. Once fixed, run `wf check` in the round, then `wf next`. |
 | `wait user: …` (no q) | tell the user the line with the round id (a round held, a blocked build), and when they say it is done `wf next`. Stop. `blocked`: the build wrote `BLOCKED.md` with a `Question:` line; record it with `wf ask --blocked`, then follow *Round questions*. |
 | `check: run wf check --repro` | run it, then `wf next` (see *Check*). |
 | `deliver: …` | T2 approved; the approval is the merge. Run `wf deliver`: it pushes, opens the PR, merges it and deletes the branch, then prints the PR url and the tracker note it wrote. A push the project's pre-push hook refused becomes a T2 fix (`wf deliver` says so). Either way, `wf next`. |
@@ -91,7 +95,8 @@ four replies in a row were the text before the last tool call, the files right e
 | `done: …` | the note is posted. Run the `wf reap <branch>` it names, and tell the user `<id> merged, reaped` with the `round …` line it printed (where the round spent its time and where it was stopped; every round adds it to `~/.cache/wf-reaped/ROUNDS.md`). |
 
 Within the agreement, helpers, files, local corrections, added tests and naming are the build
-agent's own. A genuinely new scope or behavior — a new user-visible surface, a changed contract
+agent's own. T2 layout corrections repair the existing agreed behavior in build; the brief carries
+REVIEW.md's latest corrections and screenshot references. They do not, by themselves, renew T1. A genuinely new scope or behavior — a new user-visible surface, a changed contract
 path, a different persistence choice, or dropping an agreed item — is a renewed agreement: the
 build writes `BLOCKED.md` with a `Question:` line, or the assessment records a `material:` line, and
 the round goes back to `agree` for a new T1. The assessment's own fixable findings return to the
@@ -153,7 +158,7 @@ word. In the round's worktree, *The loop*. Nothing lives in your context that th
 | deploy | Shay |
 | tracker status and comments | you, from the tracker note; never an agent |
 | edit `repro/` or a test a case did not list | nobody inside a round — that is an agreement change, through `agree` and T1 |
-| touch the base branch's checkout, another round's worktree, the harness's own config | never from a round |
+| touch the base branch's checkout, another round's worktree, shared Git config/excludes, the harness's own config | never from a round |
 | `--no-verify`, widening a fence, lowering a threshold | never |
 
 ## When a round goes wrong

@@ -2,12 +2,20 @@
 // Spiked 17 Sep (v0.27.15): stdout carries only {decision,message}; the structured
 // annotations[] land in {PLANNOTATOR_DATA_DIR}/feedback/<project>/index.jsonl on submit.
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ReviewFeedback } from '../../src/gates/review-format.ts';
 import type { ReviewUI } from '../../src/seams.ts';
 type FeedbackLine = ReviewFeedback & { surface?: string; ts: string };
 export const dataDir = (worktree: string) => join(worktree, '.wf', 'plannotator');
+
+// The adapter owns these review logs. Ignore them locally, not by changing shared Git excludes.
+export function prepareReviewDataDir(worktree: string): string {
+  const dir = dataDir(worktree);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, '.gitignore'), '*\n');
+  return dir;
+}
 // The binary: PATH first; else the Windows installer's dir, because a harness started
 // before the install (pi, herdr) keeps its old PATH and would otherwise fall back to $EDITOR.
 const installedExe = () => (process.env.LOCALAPPDATA ? join(process.env.LOCALAPPDATA, 'plannotator', 'plannotator.exe') : null);
@@ -42,7 +50,7 @@ function newestLine(dir: string, surface: string, since: string) {
 }
 // Blocking spawn (human submits in the browser); fold the newest line. Null = dismissed/none.
 function runAndFold({ worktree, args, surface, since }: { worktree: string; args: string[]; surface: string; since: string }) {
-  spawnSync(plannotatorBin()!, args, { cwd: worktree, env: { ...process.env, PLANNOTATOR_DATA_DIR: dataDir(worktree) }, stdio: 'inherit' });
+  spawnSync(plannotatorBin()!, args, { cwd: worktree, env: { ...process.env, PLANNOTATOR_DATA_DIR: prepareReviewDataDir(worktree) }, stdio: 'inherit' });
   const line = newestLine(dataDir(worktree), surface, since);
   return !line || line.decision === 'dismissed' ? null : line;
 }

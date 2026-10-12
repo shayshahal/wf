@@ -271,9 +271,11 @@ const cliRepo = (branch: string) => {
 	mkdirSync(join(repo, folder, 'repro'), { recursive: true });
 	writeFileSync(join(repo, folder, 'repro/run.spec.ts'), 'test\n');
 	writeFileSync(join(repo, folder, 'TICKET.md'), '# 106 - ticket\n\n## Intent\n\n- "x": fix the thing\n');
-	writeFileSync(join(repo, folder, 'ASSESSMENT.md'), '# 106 - assessment\nVerdict: clean\n\nhead: deadbeef\n\n## Intent\n- "x": met: src/x.ts:1 - before: a - after: b\n');
+	writeFileSync(join(repo, folder, 'ASSESSMENT.md'), `# 106 - assessment\nVerdict: clean\n\nhead: ${git('rev-parse', 'HEAD').trim()}\n\n## Intent\n- "x": met: src/x.ts:1 - before: a - after: b\n`);
 	mkdirSync(join(repo, '.wf'), { recursive: true });
 	writeFileSync(join(repo, '.wf', 'state.json'), `${JSON.stringify({ wf_version: 2, round: '106', id: '106', folder, base: 'main', step: 'review', class: 'A' }, null, 2)}\n`);
+	// These approval tests start after verification; the handoff gate is tested in next.selfcheck.ts.
+	writeFileSync(join(repo, '.wf', 'checks.log'), `${JSON.stringify({ row: null, result: 'green', content: worktreeContentSha(repo, folder, null, 'row'), tasks: [] })}\n`);
 	return { repo, git };
 };
 const approve = async (repo: string, branch: string) => {
@@ -428,6 +430,9 @@ const approve = async (repo: string, branch: string) => {
 		writeFileSync(join(repo, 'src/x.ts'), 'b\n');
 		git('add', '-A');
 		git('commit', '-q', '-m', 'fix(x): two');
+		// A repaired implementation must be checked and assessed again before reopening T2.
+		writeFileSync(join(repo, '.wf/checks.log'), `${JSON.stringify({ row: null, result: 'green', content: worktreeContentSha(repo, folder, null, 'row'), tasks: [] })}\n`);
+		writeFileSync(join(repo, folder, 'ASSESSMENT.md'), `# 106\nVerdict: clean\nhead: ${git('rev-parse', 'HEAD').trim()}\n## Intent\n- "x": met: src/x.ts:1 · before: a · after: b\n`);
 		const reopened = await runCli(repo, ['review', branch]);
 		check('re-opening after a committed change records the new content', reopened.status === 0 && readFileSync(reviewFile, 'utf8').split('head-sha: ').at(-1)!.startsWith('tree:'), reopened.out);
 		const staleAgain = await runCli(repo, ['review', branch, '--done']);

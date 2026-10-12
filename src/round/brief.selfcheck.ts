@@ -16,6 +16,7 @@ const check = (name: string, cond: boolean, detail = '') => {
 
 // ── pure: the handoff note and the dispatch guard
 check('a build brief ends with the step transition, not a token', handoffText('build', 'bug-reports/r', 'A').includes('wf step assess') && !handoffText('build', 'bug-reports/r', 'A').includes('<!-- brief:'), handoffText('build', 'bug-reports/r', 'A'));
+check('a build brief says wf step assess needs a wf check green and names BLOCKED.md for a check that cannot run', handoffText('build', 'bug-reports/r', 'A').includes('recorded a green') && handoffText('build', 'bug-reports/r', 'A').includes('BLOCKED.md') && handoffText('build', 'bug-reports/r', 'A').includes('do not retry blind'));
 check('an assess brief ends by naming ASSESSMENT.md', handoffText('assess', 'bug-reports/r', 'A').includes('ASSESSMENT.md'));
 check('a class A agree brief names TICKET.md', handoffText('agree', 'bug-reports/r', 'A').includes('TICKET.md'));
 check('a class B agree brief names AGREEMENT.md', handoffText('agree', 'bug-reports/r', 'B').includes('AGREEMENT.md'));

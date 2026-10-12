@@ -20,7 +20,7 @@ export const USES_STACK = new Set(['assess']);
 // Pure: the handoff a phase's brief ends with. No token is minted: the build's handoff is the step
 // transition `wf step assess`, the assessment's the ASSESSMENT.md it writes.
 export function handoffText(phase: string, folder: string | null, klass: string | null): string {
-	if (phase === 'build') return `\n## Handoff\n\nWhen the agreement's \`## Verification\` cases pass (\`wf check\`), commit, then run \`wf step assess\`. Or write \`${folder}/BLOCKED.md\` if you cannot proceed.\n`;
+	if (phase === 'build') return `\n## Handoff\n\nWhen the agreement's \`## Verification\` cases pass (\`wf check\`), commit, then run \`wf step assess\`: it refuses unless \`wf check\` recorded a green of the implementation as it now stands. If \`wf check\` cannot run (stack, git, a missing runner), do not retry blind: write \`${folder}/BLOCKED.md\` with a \`Question:\` naming what could not run. Write it too if you cannot proceed.\n`;
 	if (phase === 'assess') return `\n## Handoff\n\nWrite \`${folder}/ASSESSMENT.md\` whole, with its \`Verdict:\` line and \`head:\` line; then \`wf next\`.\n`;
 	return `\n## Handoff\n\nWrite \`${folder}/${agreementFile(klass as 'A' | 'B' | 'C')}\` (class ${klass}: ${consequential(klass as 'A' | 'B' | 'C') ? 'the agreement with `## Observed`, `## Agreed` and `## Verification`' : 'the ticket, with `## Repro` for a check round'}); then \`wf next\`.\n`;
 }

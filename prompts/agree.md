@@ -33,6 +33,8 @@ For borrowed examples and external references, say what each contributes: requir
 existing convention, or optional inspiration. Borrowing an example does not adopt its entire structure.
 
 A mock, a contract sketch or a call-stack view is worth drawing only when it resolves this task's
-expensive uncertainty; it is not a universal artifact.
+expensive uncertainty; it is not a universal artifact. For a consequential controls/layout change,
+show the proposed screen beside the current capture at the affected widths/directions before T1
+(`{{wf}}/process/SHOW-ME.md`).
 
 {{revisions}}

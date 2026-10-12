@@ -13,6 +13,7 @@ import { baseBranch, directUrls, guidance, name as projectName } from '../projec
 import { WF_HOME, WF_ROOT } from '../paths.ts';
 import { anchorToolPaths } from '../plugin/anchor.ts';
 import { seams } from '../seams.ts';
+import { readVerdict } from '../gates/review-format.ts';
 import { basePortForBranch } from '../worktrees/worktree.ts';
 import { agreementFile, agreementPath, agreementSha, ASSESSMENT_FILE, caseFiles, consequential, section, TICKET_FILE, verificationCases } from './agreement.ts';
 import { openQuestionGate, openRevisions, overruledAsks } from './ask.ts';
@@ -29,6 +30,13 @@ const templatesDir = join(WF_ROOT, 'prompts');
 export function ticketIntent(text: string) {
 	const body = text.replace(/\r\n/g, '\n').match(/^## Intent[ \t]*\n([\s\S]*?)(?=^## |(?![\s\S]))/m)?.[1].trim();
 	return body || null;
+}
+
+/** Carry the newest rejected T2 review, including evidence references, into the repair build. */
+export function reviewRepairText(text: string): string | null {
+	if (readVerdict(text) !== 'changes-requested') return null;
+	// Review files append dated sections; older comments must not be treated as new scope.
+	return text.replace(/\r\n/g, '\n').split(/^## \d{4}-\d{2}-\d{2}[ \t]*$/m).at(-1)?.trim() || null;
 }
 
 export const PHASES = ['agree', 'build', 'assess'];
@@ -66,7 +74,7 @@ export function composePrompt(argv: string[]) {
 	// Owner feedback (`## Decisions`, wf decide) reaches the build and the assessment through
 	// `agreedMaterial` in the `{{agreement}}` of both templates — one projection, so the text is not
 	// duplicated (#114 closure, F2).
-	const vars: PromptVars = { round: id, folder, base: state?.base ?? `origin/${baseBranch}`, intent, agreement: agreedMaterial(agreementText, klass), file: agreementFile(klass), assessment: '' };
+	const vars: PromptVars = { round: id, folder, base: state?.base ?? `origin/${baseBranch}`, intent, agreement: agreedMaterial(agreementText, klass), file: agreementFile(klass), assessment: '', review: '' };
 	// The project's direct URLs, {{<app>}}: Node on Windows cannot resolve *.localhost.
 	try {
 		const base = basePortForBranch(execFileSync('git', ['-C', toplevel, 'rev-parse', '--abbrev-ref', 'HEAD'], { encoding: 'utf8' }).trim());
@@ -93,6 +101,10 @@ export function composePrompt(argv: string[]) {
 	if (phase === 'build' && existsSync(join(toplevel, folder ?? '', ASSESSMENT_FILE))) {
 		const a = readFileSync(join(toplevel, folder!, ASSESSMENT_FILE), 'utf8');
 		if (/^Verdict:[ \t]*(repair|blocked)\b/m.test(a)) vars.assessment = `## Findings from the last assessment\n\n${a.trim()}`;
+	}
+	if (phase === 'build' && existsSync(join(toplevel, folder!, 'REVIEW.md'))) {
+		const repair = reviewRepairText(readFileSync(join(toplevel, folder!, 'REVIEW.md'), 'utf8'));
+		if (repair) vars.review = `## Corrections from the latest T2 review\n\n${repair}`;
 	}
 	// The project's notes for this phase: what its repo, apps and tests look like.
 	const notes = join(WF_ROOT, 'projects', projectName, 'prompts', `${phase}.md`);

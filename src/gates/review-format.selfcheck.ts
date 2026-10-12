@@ -2,7 +2,8 @@
 // The pure renderer the T1/T2 pages come from. The wrapped-bullet arm is the render-check regression
 // (2026-10-10): the agreement template wraps a long bullet onto a continuation line, and a comment on
 // that line must fold onto the agreement's own line.
-import { pageLine, agreementBody } from './review-format.ts';
+import { isDeepStrictEqual } from 'node:util';
+import { pageLine, agreementBody, proofPairs, unpairedProofImages } from './review-format.ts';
 
 let failures = 0;
 const check = (name: string, cond: boolean, detail = '') =>
@@ -34,6 +35,20 @@ check('a deeper bullet nests inside its parent bullet, not beside it', deeper.in
 const diff = agreementBody('```diff\n+ added\n- removed\n~ changed\n context\n```\n');
 check('diff markers colour add/del/chg/ctx', ['add', 'del', 'chg', 'ctx'].every((c) => diff.includes(`class="${c}"`)), diff);
 check('hostile text is escaped', agreementBody('a <script>x</script> b\n').includes('&lt;script&gt;x&lt;/script&gt;'), agreementBody('a <script>x</script> b\n'));
+
+// JX-1239: a round shot after-he-1280-assess.png, after-start-now-checked.png … and wf post attached zero:
+// pairing took numbered names only. A meaningful name is a name; a side with no partner is still shown.
+const incident = ["after-he-1280-assess.png", "after-he-1024-assess.png", "after-start-now-checked.png", "notes.md"];
+const named = proofPairs(incident);
+check("named after-only screenshots are all recognized, none invented a before", named.length === 3 && named.every((p) => p.after && !p.before), JSON.stringify(named));
+check("named screenshots keep their label and sort by it", JSON.stringify(named.map((p) => ('label' in p ? p.label : p.n))) === JSON.stringify(["he-1024-assess", "he-1280-assess", "start-now-checked"]), JSON.stringify(named));
+const mixed = proofPairs(["after-login.png", "before-login.png", "before-2.png", "after-10.png", "after-2.png"]);
+check("a before and an after with the same label pair; numbers sort numerically and come before names", isDeepStrictEqual(mixed, [{ n: 2, before: "before-2.png", after: "after-2.png" }, { n: 10, after: "after-10.png" }, { label: "login", before: "before-login.png", after: "after-login.png" }]), JSON.stringify(mixed));
+const twins = proofPairs(["before-1.png", "before-01.png", "after-1.jpg", "after-1.png"]).flatMap((p) => [p.before, p.after]).filter(Boolean).sort();
+check("no picture is dropped for sharing a number or a label with another", twins.join() === "after-1.jpg,after-1.png,before-01.png,before-1.png", twins.join());
+check("jpg, jpeg, webp and upper-case names are screenshots too", proofPairs(["after-a.JPG", "after-b.jpeg", "before-c.webp"]).length === 3);
+check("only before-/after- pictures pair: other files and other pictures do not", proofPairs(["listing.png", "trace.zip", "after.md", "afterwards-1.png", "before-.png"]).length === 0);
+check("pictures proof/ has that no pair takes are named, so a post can say it refused them", unpairedProofImages(["listing.png", "after-1.png", "trace.zip", "video.webm", "Shot.JPG"]).join() === "listing.png,Shot.JPG", unpairedProofImages(["listing.png", "after-1.png", "trace.zip", "Shot.JPG"]).join());
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');
 process.exit(failures ? 1 : 0);

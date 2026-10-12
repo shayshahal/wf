@@ -1,7 +1,12 @@
 // worktree.selfcheck.ts — node worktree.selfcheck.ts → exit 0 when green.
 // Pure arms only: parsing the worktree list, resolving a name, the url lines. Nothing is run,
 // created or removed. Shay's removal plan: env/worktrees.selfcheck.ts.
-import { mainCheckout, parseWorktreeList, resolveWorktree, urlLines, worktreesHome } from './worktree.ts';
+import { execFileSync } from 'node:child_process';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { excludeWfFolder, mainCheckout, parseWorktreeList, resolveWorktree, urlLines, worktreesHome } from './worktree.ts';
+import { worktreeContentSha } from '../gates/content-identity.ts';
 
 let failures = 0;
 const check = (name: string, cond: unknown, detail = '') =>
@@ -29,6 +34,35 @@ check('a bare repository has no main checkout', mainCheckout(bareRepo) === null)
 check('the kit\'s worktrees go in <repo>/.claude/worktrees', worktreesHome(clone) === 'C:/work/jx/.claude/worktrees' && worktreesHome([{ path: 'C:\\work\\jx\\', bare: false }]) === 'C:/work/jx/.claude/worktrees');
 check('beside a bare repository, in the folder holding it', worktreesHome(bareRepo) === 'C:/work/jx/.claude/worktrees');
 check('url lines: one `<app>: <url>` per app, aligned', urlLines({ b2b: 'http://a', admin: 'http://b' }) === 'b2b:   http://a\nadmin: http://b', urlLines({ b2b: 'http://a', admin: 'http://b' }));
+
+// JX-1239 and JX-1350 share the Git exclude file. One worker toggling the shared rule must
+// not expose the other round's metadata or invalidate a check's implementation identity.
+const fixture = mkdtempSync(join(tmpdir(), 'wf-local-exclude-'));
+try {
+	const git = (...args: string[]) => execFileSync('git', ['-C', fixture, ...args], { encoding: 'utf8' }).trim();
+	git('init', '-q', '-b', 'main');
+	writeFileSync(join(fixture, 'source.txt'), 'source\n');
+	git('add', 'source.txt');
+	git('-c', 'user.name=wf test', '-c', 'user.email=wf@example.invalid', 'commit', '-qm', 'base');
+	const round = join(fixture, 'round');
+	git('worktree', 'add', '-q', '-b', 'round', round);
+	const exclude = join(fixture, '.git', 'info', 'exclude');
+	const before = readFileSync(exclude, 'utf8');
+	excludeWfFolder(fixture);
+	excludeWfFolder(round);
+	check('wf ignores round metadata without mutating shared Git configuration', readFileSync(exclude, 'utf8') === before);
+	check('each worktree owns its metadata ignore rule', existsSync(join(fixture, '.wf', '.gitignore')) && existsSync(join(round, '.wf', '.gitignore')));
+	mkdirSync(join(round, '.wf'), { recursive: true });
+	writeFileSync(join(round, '.wf', 'state.json'), '{}\n');
+	writeFileSync(exclude, `${before}\n.wf/\n`);
+	const identity = worktreeContentSha(round, null, null, 'row');
+	writeFileSync(exclude, `${before}\n#.wf/\n`);
+	check('another round toggling the shared exclude cannot change this round\'s identity', worktreeContentSha(round, null, null, 'row') === identity);
+	const status = execFileSync('git', ['-C', round, 'status', '--short'], { encoding: 'utf8' });
+	check('metadata stays untracked-and-ignored when the shared rule is disabled', !status.includes('.wf'), status);
+	writeFileSync(join(round, '.wf', 'evil.sh'), 'source\n');
+	check('local metadata ignores do not hide unowned executable files from identity', worktreeContentSha(round, null, null, 'row') !== identity);
+} finally { rmSync(fixture, { recursive: true, force: true }); }
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');
 process.exit(failures ? 1 : 0);

@@ -117,10 +117,17 @@ const lockTemps = (d: string) => {
 	const wf = join(d, '.wf');
 	return existsSync(wf) ? readdirSync(wf).filter((n) => /^state\.json\.lock\..*\.tmp$/.test(n)) : [];
 };
-const waitForContention = async (d: string) => {
+const waitForContention = async (d: string, callers: number) => {
 	const deadline = Date.now() + 20_000;
+	const seen = new Set<string>();
 	while (Date.now() < deadline) {
-		if (lockTemps(d).length) return;
+		// 2026-10-12 full selfcheck: seeing only the ask's temp released the holder before decide
+		// had read q5. Observe every caller, even when their short-lived temps do not overlap.
+		for (const name of lockTemps(d)) {
+			const pid = /^state\.json\.lock\.(\d+)\./.exec(name)?.[1];
+			if (pid) seen.add(pid);
+		}
+		if (seen.size >= callers) return;
 		await sleep(2);
 	}
 	throw new Error('the command under test never contended for the state lock');
@@ -130,7 +137,7 @@ const raceWith = async (d: string, kind: string, start: () => Kid[]) => {
 	await holder.ready;
 	const kids = start();
 	await Promise.all(kids.map((k) => k.ready));
-	await waitForContention(d);
+	await waitForContention(d, kids.length);
 	writeFileSync(join(d, '.go'), '');
 	await holder.done;
 	return Promise.all(kids.map((k) => k.done));

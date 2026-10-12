@@ -6,12 +6,12 @@ removes a worktree is the machine's: the kit makes them with `git worktree` in
 `removalPlan`). What the setup does is the project's: its `setup`, `serve` and `teardown` in
 `projects/<name>/index.ts` (JewelryX's: `{{project}}/STACK.md`).
 
-Create worktrees only via `wf new <branch> [--base <ref>] [--class B|C] [--check] [--id <token>]...`
+Create worktrees only via `wf new <branch> --class A|B|C [--base <ref>] [--check] [--id <token>]...`
 (default base `origin/<the project's base branch>`): it makes the worktree, runs the project's
 setup, then `wf step classify`. A raw `git worktree add` skips the setup. `--id <ticket id>`
 refuses to cut the worktree when a round folder or a commit already names the id — read
-that first. `--class B|C` asserts the class at creation: an agreement-first round has no code to
-measure, and `wf step classify` only ever upgrades (A→B→C), never downgrades. The class that binds
+that first. Choose `--class A|B|C` from the ticket and scope before creation (required except for
+`--check`): an agreement-first round has no code to measure, and `wf step classify` only ever upgrades (A→B→C), never downgrades. The class that binds
 is measured again from the agreement's verification-case files (`wf next`).
 
 Ports: one hashed port P per branch, from the branch name (`ports.ts`, 10000–19999); the project

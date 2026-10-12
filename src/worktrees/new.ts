@@ -113,14 +113,19 @@ export function fetchFor(base: string) {
 export async function runNew(argv: string[]) {
 	const branch = argv[0];
 	// A flag first is not a branch: `wf new --help` went to git as one and printed git branch's usage (TJEW-670).
-	if (!branch || branch.startsWith('-')) { console.error('usage: wf new <branch> [--base <ref>] [--class B|C] [--check] [--id <token>]...'); refuseCaller(); }
+	if (!branch || branch.startsWith('-')) { console.error('usage: wf new <branch> --class A|B|C [--base <ref>] [--check] [--id <token>]...'); refuseCaller(); }
 	// wt defaults --base to the repo's default branch; rounds branch off the project's base branch.
 	const bi = argv.indexOf('--base');
 	const base = bi === -1 ? `origin/${baseBranch}` : argv[bi + 1];
 	if (!base) { console.error('wf new: --base needs a ref'); refuseCaller(); }
 	const ci = argv.indexOf('--class');
 	const klass = ci === -1 ? null : argv[ci + 1];
-	if (ci !== -1 && !['B', 'C'].includes(klass!)) { console.error('wf new: --class is B or C (A is the measured default)'); refuseCaller(); }
+	if ((!argv.includes('--check') && ci === -1) || (ci !== -1 && !['A', 'B', 'C'].includes(klass ?? ''))) {
+		// JX-1239, 2026-10-12: the scope already required an API change, but an empty diff
+		// defaulted to A. Classification is a pre-build decision, not a post-build discovery.
+		console.error('wf new: choose --class A|B|C from the ticket and scope before building (B for a contract change, C for an owed product decision); an empty diff is not a classification');
+		refuseCaller();
+	}
 	const ids = argv.flatMap((a, i) => (a === '--id' && argv[i + 1] ? [argv[i + 1]] : []));
 	// Neither wt nor git fetches: a clone days behind branched its round off a stale base (the kit
 	// plan's step 3 review, 2026-09-27). Offline, the round starts from the base this clone has.

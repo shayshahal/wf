@@ -13,11 +13,12 @@
 //   review | deliver | check | done        the orchestrator runs it, then wf next
 // It does the bookkeeping itself (the step, a question the round now waits on).
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { refuseCaller } from '../refusal.ts';
 import { addQuestion, blockedQuestion, openRevisions } from './ask.ts';
-import { agreementClass, agreementGap, agreementPath, agreementSha, AGREEMENT_FILE, AGREEMENT_REVIEW_FILE, ASSESSMENT_FILE, assessmentGap, assessmentHead, assessmentMaterial, assessmentVerdict, caseFiles, consequential, REVIEW_FILE, verificationCases } from './agreement.ts';
+import { agreementClass, agreementGap, agreementPath, agreementSha, AGREEMENT_FILE, AGREEMENT_REVIEW_FILE, ASSESSMENT_FILE, assessmentGap, assessmentHead, assessmentMaterial, assessmentOpenGaps, assessmentVerdict, caseFiles, consequential, REVIEW_FILE, verificationCases } from './agreement.ts';
 import { contractPaths as contractPathsFile } from '../project.ts';
 import { classFromFiles } from '../gates/classify.ts';
 import { changedFiles } from '../gates/check.ts';
@@ -27,7 +28,8 @@ import { modelFor } from '../models.ts';
 import type { Models } from '../models.ts';
 import { readState, resolveRoundBase, toplevelOf, writeState } from './state.ts';
 import type { Question, RoundClass } from './state.ts';
-import { higherClass, runStep } from './step.ts';
+import { checkGap, checkGapLine, checksEvidence, higherClass, runStep, suitesGap } from './step.ts';
+import type { ChecksEvidence } from './step.ts';
 
 // How many times a within-agreement finding is repaired autonomously before one contextual escalation
 // (#113.3). An evaluated default, not a universal rule (#110).
@@ -57,6 +59,9 @@ export type Snapshot = {
 	revisions?: { text: string; at: string; sha?: string | null }[];
 	blockedAnswered?: number;
 	repairs?: number;
+	// .wf/checks.log and the implementation's identity now (step.ts checksEvidence). Absent in a pure arm
+	// that tests nothing about checks; snapshotOf always provides it.
+	checks?: ChecksEvidence;
 };
 export type Effect =
 	| { step?: string[]; ask?: { to: string; text: string; dflt: string | null; source: string }; repair?: true; blockedAnswered?: number };
@@ -178,6 +183,10 @@ export function nextAction(s: Snapshot): { say: string; effects: Effect[] } {
 			}
 			return act(`wait user: blocked — ${q}`);
 		}
+		// A build that ended with its check unable to run (not red on the code) is a harness trouble no
+		// redispatch changes: stop and say what, once, instead of looping the build (JX-1239).
+		const trouble = s.checks ? checkGap(s.checks) : null;
+		if (trouble?.kind === 'harness') return act(`wait user: harness — ${checkGapLine(trouble)}. Once fixed, run \`${wf} check\`, then \`${wf} next\``);
 		return dispatch('build');
 	}
 
@@ -185,6 +194,14 @@ export function nextAction(s: Snapshot): { say: string; effects: Effect[] } {
 	// autonomously, bounded; unmet intent blocks T2 until fixed, accepted or held; a material change
 	// is one contextual escalation.
 	if (step === 'assess') {
+		// The assessment judges an implementation wf check measured: a hand-off without a green of these
+		// bytes (a direct `wf step assess` is refused too, step.ts) goes back, never on to the assessor.
+		const unchecked = s.checks ? checkGap(s.checks) : null;
+		if (unchecked?.kind === 'harness') return act(`wait user: harness — ${checkGapLine(unchecked)}. Once fixed, run \`${wf} check\`, then \`${wf} next\``);
+		if (unchecked) {
+			effects.push({ step: ['build'] });
+			return dispatch('build', checkGapLine(unchecked));
+		}
 		const gap = assessmentGap(s.files.assessment);
 		if (gap) return dispatch('assess', gap);
 		const measured = assessmentHead(s.files.assessment);
@@ -248,6 +265,24 @@ export function nextAction(s: Snapshot): { say: string; effects: Effect[] } {
 				return dispatch('build', `repair ${attempts + 1} of ${MAX_REPAIRS} for ASSESSMENT.md's findings`);
 			}
 		}
+		// A clean verdict does not pass a verification gap the assessment states (INCONCLUSIVE, NOT
+		// VERIFIED, NOT MEASURED) or a suite that is red at these bytes: one fix-or-accept ruling, tied
+		// to this assessment's head and these very lines. "The file is untouched" is not a ruling.
+		const redSuites = s.checks ? suitesGap(s.checks) : null;
+		const open = verdict === 'clean' ? [...assessmentOpenGaps(s.files.assessment), ...(redSuites ? [redSuites] : [])] : [];
+		if (open.length) {
+			const source = `ASSESSMENT.md#${measured ?? 'unknown'}#open:${createHash('sha256').update(open.join('\n')).digest('hex').slice(0, 8)}`;
+			const ruling = (s.answered ?? []).find((q) => q.source === source);
+			if (!ruling) {
+				const q = `the assessment is clean but leaves verification open: ${open.join(' · ')} — answer \`accept\` to carry it into T2, or say how to fix it (a broken harness or a stale recipe is fixed first, a test is not weakened)`;
+				effects.push({ ask: { to: 'user', text: q, dflt: null, source } });
+				return act(`wait user: ${q}`);
+			}
+			if (!/^\s*accept\b/i.test(ruling.answer ?? '')) {
+				effects.push({ step: ['build'] });
+				return dispatch('build', 'the ruling is to close the verification the assessment left open, not accept it');
+			}
+		}
 		return act(t2);
 	}
 	return act(`wait user: step "${step}" has no next action`);
@@ -303,6 +338,7 @@ export function snapshotOf(toplevel: string): Snapshot {
 		contractPaths: read(join(toplevel, contractPathsFile)),
 		folder: state.folder ?? null,
 		filesChanged,
+		checks: checksEvidence(toplevel, state),
 	};
 }
 

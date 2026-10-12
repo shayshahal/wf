@@ -24,8 +24,11 @@ path. This file is the rest, and the rules all of them follow.
   how it connects. The prose is the thread; the views are the beads.
 - **Order the views to tell the change's story**, not to fill the table above: files first when
   ownership is the question, a shape first when it explains the rest.
-- **Every view is optional.** A plan with no call stack is a plan (`CALL-STACK-FORMAT.md`, "no diff");
-  a presentation change has no stack at all.
+- **Choose views for uncertainty, not completeness.** A plan with no call stack is a plan
+  (`CALL-STACK-FORMAT.md`, "no diff"); a presentation change has no stack at all. When a consequential
+  change alters controls or layout, T1 sees the proposed screen beside the current capture, including
+  affected widths and directions. A prototype is enough; textual placement alone hid JX-1239's
+  narrowed pickers until T2 (2026-10-12).
 - **`diff` blocks**: `+` added, `-` removed, `~` changed, a leading space unchanged — the same
   markers as the call stack, so a reader learns one grammar.
 - **An HTML artifact is a view, not a second document.** One focused file, in the round folder, for

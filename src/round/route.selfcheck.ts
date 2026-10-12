@@ -8,6 +8,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { agreementSha } from './agreement.ts';
+import { worktreeContentSha } from '../gates/content-identity.ts';
 import { WF_ROOT } from '../paths.ts';
 
 let failures = 0;
@@ -55,6 +56,8 @@ function cli(dir: string, ...args: string[]) {
 		return { out: `${err.stdout ?? ''}${err.stderr ?? ''}`, code: err.status ?? 1 };
 	}
 }
+// Route fixtures that start after build carry the verification checkpoint the new boundary requires.
+const checked = (dir: string) => writeFileSync(join(dir, '.wf/checks.log'), `${JSON.stringify({ row: null, result: 'green', content: worktreeContentSha(dir, 'bug-reports/r', null, 'row'), tasks: [] })}\n`);
 const state = (dir: string) => JSON.parse(readFileSync(join(dir, '.wf/state.json'), 'utf8')) as { step?: string; class?: string; questions?: unknown[]; repairs?: number };
 const approve = (dir: string, klass: 'B', agreement: string) => {
 	writeFileSync(join(dir, 'bug-reports/r/AGREEMENT-REVIEW.md'), `agreement-sha: ${agreementSha(dir, klass, 'bug-reports/r')}\nverdict: approved\n`);
@@ -112,6 +115,7 @@ const approve = (dir: string, klass: 'B', agreement: string) => {
 	const assess = (v: string, intent: string) => `# r — assessment\nVerdict: ${v}\nhead: ${execFileSync('git', ['-C', dir, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()}\n## Intent\n${intent}\n`;
 	const setStep = (step: string, extra: object = {}) => writeFileSync(join(dir, '.wf/state.json'), `${JSON.stringify({ wf_version: 2, round: 'r', id: 'r', folder: 'bug-reports/r', base: 'main', step, class: 'A', ...extra })}\n`);
 	setStep('assess');
+	checked(dir);
 	writeFileSync(join(dir, 'bug-reports/r/ASSESSMENT.md'), assess('repair', '- "x": met: src/Page.svelte:1 · before: red · after: green'));
 	const repair = cli(dir, 'next');
 	check('assessment: a repair returns to build, counted', repair.out.includes('repair 1 of 2') && state(dir).step === 'build' && state(dir).repairs === 1, repair.out);
@@ -152,6 +156,7 @@ const approve = (dir: string, klass: 'B', agreement: string) => {
 	const head = execFileSync('git', ['-C', dir, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
 	// An excluded intent line with a reason is a clean assessment: it reaches T2, not a question.
 	writeFileSync(join(dir, 'bug-reports/r/ASSESSMENT.md'), `# r — assessment\nVerdict: clean\nhead: ${head}\n## Intent\n- "x": left out: overruled by Shay, 2026-10-10: a separate ticket\n`);
+	checked(dir);
 	const decided = cli(dir, 'next');
 	check('decided exclusion: a left-out line with a reason reaches T2, not a question', decided.out.startsWith('review: T2'), decided.out);
 	rmSync(dir, { recursive: true, force: true });

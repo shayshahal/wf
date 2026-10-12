@@ -77,6 +77,17 @@ export async function run(argv: string[], pieces: Partial<Seams> = {}) {
 			process.exit(1);
 		}
 	}
+	// Upgrade existing rounds too: each round's ignore rule is local, so another worktree
+	// changing shared Git excludes cannot expose our metadata mid-check (JX-1239, 2026-10-12).
+	if (['next', 'brief', 'step', 'check', 'review', 'deliver'].includes(cmd)) {
+		const { readState, toplevelOf } = await import('./round/state.ts');
+		let top: string | null = null;
+		try { top = toplevelOf(); } catch { /* outside a worktree: the command reports its own usage */ }
+		if (top && readState(top)?.folder) {
+			const { excludeWfFolder } = await import('./worktrees/worktree.ts');
+			excludeWfFolder(top);
+		}
+	}
 	if (cmd === 'step') {
 		const { runStep } = await import('./round/step.ts');
 		await runStep(rest);

@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { WF_ROOT } from '../paths.ts';
+import { worktreeContentSha } from './content-identity.ts';
 const root = WF_ROOT;
 const { agreementSha } = await import(pathToFileURL(join(root, 'src/round/agreement.ts')).href);
 const serveUrl = pathToFileURL(join(root, 'src/worktrees/serve.ts')).href;
@@ -23,17 +24,18 @@ for (const klass of ['A', 'B']) {
     mkdirSync(join(dir, folder, 'proof'), { recursive: true });
     mkdirSync(join(dir, '.wf'), { recursive: true });
     const agreementName = klass === 'A' ? 'TICKET.md' : 'AGREEMENT.md';
-    const material = klass === 'A' ? '## Intent\nKeep the intended behavior.\n' : '## Observed\n- behavior — `product.txt:1`\n\n## Agreed\n- Keep the intended behavior.\n';
+    const material = klass === 'A' ? '## Intent\nKeep the intended behavior.\n' : '## Observed\n- behavior — `product.txt:1`\n\n## Agreed\n- Keep the intended behavior.\n\n## Verification\n| # | case | files | check |\n|---|---|---|---|\n| 1 | layout | product.txt | manual: compare captures |\n';
     writeFileSync(join(dir, folder, agreementName), `${material}\n## Before\nproof/before-1.png — ROUND-BEFORE-${klass}\n`);
     writeFileSync(join(dir, 'ASSESSMENT.md'), 'proof/after-1.png — WRONG-ROOT-CAPTION\n');
     git('add', 'ASSESSMENT.md'); git('commit', '-qm', 'root caption decoy');
-    writeFileSync(join(dir, folder, 'ASSESSMENT.md'), `head: ${git('rev-parse', 'HEAD')}\nVerdict: clean\n\n## Live\nproof/after-1.png — ROUND-AFTER-${klass}\n`);
+    writeFileSync(join(dir, folder, 'ASSESSMENT.md'), `head: ${git('rev-parse', 'HEAD')}\nVerdict: clean\n\n## Intent\n- "behavior": met: product.txt:1 · before: before · after: after\n\n## Live\nproof/after-1.png — ROUND-AFTER-${klass}\n`);
     // Real PNG bytes, not strings masquerading as images. Browser loading is verified separately.
     const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl6pAAAAABJRU5ErkJggg==', 'base64');
     writeFileSync(join(dir, folder, 'proof/before-1.png'), png);
     writeFileSync(join(dir, folder, 'proof/after-1.png'), png);
     if (klass === 'B') writeFileSync(join(dir, folder, 'AGREEMENT-REVIEW.md'), `agreement-sha: ${agreementSha(dir, klass, folder)}\nverdict: approved\n`);
     writeFileSync(join(dir, '.wf/state.json'), JSON.stringify({ wf_version: 2, made_by: 'kit', round: 'fix/caption', id: 'caption', folder, base: 'main', class: klass, step: 'assess' }));
+    writeFileSync(join(dir, '.wf/checks.log'), `${JSON.stringify({ row: null, result: 'green', content: worktreeContentSha(dir, folder, null, 'row'), tasks: [] })}\n`);
     const hook = `${dir}-skip-fixture-services.mjs`;
     writeFileSync(hook, `import { registerHooks } from 'node:module';\nregisterHooks({ load(url, context, nextLoad) {\n const loaded = nextLoad(url, context);\n if (url !== ${JSON.stringify(serveUrl)}) return loaded;\n const source = typeof loaded.source === 'string' ? loaded.source : Buffer.from(loaded.source).toString('utf8');\n const marker = 'export async function ensureServers(worktree: string, { wait = false, timeoutMs = 180_000 }: { wait?: boolean; timeoutMs?: number } = {}): Promise<string> {';\n if (!source.includes(marker)) throw Error('review caption CLI: service fixture boundary not found');\n return { ...loaded, source: source.replace(marker, marker + '\\n return "review caption CLI: services intentionally stubbed";') };\n}});\n`);
     const result = spawnSync(process.execPath, ['--import', pathToFileURL(hook).href, join(root, 'wf.mjs'), 'review', 'fix/caption', '--base', 'main'], { cwd: dir, encoding: 'utf8', env: { ...process.env, CLAUDECODE: '1' }, timeout: 20000 });

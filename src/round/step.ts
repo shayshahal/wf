@@ -17,7 +17,8 @@ import { CLASSIFY } from '../paths.ts';
 import { agreementGap, agreementPath, agreementSha, AGREEMENT_REVIEW_FILE, consequential } from './agreement.ts';
 import { lastField, readVerdict } from '../gates/review-format.ts';
 import { people } from '../project.ts';
-import { roundFile, readState, writeState, WF_STATE_VERSION } from './state.ts';
+import { roundFile, roundOf, readState, writeState, WF_STATE_VERSION } from './state.ts';
+import { worktreeContentSha } from '../gates/content-identity.ts';
 import type { RoundClass, State } from './state.ts';
 import { stepHistory } from './friction.ts';
 
@@ -40,6 +41,63 @@ export function t1Gap(toplevel: string, state: State | null): string | null {
 	const verdict = readVerdict(text);
 	if (verdict !== 'approved') return `${AGREEMENT_REVIEW_FILE} verdict is ${verdict ?? 'pending'}`;
 	return null;
+}
+// The wf check evidence a step boundary and wf next read: .wf/checks.log (check.ts) and the row-scope
+// identity of the implementation now (content-identity.ts). `content: null` is git unable to compute
+// the tree now.
+export type ChecksEvidence = { log: string; content: string | null };
+type LogLine = { row?: unknown; result?: string; cause?: string; content?: string; tasks?: { label?: string; exit?: number | null; missing?: string }[] };
+const logLines = (log: string): LogLine[] => log.split(/\r?\n/).filter((l) => l.trim()).flatMap((l) => {
+	try { return [JSON.parse(l) as LogLine]; } catch { /* a line cut off mid-write: skipped, the rest still read */ return []; }
+});
+
+// Pure: null when checks.log holds a wf check green of exactly the implementation as it is now — the
+// identity check.ts records on every run (row scope: product and tests, not the round folder or .wf,
+// so a paperwork-only commit leaves it in force). Else `harness` when the check cannot run at all
+// (git cannot compute the tree, or the last run of these bytes was an environment red / an unreadable
+// tree): rerunning the build changes nothing, a person or the build's BLOCKED.md must name it. Else
+// `check`: no run, other bytes or a code red — the build runs `wf check`. 2026-10-12 JX-1239: a build ran
+// `wf step assess` on a round whose tree computation was broken, with no wf-recorded pass, and a clean
+// assessment then reached T2.
+export function checkGap({ log, content }: ChecksEvidence): { kind: 'harness' | 'check'; say: string } | null {
+	if (content === null) return { kind: 'harness', say: "git cannot compute the implementation's tree, so wf check cannot name what it measures" };
+	const runs = logLines(log).filter((l) => l.row !== 'repro' && l.row !== 'suites');
+	const mine = runs.filter((l) => l.content === content).at(-1);
+	const last = runs.at(-1);
+	const trouble = (l: LogLine | undefined) => l !== undefined && (l.result === 'unavailable' || (l.result === 'red' && l.cause === 'environment')) && (l.content === content || l.content === undefined);
+	if (trouble(last)) {
+		const why = (last!.tasks ?? []).map((t) => t.missing).find(Boolean) ?? (last!.result === 'unavailable' ? 'git could not read the tree before and after the run' : 'a task could not run');
+		return { kind: 'harness', say: `the last wf check could not run (${why})` };
+	}
+	if (mine?.result === 'green') return null;
+	if (!runs.length) return { kind: 'check', say: 'no wf check has run in this round' };
+	if (mine) return { kind: 'check', say: `the last wf check of this implementation is ${mine.result ?? 'not green'}` };
+	return { kind: 'check', say: 'the implementation changed since the last wf check' };
+}
+
+// Pure: the one-line reason a `wf check` green of this implementation is missing, with what to do.
+export function checkGapLine(gap: NonNullable<ReturnType<typeof checkGap>>): string {
+	return gap.kind === 'harness'
+		? `${gap.say} — fix that and run \`wf check\` green, or write BLOCKED.md with a Question: naming it and stop; do not hand off or retry blind`
+		: `${gap.say} — run \`wf check\` and fix what it says; \`wf step\` hands off only a green of the implementation as it is`;
+}
+
+// Pure: the whole-suites gap of this implementation, or null: the last `wf check --suites` line of
+// exactly these bytes is not green. A suites line of other bytes measured something else and is ignored.
+export function suitesGap({ log, content }: ChecksEvidence): string | null {
+	const last = logLines(log).filter((l) => l.row === 'suites' && l.content !== undefined && l.content === content).at(-1);
+	if (!last || last.result === 'green') return null;
+	const red = (last.tasks ?? []).filter((t) => t.exit !== 0).map((t) => t.label).filter(Boolean);
+	return `suites ${last.result ?? 'not green'} at this implementation${red.length ? `: ${red.join(', ')}` : ''}`;
+}
+
+// The shell: the evidence of the round at `toplevel`, as wf check would have recorded it.
+export function checksEvidence(toplevel: string, state: State | null): ChecksEvidence {
+	let log = '';
+	try { log = readFileSync(join(toplevel, '.wf', 'checks.log'), 'utf8'); } catch { /* no wf check has run here: an empty log says so */ }
+	let content: string | null = null;
+	try { content = worktreeContentSha(toplevel, roundOf(state, toplevel).folder, null, 'row'); } catch { /* git cannot compute the tree: null is the harness gap */ }
+	return { log, content };
 }
 export const higherClass = (a: RoundClass | null, b: RoundClass): RoundClass => (CLASSES.indexOf(a ?? 'A') >= CLASSES.indexOf(b ?? 'A') ? a ?? 'A' : b);
 
@@ -106,6 +164,8 @@ export async function runStep(argv: string[], { quiet = false } = {}) {
 		if ((assertedClass ?? prev.class) && kept !== measured) console.error(`wf step classify: paths measure ${measured}, keeping asserted ${kept} (a class never downgrades)`);
 	}
 	const since = new Date().toISOString();
+	// Direct review/step callers must obey the same assessment rulings as wf next, not bypass it.
+	const reviewPolicy = step === 'review' ? await import('./next.ts') : null;
 	let state: State;
 	try {
 		state = writeState(toplevel, (current) => {
@@ -118,6 +178,16 @@ export async function runStep(argv: string[], { quiet = false } = {}) {
 			if ((step === 'build' || step === 'assess' || step === 'review') && consequential(klass)) {
 				const reason = t1Gap(toplevel, { ...current, class: klass });
 				if (reason) throw new StepGateError(`class ${klass} round, ${reason} — T1 (wf agree) must approve the agreement material ${step === 'build' ? 'that is about to be built' : `before \`${step}\``}`);
+			}
+			// The handoff past the build needs a wf check green of the implementation as it is: a build
+			// that skipped `wf check`, or whose check could not run, does not reach the assessment or T2.
+			if (step === 'assess' || step === 'review') {
+				const gap = checkGap(checksEvidence(toplevel, current));
+				if (gap) throw new StepGateError(checkGapLine(gap));
+			}
+			if (reviewPolicy) {
+				const decision = reviewPolicy.nextAction({ ...reviewPolicy.snapshotOf(toplevel), step: 'assess' });
+				if (!decision.say.startsWith('review: T2')) throw new StepGateError(`${decision.say} — run wf next to record or resolve it before T2`);
 			}
 			// A build needs an agreement to build from. Class A's is TICKET.md; B/C's is AGREEMENT.md.
 			if (step === 'build') {

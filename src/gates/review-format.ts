@@ -134,21 +134,44 @@ export const lastField = (text: string, key: string) => [...text.matchAll(new Re
 // the reviewer's screen. It lives in the round's diff, wherever the bug folder is.
 export const asBuiltFile = (files: string[]) => files.find((f) => /(^|\/)proof\/CALL-STACK-AS-BUILT\.md$/.test(f)) ?? null;
 
-// Pure: the round's before/after screenshots, paired by number: research takes `proof/before-<n>.png` on
-// the base, validate `proof/after-<n>.png` of the same view on the fix. T2 sees the change, not only the
-// diff (Factory's /demo shoots both branches with the same steps; taken into wf 2026-09-28). A number
-// with one side only is still shown: a new screen has no before.
-export type ProofPair = { n: number; before?: string; after?: string };
+// Pure: the round's before/after screenshots, paired by label: research takes `proof/before-<label>.png` on
+// the base, validate `proof/after-<label>.png` of the same view on the fix. T2 sees the change, not only the
+// diff (Factory's /demo shoots both branches with the same steps; taken into wf 2026-09-28). A label with
+// one side only is still shown: a new screen has no before, and wf never invents one.
+// The label is whatever follows the prefix: a number (`before-1.png`) or a name (`after-he-1280-assess.png`).
+// JX-1239: a round shot `after-he-1280-assess.png` and friends, T2 and `wf post` took numbered names only, and
+// the post attached zero. T2 (review.ts), `wf post` and `wf reap` all read pictures through this one function.
+// A numbered label is `{ n }` (sorted by value, first); a named one is `{ label }` (sorted by name).
+export type ProofPair = ({ n: number } | { label: string }) & { before?: string; after?: string };
+const PROOF_IMAGE = /\.(png|jpe?g|webp)$/i;
+const PROOF_SIDE = /^(before|after)-(.+)\.(png|jpe?g|webp)$/i;
+export const isProofImage = (name: string) => PROOF_IMAGE.test(name);
 export function proofPairs(names: string[]): ProofPair[] {
-  const pairs = new Map<number, ProofPair>();
+  const rows = new Map<string, ProofPair[]>();
   for (const name of names) {
-    const m = /^(before|after)-(\d+)\.png$/.exec(name);
+    const m = PROOF_SIDE.exec(name);
     if (!m) continue;
-    const n = Number(m[2]);
-    pairs.set(n, { ...(pairs.get(n) ?? { n }), [m[1]]: name });
+    const side = m[1].toLowerCase() as 'before' | 'after';
+    const label = m[2];
+    const same = rows.get(label) ?? [];
+    // The same label on the same side twice (`after-1.png` and `after-1.jpg`) gets a second row, so no
+    // picture is dropped for resembling another.
+    const row = same.find((p) => p[side] === undefined);
+    if (row) row[side] = name;
+    else same.push({ ...(/^\d+$/.test(label) ? { n: Number(label) } : { label }), [side]: name } as ProofPair);
+    rows.set(label, same);
   }
-  return [...pairs.values()].sort((a, b) => a.n - b.n);
+  const key = (p: ProofPair) => ('n' in p ? [0, p.n, ''] as const : [1, 0, p.label] as const);
+  return [...rows.entries()].sort(([la, [a]], [lb, [b]]) => {
+    const [ga, na] = key(a);
+    const [gb, nb] = key(b);
+    return ga - gb || na - nb || (la < lb ? -1 : la > lb ? 1 : 0);
+  }).flatMap(([, same]) => same);
 }
+
+// Pure: the picture files in proof/ that no pair takes (a name that does not start with `before-` or
+// `after-`), so a caller can say it left them out instead of leaving them out unsaid.
+export const unpairedProofImages = (names: string[]) => names.filter((n) => isProofImage(n) && !PROOF_SIDE.test(n));
 
 // Pure: a picture's caption, from the first line of RESEARCH.md or VALIDATION.md that names it
 // (`proof/before-1.png — admin on /admin/listings: …`), without the name and its dashes.
@@ -164,7 +187,7 @@ export function beforeAfterPage({ round, pairs, captions, src }: { round: string
   const cell = (name: string | undefined) => (name
     ? `<figure><img src="${escapeHtml(`${src}/${name}`)}"><figcaption dir="auto">${escapeHtml(captions[name] ?? '')}</figcaption></figure>`
     : '<figure class="none">none</figure>');
-  const rows = pairs.map((p) => `<tr><th>${p.n}</th><td>${cell(p.before)}</td><td>${cell(p.after)}</td></tr>`).join('\n');
+  const rows = pairs.map((p) => `<tr><th>${'n' in p ? p.n : escapeHtml(p.label)}</th><td>${cell(p.before)}</td><td>${cell(p.after)}</td></tr>`).join('\n');
   return `<!doctype html>
 <meta charset="utf-8"><title>${escapeHtml(round)}: before / after</title>
 <style>body{font:14px system-ui;margin:16px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:8px;vertical-align:top}td{width:50%}img{max-width:100%;display:block}figure{margin:0}figcaption{color:#555;margin-top:6px}.none{color:#999}</style>

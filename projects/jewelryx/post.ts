@@ -9,7 +9,7 @@
 // throwaway issue, 2026-10-07: Jira stored it as the comment's own media).
 import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { proofPairs } from '../../src/gates/review-format.ts';
+import { proofPairs, unpairedProofImages } from '../../src/gates/review-format.ts';
 import { readState, toplevelOf } from '../../src/round/state.ts';
 
 const SITE = 'https://raynw.atlassian.net';
@@ -42,6 +42,18 @@ export function picturesOf(pr: string, names: string[]) {
 		before: p.before ? { file: p.before, as: `${pr}-${p.before}` } : undefined,
 		after: p.after ? { file: p.after, as: `${pr}-${p.after}` } : undefined,
 	}));
+}
+
+// Pure: the file's picture type for the upload (proofPairs accepts png, jpg, jpeg and webp).
+export const pictureType = (file: string) => ({ png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp' })[file.split('.').pop()!.toLowerCase()] ?? 'application/octet-stream';
+
+// Pure: what the post did with proof/'s pictures, exactly: the files it attaches, and the picture files
+// it leaves out because their name is neither `before-<name>` nor `after-<name>`. JX-1239 (2026-10-12): a
+// post attached zero of a round's screenshots and said nothing about it.
+export function pictureNotes(pictures: ReturnType<typeof picturesOf>, names: string[]): string {
+	const attached = pictures.flatMap((p) => [p.before, p.after]).filter((p) => p !== undefined).map((p) => p.file);
+	const refused = unpairedProofImages(names);
+	return `attached ${attached.length}${attached.length ? `: ${attached.join(', ')}` : ': proof/ has no before-/after- picture'}${refused.length ? `; NOT attached (rename to before-<name>.png or after-<name>.png): ${refused.join(', ')}` : ''}`;
 }
 
 // Pure: the comment, in Jira wiki markup (the REST v2 body): the section's lines, then each pair.
@@ -101,7 +113,7 @@ export async function runPost(): Promise<void> {
 			for (const pic of pictures.flatMap((p) => [p.before, p.after]).filter((p) => p !== undefined)) {
 				if (have.has(pic.as)) continue;
 				const form = new FormData();
-				form.append('file', new Blob([readFileSync(join(proofDir, pic.file))], { type: 'image/png' }), pic.as);
+				form.append('file', new Blob([readFileSync(join(proofDir, pic.file))], { type: pictureType(pic.file) }), pic.as);
 				await jira(auth, `3/issue/${s.key}/attachments`, { method: 'POST', body: form, headers: { 'X-Atlassian-Token': 'no-check' } });
 			}
 			await jira(auth, `2/issue/${s.key}/comment`, { method: 'POST', body: JSON.stringify({ body: commentBody(s.text, pictures) }), headers: { 'content-type': 'application/json' } });
@@ -113,7 +125,7 @@ export async function runPost(): Promise<void> {
 		note = markPosted(note, s.key);
 		writeFileSync(notePath, note);
 		const count = pictures.flatMap((p) => [p.before, p.after]).filter(Boolean).length;
-		console.log(`${s.key}: ${already ? 'already posted' : `posted with ${count} picture(s)`}, ${DELIVERED} — ${SITE}/browse/${s.key}`);
+		console.log(`${s.key}: ${already ? 'already posted, pictures not re-attached' : `posted with ${count} picture(s) — ${pictureNotes(pictures, names)}`}, ${DELIVERED} — ${SITE}/browse/${s.key}`);
 	}
 }
 

@@ -11,7 +11,6 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { appendFileSync, copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { proofPairs } from '../gates/review-format.ts';
 import { refuseCaller } from '../refusal.ts';
 import { roundsDir } from '../project.ts';
 import { writeCloneLaunch } from './new.ts';
@@ -36,13 +35,38 @@ export function paperworkToKeep(porcelain: string) {
 // dev servers' output.
 export const ROUND_RECORD = ['state.json', 'checks.log', 'events.log'];
 
-// Pure: the round's before/after pictures, which the project may gitignore, so git status never lists
-// them. JX-268 (BJEW-562, 2026-10-07): the note was posted without them (no JIRA_TOKEN in the session),
-// the user was told to attach them by hand, and reap deleted the folder they were in.
-export const proofToKeep = (folder: string, names: string[]) =>
-	proofPairs(names).flatMap((p) => [p.before, p.after]).filter((n) => n !== undefined).map((n) => `${folder}/proof/${n}`);
+// Pure: everything in the round's proof/ folder, which the project may gitignore, so git status never
+// lists it. JX-268 (BJEW-562, 2026-10-07): the note was posted without the pictures (no JIRA_TOKEN in the
+// session), the user was told to attach them by hand, and reap deleted the folder they were in. JX-1239
+// (2026-10-12): reap kept only the numbered before/after pairs, and a round's named screenshots, traces
+// and nested run folders went with the worktree. Whatever proof/ holds is evidence: `names` are its files
+// relative to proof/ (nested ones with their folder), and all of them are kept.
+export const proofToKeep = (folder: string, names: string[]) => names.map((n) => `${folder}/proof/${n}`);
 
-function keepPaperwork(path: string, slug: string, folder: string | undefined) {
+// The files under `dir`, relative to it with `/`, nested folders included.
+function filesUnder(dir: string, within = ''): string[] {
+	return readdirSync(join(dir, within), { withFileTypes: true }).flatMap((e) => {
+		const rel = within ? `${within}/${e.name}` : e.name;
+		return e.isDirectory() ? filesUnder(dir, rel) : [rel];
+	});
+}
+
+// Pure: what reap says when it is done, for the person who reads it later: where the kept copy is and what
+// is in it, what stayed in git instead (the round folder's commits are in the history, not in the copy), and
+// whether the worktree is gone. `committed` is null when git could not list them.
+export function reapSummary({ slug, dest, files, committed, folder, worktree, worktreeGone }: { slug: string; dest: string; files: string[]; committed: string[] | null; folder: string | undefined; worktree: string; worktreeGone: boolean }): string {
+	const proof = files.filter((f) => folder && f.startsWith(`${folder}/proof/`)).length;
+	return [
+		`reaped ${slug}: worktree ${worktree}: ${worktreeGone ? 'deleted' : 'NOT deleted (still there)'}`,
+		files.length ? `kept copy: ${dest} — ${files.length} file(s): ${proof} proof artifact(s), ${files.length - proof} other (uncommitted paperwork, round record)` : 'kept copy: none (nothing uncommitted or ignored to keep)',
+		committed === null ? 'in git: could not list the committed round files (git ls-files failed)' : `in git, not copied: ${committed.length} committed file(s) under ${folder ?? '(no round folder)'}/ — they stay in the branch's commits, not in the kept copy`,
+	].join('\n');
+}
+
+// Copies what git will not keep once the worktree is gone: the uncommitted round paperwork, all of proof/
+// and the round's record, into `<cacheRoot>/<slug>`. Returns the files kept, and the committed ones under the
+// round folder (git has those) or null when git could not list them.
+export function keepRoundPaperwork(path: string, slug: string, folder: string | undefined, cacheRoot = join(homedir(), '.cache', 'wf-reaped')): { files: string[]; committed: string[] | null } {
 	let porcelain = '';
 	try { porcelain = execFileSync('git', ['-C', path, 'status', '--porcelain', '--untracked-files=all'], { encoding: 'utf8' }); } catch (e) {
 		// Reap removes the worktree next: without the list, its uncommitted paperwork went with it, unsaid.
@@ -50,15 +74,25 @@ function keepPaperwork(path: string, slug: string, folder: string | undefined) {
 		process.exit(1);
 	}
 	const proofDir = folder ? join(path, folder, 'proof') : null;
-	const pictures = folder && proofDir && existsSync(proofDir) ? proofToKeep(folder, readdirSync(proofDir)) : [];
+	const pictures = folder && proofDir && existsSync(proofDir) ? proofToKeep(folder, filesUnder(proofDir)) : [];
 	const files = [...new Set([...paperworkToKeep(porcelain), ...pictures, ...ROUND_RECORD.map((f) => `.wf/${f}`).filter((f) => existsSync(join(path, f)))])];
-	if (!files.length) return;
-	const dest = join(homedir(), '.cache', 'wf-reaped', slug);
+	const dest = join(cacheRoot, slug);
 	for (const f of files) {
 		mkdirSync(dirname(join(dest, f)), { recursive: true });
 		copyFileSync(join(path, f), join(dest, f));
 	}
-	console.log(`kept ${files.length} uncommitted paperwork file(s) in ${dest}: ${files.join(', ')}`);
+	if (files.length) console.log(`kept ${files.length} uncommitted paperwork file(s) in ${dest}: ${files.join(', ')}`);
+	let committed: string[] | null = null;
+	if (folder) {
+		try {
+			const tracked = execFileSync('git', ['-C', path, 'ls-files', '-z', '--', folder], { encoding: 'utf8' }).split('\0').filter(Boolean);
+			committed = tracked.filter((f) => !files.includes(f));
+		} catch {
+			// The summary says the committed files could not be listed; the copy above is already made.
+			committed = null;
+		}
+	} else committed = [];
+	return { files, committed };
 }
 
 // The round's friction line (friction.ts), printed and added to ~/.cache/wf-reaped/ROUNDS.md, one
@@ -109,7 +143,7 @@ export async function runReap(argv: string[]) {
 	const force = reapRuns(process.env, state);
 	// Paperwork first: when it cannot be listed, reap stops, and ROUNDS.md gets no line for a round
 	// that is still there (2026-10-04, a broken .git: the line was written, then reap stopped).
-	if (force) keepPaperwork(path, slug, state?.folder);
+	const kept = force ? keepRoundPaperwork(path, slug, state?.folder) : null;
 	if (force && state) recordFriction(path, state);
 	// Read before the worktree goes: the repository the branch lives in.
 	const gitDir = execFileSync('git', ['-C', path, 'rev-parse', '--path-format=absolute', '--git-common-dir'], { encoding: 'utf8' }).trim();
@@ -157,6 +191,7 @@ export async function runReap(argv: string[]) {
 	}
 	writeCloneLaunch(slug, null);
 	console.log('launch.json entries: ok');
+	if (kept) console.log(reapSummary({ slug, dest: join(homedir(), '.cache', 'wf-reaped', slug), ...kept, folder: state?.folder, worktree: path, worktreeGone: !existsSync(path) }));
 }
 
 if (process.argv[1]?.endsWith('reap.ts')) runReap(process.argv.slice(2));
