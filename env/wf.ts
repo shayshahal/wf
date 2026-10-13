@@ -7,7 +7,7 @@ import { herdrOpener } from './adapters/herdr.ts';
 import { processCwds } from './adapters/processes.ts';
 import { annotateFile, isPlannotatorPresent, reviewDiff } from './adapters/plannotator.ts';
 import { questionInbox } from './adapters/plannotator-inbox.ts';
-import { PI_MODELS, resolvePi } from './models.ts';
+import { piModelsForProvider, resolvePi } from './models.ts';
 import * as jewelryx from './projects/jewelryx/index.ts';
 import { autoUpdate } from './update.ts';
 import { createWorktree, removalPlan } from './worktrees.ts';
@@ -21,6 +21,7 @@ export async function runEnvWf(entry: string, argv: string[]) {
 	// copy (it did not, 2026-09-24: installed from the old copy after a push).
 	if (argv[0] !== 'hook' || argv[1] === 'install') autoUpdate(entry, argv);
 
+	const models = piModelsForProvider(process.env.PI_PROVIDER);
 	await run(argv, {
 		entry,
 		madeBy: 'env',
@@ -35,7 +36,7 @@ export async function runEnvWf(entry: string, argv: string[]) {
 			update: async () => (await import('./update.ts')).runUpdate(),
 		},
 		project: jewelryx.pieces,
-		models: PI_MODELS,
+		models,
 		resolveModel: resolvePi,
 	});
 }

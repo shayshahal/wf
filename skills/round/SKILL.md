@@ -200,13 +200,16 @@ Every agent you start is one of wf's: `round-worker`, `codebase-locator`, `codeb
 without one). Never another agent the harness lists, and never one bent to fit with other tools:
 those carry that machine's model and role, not wf's. Work none of wf's fits goes to the user.
 
+In pi, `wf models` selects within the current session's account (`PI_PROVIDER` from the shell tool).
+Installed agent defaults inherit their caller; explicit dispatch models come from this account's table.
+
 | | pi | Claude Code (Desktop, the wf plugin) |
 |---|---|---|
 | this session runs from | anywhere in the repo | the person's clone, until `wf new`; then `EnterWorktree` with `path:` its `Worktree:` line, and the rest of the round runs there. A worktree under `.claude/worktrees/` is entered without a prompt. "resume <id>" in a new session: `wf status --all` names its worktree; enter it the same way. |
 | dispatch | `subagent({ name: "<id> <phase>", agent: "round-worker", model: <m>, tools: "read,bash,write,edit,subagent", cwd: <worktree>, task: <the line> })` — the agreement and assessment phases without `subagent` unless the prompt asks. End your turn; the harness wakes you with the result. | Agent tool: `subagent_type: "wf:round-worker"`, `model: <m>`, `description: "<id> <phase>"`, `prompt: <the line>`. It runs in the background; its result arrives as a message, then `wf next`. Never a fork: it would carry this whole conversation, and the plugin refuses it in a round. |
 | the agent closes | `round-worker` has `auto-exit: true`: its pane closes when its turn ends. Without it the pane waits for `subagent_done` and stays open when the agent forgets. | when its turn ends. The plugin's `SubagentStop` hook sends it back once if its handoff is missing (`wf handoff check`). |
-| the agreement's `codebase-locator` / `codebase-analyzer` | pi agents, installed by `wf update` | the plugin's `wf:codebase-locator` / `wf:codebase-analyzer` |
-| harness trouble | `subagent({ name: "<what>", agent: "harness-fixer", cwd: <its worktree>, task: <the trouble, its evidence, the narrowest command that shows it, the worktree and branch> })`, no `model` or `tools`: the agent's own (its model is `wf models`' low). | Agent tool: `subagent_type: "wf:harness-fixer"`, `description: "<what>"`, `prompt: <the same task>` |
+| the agreement's `codebase-locator` / `codebase-analyzer` | pi agents installed by `wf update`; pass `model: <m>` explicitly, with `<m>` from `wf models`' low | the plugin's `wf:codebase-locator` / `wf:codebase-analyzer` |
+| harness trouble | Read `wf models`' low as `<m>`, then `subagent({ name: "<what>", agent: "harness-fixer", model: <m>, cwd: <its worktree>, task: <the trouble, its evidence, the narrowest command that shows it, the worktree and branch> })`; tools stay the agent's own. | Agent tool: `subagent_type: "wf:harness-fixer"`, `description: "<what>"`, `prompt: <the same task>` |
 | the question tool | `ask_user_question` | `AskUserQuestion` (a `header` of at most 12 characters: `q<n>`) |
 | agent reports | a dispatched agent's result wakes you | every agent runs in the background; its report arrives as a message. A report from an agent you did not dispatch, or from a phase that has ended, needs nothing: no step, no question asked again. |
 | T1 agreement session (B/C) | `subagent` with `interactive: true`, cwd the worktree: its own pane, which the user talks to. | this session runs it: read `AGREEMENT-TEMPLATE.md` and hold the conversation with the person here. T1 happens here too: show them the agreed material (in plain words if they ask, written from it alone), then `wf agree <branch>`, and write into `AGREEMENT-REVIEW.md` what you showed them, verbatim, as a `note —` line, then their comments and verdict. |

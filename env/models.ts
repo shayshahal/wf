@@ -8,8 +8,17 @@
 import { spawnSync } from 'node:child_process';
 import type { Models } from '../src/models.ts';
 
-// Shay, 2026-10-12: every pi worker uses DeepSeek 4.1 Flash; no Anthropic fallback.
-export const PI_MODELS: Models = { low: 'opencode-go/deepseek-v4.1-flash', medium: 'opencode-go/deepseek-v4.1-flash' };
+/** Personal-provider workers stay on Flash; credentials for another account are not a fallback. */
+export const PI_PERSONAL_MODELS: Models = { low: 'opencode-go/deepseek-v4.1-flash', medium: 'opencode-go/deepseek-v4.1-flash' };
+
+/** Work-account Sonnet uses medium thinking for round workers and low for the other helpers. */
+export const PI_ANTHROPIC_MODELS: Models = { low: 'anthropic/sonnet:low', medium: 'anthropic/sonnet:medium' };
+
+/** Select worker models from the shell tool's current PI_PROVIDER; a bare terminal keeps personal defaults. */
+export function piModelsForProvider(provider: string | undefined): Models {
+	// JX-810, 2026-10-13: a global Flash pin blocked Anthropic sessions at their first dispatch.
+	return provider === 'anthropic' ? PI_ANTHROPIC_MODELS : PI_PERSONAL_MODELS;
+}
 
 const THINKING = ['off', 'minimal', 'low', 'medium', 'high', 'xhigh'];
 

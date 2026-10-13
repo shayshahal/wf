@@ -10,7 +10,6 @@ import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { anchorToolPaths } from '../src/plugin/anchor.ts';
 import { withModel } from '../src/models.ts';
-import { PI_MODELS } from './models.ts';
 
 export const LIVE = join(homedir(), '.local', 'share', 'wf');
 // The editing clone: a push from it moves origin/main here at once, so the check needs no network.
@@ -62,11 +61,12 @@ export function install(gitDir: string, rev: string) {
 		renameSync(fresh, LIVE);
 		rmSync(old, { recursive: true, force: true });
 		// Every wf agent into pi. Claude Code gets none: the plugin carries them, and a user-level
-		// agent outranks a plugin's of the same name (kit and env plan, step 6). An agent's effort
-		// level becomes pi's model for it (src/models.ts, env/models.ts).
+		// agent outranks a plugin's of the same name (kit and env plan, step 6). Pi agent defaults
+		// inherit the caller: a global model pin crosses accounts (JX-810, 2026-10-13). Round phases
+		// and effort-specific helpers get their explicit model from wf's current account table.
 		const agents = join(LIVE, 'agents');
 		const pi = join(homedir(), '.pi', 'agent', 'agents');
-		if (existsSync(pi)) for (const f of readdirSync(agents)) writeFileSync(join(pi, f), withModel(readFileSync(join(agents, f), 'utf8'), PI_MODELS));
+		if (existsSync(pi)) for (const f of readdirSync(agents)) writeFileSync(join(pi, f), withModel(readFileSync(join(agents, f), 'utf8'), null));
 		return rev;
 	});
 }

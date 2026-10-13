@@ -33,12 +33,11 @@ export const isEffort = (e: string): e is Effort => (EFFORTS as readonly string[
 // Pure: the model a phase runs on, from a machine's levels.
 export const modelFor = (phase: string, models: Models) => models[PHASE_EFFORT[phase] ?? 'medium'];
 
-// Pure: an agent file (agents/) with its `effort:` line made the machine's `model:` line. An agent
-// with no effort line inherits its caller's model, as before.
-export function withModel(text: string, models: Models): string {
+/** Convert an agent's effort to a model; null removes the effort so the harness inherits its caller. */
+export function withModel(text: string, models: Models | null): string {
 	return text.replace(/^effort:[ \t]*(\S+)[ \t]*(\r?)$/m, (line, effort: string, cr: string) => {
 		if (!isEffort(effort)) throw new Error(`effort: ${effort} is not one of ${EFFORTS.join(', ')}`);
-		return `model: ${models[effort]}${cr}`;
+		return models ? `model: ${models[effort]}${cr}` : cr;
 	});
 }
 

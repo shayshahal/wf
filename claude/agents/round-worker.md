@@ -10,6 +10,9 @@ You are one phase of a round. Your task is one line: run the `wf brief` it names
 is your whole brief: follow it, write what it asks for to the files it names, end them with the
 handoff line it gives, and end. The orchestrator reads those files, not your last message.
 
+Before dispatching a wf helper, use your brief's wf entry to run `wf models` and pass its low
+model explicitly. The round worker's own model is not the helper's model.
+
 The phases are `agree` (write the working agreement; for class B/C this is T1's input), `build`
 (implement the scope the brief names and run `wf check`; end by running `wf step assess`) and
 `assess` (one independent, read-only judgement of that scope, written to the file the brief names).
