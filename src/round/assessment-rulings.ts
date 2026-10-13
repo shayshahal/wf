@@ -20,6 +20,11 @@ export function assessmentRulingSource(text: string | null, context: SliceContex
 	return `${file}#${assessmentHead(text) ?? 'unknown'}${context.kind === 'unit' ? `#plan:${context.plan.sha}#base:${context.base}` : context.kind === 'integration' ? `#plan:${context.plan.sha}` : ''}`;
 }
 
+/** Assessment content identity ignores checkout newline conversion, never filesystem timestamps. */
+export function assessmentContentSha(text: string | null): string | null {
+	return text === null ? null : createHash('sha256').update(text.replace(/\r\n/g, '\n')).digest('hex');
+}
+
 /** Frozen verification lines identify one fix-or-accept question, independently of the current tree. */
 export const verificationGapsHash = (gaps: readonly string[]): string => createHash('sha256').update(gaps.join('\n')).digest('hex').slice(0, 8);
 

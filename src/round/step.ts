@@ -26,7 +26,30 @@ import { stepHistory } from './friction.ts';
 import { changedFiles, isRoundPaperwork } from '../gates/check.ts';
 import { initializeSlices, parseBuildUnits, sliceContext } from './build-units.ts';
 import { verificationCases } from './agreement.ts';
-import { verificationFixRulings, verificationProofGap } from './assessment-rulings.ts';
+import { assessmentContentSha, verificationFixRulings, verificationProofGap } from './assessment-rulings.ts';
+
+/** All build handoff gates, shared by direct step and next's recovery before it mutates state. */
+export function assessmentHandoffGap(toplevel: string, state: State, phase: 'assess' | 'review'): string | null {
+	const agreement = agreementPath(toplevel, state.class ?? null, state.folder);
+	const context = sliceContext(existsSync(agreement) ? readFileSync(agreement, 'utf8') : '', state.slices);
+	if (context.kind === 'invalid') return context.why;
+	if (context.kind === 'pending') return 'start the declared units with wf next before handing off';
+	if (context.kind === 'unit' || context.kind === 'integration') {
+		const dirty = changedFiles(toplevel).filter((f) => !isRoundPaperwork(f, state.folder ?? null));
+		if (dirty.length) return `commit the scoped implementation before handoff: ${dirty.join(', ')}`;
+	}
+	const evidence = checksEvidence(toplevel, state);
+	const gap = checkGap(evidence);
+	if (gap) return checkGapLine(gap);
+	if (phase !== 'assess' || !state.folder) return null;
+	const file = join(toplevel, state.folder, context.kind === 'unit' ? context.assessmentFile : 'ASSESSMENT.md');
+	const assessment = existsSync(file) ? readFileSync(file, 'utf8') : null;
+	const suite = suitesGap(evidence);
+	if (suite && verificationFixRulings(assessment, context, state.answered ?? [], suite).length) return `verification repair: ${suite} — the ruling is to fix it; run wf check --suites or write BLOCKED.md, a selected-case green alone is not the repair`;
+	const rulings = verificationFixRulings(assessment, context, state.answered ?? []);
+	const head = execFileSync('git', ['-C', toplevel, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+	return verificationProofGap(toplevel, { folder: state.folder, rulings, head, content: evidence.content });
+}
 
 export const STEPS = ['classify', 'agree', 'build', 'assess', 'review', 'pr', 'merged', 'held'];
 const WAITING = ['user', ...people, 'ci'];
@@ -211,26 +234,12 @@ export async function runStep(argv: string[], { quiet = false } = {}) {
 			if (restarting && plan?.kind !== 'units') throw new StepGateError('wf step build --restart-units needs a valid ## Units table');
 			if (['build', 'assess', 'review', 'pr'].includes(step) && context.kind === 'invalid' && !restarting) throw new StepGateError(context.why);
 			if ((step === 'assess' || step === 'review') && context.kind === 'pending') throw new StepGateError('start the declared units with wf next before handing off');
-			if ((step === 'assess' || step === 'review') && (context.kind === 'unit' || context.kind === 'integration')) {
-				const dirty = changedFiles(toplevel).filter((f) => !isRoundPaperwork(f, current.folder ?? null));
-				if (dirty.length) throw new StepGateError(`commit the scoped implementation before handoff: ${dirty.join(', ')}`);
-			}
 			if (step === 'pr' && context.kind !== 'single' && context.kind !== 'integration') throw new StepGateError('unit approval is not delivery approval — complete the units and integration first');
 			// The handoff past the build needs a wf check green of the implementation as it is: a build
 			// that skipped `wf check`, or whose check could not run, does not reach the assessment or T2.
 			if (step === 'assess' || step === 'review') {
-				const evidence = checksEvidence(toplevel, current);
-				const gap = checkGap(evidence);
-				if (gap) throw new StepGateError(checkGapLine(gap));
-				if (step === 'assess' && current.folder) {
-					const file = join(toplevel, current.folder, context.kind === 'unit' ? context.assessmentFile : 'ASSESSMENT.md');
-					const assessment = existsSync(file) ? readFileSync(file, 'utf8') : null;
-					const suite = suitesGap(evidence);
-					if (suite && verificationFixRulings(assessment, context, current.answered ?? [], suite).length) throw new StepGateError(`verification repair: ${suite} — the ruling is to fix it; run wf check --suites or write BLOCKED.md, a selected-case green alone is not the repair`);
-					const rulings = verificationFixRulings(assessment, context, current.answered ?? []);
-					const proofGap = verificationProofGap(toplevel, { folder: current.folder, rulings, head: sh(['rev-parse', 'HEAD']), content: evidence.content });
-					if (proofGap) throw new StepGateError(proofGap);
-				}
+				const gap = assessmentHandoffGap(toplevel, { ...current, class: klass }, step);
+				if (gap) throw new StepGateError(gap);
 			}
 			if (reviewPolicy) {
 				const decision = reviewPolicy.nextAction({ ...reviewPolicy.snapshotOf(toplevel), step: 'assess' });
@@ -244,7 +253,13 @@ export async function runStep(argv: string[], { quiet = false } = {}) {
 				if (gap) throw new StepGateError(gap);
 			}
 			const base = flag('base') ?? current.base ?? null;
+			const assessmentFile = context.kind === 'unit' ? context.assessmentFile : 'ASSESSMENT.md';
+			const assessmentPath = current.folder ? join(toplevel, current.folder, assessmentFile) : null;
+			const baseline = step === 'assess' && (current.step !== 'assess' || current.assessment_baseline?.file !== assessmentFile)
+				? { assessment_baseline: { file: assessmentFile, sha: assessmentContentSha(assessmentPath && existsSync(assessmentPath) ? readFileSync(assessmentPath, 'utf8') : null) } }
+				: {};
 			return {
+				...baseline,
 				wf_version: WF_STATE_VERSION,
 				...(restarting && plan?.kind === 'units' ? { slices: initializeSlices(plan, sh(['rev-parse', 'HEAD'])), repairs: 0 } : step === 'build' && context.kind === 'pending' ? { slices: initializeSlices(context.plan, sh(['rev-parse', 'HEAD'])), repairs: 0 } : {}),
 				round, class: klass, base, step, since,

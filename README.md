@@ -29,7 +29,11 @@ round commits (for JewelryX, `bug-reports/<round>/`).
     old-route round is refused before mutation); `next.ts` is `wf next`, the round's next action
     from its state and files (the orchestrator's whole loop); `agreement.ts` is the working
     agreement (which file it is, the agreed-material sha T1 binds, the verification cases);
-    `brief.ts` + `prompt.ts` are `wf brief <phase>`, what a phase agent runs first;
+    `brief.ts` + `prompt.ts` are `wf brief <phase>`, what a phase agent runs first. Each build-to-assess
+    handoff records the previous assessment's content identity: a fresh report is needed even if only
+    the evidence changed and HEAD stayed the same. Each report records `assessed-at`; touching an old
+    report cannot send the completed build back to repair. Legacy visits without a recorded identity
+    get one fresh assessment rather than guessing from file timestamps;
     `step`, `ask`/`decide` (`decide --revise` sends a round back to `agree` for a new T1),
     `inbox` (posts user questions through the env's optional transport and saves replies; `decide`
     records the ruling), `status`, `notes`, and `handoff-hook.ts` (`wf handoff`, the Claude Code hooks)

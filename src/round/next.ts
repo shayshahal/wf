@@ -30,9 +30,9 @@ import type { Question, RoundClass } from './state.ts';
 import { advanceSlice, sliceContext } from './build-units.ts';
 import type { SliceProgress } from './build-units.ts';
 import { stepHistory } from './friction.ts';
-import { checkGap, checkGapLine, checksEvidence, higherClass, runStep, suitesGap } from './step.ts';
+import { assessmentHandoffGap, checkGap, checkGapLine, checksEvidence, higherClass, runStep, suitesGap } from './step.ts';
 import type { ChecksEvidence } from './step.ts';
-import { assessmentRulingSource, verificationGapsHash } from './assessment-rulings.ts';
+import { assessmentContentSha, assessmentRulingSource, verificationGapsHash } from './assessment-rulings.ts';
 
 // How many times a within-agreement finding is repaired autonomously before one contextual escalation
 // (#113.3). An evaluated default, not a universal rule (#110).
@@ -66,6 +66,11 @@ export type Snapshot = {
 	// .wf/checks.log and the implementation's identity now (step.ts checksEvidence). Absent in a pure arm
 	// that tests nothing about checks; snapshotOf always provides it.
 	checks?: ChecksEvidence;
+	// Content identity captured at handoff, not mutable filesystem timestamps.
+	assessmentChangedSinceHandoff?: boolean;
+	assessmentBaselineMissing?: boolean;
+	assessmentHandoffGap?: string | null;
+	returnedFromAssess?: boolean;
 };
 export type Effect =
 	| { step?: string[]; ask?: { to: string; text: string; dflt: string | null; source: string; verification_gaps?: string[] }; repair?: true; blockedAnswered?: number; advance?: { unit: number; head: string } };
@@ -201,6 +206,15 @@ export function nextAction(s: Snapshot): { say: string; effects: Effect[] } {
 		// redispatch changes: stop and say what, once, instead of looping the build (JX-1239).
 		const trouble = s.checks ? checkGap(s.checks) : null;
 		if (trouble?.kind === 'harness') return act(`wait user: harness — ${checkGapLine(trouble)}. Once fixed, run \`${wf} check\`, then \`${wf} next\``);
+		// JX-154, 2026-10-13: the old next consumed a pre-handoff verdict and its fix ruling,
+		// bouncing assess straight back to build. Recover that recorded bounce, not a normal repair.
+		const source = assessmentRulingSource(s.files.assessment, context);
+		const fix = s.answered.some((q) => (q.source === source || q.source?.startsWith(`${source}#`)) && !/^\s*accept\b/i.test(q.answer ?? ''));
+		if (!trouble && s.files.assessment && s.assessmentChangedSinceHandoff === false && s.returnedFromAssess && fix) {
+			if (s.assessmentHandoffGap) return dispatch('build', s.assessmentHandoffGap);
+			effects.push({ step: ['assess'] });
+			return dispatch('assess', 'the completed build still needs a fresh assessment of the new evidence, even at the same HEAD');
+		}
 		return dispatch('build');
 	}
 
@@ -215,6 +229,18 @@ export function nextAction(s: Snapshot): { say: string; effects: Effect[] } {
 		if (unchecked) {
 			effects.push({ step: ['build'] });
 			return dispatch('build', checkGapLine(unchecked));
+		}
+		if (s.assessmentChangedSinceHandoff === false) {
+			if (s.assessmentBaselineMissing) {
+				if (s.assessmentHandoffGap) {
+					effects.push({ step: ['build'] });
+					return dispatch('build', s.assessmentHandoffGap);
+				}
+				// Legacy visits have no durable report identity. Capture it once before dispatch;
+				// touching an old report must not make it a new assessment.
+				if (s.step !== 'review') effects.push({ step: ['assess'] });
+			}
+			return dispatch('assess', s.files.assessment ? 'the assessment has not changed since handoff; judge the new evidence even at the same HEAD' : `write ${assessmentFile} for this handoff`);
 		}
 		const future = context.kind === 'unit' ? context.plan.units.filter((u) => u.n > context.unit.n).map((u) => u.n) : [];
 		const gap = assessmentGap(s.files.assessment, future);
@@ -334,6 +360,11 @@ export function snapshotOf(toplevel: string): Snapshot {
 	const agreementReview = read(join(dir, AGREEMENT_REVIEW_FILE)) ?? '';
 	const agreementText = read(join(dir, AGREEMENT_FILE)) ?? read(agreementPath(toplevel, state.class ?? null, state.folder));
 	const context = sliceContext(agreementText, state.slices);
+	const assessmentFile = context.kind === 'unit' ? context.assessmentFile : ASSESSMENT_FILE;
+	const assessment = read(join(dir, assessmentFile));
+	const baseline = state.assessment_baseline?.file === assessmentFile ? state.assessment_baseline : null;
+	const assessmentBaselineMissing = !baseline && !!state.history?.some((visit) => visit.step === 'assess');
+	const assessmentChangedSinceHandoff = baseline ? assessment !== null && assessmentContentSha(assessment) !== baseline.sha : assessmentBaselineMissing ? false : undefined;
 	// 2026-10-10: worktree-vs-base missed an index-only contract edit restored in the worktree. Use
 	// the check fence's committed + worktree + index + untracked set, so class and scope see the same
 	// work (#111.4); only the round's own paperwork is removed for class measurement.
@@ -352,13 +383,17 @@ export function snapshotOf(toplevel: string): Snapshot {
 		blockedAnswered: state.blocked_answered ?? 0,
 		repairs: state.repairs ?? 0,
 		slices: state.slices,
+		assessmentChangedSinceHandoff,
+		assessmentBaselineMissing,
+		assessmentHandoffGap: assessmentHandoffGap(toplevel, state, 'assess'),
+		returnedFromAssess: state.history?.at(-2)?.step === 'assess' && state.history?.at(-1)?.step === 'build',
 		head: git('rev-parse', 'HEAD'),
 		files: {
 			// The agreement is AGREEMENT.md when the working session wrote one (it decided the work is
 			// consequential), else the class A ticket. Reading it here is what lets `wf next` measure the
 			// declared `Class:` and the case files before the stored class catches up (#111.4).
 			agreement: agreementText,
-			assessment: read(join(dir, context.kind === 'unit' ? context.assessmentFile : ASSESSMENT_FILE)),
+			assessment,
 			review: read(join(dir, context.kind === 'unit' ? context.reviewFile : REVIEW_FILE)),
 			blocked: read(join(dir, 'BLOCKED.md')),
 		},

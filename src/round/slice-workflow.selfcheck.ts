@@ -267,8 +267,8 @@ try {
 	check('CLI: wf step assess refuses a unit with no wf-recorded green of it', refused.code === 2 && refused.out.includes('wf check') && readState(repo)?.step === 'build', refused.out);
 	const content1 = worktreeContentSha(repo, 'bug-reports/r', null, 'row');
 	appendFileSync(join(repo, '.wf', 'checks.log'), `${caseGreen(1, CHECK1, content1, 'unit:1')}\n`);
-	writeFileSync(join(repo, 'bug-reports', 'r', 'ASSESSMENT-unit-1.md'), assessment({ head: h1, scope: 'unit:1', base: head0 }));
 	const assessed = cli(repo, 'step', 'assess');
+	writeFileSync(join(repo, 'bug-reports', 'r', 'ASSESSMENT-unit-1.md'), assessment({ head: h1, scope: 'unit:1', base: head0 }));
 	check('CLI: with its assigned case green, wf step assess hands off', assessed.code === 0 && readState(repo)?.step === 'assess', assessed.out);
 	writeRoundState(repo, { ...(readState(repo) ?? {}), repairs: 5 });
 	const advanced = cli(repo, 'next');
@@ -294,8 +294,8 @@ try {
 	let h2 = commit(repo, 'src/two.ts', 'export const two = 2;\n');
 	const content2 = worktreeContentSha(repo, 'bug-reports/r', null, 'row');
 	appendFileSync(join(repo, '.wf', 'checks.log'), `${caseGreen(2, CHECK2, content2, 'unit:2')}\n`);
-	writeFileSync(join(repo, 'bug-reports', 'r', 'ASSESSMENT-unit-2.md'), assessment({ head: h2, scope: 'unit:2', base: h1, intent: '- "x": met: src/two.ts:1 · before: red · after: green\n- "y": deferred: unit 3' }));
 	const assessed2 = cli(repo, 'step', 'assess');
+	writeFileSync(join(repo, 'bug-reports', 'r', 'ASSESSMENT-unit-2.md'), assessment({ head: h2, scope: 'unit:2', base: h1, intent: '- "x": met: src/two.ts:1 · before: red · after: green\n- "y": deferred: unit 3' }));
 	const pause = cli(repo, 'next');
 	const s2 = readState(repo);
 	check('CLI: unit 2 hands off and wf next pauses at its T2 chunk, not final', assessed2.code === 0 && pause.code === 0 && pause.out.startsWith('review: T2 chunk — early look') && pause.out.includes('approval continues the build, not delivery') && s2?.step === 'assess' && s2?.slices?.unit === 2, pause.out + JSON.stringify(s2?.slices));
@@ -316,8 +316,8 @@ try {
 	writeFileSync(join(repo, 'bug-reports', 'r', 'REVIEW-unit-2.md'), `# Review — r\nbase: ${reviewBase2}\nscope: unit:2\ncontent-sha: ${premature.worktree}\nhead-sha: ${premature.head}\nverdict: approved\n`);
 	const unassessed = cli(repo, 'review', 'fix/r', '--done');
 	check('CLI: direct checkpoint approval cannot skip reassessment of the repair HEAD', unassessed.code === 2 && unassessed.out.includes('dispatch assess') && readState(repo)?.slices?.unit === 2, unassessed.out);
-	writeFileSync(join(repo, 'bug-reports', 'r', 'ASSESSMENT-unit-2.md'), assessment({ head: h2, scope: 'unit:2', base: h1 }));
 	const repairAssessed = cli(repo, 'step', 'assess');
+	writeFileSync(join(repo, 'bug-reports', 'r', 'ASSESSMENT-unit-2.md'), assessment({ head: h2, scope: 'unit:2', base: h1 }));
 	check('CLI: every repaired chunk case green and a fresh assessment reach its review', repairAssessed.code === 0 && cli(repo, 'next').out.startsWith('review: T2 chunk'), repairAssessed.out);
 	const identity2 = approvalIdentity(repo, 'bug-reports/r', trackerNotePath('bug-reports/r'));
 	writeFileSync(join(repo, 'bug-reports', 'r', 'REVIEW-unit-2.md'), `# Review — r\nbase: ${reviewBase2}\nscope: unit:2\ncontent-sha: ${identity2.worktree}\nhead-sha: ${identity2.head}\nverdict: approved\n`);
@@ -331,8 +331,8 @@ try {
 	const h3 = commit(repo, 'src/three.ts', 'export const three = 3;\n');
 	const content3 = worktreeContentSha(repo, 'bug-reports/r', null, 'row');
 	appendFileSync(join(repo, '.wf', 'checks.log'), `${caseGreen(3, CHECK3, content3, 'unit:3')}\n`);
-	writeFileSync(join(repo, 'bug-reports', 'r', 'ASSESSMENT-unit-3.md'), assessment({ head: h3, scope: 'unit:3', base: h2 }));
 	const assessed3 = cli(repo, 'step', 'assess');
+	writeFileSync(join(repo, 'bug-reports', 'r', 'ASSESSMENT-unit-3.md'), assessment({ head: h3, scope: 'unit:3', base: h2 }));
 	const pause3 = cli(repo, 'next');
 	check('CLI: unit 3 hands off and pauses at its own T2 chunk', assessed3.code === 0 && pause3.out.startsWith('review: T2 chunk — late look'), pause3.out);
 	const identity3 = approvalIdentity(repo, 'bug-reports/r', trackerNotePath('bug-reports/r'));
@@ -351,6 +351,8 @@ try {
 	// repeats this guard even if someone directly advances the persisted phase to pr.
 	const finalContent = worktreeContentSha(repo, 'bug-reports/r', null, 'row');
 	appendFileSync(join(repo, '.wf', 'checks.log'), `${ALL_CASES.map((c) => caseGreen(c.n, c.check, finalContent, 'integration')).join('\n')}\n${suitesGreen(finalContent)}\n`);
+	const finalHandoff = cli(repo, 'step', 'assess');
+	check('CLI: final integration hands off before its independent assessment', finalHandoff.code === 0, finalHandoff.out);
 	writeFileSync(join(repo, 'bug-reports', 'r', 'ASSESSMENT.md'), assessment({ head: h3, scope: 'unit:3', base: h2 }));
 	const finalReview = () => {
 		const identity = approvalIdentity(repo, 'bug-reports/r', trackerNotePath('bug-reports/r'));

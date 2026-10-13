@@ -41,6 +41,9 @@ integration assessment, which judges the whole round against the whole agreement
   - `blocked` — an intent line is unmet, or a symptom still reproduces, or the work has left the
     agreement materially.
 - `head: <git rev-parse HEAD>` — the implementation this judged.
+- `assessed-at: <current ISO timestamp>` — when this independent assessment finished. Write a new
+  report even when HEAD and the findings are unchanged: the handoff records the previous report's
+  content identity, so merely touching or rewriting that old report does not answer this assessment.
 - `scope: unit:<n> | integration` — on a round with `## Units`, the scope named above. A unit also
   records `base: <the unit's starting commit>` from its brief.
 - `## Intent` — one line per intent line: `met:` with a `before:` and an `after:` measurement, or

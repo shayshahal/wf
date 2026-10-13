@@ -56,6 +56,8 @@ export type State = {
 	// Autonomous repairs of the current build scope, bounded by MAX_REPAIRS; unit advancement resets
 	// the counter so one early unit does not exhaust every later unit's repair budget.
 	repairs?: number;
+	// The report present at the last assess handoff; an unchanged report is not a new judgment.
+	assessment_baseline?: { file: string; sha: string | null };
 	/** Executable units and review receipts; absent on the single-task route. */
 	slices?: SliceProgress;
 	// The step a round-worker was sent back for by `wf handoff check` (handoff-hook.ts): one hand-back
@@ -172,6 +174,10 @@ export function readState(toplevel: string): State | null {
 		throw new CorruptStateError(file, e instanceof Error ? e.message : String(e));
 	}
 	if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) throw new CorruptStateError(file, 'it is not a JSON object');
+	if ('assessment_baseline' in parsed) {
+		const baseline = parsed.assessment_baseline;
+		if (baseline === null || typeof baseline !== 'object' || !('file' in baseline) || typeof baseline.file !== 'string' || !/^ASSESSMENT(?:-unit-[1-9]\d*)?\.md$/.test(baseline.file) || !('sha' in baseline) || (baseline.sha !== null && (typeof baseline.sha !== 'string' || !/^[a-f0-9]{64}$/.test(baseline.sha)))) throw new CorruptStateError(file, 'invalid assessment_baseline');
+	}
 	if ('slices' in parsed) {
 		const gap = sliceProgressGap(parsed.slices);
 		if (gap) throw new CorruptStateError(file, gap);
