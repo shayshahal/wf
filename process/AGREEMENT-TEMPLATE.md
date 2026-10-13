@@ -5,8 +5,8 @@ built from (#110, #111). Class A needs none of it: `TICKET.md` is the agreement,
 (for a check round) or a `## Verification` table may sit in it. This file is also what the T1
 agreement session (`skills/design-session/SKILL.md`) follows.
 
-The section order is fixed. The `## Verification` cases and the `## Units` plan are the machine-read
-parts; `## Observed` + `## Agreed` are the agreed material, and T1 binds its sha
+The section order is fixed. The `T2 walk` bullet, `## Verification` cases and `## Units` plan are the
+machine-read parts; `## Observed` + `## Agreed` are the agreed material, and T1 binds its sha
 (`src/round/agreement.ts`).
 
 ```markdown
@@ -26,7 +26,7 @@ parts; `## Observed` + `## Agreed` are the agreed material, and T1 binds its sha
 - **Excluding.** <what this round does not touch, and where it lands instead>
 - **Choice.** <the one consequential choice, and the alternative it beat, one line why>
 - **Verification.** <the promise the cases below make>
-- **T2 walk.** <the `open:` line `wf show` follows: `open: <b2b|admin> </path> as <role> [mobile]>`>
+- **T2 walk.** <the `open:` line `wf show` follows: `open: <b2b|admin> </path> as <role> [mobile]>`, or `none — <why no walk is needed>`>
 - **Review chunks.** <only with `## Units`: each checkpoint in order, and what the person sees there>
 
 ## Verification

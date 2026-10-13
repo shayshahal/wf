@@ -42,6 +42,27 @@ export function section(text: string | null | undefined, name: string): string |
 	return m ? m[1] : null;
 }
 
+/** The explicit T2 walk bullet and its indented continuations; never sibling facts or headings. */
+export function agreementT2WalkLines(text: string | null | undefined): string[] {
+	const normalized = (text ?? '').replace(/\r\n/g, '\n');
+	const body = section(normalized, 'Agreed') ?? normalized;
+	const lines: string[] = [];
+	let indent: number | null = null;
+	for (const raw of body.split('\n')) {
+		if (indent === null) {
+			const marker = /^([ \t]*)[-*][ \t]+(?:\*\*T2 walk[.:]?\*\*|T2 walk)[.:]?(?:[ \t]+(.*)|$)/i.exec(raw);
+			if (!marker) continue;
+			indent = marker[1].length;
+			lines.push((marker[2] ?? '').trim());
+		} else {
+			if (!raw.trim()) continue;
+			if (raw.length - raw.trimStart().length <= indent) break;
+			lines.push(raw.trimStart().replace(/^[-*]\s+/, ''));
+		}
+	}
+	return lines.filter((line) => line && !line.startsWith('<!--'));
+}
+
 // A verification case: a table row under `## Verification` whose first cell is the case number. A
 // named assertion for `wf check` (check.ts checkCellTarget), the files it may touch (the fence) and
 // the repro it carries. Replaces PLAN.md's `## Commits` row.
@@ -86,7 +107,8 @@ export function agreementSha(toplevel: string, klass: RoundClass | null | undefi
 // Pure: null when `text` is an agreement a build can start from, else why not. Class A: the ticket
 // needs `## Intent` (composePrompt enforces that) and nothing else — no AGREEMENT.md, no extra
 // artifact to record the repro (#110). Class B/C: the observed facts and the agreed behavior are the
-// two halves a T1 decision needs; the verification cases are what `wf check` runs.
+// two halves a T1 decision needs; the verification cases are what `wf check` runs. A readable
+// T2 walk or an explicit no-walk reason is required before that approval.
 export function agreementGap(text: string | null | undefined, klass: RoundClass | null | undefined, branch: string | null = null): string | null {
 	if (!consequential(klass)) return null;
 	if (text == null) return `no ${AGREEMENT_FILE}`;
@@ -96,6 +118,9 @@ export function agreementGap(text: string | null | undefined, klass: RoundClass 
 	if (!agreed) return `${AGREEMENT_FILE} has no \`## Agreed\` behavior — what changes, what is excluded, the choice, the verification promise`;
 	const cases = verificationCases(text);
 	if (!cases.length) return `${AGREEMENT_FILE} has no \`## Verification\` cases — one table row per case \`| # | case | files | check |\``;
+	const walk = agreementT2WalkLines(text);
+	const readableWalk = walk.some((line) => /^open:[ \t]*`?[^`\s<]/i.test(line) || /^none\s*(?:—|[-:])\s*\S/i.test(line));
+	if (!readableWalk) return `${AGREEMENT_FILE} needs a T2 walk: open: <the review target>, or none — <why no walk is needed>; plain or bold labels are accepted`;
 	// The project's own rule on what a case may touch (projects/<name>/index.ts agreementCaseGap): a fix/ case
 	// listing a verification/ file is refused, so the oracle tests cannot be edited.
 	return agreementCaseGap({ branch, rows: cases.map((c) => ({ n: c.n, message: c.message, files: caseFiles(c) })) });

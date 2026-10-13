@@ -13,7 +13,7 @@ import { refuseCaller } from '../refusal.ts';
 import { openFile, openInEditor, opensWindows } from '../worktrees/editor.ts';
 import { resolveWorktree } from '../worktrees/worktree.ts';
 import { appendDatedSection, devUrlsFor, foldFeedbackLine, agreementPage, renderHeader, renderSkeleton, roundArtifacts } from './review-format.ts';
-import { agreementPath, agreementSha, AGREEMENT_REVIEW_FILE, consequential, section } from '../round/agreement.ts';
+import { agreementGap, agreementPath, agreementSha, AGREEMENT_REVIEW_FILE, consequential, section } from '../round/agreement.ts';
 import { seams } from '../seams.ts';
 import { readState, roundFile } from '../round/state.ts';
 import { runStep } from '../round/step.ts';
@@ -49,6 +49,12 @@ export async function runAgree(argv: string[]) {
 		console.error(`no ${agreement} yet — the working session writes it`);
 		process.exit(2);
 	}
+	const text = readFileSync(agreement, 'utf8');
+	const gap = agreementGap(text, klass, round);
+	if (gap) {
+		console.error(`wf agree: ${gap} — finish the agreement before T1`);
+		process.exit(2);
+	}
 	const previous = process.cwd();
 	process.chdir(worktree);
 	try {
@@ -60,7 +66,6 @@ export async function runAgree(argv: string[]) {
 	const header = () => renderHeader({ round, klass, agreementSha: sha, urls: devUrlsFor(worktree) });
 	const file = roundFile(worktree, AGREEMENT_REVIEW_FILE);
 	mkdirSync(join(worktree, '.wf'), { recursive: true });
-	const text = readFileSync(agreement, 'utf8');
 	const material = agreedSection(text, klass);
 	const toAnnotate = join(worktree, '.wf', 'AGREEMENT-T1.md');
 	writeFileSync(toAnnotate, `${material}\n<!-- extracted from ${agreement.split(/[\\/]/).pop()} § the agreed material: what T1 decides. The rest of the agreement is working detail. Annotate here -->\n`);

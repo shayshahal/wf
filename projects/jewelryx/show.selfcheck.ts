@@ -19,6 +19,11 @@ assert.equal(parseOpen('admin C:/Program Files/Git/products'), null);
 // old `## T2 walk` PLAN.md section — no shim for that heading.
 const agreement = '# AGREEMENT — T-1\n\n## Observed\n- x\n\n## Agreed\n\n- **Behavior.** goes two-column.\n- **T2 walk.** open: `b2b /catalog as buyer mobile`\n\n## Verification\n\n| # | case | files | check |\n|---|---|---|---|\n| 1 | a | b | c |\n';
 assert.equal(openLineOf(agreement), 'b2b /catalog as buyer mobile');
+for (const marker of ['T2 walk:', 'T2 walk.', 'T2 walk', '**T2 walk:**', '**T2 walk**:']) {
+	const plain = agreement.replace('**T2 walk.**', marker);
+	assert.equal(openLineOf(plain), 'b2b /catalog as buyer mobile', marker);
+	assert.deepEqual(setupLinesOf(plain.replace('mobile`', 'mobile`\n  setup: api fixThing {} as seller')), ['api fixThing {} as seller'], marker);
+}
 assert.equal(openLineOf(agreement.replace(/\n/g, '\r\n')), 'b2b /catalog as buyer mobile');
 // A wrapped continuation belongs to the explicit walk bullet, not just any Agreed bullet.
 assert.equal(openLineOf('## Agreed\n\n- **T2 walk.**\n  open: b2b /x as buyer\n'), 'b2b /x as buyer');
@@ -64,6 +69,9 @@ for (const prefix of ['## Agreed\n', '# TICKET\n\n## Intent\n']) {
 	const bounded = `${prefix}\n- setup: an ordinary fact\n- **Behavior.** a wrapped fact\n  open: the drawer holds a stale count\n- **T2 walk.**\n  open: b2b /catalog as buyer\n  setup: api fixThing {} as seller\n- setup: a later ordinary fact\n  setup: another fact\n`;
 	assert.equal(openLineOf(bounded), 'b2b /catalog as buyer');
 	assert.deepEqual(setupLinesOf(bounded), ['api fixThing {} as seller']);
+	const plain = bounded.replace('**T2 walk.**', 'T2 walk:');
+	assert.equal(openLineOf(plain), 'b2b /catalog as buyer');
+	assert.deepEqual(setupLinesOf(plain), ['api fixThing {} as seller']);
 }
 assert.deepEqual(setupLinesOf('- **T2 walk.** open: b2b / as buyer\n\n## Facts\n  setup: a fact after a heading\n'), []);
 
@@ -83,6 +91,10 @@ assert.deepEqual(setupLinesOf('- **T2 walk.** open: b2b / as buyer\n\n## Facts\n
 		const out = execFileSync(process.execPath, [run, 'show'], { cwd: repo, encoding: 'utf8', env: { ...process.env, CLAUDECODE: '1' } });
 		assert.match(out, /\/b2b\/catalog/);
 		assert.match(out, /preview_start/);
+		writeFileSync(join(repo, folder, 'AGREEMENT.md'), agreement.replace('**T2 walk.**', 'T2 walk:'));
+		const plain = execFileSync(process.execPath, [run, 'show'], { cwd: repo, encoding: 'utf8', env: { ...process.env, CLAUDECODE: '1' } });
+		assert.match(plain, /\/b2b\/catalog/);
+		assert.match(plain, /preview_start/);
 		// The same end-to-end run with a stray `setup:` fact under `## Observed`: it is not run and does
 		// not fail the command; the real walk (`## Agreed`) still opens.
 		writeFileSync(join(repo, folder, 'AGREEMENT.md'), agreement.replace('## Observed\n- x\n', '## Observed\n- setup: the seed lacks the page, so it must be made by hand\n- open: the drawer holds a stale count\n'));
@@ -106,7 +118,7 @@ assert.deepEqual(setupLinesOf('- **T2 walk.** open: b2b / as buyer\n\n## Facts\n
 		const bad = spawnSync(process.execPath, [run, 'show'], { cwd: repo, encoding: 'utf8', env: { ...process.env, CLAUDECODE: '1' } });
 		assert.equal(bad.status, 1, `${bad.stdout}\n${bad.stderr}`);
 		assert.match(bad.stderr, /is not `api <fn> <json> as <buyer\|seller\|admin>`/);
-		assert.match(bad.stderr, /Fix it in the agreement's \*\*T2 walk\.\*\* bullet/);
+		assert.match(bad.stderr, /Fix it in the agreement's T2 walk bullet/);
 		assert.doesNotMatch(bad.stderr, /## T2 walk/);
 	} finally {
 		rmSync(repo, { recursive: true, force: true });

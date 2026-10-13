@@ -65,7 +65,7 @@ const st = (patch: Partial<State>): State => ({ step: 'agree', class: 'A', folde
 const noFiles = { agreement: null, assessment: null, blocked: false, commits: false };
 check('an agree worker ending with no TICKET.md is sent back', (stopGap(st({}), noFiles) ?? '').includes('TICKET.md'));
 check('agree with ## Intent is allowed', stopGap(st({}), { ...noFiles, agreement: '# t\n## Intent\n- x\n' }) === null);
-check('a B/C agree with a complete agreement is allowed', stopGap(st({ class: 'B' }), { ...noFiles, agreement: '## Observed\n- x\n\n## Agreed\n- y\n\n## Verification\n| # | case | files | check |\n|---|---|---|---|\n| 1 | a | a.ts | a.ts::a@1 |\n' }) === null);
+check('a B/C agree with a complete agreement is allowed', stopGap(st({ class: 'B' }), { ...noFiles, agreement: '## Observed\n- x\n\n## Agreed\n- y\n- T2 walk: none — checked by the test\n\n## Verification\n| # | case | files | check |\n|---|---|---|---|\n| 1 | a | a.ts | a.ts::a@1 |\n' }) === null);
 check('a B/C agree missing ## Agreed is sent back', (stopGap(st({ class: 'B' }), { ...noFiles, agreement: '## Observed\n- x\n' }) ?? '').includes('## Agreed'));
 check('a build worker ending with no commit is sent back to finish', (stopGap(st({ step: 'build' }), noFiles) ?? '').includes('wf step assess'));
 check('a build worker with a commit, or BLOCKED.md, is allowed', stopGap(st({ step: 'build' }), { ...noFiles, commits: true }) === null && stopGap(st({ step: 'build' }), { ...noFiles, blocked: true }) === null);

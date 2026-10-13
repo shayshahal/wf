@@ -21,6 +21,7 @@ Class: B
 - the header renders at the top — \`src/Page.svelte:12\`
 ## Agreed
 - Behavior: two columns. Excluding: the data shown.
+- T2 walk: open: /catalog as buyer
 ## Verification
 | # | case | files | check |
 |---|---|---|---|
@@ -32,6 +33,9 @@ check('a B/C agreement with observed, agreed and a case has no gap', agreementGa
 check('no AGREEMENT.md is a gap naming it', agreementGap(null, 'B') === `no AGREEMENT.md`);
 check('an agreement with no ## Observed is a gap', (agreementGap(AGREEMENT.replace(/## Observed\n- .*\n/, ''), 'B') ?? '').includes('## Observed'));
 check('an agreement with no ## Verification cases is a gap', (agreementGap(AGREEMENT.replace(/\| 1 \|[^\n]*\n/, ''), 'B') ?? '').includes('## Verification'));
+check('a B/C agreement missing the walk is refused before T1', (agreementGap(AGREEMENT.replace('- T2 walk: open: /catalog as buyer\n', ''), 'B') ?? '').includes('T2 walk'));
+check('a blank walk is refused before T1', (agreementGap(AGREEMENT.replace('open: /catalog as buyer', ''), 'C') ?? '').includes('T2 walk'));
+check('an explicit no-walk reason is valid for work without a page', agreementGap(AGREEMENT.replace('open: /catalog as buyer', 'none — the contract test is the proof'), 'B') === null);
 check('an ordinary ticket needs no agreement document', agreementGap('# t\n## Intent\n- x\n', 'A') === null);
 check('files split from a case cell', caseFiles(cases[0]).join() === 'src/Page.svelte');
 

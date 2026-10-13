@@ -4,8 +4,8 @@
 // already on the page, and leaves it to Shay (T2: see the fix before reading the diff).
 // No args: the `open:` line of the agreement's T2 walk. #114 moved that walk from the old
 // `## T2 walk` PLAN.md section into the agreement (`process/AGREEMENT-TEMPLATE.md`: a `- **T2 walk.**`
-// bullet under `## Agreed`), and made it optional: no walk means `wf show` needs its arguments, never
-// an artifact gate. There is no reader for the old section.
+// bullet under `## Agreed`). Plain and bold labels are equivalent; B/C agreements declare a walk
+// or an explicit no-walk reason before T1. Without an open line, show needs its arguments.
 // The login and the page are the project's verification skill (round.ts VERIFY_SKILL): its CLI
 // holds how JewelryX logs in, which this file used to repeat in a spec of its own.
 import { spawnSync } from 'node:child_process';
@@ -14,7 +14,7 @@ import { dirname, join } from 'node:path';
 import { opensWindows } from '../../src/worktrees/editor.ts';
 import { writeCloneLaunch } from '../../src/worktrees/new.ts';
 import { readState, roundOf, toplevelOf, writeState } from '../../src/round/state.ts';
-import { agreementPath, agreementSha, section } from '../../src/round/agreement.ts';
+import { agreementPath, agreementSha, agreementT2WalkLines } from '../../src/round/agreement.ts';
 import { basePortForBranch, slugForBranch } from '../../src/worktrees/worktree.ts';
 import { logins, stackUrls } from './index.ts';
 import type { Origins, SeedRole } from './index.ts';
@@ -40,7 +40,7 @@ export function parseOpen(line: string | null | undefined): Open | null {
 	return { app: m[1] as Open['app'], path: m[2].startsWith('/') ? m[2] : `/${m[2]}`, as: (m[3] as SeedRole | undefined) ?? (m[1] === 'admin' ? 'admin' : 'buyer'), mobile: Boolean(m[4]) };
 }
 
-/** Pure: the `open:` line of the explicit `- **T2 walk.**` bullet, or null. Read its indented
+/** Pure: the `open:` line of the explicit plain or bold T2 walk bullet, or null. Read its indented
  * continuations, never another bullet's facts. The bullet lives in Agreed for B/C or TICKET.md
  * for A; the retired PLAN.md `## T2 walk` heading has no reader (#114). */
 export function openLineOf(text: string | null): string | null {
@@ -53,31 +53,15 @@ export function setupLinesOf(text: string | null): string[] {
 	return matchWalkLines(text, /setup:/i);
 }
 
-// 2026-10-10 closure F1: scoping to all of Agreed still ran facts from another bullet; Class A's
-// ticket has no Agreed section at all. In either document only the explicit T2 walk marker and its
-// indented continuations are commands. A sibling bullet, heading or unindented paragraph ends it.
+// The agreement owns the walk boundary (2026-10-10 F1: sibling facts must not execute) and labels;
+// the project owns command syntax. Plain labels failed on two delivered rounds, 2026-10-13.
 function matchWalkLines(text: string | null, key: RegExp): string[] {
-	const normalized = (text ?? '').replace(/\r\n/g, '\n');
-	const body = section(normalized, 'Agreed') ?? normalized;
+
 	const command = new RegExp(`^${key.source}[ \\t]*\`?([^\`\n]+?)\`?[ \\t]*$`, 'i');
-	const out: string[] = [];
-	let walkIndent: number | null = null;
-	for (const raw of body.split('\n')) {
-		let line: string;
-		if (walkIndent === null) {
-			const marker = /^([ \t]*)[-*]\s+\*\*T2 walk\.?\*\*[ \t]*(.*)$/i.exec(raw);
-			if (!marker) continue;
-			walkIndent = marker[1].length;
-			line = marker[2];
-		} else {
-			if (!raw.trim()) continue;
-			if (raw.length - raw.trimStart().length <= walkIndent) break;
-			line = raw.trimStart().replace(/^[-*]\s+/, '');
-		}
-		const m = command.exec(line);
-		if (m) out.push(m[1]);
-	}
-	return out;
+	return agreementT2WalkLines(text).flatMap((line) => {
+		const match = command.exec(line);
+		return match ? [match[1]] : [];
+	});
 }
 
 // Pure: what Claude Code's Browser pane opens for a parsed `open:` line, where wf opens no window
@@ -120,7 +104,7 @@ export function runShow(argv: string[]): void {
 		const token = agreementSha(toplevel, state?.class ?? null, folder) ?? 'agreement';
 		if (state?.t2_setup !== token) setups = setupLinesOf(text).map((cmd) => ({ cmd, token }));
 		if (!line) {
-			console.error('wf show: no `open:` line in the agreement\'s `**T2 walk.**` bullet — pass it: wf show b2b /catalog as buyer mobile');
+			console.error('wf show: no `open:` line in the agreement\'s T2 walk bullet — pass it: wf show b2b /catalog as buyer mobile');
 			process.exit(2);
 		}
 	}
@@ -133,7 +117,7 @@ export function runShow(argv: string[]): void {
 		const args = setupArgs(cmd);
 		const r = args && spawnSync(process.execPath, args, { cwd: toplevel, encoding: 'utf8' });
 		if (!r || r.status !== 0) {
-			console.error(`wf show: setup "${cmd}" ${r ? `failed:\n${`${r.stdout}${r.stderr}`.trim().slice(0, 600)}` : 'is not `api <fn> <json> as <buyer|seller|admin>`'}\nFix it in the agreement's **T2 walk.** bullet, then wf show again.`);
+			console.error(`wf show: setup "${cmd}" ${r ? `failed:\n${`${r.stdout}${r.stderr}`.trim().slice(0, 600)}` : 'is not `api <fn> <json> as <buyer|seller|admin>`'}\nFix it in the agreement's T2 walk bullet, then wf show again.`);
 			process.exit(1);
 		}
 		console.log(`setup: ${cmd} → ${/HTTP \d+/.exec(r.stdout)?.[0] ?? 'ok'}`);

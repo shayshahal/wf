@@ -62,6 +62,8 @@ const assessment = [
 const commitLines = ['- abc1234 fix(auth): raise at the caller', '- def5678 docs(BJEW-1): round folder: ticket, agreement, assessment, repro'];
 const body = prBody({ ticket, agreement, commitLines, assessment, agreementPath: 'bug-reports/bjew-1/AGREEMENT.md' });
 const visible = body.slice(0, body.indexOf('<details>'));
+const plainWalk = prBody({ ticket, agreement: agreement.replace('**T2 walk.**', 'T2 walk:'), commitLines, assessment, agreementPath: 'bug-reports/bjew-1/AGREEMENT.md' });
+check('the PR keeps a plain-label T2 walk just like the bold template', plainWalk.includes('## T2 walk\n\nopen: /login as shay'));
 
 check('the PR title is the ticket’s own title', prTitle({ ticket, agreement, commitLines }) === 'BJEW-1 — the code never arrives');
 check('with no TICKET.md the title is the newest commit, never the oldest', prTitle({ ticket: '', agreement, commitLines }) === 'fix(auth): raise at the caller');

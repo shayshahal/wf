@@ -17,7 +17,7 @@ import { refuseCaller } from '../refusal.ts';
 import { seams } from '../seams.ts';
 import { runCheck } from './check.ts';
 import { baseBranch, trackerNote } from '../project.ts';
-import { agreementPath, assessmentGap, ASSESSMENT_FILE, TICKET_FILE, verificationCases } from '../round/agreement.ts';
+import { agreementPath, agreementT2WalkLines, assessmentGap, ASSESSMENT_FILE, TICKET_FILE, verificationCases } from '../round/agreement.ts';
 import { openQuestionGate } from '../round/ask.ts';
 import { readVerdict, approvalBinding, approvalContentGap, lastField, reviewScopeBinding } from './review-format.ts';
 import { parseBuildUnits, sliceProgressGap } from '../round/build-units.ts';
@@ -36,9 +36,8 @@ export const PR_BODY_BUDGET = 60000;
 
 type PrSources = { ticket: string; agreement: string; commitLines: string[]; assessment: string; agreementPath: string; folder?: string; budget?: number };
 
-// The `## T2 walk` line of the agreement — a section body, or the `**T2 walk.**` bullet the agreement
-// template writes inside `## Agreed` (both name the same `open:` line).
-const t2WalkOf = (text: string): string => /^(?:-\s*)?(?:\*\*T2 walk\.\*\*\s*)?(open:[^\n]*)$/m.exec(text)?.[1]?.trim() ?? '';
+// The agreement owns the T2 walk bullet's plain/bold labels and continuation boundary.
+const t2WalkOf = (text: string): string => agreementT2WalkLines(text).find((line) => /^open:/i.test(line)) ?? '';
 
 // The `## <name>` sections of a round file, by name. A section runs to the next `## ` or the end.
 function sectionsOf(text: string) {

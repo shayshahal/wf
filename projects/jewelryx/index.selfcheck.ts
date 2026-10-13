@@ -93,7 +93,7 @@ check('and still against the round stack', spec?.env?.B2B_URL === direct.b2b && 
 rmSync(stackTree, { recursive: true, force: true });
 
 // ── the oracle guard, where wf meets it: the plan's hand-off, and a row's check on a real branch
-const agreementWith = (files: string) => ['# r — agreement', 'Class: B', '## Observed', '- x — `a.ts:1`', '## Agreed', 'Behavior.', '## Verification', '| # | case | files | check |', '|---|---|---|---|', `| 1 | test(verification): x | ${files} | verification/tests/x.spec.ts |`].join('\n');
+const agreementWith = (files: string) => ['# r — agreement', 'Class: B', '## Observed', '- x — `a.ts:1`', '## Agreed', 'Behavior.', '- T2 walk: none — checked by the contract test', '## Verification', '| # | case | files | check |', '|---|---|---|---|', `| 1 | test(verification): x | ${files} | verification/tests/x.spec.ts |`].join('\n');
 check('agreement: a fix/ case with a verification/ file is refused (the oracle guard)', agreementGap(agreementWith('verification/tests/x.spec.ts'), 'B', 'fix/bjew-617-x')?.includes('oracle-guard') === true);
 check('agreement: the same case on a verification/ branch, or with no branch known, is accepted', agreementGap(agreementWith('verification/tests/x.spec.ts'), 'B', 'verification/x') === null && agreementGap(agreementWith('verification/tests/x.spec.ts'), 'B') === null);
 check('agreement: a fix/ case that stays in the product is accepted', agreementGap(agreementWith('packages/backend/app/x.py'), 'B', 'fix/x') === null);
