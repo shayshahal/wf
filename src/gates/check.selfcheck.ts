@@ -2,7 +2,7 @@
 // Pure arms only (no git, no runners): the fence, the repro line, and what buildTasks makes of a
 // plan row's check cell. The project's own commands: projects/<name>/checks.selfcheck.ts.
 import { failedInRepro, failureFrame, failureSignature, reproVerdict } from './check.ts';
-import { checkCellCommand, checkCellPath, checkCellTarget, checkRunLine, buildTasks, expectRedVerdict, fenceViolations, isReproOnly, isRoundPaperwork, manualCheck, redBaseFiles, redBaseRun, redCause, reproCommand, resolvedBlockedName, shellArgUnsafe, shellArgv, suitesLine, targetGap, tokenize, withFixReverted } from './check.ts';
+import { checkCellCommand, checkCellPath, checkCellTarget, buildTasks, expectRedVerdict, fenceViolations, isReproOnly, isRoundPaperwork, manualCheck, redBaseFiles, redBaseRun, redCause, reproCommand, resolvedBlockedName, shellArgUnsafe, shellArgv, targetGap, tokenize, withFixReverted } from './check.ts';
 import type { CheckTarget, CheckTask } from './check.ts';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -94,16 +94,9 @@ check('a test id with spaces runs to the end; a command cell still takes its pat
 // no test id. The red-base gate refuses each before it reads a run (#109).
 check('targetGap refuses a missing id and a red-base row with no line; a full binding passes', targetGap(checkCellTarget('a/b.py')) !== null && targetGap(checkCellTarget('a/b.py::test_x')) !== null && targetGap(checkCellTarget('a/b.py::test_x@7')) === null && targetGap(checkCellTarget('refactor: a/b.py::test_x')) === null && targetGap(checkCellTarget('refactor: a/b.py')) !== null && targetGap(null) !== null, JSON.stringify([targetGap(checkCellTarget('a/b.py')), targetGap(checkCellTarget('a/b.py::test_x'))]));
 
-const logLine = JSON.parse(checkRunLine({ ts: 't', row: '2', rowCheck: '`repro`', tasks: [{ label: 'ruff check x.py', exit: 0 }, { label: 'npx playwright test r.spec.ts', exit: 1 }], result: 'red' }));
-check('checks.log line carries row, the row check, each task exit and the result', logLine.row === '2' && logLine.rowCheck === '`repro`' && logLine.tasks[1].exit === 1 && logLine.result === 'red', JSON.stringify(logLine));
-// #109: the red-base run's own verdict rides the line, so validate and the friction line can tell a
-// behavioral failure from a runner failure from evidence that could not prove the intended assertion.
-const evidenceLine = JSON.parse(checkRunLine({ ts: 't', row: '2', rowCheck: '`a/b.py::test_x@7`', result: 'red', tasks: [{ label: 'red-base a/b.py::test_x@7', exit: 1, expect: 'red', evidence: { verdict: 'unavailable', say: 'not proof of the intended defect: the run failed at b.py:2' } }] }));
-check('the red-base evidence rides the checks.log line', evidenceLine.tasks[0].evidence.verdict === 'unavailable' && evidenceLine.tasks[0].evidence.say.includes('b.py:2'), JSON.stringify(evidenceLine));
 // BJEW-461 (2026-10-06): a gate that never ran (the stack, a task wf could not build) is the
 // environment, not a check the round failed; a task that ran and exited non-zero is the code.
 check('a red where no task ran is the environment; a task that ran and failed is the code', redCause({ exit: null }) === 'environment' && redCause({ exit: 1 }) === 'code' && redCause({ exit: 0 }) === 'code');
-check('the cause rides the red line, and a green line has none', JSON.parse(checkRunLine({ ts: 't', row: '2', rowCheck: null, tasks: [{ label: 'stack', exit: null, missing: 'the stack never answered' }], result: 'red', cause: 'environment' })).cause === 'environment' && !('cause' in JSON.parse(checkRunLine({ ts: 't', row: '2', rowCheck: null, tasks: [{ label: 'x', exit: 0 }], result: 'green' }))));
 
 // A row that only edits the repro runs it, expecting red: the round's before-the-fix run (TJEW-670).
 check('a row of repro files only is repro-only', isReproOnly(['bug-reports/r/repro/a.spec.ts'], 'bug-reports/r') && !isReproOnly(['bug-reports/r/repro/a.spec.ts', 'packages/x.ts'], 'bug-reports/r') && !isReproOnly([], 'bug-reports/r') && !isReproOnly(['bug-reports/r2/repro/a.spec.ts'], 'bug-reports/r'));
@@ -139,20 +132,6 @@ check('expect-red: a repro that passes before the fix is its own finding', expec
 // A repro run that never started is not stable or green either: `wf check --repro` records it outside.
 check('a repro run that never started is outside, not stable or green', reproVerdict([run('', null), run('', null), run('', null)], 'bug-reports/r').result === 'outside');
 check('a repro that only ever crashes is outside, never stable', reproVerdict([run('Error: boom\n    at C:\\wt\\x\\bug-reports\\r\\repro\\throw.mjs:1:1', 1, false)], 'bug-reports/r').result === 'outside');
-const reproLog = JSON.parse(checkRunLine({ ts: 't', row: 'repro', rowCheck: null, tasks: [], result: 'stable', content: 'tree:measured' }));
-check('the repro log names measured content, never a retired research handoff token', reproLog.content === 'tree:measured' && !('token' in reproLog));
-
-// wf check --suites: one line, the head it measured, a red suite's output tail.
-const sl = JSON.parse(suitesLine({ ts: 't', head: 'abc', runs: [{ label: 'suite one', exit: 0, output: 'x\n3201 passed' }, { label: 'suite two', exit: 1, output: `${'line\n'.repeat(60)}FAIL src/x.test.ts` }] }));
-check('suites line: row suites, its head, red when any suite is', sl.row === 'suites' && sl.head === 'abc' && sl.result === 'red');
-check('suites line: a green suite keeps no output, a red one its last 40 lines', sl.tasks[0].output === undefined && sl.tasks[1].output.split('\n').length === 40 && sl.tasks[1].output.endsWith('FAIL src/x.test.ts'));
-check('suites line: green when every suite exits 0', JSON.parse(suitesLine({ ts: 't', head: 'abc', runs: [{ label: 'a', exit: 0, output: '' }] })).result === 'green');
-check('suites line: a diff that reaches no suite is recorded, with no tasks, so wf next moves on', JSON.stringify(JSON.parse(suitesLine({ ts: 't', head: 'abc', runs: [] }))) === '{"ts":"t","row":"suites","head":"abc","tasks":[],"result":"green"}');
-// A suite whose runner never started is the environment, not a suite of failing tests; one that ran
-// and failed is the code, and a real failure beside an unrunnable suite keeps the line about the code.
-const suitesCause = (runs: { label: string; exit: number | null; output: string }[]) => JSON.parse(suitesLine({ ts: 't', head: 'abc', runs })).cause;
-check('suites line: a runner that never started is the environment', suitesCause([{ label: 'a', exit: null, output: 'spawn failed' }]) === 'environment' && suitesCause([{ label: 'a', exit: 1, output: 'FAIL' }]) === undefined && suitesCause([{ label: 'a', exit: null, output: 'spawn failed' }, { label: 'b', exit: 1, output: 'FAIL' }]) === undefined);
-
 // Red-base: the row's test must fail with the row's change taken back to HEAD. The file set leaves
 // the test in place; the stash dance restores the working change whatever the run does.
 check('the check cell\'s path: the first code span, its last word; — and manual: are fence only', checkCellPath('`vitest run a/x.test.ts` (a note)') === 'a/x.test.ts' && checkCellPath('pytest packages/backend/tests/test_auth.py') === 'packages/backend/tests/test_auth.py' && checkCellPath('— note `x.ts`') === '' && checkCellPath('manual: open /admin/listings') === '' && checkCellPath(undefined) === '' && checkCellCommand('`vitest run a/x.test.ts` (a note)') === 'vitest run a/x.test.ts', JSON.stringify([checkCellPath('`vitest run a/x.test.ts` (a note)'), checkCellPath('— note `x.ts`')]));

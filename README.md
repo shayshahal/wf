@@ -38,7 +38,8 @@ round commits (for JewelryX, `bug-reports/<round>/`).
     a repro case; `--suites`, the whole suites the round's diff reaches; and, on a verification
     case, the case's own test with the fix reverted — red-base (a unit's starting commit, the round's
     base during final integration, HEAD on the single-task route); `--case` names one),
-    and `wf deliver`
+    and `wf deliver`. `checks-log.ts` owns measurement encoding, parsing and case/repro/suite
+    classification; step, status and friction read that one protocol instead of their own schemas.
   - `src/worktrees/`: `worktree.ts` is the one interface to worktrees: list, ports and slugs
     (`ports.ts`), create (`wf new`), remove (`wf reap`). Where no env plugs its own in,
     `git-worktree.ts` makes them in `<repo>/.claude/worktrees/`. No worktree is served from its

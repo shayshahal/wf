@@ -5,7 +5,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { plug } from '../seams.ts';
-import { allLines, collectRows, formatRow, prLabel, formatAgeSince, processesIn, realDetailFor, inspectRound, porcelainEntries, nameStatusEntries, lastEvidence, evidenceBinding, formatInspect } from './status.ts';
+import { allLines, collectRows, formatRow, prLabel, formatAgeSince, processesIn, realDetailFor, inspectRound, porcelainEntries, nameStatusEntries, evidenceBinding, formatInspect } from './status.ts';
 import { agreementSha } from './agreement.ts';
 import type { Question, State } from './state.ts';
 
@@ -117,7 +117,6 @@ const gitFake = (args: string[]) => args[0] === 'status' ? ' M packages/x.ts\0??
 const fakeIdentity = () => 'run 3';
 check('porcelain keeps git\'s exact staged/unstaged XY', JSON.stringify(porcelainEntries('M  a.ts\0 M b.ts\0MM c.ts\0?? d.ts\0')) === JSON.stringify([{ status: 'M ', path: 'a.ts' }, { status: ' M', path: 'b.ts' }, { status: 'MM', path: 'c.ts' }, { status: '??', path: 'd.ts' }]));
 check('porcelain -z takes a rename\'s new path and skips its original, unquoted', JSON.stringify(porcelainEntries('R  src/New name.ts\0src/Old name.ts\0?? src/עברית.ts\0')) === JSON.stringify([{ status: 'R ', path: 'src/New name.ts' }, { status: '??', path: 'src/עברית.ts' }]));
-check('last evidence reads the case and the suites apart, skipping a line cut mid-write', JSON.stringify(lastEvidence('{"row":1,"result":"green","content":"tree:c"}\nnot json\n{"row":"suites","result":"red"}\n')) === JSON.stringify({ case: { row: 1, result: 'green', content: 'tree:c' }, suites: { row: 'suites', result: 'red' } }));
 check('evidence binding: only a matching recomputed identity is current', evidenceBinding({ row: 1, result: 'green', content: 'tree:c' }, 'tree:c') === 'current' && evidenceBinding({ row: 1, result: 'green', content: 'tree:c' }, 'tree:x') === 'stale' && evidenceBinding({ row: 1, result: 'green', content: 'tree:c' }, null) === 'unknown' && evidenceBinding({ row: 1, result: 'green' }, 'tree:c') === 'unknown');
 const insp = inspectRound({ path: ir, state: irState, git: gitFake, guidance: ['docs/agents'], wfRoot: '/wf', identity: fakeIdentity });
 check('inspect names the agreement for the class', insp.agreement.file === 'bug-reports/BJEW-9/AGREEMENT.md' && insp.agreement.exists && !!insp.agreement.sha, JSON.stringify(insp.agreement));

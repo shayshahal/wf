@@ -19,6 +19,8 @@ import { lastField, readVerdict } from '../gates/review-format.ts';
 import { people } from '../project.ts';
 import { roundFile, roundOf, readState, writeState, WF_STATE_VERSION } from './state.ts';
 import { worktreeContentSha } from '../gates/content-identity.ts';
+import { parseChecksLog } from '../gates/checks-log.ts';
+import type { CheckLogEntry } from '../gates/checks-log.ts';
 import type { RoundClass, State } from './state.ts';
 import { stepHistory } from './friction.ts';
 import { changedFiles, isRoundPaperwork } from '../gates/check.ts';
@@ -50,11 +52,6 @@ export function t1Gap(toplevel: string, state: State | null): string | null {
 // identity of the implementation now (content-identity.ts). `content: null` is git unable to compute
 // the tree now.
 export type ChecksEvidence = { log: string; content: string | null; scope?: string; cases?: { n: number; check: string }[]; requireSuites?: boolean };
-type LogLine = { row?: unknown; rowCheck?: string; scope?: string; result?: string; cause?: string; content?: string; tasks?: { label?: string; exit?: number | null; missing?: string }[] };
-const logLines = (log: string): LogLine[] => log.split(/\r?\n/).filter((l) => l.trim()).flatMap((l) => {
-	try { return [JSON.parse(l) as LogLine]; } catch { /* a line cut off mid-write: skipped, the rest still read */ return []; }
-});
-
 // Pure: null when checks.log holds a wf check green of exactly the implementation as it is now — the
 // identity check.ts records on every run (row scope: product and tests, not the round folder or .wf,
 // so a paperwork-only commit leaves it in force). Else `harness` when the check cannot run at all
@@ -65,10 +62,11 @@ const logLines = (log: string): LogLine[] => log.split(/\r?\n/).filter((l) => l.
 // assessment then reached T2.
 export function checkGap({ log, content, scope, cases, requireSuites }: ChecksEvidence): { kind: 'harness' | 'check'; say: string } | null {
 	if (content === null) return { kind: 'harness', say: "git cannot compute the implementation's tree, so wf check cannot name what it measures" };
-	const runs = logLines(log).filter((l) => l.row !== 'repro' && l.row !== 'suites');
+	const parsed = parseChecksLog(log);
+	const runs = parsed.cases;
 	const mine = runs.filter((l) => l.content === content).at(-1);
 	const last = runs.at(-1);
-	const trouble = (l: LogLine | undefined) => l !== undefined && (l.result === 'unavailable' || (l.result === 'red' && l.cause === 'environment')) && (l.content === content || l.content === undefined);
+	const trouble = (l: CheckLogEntry | undefined) => l !== undefined && (l.result === 'unavailable' || (l.result === 'red' && l.cause === 'environment')) && (l.content === content || l.content === undefined);
 	if (trouble(last)) {
 		const why = (last!.tasks ?? []).map((t) => t.missing).find(Boolean) ?? (last!.result === 'unavailable' ? 'git could not read the tree before and after the run' : 'a task could not run');
 		return { kind: 'harness', say: `the last wf check could not run (${why})` };
@@ -79,7 +77,7 @@ export function checkGap({ log, content, scope, cases, requireSuites }: ChecksEv
 			if (run?.result !== 'green') return { kind: 'check', say: `${scope}: verification case ${c.n} has no current green — run wf check for all assigned cases` };
 		}
 		if (requireSuites) {
-			const suite = logLines(log).filter((l) => l.row === 'suites' && l.content === content).at(-1);
+			const suite = parsed.suites.filter((l) => l.content === content).at(-1);
 			if (suite?.result !== 'green') return { kind: 'check', say: 'integration needs a current green of wf check --suites' };
 		}
 		return null;
@@ -100,7 +98,7 @@ export function checkGapLine(gap: NonNullable<ReturnType<typeof checkGap>>): str
 // Pure: the whole-suites gap of this implementation, or null: the last `wf check --suites` line of
 // exactly these bytes is not green. A suites line of other bytes measured something else and is ignored.
 export function suitesGap({ log, content }: ChecksEvidence): string | null {
-	const last = logLines(log).filter((l) => l.row === 'suites' && l.content !== undefined && l.content === content).at(-1);
+	const last = parseChecksLog(log).suites.filter((l) => l.content !== undefined && l.content === content).at(-1);
 	if (!last || last.result === 'green') return null;
 	const red = (last.tasks ?? []).filter((t) => t.exit !== 0).map((t) => t.label).filter(Boolean);
 	return `suites ${last.result ?? 'not green'} at this implementation${red.length ? `: ${red.join(', ')}` : ''}`;

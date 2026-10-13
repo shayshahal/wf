@@ -53,8 +53,9 @@ import type { VerificationCase } from '../round/agreement.ts';
 import { readState, resolveRoundBase, roundOf, toplevelOf } from '../round/state.ts';
 import { ensureServers } from '../worktrees/serve.ts';
 import { worktreeContentSha } from './content-identity.ts';
+import { checkOutputTail, checkRunLine, suitesLine } from './checks-log.ts';
+import type { CheckRun, RedCause } from './checks-log.ts';
 
-const TAIL = 40;
 // `pnpm` is a .cmd shim on Windows, so its runs need shell:true; Node then prints DEP0190
 // on every spawn, which would break "silent on green". The argv here is paths wf itself
 // derived from verification cells; shellArgUnsafe below rejects shell metavariables.
@@ -81,10 +82,6 @@ export type RunEvidence = {
 	detail?: string;
 	tests?: { id: string; error: string; source?: string }[];
 };
-
-// One task's run, as checks.log records it. `evidence` is the red-base/refactor run's own verdict,
-// computed from the full output before `output` is cut to its tail (2026-10-09).
-export type CheckRun = { label: string; exit: number | null; missing?: string; expect?: 'red'; output?: string; evidence?: RunEvidence };
 
 // Everything the round has moved: committed on the branch since `base` (when given), plus unstaged,
 // staged and untracked, repo-relative. A committed-only product change must be seen too — a build that
@@ -288,16 +285,8 @@ export function isReproOnly(files: string[], folder: string | null) {
 // `outside` for it (reproVerdict); this is the commit gate's half of the same fix — a gate that never
 // ran was written down as `red`, so wf next, validate's Commits line and the friction line could not
 // tell "the code is wrong" from "the gate could not run".
-export type RedCause = 'code' | 'environment';
 export function redCause(task: { exit: number | null }): RedCause {
 	return task.exit === null ? 'environment' : 'code';
-}
-
-// Pure: the checks.log line for one run. `cause` only on a red: green has no cause to give. `content`
-// is the implementationContentSha the run finished on (content-identity.ts) — recorded so a green
-// names what it measured, never the bytes a mutating task replaced before the run ended (#106).
-export function checkRunLine({ ts, row, rowCheck, tasks, result, cause, content, scope }: { ts: string; row: number | string | null; rowCheck: string | null; tasks: CheckRun[]; result: string; cause?: RedCause; content?: string; scope?: string }) {
-	return JSON.stringify({ ts, row, rowCheck, tasks, result, ...(cause ? { cause } : {}), ...(content ? { content } : {}), ...(scope ? { scope } : {}) });
 }
 
 // The row identity a run measured, or undefined when git cannot read the tree: the log line still
@@ -626,7 +615,7 @@ export async function runCheck(argv: string[] = []) {
 			continue;
 		}
 		console.error(`FAILED: ${task.cmd} ${task.args!.join(' ')}`);
-		console.error(output.split('\n').slice(-TAIL).join('\n').trimEnd());
+		console.error(checkOutputTail(output));
 		logRun('red', redCause(failed));
 		process.exit(1);
 	}
@@ -748,19 +737,6 @@ export function resolvedBlockedName(n: number, taken: string[]) {
 	}
 }
 
-/** Record whole test suites for one HEAD: green only when every suite exited 0; keep red output tails. */
-export function suitesLine({ ts, head, runs, content, gap }: { ts: string; head: string; runs: { label: string; exit: number | null; output: string }[]; content?: string; gap?: IdentityGap }) {
-	const tasks: CheckRun[] = runs.map((r) => (r.exit === 0 ? { label: r.label, exit: 0 } : { label: r.label, exit: r.exit, output: tail(r.output) }));
-	const red = tasks.filter((t) => t.exit !== 0);
-	// A suite whose own runner never started (a spawn error leaves its exit null) is the environment,
-	// not a suite of failing tests: validate's Suites section reads this before naming failing tests.
-	// Every red one, not any: a suite that really failed is the truth of the line.
-	const cause: RedCause | undefined = red.length && red.every((t) => t.exit === null) ? 'environment' : undefined;
-	return JSON.stringify({ ts, row: 'suites', head, tasks, result: gap ?? (red.length ? 'red' : 'green'), ...(cause ? { cause } : {}), ...(content ? { content } : {}) });
-}
-
-const tail = (output: string) => output.split('\n').slice(-TAIL).join('\n').trimEnd();
-
 /** Run the whole suites the round's diff reaches on a committed HEAD; record green or red evidence for validate. */
 export async function runSuites() {
 	const toplevel = toplevelOf();
@@ -815,7 +791,7 @@ export async function runSuites() {
 	const took = `${Math.round((Date.now() - start) / 1000)}s`;
 	const red = runs.filter((r) => r.exit !== 0);
 	if (!red.length) return console.log(`suites green at ${head.slice(0, 9)} in ${took}: ${runs.map((r) => r.label).join(', ')}`);
-	for (const r of red) console.error(`FAILED: ${r.label}\n${tail(r.output)}\n`);
+	for (const r of red) console.error(`FAILED: ${r.label}\n${checkOutputTail(r.output)}\n`);
 	console.error(`suites red at ${head.slice(0, 9)} in ${took}: ${red.map((r) => r.label).join(', ')}. The assessment reads it from checks.log.`);
 	process.exitCode = 1;
 }

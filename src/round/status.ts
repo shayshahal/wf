@@ -13,6 +13,8 @@ import { agreementFile, agreementPath, agreementSha, AGREEMENT_REVIEW_FILE, ASSE
 import { seams } from '../seams.ts';
 import { approvalBinding, approvalContentGap, lastField, readVerdict } from '../gates/review-format.ts';
 import { approvalIdentity, trackerNotePath, worktreeContentSha } from '../gates/content-identity.ts';
+import { parseChecksLog } from '../gates/checks-log.ts';
+import type { CheckEvidenceLine } from '../gates/checks-log.ts';
 import { WF_ROOT } from '../paths.ts';
 import { guidance as guidanceDir, name as projectName, stackUrls } from '../project.ts';
 import { basePortForBranch, listWorktrees, portsAndSlugsForBranches, slugForBranch } from '../worktrees/worktree.ts';
@@ -156,9 +158,6 @@ export type PorcelainEntry = { status: string; path: string };
 // with no worktree change (`committed: true`, git's name-status letter, vs the round's base). The
 // committed half is what porcelain alone never lists (#114 closure, F3).
 export type DiffEntry = PorcelainEntry & { committed?: true };
-// One `wf check` line: `row` is a case number or `'suites'`/`'repro'`; `content` is the row-scope
-// identity the run measured (content-identity.ts), what a binding compares the tree against.
-export type EvidenceLine = { row: string | number | null; result: string; content?: string };
 // Whether a case line's recorded content still names the worktree: `unknown` when it recorded none
 // or git cannot recompute it — an unverifiable binding is never shown as fresh or stale.
 export type EvidenceBinding = 'current' | 'stale' | 'unknown';
@@ -177,7 +176,7 @@ export type RoundInspect = {
   // `statError` are wf's own reasons, one per attempt, so a base git cannot resolve never drops the
   // listing and never claims clean (2026-10-10 review, P1-1).
   diff: { base: string | null; stat: string | null; files: DiffEntry[] | null; error: string | null; statError: string | null };
-  evidence: { case: EvidenceLine | null; suites: EvidenceLine | null; binding: EvidenceBinding };
+  evidence: { case: CheckEvidenceLine | null; suites: CheckEvidenceLine | null; binding: EvidenceBinding };
   facts: {
     assessment: { verdict: string | null; head: string | null } | null;
     blocked: boolean;
@@ -236,30 +235,6 @@ export function nameStatusEntries(out: string): DiffEntry[] {
 // Pure: the trailing summary line of `git diff --stat`, or null when there is no diff.
 export const lastStatLine = (out: string): string | null => out.split('\n').map((s) => s.trim()).filter(Boolean).at(-1) ?? null;
 
-// Pure: the round's last check evidence, the last case line and the last whole-suite measurement read
-// separately. A `suites` line is not a case (`friction.ts`), and since `wf check --suites` is the
-// build's normal last line (67a4c14), the last case would otherwise hide behind it. Each kind reads
-// its last parseable line, so a line cut off mid-write is skipped.
-export function lastEvidence(checksLog: string): { case: EvidenceLine | null; suites: EvidenceLine | null } {
-  let caseLine: EvidenceLine | null = null;
-  let suitesLine: EvidenceLine | null = null;
-  for (const line of checksLog.split('\n').reverse()) {
-    if (!line.trim()) continue;
-    let c: { row?: string | number | null; result?: unknown; content?: unknown };
-    try {
-      c = JSON.parse(line) as typeof c;
-    } catch {
-      continue; // a line cut off mid-write: skipped, the earlier one is the round's
-    }
-    if (typeof c !== 'object' || c === null) continue;
-    const ev: EvidenceLine = { row: c.row ?? null, result: String(c.result ?? ''), ...(c.content ? { content: String(c.content) } : {}) };
-    if (c.row === 'suites') suitesLine ??= ev;
-    else if (c.row !== 'repro') caseLine ??= ev;
-    if (caseLine && suitesLine) break;
-  }
-  return { case: caseLine, suites: suitesLine };
-}
-
 // The implementation identity a check's green was measured over: `wf check`'s own row scope
 // (content-identity.ts), so a binding compares the tree with the producer that wrote it, never a
 // second hash that could drift. Injected so the selfcheck stays offline.
@@ -268,7 +243,7 @@ const checkRowIdentity: EvidenceIdentity = (toplevel, folder) => worktreeContent
 
 // Pure: whether the case line's recorded content still names the worktree. `unknown` when the line
 // recorded no content or the identity could not be recomputed — never a fabricated fresh or stale.
-export function evidenceBinding(caseLine: EvidenceLine | null, current: string | null): EvidenceBinding {
+export function evidenceBinding(caseLine: CheckEvidenceLine | null, current: string | null): EvidenceBinding {
   if (!caseLine?.content) return 'unknown';
   if (current === null) return 'unknown';
   return current === caseLine.content ? 'current' : 'stale';
@@ -323,7 +298,7 @@ export function inspectRound({ path, state, git, guidance = [], wfRoot = WF_ROOT
     const pages = ['.wf/AGREEMENT.html', '.wf/before-after.html'].filter((f) => existsSync(join(path, f)));
     return [...round, ...pages].sort();
   })();
-  const evidence = lastEvidence(checksLog);
+  const evidence = parseChecksLog(checksLog).latest;
   const currentRow = evidence.case?.content ? attempt(() => identity(path, state.folder ?? null)) : null;
   return {
     ...(context.kind === 'unit' || context.kind === 'integration' ? { scope: { label: context.kind === 'unit' ? `unit ${context.unit.n}: ${context.unit.title}${context.reviewRepair ? ' · repairing review chunk' : ''}${context.unit.reviewAfter ? ` · checkpoint ${context.unit.reviewAfter}` : ''}` : 'integration · final delivery approval', assessment: `${folder}/${assessmentFile}`, review: `${folder}/${reviewFile}` } } : {}),

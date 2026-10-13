@@ -5,6 +5,7 @@
 // time, retries).
 // Pure; reap.ts reads the files and writes the line.
 import type { State } from './state.ts';
+import { parseChecksLog } from '../gates/checks-log.ts';
 import type { RefusalKind } from '../refusal.ts';
 
 type Step = { step: string; at: string };
@@ -56,7 +57,7 @@ export function outcomeOf(state: State | null, checksLog: string): Outcome {
 	// `agree` (waiting on the person's call), or `held`. The last repro line is the round's own: there is
 	// one repro per check round, and no token to key by any more (#112).
 	const settled = state?.step === 'agree' || state?.step === 'classify' || state?.step === 'held';
-	const verdict = settled ? jsonLines<{ row?: unknown; result?: string }>(checksLog).filter((c) => c.row === 'repro').at(-1)?.result : undefined;
+	const verdict = settled ? parseChecksLog(checksLog).repro.at(-1)?.result : undefined;
 	if (verdict === 'green') return 'it does not reproduce';
 	if (verdict === 'outside') return 'not the defect';
 	if (state && !(state.history ?? []).length) return 'nothing run';
@@ -69,13 +70,13 @@ export function frictionLine({ state, checksLog, eventsLog, reviewText, end }: {
 	const history = state?.history ?? [];
 	const start = history[0]?.at ?? null;
 	// Repro and whole suites are measurements, not a commit's check.
-	const all = jsonLines<{ row?: unknown; result: string; cause?: unknown }>(checksLog);
-	const checks = all.filter((c) => c.row !== 'repro' && c.row !== 'suites');
+	const measurements = parseChecksLog(checksLog);
+	const checks = measurements.cases;
 	// A red whose cause is `environment` is a gate that never ran (check.ts, BJEW-461): counted apart
 	// from a failed check, so a round a dead stack or a missing seed stood in the way of is visible in
 	// the record instead of hiding inside the red count.
 	const environment = checks.filter((c) => c.cause === 'environment').length;
-	const unstable = all.filter((c) => c.row === 'repro' && c.result === 'unstable').length;
+	const unstable = measurements.repro.filter((c) => c.result === 'unstable').length;
 	const refusals = jsonLines<{ cmd: string; msg: string; kind?: unknown }>(eventsLog);
 	// A refusal wf made before it read the round — argv it will not take, a worktree with no round in it
 	// — is not the round's business, and counting it as wf stepping in inflated the record (BJEW-461,
