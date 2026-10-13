@@ -1,11 +1,12 @@
 // env/models.selfcheck.ts — node env/models.selfcheck.ts → exit 0 when green.
-// Pure resolution plus the real CLI's account routing through an isolated `pi --list-models`
-// catalog. No provider requests or worker models are started.
+// Fixed synthetic examples test resolution; a catalog derived from configuration tests real CLI
+// wiring. Changing model choices or thinking levels needs only models.ts, not this check.
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
-import { modelFor, withModel } from '../src/models.ts';
+import { EFFORTS, modelFor, withModel } from '../src/models.ts';
+import { PHASES } from '../src/round/prompt.ts';
 import { WF_ROOT } from '../src/paths.ts';
 import { listed, pickModel, PI_PERSONAL_MODELS, PI_ANTHROPIC_MODELS, piModelsForProvider } from './models.ts';
 
@@ -13,46 +14,63 @@ let failures = 0;
 const check = (name: string, cond: unknown, detail = '') =>
 	(console.log(cond ? `  ok   ${name}` : `  FAIL ${name}${detail ? ` — ${detail}` : ''}`) as unknown) || (cond || failures++);
 
-const table = `provider        model                         context  max-out  thinking  images
-anthropic       claude-3-7-sonnet-latest      200K     64K      yes       yes
-anthropic       claude-opus-4-7               1M       128K     yes       yes
-anthropic       claude-opus-5-5               1M       128K     yes       yes
-anthropic       claude-opus-5-5-20260801      1M       128K     yes       yes
-anthropic       claude-sonnet-4-6             1M       64K      yes       yes
-anthropic       claude-sonnet-5               1M       64K      yes       yes
-anthropic       claude-sonnet-5-5             1M       64K      yes       yes
-amazon-bedrock  us.anthropic.claude-sonnet-5  1M       64K      yes       yes
-opencode-go     deepseek-v4.1-flash           1M       64K      yes       no
-`;
-const rows = listed(table);
-check('the table is read as provider and id, header dropped', rows.length === 9 && rows[0][0] === 'anthropic' && rows[0][1] === 'claude-3-7-sonnet-latest', JSON.stringify(rows[0]));
-check('low: exactly DeepSeek 4.1 Flash, not a fallback', pickModel(PI_PERSONAL_MODELS.low, rows) === 'opencode-go/deepseek-v4.1-flash', String(pickModel(PI_PERSONAL_MODELS.low, rows)));
-check('medium: exactly DeepSeek 4.1 Flash', pickModel(PI_PERSONAL_MODELS.medium, rows) === 'opencode-go/deepseek-v4.1-flash', String(pickModel(PI_PERSONAL_MODELS.medium, rows)));
-check('undated over its dated id, thinking kept', pickModel('anthropic/opus:medium', rows) === 'anthropic/claude-opus-5-5:medium');
-check('personal round-worker phases dispatch only DeepSeek 4.1 Flash', ['agree', 'build', 'assess'].every((phase) => modelFor(phase, piModelsForProvider('opencode-go')) === 'opencode-go/deepseek-v4.1-flash'));
-check('work round-worker phases use Sonnet with medium thinking', ['agree', 'build', 'assess'].every((phase) => modelFor(phase, piModelsForProvider('anthropic')) === 'anthropic/sonnet:medium'));
-check('other work helpers use Sonnet with low thinking, not personal credentials', pickModel(PI_ANTHROPIC_MODELS.low, rows) === 'anthropic/claude-sonnet-5-5:low');
-check('missing work models never fall back to the personal catalog', Object.values(PI_ANTHROPIC_MODELS).every((model) => pickModel(model, rows.filter(([provider]) => provider !== 'anthropic')) === null));
-check('other personal providers and bare terminals retain Flash', ['openai-codex', 'google', '', undefined].every((provider) => piModelsForProvider(provider) === PI_PERSONAL_MODELS));
+// These are resolver examples, not today's selected models.
+const rows = listed(`provider model context max-out thinking images
+anthropic family-1 1M 64K yes yes
+anthropic family-2 1M 64K yes yes
+anthropic family-2-20260801 1M 64K yes yes
+anthropic dated-20260801 1M 64K yes yes
+anthropic dated-20260901 1M 64K yes yes
+personal family-9 1M 64K yes no
+`);
+check('catalog parsing drops the header and reads provider/id pairs', rows.length === 6 && rows[0][0] === 'anthropic' && rows[0][1] === 'family-1');
+check('exact ids win over newer pattern matches', pickModel('anthropic/family-1', rows) === 'anthropic/family-1');
+check('patterns prefer the newest undated id and retain thinking', pickModel('anthropic/family:medium', rows) === 'anthropic/family-2:medium');
+check('dated ids are used when no undated match exists', pickModel('anthropic/dated:high', rows) === 'anthropic/dated-20260901:high');
+check('resolution stays within the requested provider', pickModel('anthropic/family', rows) === 'anthropic/family-2' && pickModel('personal/family', rows) === 'personal/family-9');
+check('missing matches never fall back to another provider', pickModel('missing/family', rows) === null && pickModel('anthropic/unknown', rows) === null);
+
+// Configuration is the authority for choices; account boundaries and effort wiring are invariants.
+check('work callers select the work table', piModelsForProvider('anthropic') === PI_ANTHROPIC_MODELS);
+check('personal callers and bare terminals select the personal table', ['opencode-go', 'openai-codex', 'google', '', undefined].every((provider) => piModelsForProvider(provider) === PI_PERSONAL_MODELS));
+check('work choices stay in the Anthropic account', Object.values(PI_ANTHROPIC_MODELS).every((model) => /^anthropic\//i.test(model)));
+check('personal choices stay outside the Anthropic account', Object.values(PI_PERSONAL_MODELS).every((model) => !/^anthropic\//i.test(model)));
+for (const [account, models] of [['work', PI_ANTHROPIC_MODELS], ['personal', PI_PERSONAL_MODELS]] as const) {
+	check(`${account} round phases use the configured medium model`, PHASES.every((phase) => modelFor(phase, models) === models.medium));
+	for (const effort of EFFORTS) {
+		check(`${account} ${effort} has an explicit provider and model`, /^[^/:]+\/[^:]+(?::\w+)?$/.test(models[effort]));
+		check(`${account} ${effort} agent conversion preserves the configured model and thinking`, withModel(`name: x\r\neffort: ${effort}\r\ntools: read\r\n`, models) === `name: x\r\nmodel: ${models[effort]}\r\ntools: read\r\n`);
+	}
+}
 for (const agent of ['round-worker', 'harness-fixer', 'codebase-locator', 'codebase-analyzer']) {
 	const installed = withModel(readFileSync(join(WF_ROOT, 'agents', `${agent}.md`), 'utf8'), null);
 	check(`${agent}'s installed default inherits its caller's account`, !/^(model|effort):/m.test(installed) && installed.includes(`name: ${agent}`));
 }
 check('inheriting a model preserves CRLF and tool defaults', withModel('name: x\r\neffort: low\r\ntools: read\r\n', null) === 'name: x\r\n\r\ntools: read\r\n');
-check('an exact id is that id', pickModel('anthropic/claude-sonnet-5', rows) === 'anthropic/claude-sonnet-5');
-check('no match is null: wf models says so and exits 1', pickModel('anthropic/haiku', rows) === null && pickModel('openai/opus', rows) === null);
-check('pi\'s agents get the pi model for their level, line endings kept', withModel('name: x\r\neffort: low\r\ntools: read\r\n', PI_PERSONAL_MODELS) === 'name: x\r\nmodel: opencode-go/deepseek-v4.1-flash\r\ntools: read\r\n');
 
-// Exercise the real env entry: an installed catalog is not the caller's account policy.
+// Treat configured patterns as available exact ids here. Pattern resolution is tested independently
+// above; this CLI test proves that the entry passes the right table and retains its thinking suffixes.
+const configured = [...Object.values(PI_PERSONAL_MODELS), ...Object.values(PI_ANTHROPIC_MODELS)];
+const catalogRows: [string, string][] = configured.map((model) => {
+	const ref = model.replace(/:[^:]+$/, '');
+	const slash = ref.indexOf('/');
+	return [ref.slice(0, slash), ref.slice(slash + 1)];
+});
+const catalog = ['provider model context max-out thinking images', ...catalogRows.map(([provider, id]) => `${provider} ${id} 1M 64K yes yes`)].join('\n');
+for (const model of configured) {
+	check('configured model resolution retains the entire reference', pickModel(model, catalogRows) === model, model);
+	const provider = model.slice(0, model.indexOf('/'));
+	check('configured model cannot resolve through another account', pickModel(model, catalogRows.filter(([p]) => p !== provider)) === null, model);
+}
 const bin = mkdtempSync(join(tmpdir(), 'wf-model-catalog-'));
 try {
-	writeFileSync(join(bin, 'catalog.cjs'), `console.log(${JSON.stringify(table)});`);
+	writeFileSync(join(bin, 'catalog.cjs'), `console.log(${JSON.stringify(catalog)});`);
 	const win = process.platform === 'win32';
 	writeFileSync(join(bin, win ? 'pi.cmd' : 'pi'), win ? `@"${process.execPath}" "%~dp0catalog.cjs"\r\n` : `#!/bin/sh\nexec "${process.execPath}" "$(dirname "$0")/catalog.cjs"\n`, win ? {} : { mode: 0o755 });
 	for (const provider of ['anthropic', 'opencode-go', 'openai-codex']) {
+		const expected = provider === 'anthropic' ? PI_ANTHROPIC_MODELS : PI_PERSONAL_MODELS;
 		const run = spawnSync(process.execPath, [join(WF_ROOT, 'env/wf.mjs'), 'models'], { env: { ...process.env, PI_PROVIDER: provider, PATH: `${bin}${delimiter}${process.env.PATH}` }, encoding: 'utf8' });
-		const expected = provider === 'anthropic' ? 'anthropic/claude-sonnet-5-5:medium' : 'opencode-go/deepseek-v4.1-flash';
-		check(`wf models under ${provider} selects workers in the caller's account`, run.status === 0 && run.stdout.includes(expected) && (provider !== 'anthropic' || (run.stdout.includes('anthropic/claude-sonnet-5-5:low') && !run.stdout.includes('opencode-go/'))), `${run.stdout}${run.stderr}`);
+		check(`wf models under ${provider} prints and resolves its configured effort table`, run.status === 0 && EFFORTS.every((effort) => run.stdout.split('\n').includes(`${effort.padEnd(7)} ${expected[effort].padEnd(24)} → ${expected[effort]}`)), `${run.stdout}${run.stderr}`);
 	}
 } finally {
 	rmSync(bin, { recursive: true, force: true });

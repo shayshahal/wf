@@ -8,10 +8,10 @@
 import { spawnSync } from 'node:child_process';
 import type { Models } from '../src/models.ts';
 
-/** Personal-provider workers stay on Flash; credentials for another account are not a fallback. */
-export const PI_PERSONAL_MODELS: Models = { low: 'opencode-go/deepseek-v4.1-flash', medium: 'opencode-go/deepseek-v4.1-flash' };
+/** Personal-account models by effort; work-account credentials are not a fallback. */
+export const PI_PERSONAL_MODELS: Models = { low: 'opencode-go/deepseek-v4.1-flash:low', medium: 'opencode-go/deepseek-v4.1-flash:medium' };
 
-/** Work-account Sonnet uses medium thinking for round workers and low for the other helpers. */
+/** Work-account models by effort; personal-provider credentials are not a fallback. */
 export const PI_ANTHROPIC_MODELS: Models = { low: 'anthropic/sonnet:low', medium: 'anthropic/sonnet:medium' };
 
 /** Select worker models from the shell tool's current PI_PROVIDER; a bare terminal keeps personal defaults. */

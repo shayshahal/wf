@@ -28,7 +28,7 @@ try {
 	const agents = readdirSync(join(WF_ROOT, 'agents'));
 	for (const agent of agents) {
 		writeFileSync(join(repo, 'agents', agent), readFileSync(join(WF_ROOT, 'agents', agent), 'utf8'));
-		writeFileSync(join(installedAgents, agent), '---\nmodel: opencode-go/deepseek-v4.1-flash\n---\nstale default\n');
+		writeFileSync(join(installedAgents, agent), '---\nmodel: personal/stale-model:high\n---\nstale default\n');
 	}
 	const env = { ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_'))), HOME: home, USERPROFILE: home, PI_PROVIDER: 'opencode-go' };
 	const git = (...args: string[]) => execFileSync('git', ['-C', repo, '-c', 'user.name=wf', '-c', 'user.email=wf@selfcheck', ...args], { env, encoding: 'utf8' }).trim();
