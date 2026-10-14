@@ -23,8 +23,15 @@ There is no separate research file, plan file or spec, and nothing here is a com
   |---|---|---|---|
   | 1 | fix(x): what the case proves | path/one.ts | path/one.spec.ts::<test id>@<line> |
 
-  `check` names what `wf check` runs: `path::<test id>@<line>` (the intended assertion), `repro`, or
-  `—` for fence only. `files` is the area this case may touch.
+  A defect case uses `path::<test id>@<line>`: the named assertion fails on the claimed behavior
+  without the change and the selected test passes with it. A preservation case uses `refactor: path::<test id>`:
+  unchanged behavior passes on both sides, even in a round that also fixes a defect. Separate these
+  cases from checks of a newly introduced representation. A `manual: <what to look at>` cell names
+  evidence the test cannot measure; `repro` runs the repro, and `—` is fence only.
+  `files` is the area this case may touch and protects: a preservation case includes the changed
+  implementation it checks, not only its test, so `wf check` can measure the baseline. When only
+  the test changed and the product tree is unchanged, `refactor:` still records a baseline pass;
+  that coverage is preservation, not defect proof.
 - `## Units` — only when the work is too large for one build; a task one build can carry has none.
   One row per unit, numbered in build order:
 

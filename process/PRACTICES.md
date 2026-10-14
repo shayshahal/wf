@@ -9,13 +9,14 @@ another's branch, and nothing lands except through a PR. Isolation is what
 makes every other practice measurable — a red run means this round's code,
 not a sibling's.
 
-**TDD.** Red before green, then red again when the build is taken away.
-Bugs freeze a capture that shows the symptom, then the same capture clean;
-CRs measure cells RED on the base tree, GREEN on the build, RED reverted.
-A test that never failed is not proof — it is a test that cannot detect
-the defect. `wf check` runs the case's own test with the change taken
-back to HEAD and refuses a green: a test that passes with and without the
-fix does not reach a commit (red-base, `src/gates/check.ts`).
+**TDD.** Defect proof is red before green, then red again when the change is taken away.
+Bind the case to the behavioral assertion that detects the claimed defect, not an incidental
+representation that is new with the change. `wf check` runs that test against the round's
+merge-base (or the unit's starting commit) and requires the named assertion to fail there.
+Preservation cases use `refactor:`: their unchanged outcomes must be green on both sides,
+even in a round that also fixes a defect. A test green on both sides is preservation evidence,
+not defect proof (red-base, `src/gates/check.ts`).
+Bugs freeze a capture that shows the symptom, then the same capture clean.
 `NOT MEASURED — <why>` is always acceptable; silence is not.
 
 **Evidence before completion.** No round is COMPLETE on assertion. Paste

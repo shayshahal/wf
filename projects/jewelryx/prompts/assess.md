@@ -14,7 +14,15 @@ proof; a `deferred:` line waits for its own unit.
 2. For each Intent line in scope, drive the user path on this round's stack (B2B `{{b2b}}`, Admin
    `{{admin}}`) and give it one verdict: `VERIFIED`, `NOT VERIFIED` or `INCONCLUSIVE`. A screen that looks right over
    a failed request or a console error is not `VERIFIED`.
-3. Keep captures in `{{folder}}/proof/` as `after-<label>.png`, matching the baseline's
+3. Read the relevant assertions and inspect the captures against each claimed state. An
+   `aria-invalid` assertion proves that attribute, not valid-input or empty-input reset behavior.
+   Focus/error-ring promises need rendered evidence of clipping at the container edge, not only
+   a CSS-class pass. Certificate proof must show the relevant certificate row; range-filter proof
+   must show the configured filter bounds and outcome. Use the feature recipe and
+   `docs/agents/testing.md` for driving and measurement. When the required state is missing from an
+   otherwise available capture, record `NOT MEASURED` and `Verdict: repair` so the build retakes it;
+   a genuine capability/environment/authority blocker remains `INCONCLUSIVE`.
+4. Keep captures in `{{folder}}/proof/` as `after-<label>.png`, matching the baseline's
    `before-<label>.png` when there is one, or a fresh label for a new view. Rename the timestamped
    capture when you keep it: both handoffs refuse unnamed pictures, and posting/T2 use these same
    names. For each `## Observed` before-picture in scope, take the same view as its after-picture.

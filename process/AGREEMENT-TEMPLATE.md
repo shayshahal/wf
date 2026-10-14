@@ -37,7 +37,8 @@ machine-read parts; `## Observed` + `## Agreed` are the agreed material, and T1 
 | # | case | files | check |
 |---|---|---|---|
 | 1 | fix(x): <what the case proves> | `path/one.ts` | `path/one.spec.ts::<test id>@<line>` |
-| 2 | <…> | `path/two.ts` | `repro` |
+| 2 | preserve: <unchanged outcome> | `path/one.ts` | `refactor: path/one.spec.ts::<test id>` |
+| 3 | <…> | `path/two.ts` | `repro` |
 
 ## Units
 
@@ -66,7 +67,12 @@ command: <the command that reproduces the ticket, for a check round or a repro c
   case's `files` cell or refreshing an assertion location is the build's own. With `## Units`,
   adding a case also requires assigning it to a unit. `wf check` runs the matching case and refuses a changed product/test file
   outside them (scopeprot), a protected-test edit, or a test that does not really run the named
-  assertion (#109).
+  assertion (#109). Defect cases bind the behavioral assertion that is red without the change;
+  preservation cases use `refactor:` and are green on both sides, even alongside a defect fix.
+  Their `files` includes the changed implementation they protect, not only the test; an omitted area
+  cannot silently skip the baseline run. Test-only coverage with an unchanged product tree still
+  records its selected test's baseline pass.
+  A newly introduced representation is its own claim, not proof that unchanged behavior was broken.
 - **`## Units`** is the executable plan of a large task; a task one build can carry has none and
   takes the single-build route. Units are numbered from 1 and built in that order. `cases` lists
   `## Verification` `#` ids, and every case belongs to exactly one unit; `depends on` names earlier

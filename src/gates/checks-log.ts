@@ -8,8 +8,8 @@ export function checkOutputTail(output: string): string {
 	return output.split('\n').slice(-40).join('\n').trimEnd();
 }
 
-/** One task's recorded run; proof evidence is computed before its output is shortened. */
-export type CheckRun = { label: string; exit: number | null; missing?: string; expect?: 'red'; output?: string; evidence?: RunEvidence };
+/** One task's recorded run; baseline expectation is green for preservation, red for defect proof. */
+export type CheckRun = { label: string; exit: number | null; missing?: string; expect?: 'red' | 'green'; output?: string; evidence?: RunEvidence };
 
 /** A runner that never started is environment trouble, not a behavioral failure. */
 export type RedCause = 'code' | 'environment';

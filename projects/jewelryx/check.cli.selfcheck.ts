@@ -18,6 +18,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { delimiter, dirname, join } from 'node:path';
 import { WF_ROOT } from '../../src/paths.ts';
+import { initializeSlices, parseBuildUnits } from '../../src/round/build-units.ts';
 
 let failures = 0;
 const check = (name: string, cond: unknown, detail = '') =>
@@ -102,7 +103,7 @@ const setupError = [
   '',
 ].join('\n');
 
-type Scenario = { cell: string; files: string[]; current?: { code: number; out: string }; reverted: { code: number; out: string }; runnerInRepo?: boolean };
+type Scenario = { cell: string; files: string[]; current?: { code: number; out: string }; reverted: { code: number; out: string }; runnerInRepo?: boolean; testSource?: string; unit?: boolean; testOnly?: boolean };
 
 // The stub's scenario file lives outside the repo: an untracked file inside it would be a fence
 // violation (the fixture repo's diff is what `wf check` fences). The arms run one at a time.
@@ -128,11 +129,12 @@ function runCli(scenario: Scenario) {
   mkdirSync(join(repo, 'bug-reports', 'BJEW-109'), { recursive: true });
   const product = join(repo, 'packages', 'backend', 'app', 'pricing.py');
   writeFileSync(product, 'BROKEN\n');
-  writeFileSync(join(repo, 'packages', 'backend', 'tests', 'test_bug.py'), 'def test_bug():\n    assert login() == 200\n    assert total() == 120\n');
+  writeFileSync(join(repo, 'packages', 'backend', 'tests', 'test_bug.py'), scenario.testSource ?? 'def test_bug():\n    assert login() == 200\n    assert total() == 120\n');
   git(['add', '.']);
   git(['commit', '-qm', 'base']);
   git(['switch', '-qc', 'round/bug']);
-  writeFileSync(product, 'FIXED\n');
+  if (scenario.testOnly) writeFileSync(join(repo, 'packages', 'backend', 'tests', 'test_bug.py'), 'def test_bug():\n    assert total() == 120\n');
+  else writeFileSync(product, 'FIXED\n');
   // A runner the row itself carries (`tools/uv`), so reverting the row takes it away.
   if (scenario.runnerInRepo) {
     mkdirSync(join(repo, 'tools'), { recursive: true });
@@ -150,25 +152,32 @@ function runCli(scenario: Scenario) {
     '| # | case | files | check |',
     '|---|---------|-------|-------|',
     `| 1 | fix: pricing | ${scenario.files.map((f) => `\`${f}\``).join(' ')} | \`${scenario.cell}\` |`,
+    ...(scenario.unit ? [
+      '| 2 | fix: product | packages/backend/app/pricing.py | manual: product check |',
+      '## Units', '| # | unit | cases | depends on | review after |', '|---|---|---|---|---|',
+      '| 1 | pricing | 1, 2 | — | — |',
+    ] : []),
     '',
   ].join('\n');
   writeFileSync(join(repo, 'bug-reports', 'BJEW-109', 'TICKET.md'), ticket);
   mkdirSync(join(repo, '.wf'), { recursive: true });
-  writeFileSync(join(repo, '.wf', 'state.json'), `${JSON.stringify({ wf_version: 2, id: 'BJEW-109', folder: 'bug-reports/BJEW-109', base: 'main', step: 'build', class: 'A' })}\n`);
+  const plan = parseBuildUnits(ticket);
+  const slices = scenario.unit && plan.kind === 'units' ? initializeSlices(plan, git(['rev-parse', 'HEAD'])) : undefined;
+  writeFileSync(join(repo, '.wf', 'state.json'), `${JSON.stringify({ wf_version: 2, id: 'BJEW-109', folder: 'bug-reports/BJEW-109', base: 'main', step: 'build', class: 'A', ...(slices ? { slices } : {}) })}\n`);
   writeFileSync(scenarioPath, JSON.stringify({ fixedMarker: 'FIXED', current: scenario.current ?? { code: 0, out: passOut }, reverted: scenario.reverted }));
   try {
     const path = scenario.runnerInRepo ? `${join(repo, 'tools')}${delimiter}${toolPath}` : `${stubDir}${delimiter}${process.env.PATH ?? ''}`;
-    const run = spawnSync(process.execPath, [join(WF_ROOT, 'wf.mjs'), 'check'], {
+    const run = spawnSync(process.execPath, [join(WF_ROOT, 'wf.mjs'), 'check', ...(scenario.unit ? ['--case', '1'] : [])], {
       cwd: repo,
       env: { ...gitEnv, PATH: path, WF_STUB_SCENARIO: scenarioPath, WF_STUB_GUARD: product },
       encoding: 'utf8',
       timeout: 60000,
     });
     const lines = existsSync(join(repo, '.wf', 'checks.log')) ? readFileSync(join(repo, '.wf', 'checks.log'), 'utf8').split('\n').filter(Boolean) : [];
-    const line = lines.map((l) => { try { return JSON.parse(l) as { row?: unknown; result?: string; tasks?: { label?: string; evidence?: { verdict?: string; say?: string } }[] }; } catch { return null; } }).find((c) => c?.row === 1) ?? null;
+    const line = lines.map((l) => { try { return JSON.parse(l) as { row?: unknown; result?: string; tasks?: { label?: string; expect?: 'red' | 'green'; evidence?: { verdict?: string; say?: string } }[] }; } catch { return null; } }).find((c) => c?.row === 1) ?? null;
     const redBase = line?.tasks?.find((t) => t.label?.startsWith('red-base'));
     const current = line?.tasks?.find((t) => t.label?.includes('::') && !t.label?.startsWith('red-base'));
-    return { code: run.status, stderr: run.stderr ?? '', result: line?.result ?? null, evidence: redBase?.evidence ?? null, currentEvidence: current?.evidence ?? null };
+    return { code: run.status, stderr: run.stderr ?? '', result: line?.result ?? null, expect: redBase?.expect ?? null, evidence: redBase?.evidence ?? null, currentEvidence: current?.evidence ?? null };
   } finally {
     rmSync(repo, { recursive: true, force: true });
   }
@@ -180,11 +189,20 @@ const assertFail = pyFail('test_bug', 'test_bug', 3, '401 == 200');
 
 // 1. valid intended behavior: the test fails on its assertion at the line the row names.
 const valid = runCli({ cell: cell(), files, reverted: { code: 1, out: assertFail } });
-check('a red-base that fails on an assertion at the intended line greens, and the record names it', valid.code === 0 && valid.result === 'green' && valid.evidence?.verdict === 'behavioral-failure' && valid.evidence?.say?.includes('tests/test_bug.py'), `exit ${valid.code}, ${JSON.stringify(valid)}`);
+check('a red-base that fails on an assertion at the intended line greens, and the record names it', valid.code === 0 && valid.result === 'green' && valid.evidence?.verdict === 'behavioral-failure' && valid.evidence?.say?.includes('tests/test_bug.py') && valid.expect === 'red', `exit ${valid.code}, ${JSON.stringify(valid)}`);
 
 // 2. the selected test fails earlier, on its precondition at line 2.
 const precondition = runCli({ cell: cell(), files, reverted: { code: 1, out: pyFail('test_bug', 'test_bug', 2, 'login() == 200') } });
 check('a failure on a precondition inside the selected test reds the row: not proof of the named assertion', precondition.code !== 0 && precondition.result === 'red' && precondition.evidence?.verdict === 'unavailable' && precondition.evidence?.say?.includes('line 3'), `exit ${precondition.code}, ${JSON.stringify(precondition)}`);
+
+// #135: the behavior assertion is line 3; an added representation assertion at line 2 fails
+// before it. That red cannot prove the value behavior changed, even in the same selected test.
+const representationSource = 'def test_bug():\n    assert attrs().get("aria-invalid") == "false"\n    assert value() == 120\n';
+const representationRed = { code: 1, out: pyFail('test_bug', 'test_bug', 2, 'None == "false"') };
+const incidentalAttribute = runCli({ cell: cell(), files, testSource: representationSource, reverted: representationRed });
+check('an absent new attribute cannot stand in for the named value assertion on baseline', incidentalAttribute.code !== 0 && incidentalAttribute.result === 'red' && incidentalAttribute.evidence?.verdict === 'unavailable', JSON.stringify(incidentalAttribute));
+const preservationAttribute = runCli({ cell: cell(true), files, testSource: representationSource, reverted: representationRed });
+check('a preservation case with a new attribute assertion is refused until it measures unchanged behavior on both sides', preservationAttribute.code !== 0 && preservationAttribute.result === 'red', JSON.stringify(preservationAttribute));
 
 // 3. the expression at the bound line raises NameError: the assertion never ran (Blocker 1).
 const nameErrorOut = [
@@ -269,7 +287,23 @@ check('a defect row reds on a current-side failure, unchanged', currentRed.code 
 // 10-13. a behavior-preserving refactor: the selected test must pass on the current side and the
 // reverted side. A skip (a suite total, a current-side skip) is not a pass; a red is not a pass.
 const refactorPass = runCli({ cell: cell(true), files, reverted: { code: 0, out: passOut } });
-check('a refactor row greens when its selected test passes on both sides, with positive evidence', refactorPass.code === 0 && refactorPass.result === 'green' && refactorPass.evidence?.verdict === 'passed', `exit ${refactorPass.code}, ${JSON.stringify(refactorPass)}`);
+check('a refactor row greens when its selected test passes on both sides, with positive evidence', refactorPass.code === 0 && refactorPass.result === 'green' && refactorPass.evidence?.verdict === 'passed' && refactorPass.expect === 'green', `exit ${refactorPass.code}, ${JSON.stringify(refactorPass)}`);
+// #135: preservation belongs in defect rounds too, not only refactoring tickets. These
+// faithful reports name the valid-input/reset cases explicitly; the old side needs no new attribute.
+for (const [id, assertion] of [['test_valid_input', 'input_value(42) == 42'], ['test_empty_reset', 'range_after_clear() == (0, 100)']]) {
+  const pass = { code: 0, out: passOut.replace('::test_bug', `::${id}`) };
+  const preserved = runCli({ cell: `refactor: packages/backend/tests/test_bug.py::${id}`, files, testSource: `def ${id}():\n    assert ${assertion}\n`, current: pass, reverted: pass });
+  check(`${id}: unchanged behavior is green on both sides and logs that expectation`, preserved.code === 0 && preserved.result === 'green' && preserved.expect === 'green' && preserved.currentEvidence?.verdict === 'passed' && preserved.evidence?.verdict === 'passed', JSON.stringify(preserved));
+}
+// A scoped case may fence through another case, but that is not a baseline measurement.
+const omittedArea = runCli({ cell: cell(true), files: [files[1]], unit: true, reverted: { code: 1, out: assertFail } });
+check('a preservation case that omits the changed area cannot green without a baseline measurement', omittedArea.code !== 0 && omittedArea.result === 'red' && omittedArea.stderr.includes('preservation'), JSON.stringify(omittedArea));
+const omittedDefect = runCli({ cell: cell(), files: [files[1]], unit: true, reverted: { code: 1, out: assertFail } });
+check('a defect case that omits the changed area cannot green without baseline proof', omittedDefect.code !== 0 && omittedDefect.result === 'red' && omittedDefect.expect === 'red' && omittedDefect.evidence?.verdict === 'unavailable', JSON.stringify(omittedDefect));
+const testOnlyDefect = runCli({ cell: cell(), files: [files[1]], testOnly: true, reverted: { code: 0, out: passOut } });
+check('test-only coverage cannot masquerade as defect proof of an unchanged product', testOnlyDefect.code !== 0 && testOnlyDefect.result === 'red' && testOnlyDefect.expect === 'red', JSON.stringify(testOnlyDefect));
+const testOnlyPreservation = runCli({ cell: cell(true), files: [files[1]], testOnly: true, reverted: { code: 0, out: passOut } });
+check('test-only preservation still measures both sides when no other implementation changed', testOnlyPreservation.code === 0 && testOnlyPreservation.result === 'green' && testOnlyPreservation.expect === 'green' && testOnlyPreservation.evidence?.verdict === 'passed', JSON.stringify(testOnlyPreservation));
 const refactorFail = runCli({ cell: cell(true), files, reverted: { code: 1, out: assertFail } });
 check('a refactor row reds when its test fails without the change', refactorFail.code !== 0 && refactorFail.result === 'red' && refactorFail.evidence?.verdict === 'behavioral-failure', `exit ${refactorFail.code}, ${JSON.stringify(refactorFail)}`);
 const refactorSkip = runCli({ cell: cell(true), files, reverted: { code: 0, out: skippedOut } });

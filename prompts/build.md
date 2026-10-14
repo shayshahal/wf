@@ -42,6 +42,13 @@ phase ends when every verification case in scope passes and you run `wf step ass
   affected existing document with the implementation. Keep completed-round agreements as history.
   Keep edits within the agreement and fence; otherwise record the affected document and needed
   change in the handoff. Leave unrelated documentation alone.
+- Keep preservation checks green on both sides, using `refactor: path::<test id>` even within a
+  defect fix. Assert the unchanged outcome; put a newly introduced representation in its own case.
+  Include the changed implementation the case checks in its `files` cell. Test-only coverage with
+  an unchanged product tree uses `refactor:` and still records a baseline pass; it is not defect proof.
+  A defect case names the behavioral assertion that fails without the change, not an incidental
+  assertion that happens to fail first. If an earlier assertion prevents that measurement, split
+  the checks so the intended assertion is reached.
 - Run `wf check` (or `wf check --case "<path>::<test id>@<line>"` on a class A round). It refuses
   edits outside the round, protected-test changes, and a verification that does not really execute
   the named assertion. A green run is not proof that a specific assertion line ran.

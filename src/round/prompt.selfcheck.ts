@@ -96,8 +96,14 @@ rmSync(dir, { recursive: true, force: true });
 		writeFileSync(join(repo, folder, 'REVIEW.md'), rejectedReview);
 		const repairPrompt = wf('prompt', 'build');
 		check('a normal T2 repair reaches the real build brief without renewing T1', repairPrompt.includes('inputs should be wider') && repairPrompt.includes('proof/after-he-1280.png') && readState(repo)?.step === 'build', repairPrompt);
+		const agreementPrompt = wf('prompt', 'agree');
+		check('agreement separates preservation cases from defect assertion bindings', agreementPrompt.includes('A preservation case uses `refactor: path::<test id>`') && agreementPrompt.includes('fails on the claimed behavior') && agreementPrompt.includes('manual:') && agreementPrompt.includes('a preservation case includes the changed'));
 		for (const phase of ['build', 'assess']) {
 			const prompt = wf('prompt', phase);
+			check(`${phase}: the real brief distinguishes defect proof from preservation checks`, phase === 'build'
+				? prompt.includes('Keep preservation checks green on both sides') && prompt.includes('behavioral assertion')
+				: prompt.includes('inspect its selected test and named assertion') && prompt.includes('green on both sides') && prompt.includes('representation alone'));
+			check(`${phase}: visual claims require the relevant rendered state, not attribute/class proxies`, prompt.includes('rendered evidence of clipping') && prompt.includes('configured filter bounds') && prompt.includes('relevant certificate row') && prompt.includes('aria-invalid'));
 			const count = (prompt.match(/keep the existing button/g) ?? []).length;
 			check(`the decision reaches the ${phase} prompt exactly once`, count === 1, `count=${count}`);
 			if (phase === 'assess') check('the assessor receives the proof setup/result consistency obligation and autonomous repair route', prompt.includes('read its setup → run → reset in order') && prompt.includes('quote\nboth the setup and result') && prompt.includes('use `Verdict: repair`') && prompt.includes('A consistent setup → run → reset\nrecord remains usable evidence'));

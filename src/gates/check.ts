@@ -177,19 +177,28 @@ export function redBaseFiles({ changed, row, folder, testPath }: { changed: stri
 	return changed.filter((f) => allowed.has(f) && f !== testPath && !isRoundPaperwork(f, folder));
 }
 
-// Pure: the row's red-base run — the project's task that carries the row's own test, and the files
-// to take back to its baseline for it — or null when the row has no test task, or only its test to revert.
+/** Plan baseline proof; a named test cannot silently skip it when the changed area is omitted. */
 export function redBaseRun({ tasks, changed, row, folder }: { tasks: CheckTask[]; changed: string[]; row: Pick<VerificationCase, 'files' | 'check'> | null; folder: string | null }): { task: CheckTask; revert: string[] } | null {
 	const task = tasks.find((t) => t.redBase && !t.missing);
 	if (!task) return null;
-	const revert = redBaseFiles({ changed, row, folder, testPath: checkCellTarget(row?.check)?.file ?? '' });
-	return revert.length ? { task, revert } : null;
+	const target = checkCellTarget(row?.check);
+	if (!target) return null;
+	const revert = redBaseFiles({ changed, row, folder, testPath: target.file });
+	if (revert.length) return { task, revert };
+	// Test-only preservation has an unchanged product tree; still record a baseline pass.
+	if (target.refactor && !changed.some((f) => f !== target.file && !isRoundPaperwork(f, folder))) return { task, revert };
+	// #135: another case may fence the product file, but no baseline run measured it here.
+	return { task: { label: task.label, missing: target.refactor
+		? 'preservation case names no changed area to take back to baseline; include the changed implementation it protects in its files cell'
+		: 'defect case names no changed implementation to measure on baseline; include it in the files cell, or use refactor: for unchanged behavior' }, revert };
 }
 
 // Runs `run()` with `paths` back at HEAD, then puts them back. `git stash push` is the one command
 // that both restores HEAD and keeps the working change — tracked or new, staged or not — so a pop
 // that fails is a refusal naming the stash, never a green.
 export function withFixReverted<T>(toplevel: string, paths: string[], run: () => T, base = 'HEAD'): T {
+	// An empty selection must not become a stash/restore of the whole checkout (#135).
+	if (!paths.length) return run();
 	const git = (args: string[]) => spawnSync('git', ['-C', toplevel, ...args], { encoding: 'utf8' });
 	const stash = () => git(['rev-parse', '--verify', 'refs/stash']).stdout.trim();
 	const before = stash();
@@ -639,6 +648,13 @@ export async function runCheck(argv: string[] = []) {
 		const { task: redTask, revert } = redBasePlan;
 		const gap = targetGap(target);
 		const label = `red-base ${checkCellPath(row?.check)}`;
+		if (redTask.missing) {
+			const unmeasured: CheckRun = { label, exit: null, expect: target?.refactor ? 'green' : 'red', missing: redTask.missing, evidence: { verdict: 'unavailable', say: redTask.missing } };
+			console.error(`FAILED: ${redTask.missing}`);
+			ran.push(unmeasured);
+			logRun('red', 'code'); // the case's author can repair its file list, not an environment blocker
+			process.exit(1);
+		}
 		const unsafeRed = unsafeArg(redTask.args!);
 		if (unsafeRed) {
 			const dead = { label, exit: null, missing: `the runner cannot be handed \`${unsafeRed}\`: a Windows shell expands %NAME% before the runner sees it, so the row's id cannot be a literal there` };
@@ -684,7 +700,7 @@ export async function runCheck(argv: string[] = []) {
 		const evidence: RunEvidence = gap
 			? { verdict: 'unavailable', say: gap }
 			: redBaseEvidence({ cmd: redTask.cmd!, args: redTask.args!, cwd: redTask.cwd!, root: toplevel, exit: run.status, output, target: target! });
-		const redBase: CheckRun = { label, exit: run.status, expect: 'red', output: output.split('\n').slice(-15).join('\n').trimEnd(), evidence };
+		const redBase: CheckRun = { label, exit: run.status, expect: target?.refactor ? 'green' : 'red', output: output.split('\n').slice(-15).join('\n').trimEnd(), evidence };
 		ran.push(redBase);
 		// A refactor row must leave its selected test green without the change; any other row must fail
 		// on the intended assertion. `passed` is only `passed` when the runner reported the selected

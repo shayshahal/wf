@@ -24,6 +24,13 @@ setup gap within the agreement, use `Verdict: repair` and keep the affected Inte
 until the build records and drives the scenario consistently. A consistent setup → run → reset
 record remains usable evidence; judge what it supports rather than merely paraphrasing its PASS.
 
+Before counting a case as proof, inspect its selected test and named assertion against the case's
+behavioral claim. Defect proof must fail at that behavioral assertion on baseline and pass with the
+change; preservation (`refactor:`) must be green on both sides. A failure caused by a newly introduced
+representation alone does not prove unchanged behavior was broken. For a fixable mismatch, use
+`Verdict: repair`, name the assertion and the claim it actually measures, and keep the affected Intent
+line `NOT MEASURED` until the build supplies the right evidence.
+
 ## Scope
 
 {{scope}}

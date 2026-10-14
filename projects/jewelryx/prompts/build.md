@@ -16,6 +16,13 @@
 - Keep live proof captures in `{{folder}}/proof/` as `after-<label>.png`, or `before-<label>.png`
   for a baseline. Rename a timestamped capture when keeping it: `wf step assess` refuses unnamed
   pictures, and T2/posting use those same names, including on class A rounds.
+- For value/reset behavior, assert the input values and resulting range. An `aria-invalid`
+  assertion measures the accessibility attribute, not whether valid input or empty-input reset works;
+  keep it separate when that attribute is newly introduced.
+- Visual promises need their visible state: focus/error rings need rendered evidence of clipping
+  at the container edge, not only a class assertion. Capture the relevant certificate row for a
+  certificate claim; for a range-filter claim, show the configured filter bounds and the outcome.
+  Follow the feature recipe and `docs/agents/testing.md` for how to drive and measure that state.
 - What a JewelryX test needs to know (login and OTP, Hebrew, visual symptoms in pixels, specs outside
   `verification/`): `docs/agents/testing.md`. Seed users and fixed ids: `docs/agents/seed.md`. Specs to
   copy from: `verification/`. Pytest: `packages/backend/tests/`.
