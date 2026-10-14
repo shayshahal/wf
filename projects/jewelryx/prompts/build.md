@@ -1,7 +1,7 @@
 
 ## This project (JewelryX)
 
-- `control-jewelryx` is not a command on PATH: wherever a doc or prompt writes `control-jewelryx …`, run `node docs/agents/verify-jewelryx/control-jewelryx.mjs …` from the worktree root.
+- `control-jewelryx …` runs this worktree's copy from anywhere inside it (wf puts a shim on PATH). If a shell still says not found, run `node docs/agents/verify-jewelryx/control-jewelryx.mjs …` from the worktree root.
 
 - Files are repo-relative from the root: `packages/backend/…`, `packages/frontend/<app>/…`, `verification/…`.
 - A verification case's `check` cell: a pytest file (`packages/backend/tests/test_x.py`), a vitest file

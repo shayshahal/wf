@@ -6,7 +6,6 @@
 - Drive the app through the verification skill, `docs/agents/verify-jewelryx/SKILL.md`, when this
   worktree has it: read its `features/README.md` and the feature file that matches the ticket, run
   `control-jewelryx doctor` first, and log in and open pages with `control-jewelryx`.
-  `control-jewelryx` is not on PATH: run it as `node docs/agents/verify-jewelryx/control-jewelryx.mjs …` from the worktree root.
 - Before writing a check, search relevant earlier `bug-reports/*/repro/` specs and existing project
   tests. Reuse a check when it proves the requested outcome, not just an intermediate UI state.
   Record its path and command, and any missing setup or driving capability, in the working agreement.
