@@ -45,7 +45,7 @@
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync } from 'node:fs';
 import { basename, join } from 'node:path';
-import { baseBranch, checks, redBaseEvidence, reproFailure, suites } from '../project.ts';
+import { baseBranch, baselineRunnerEnv, checks, isTestInput, redBaseEvidence, reproFailure, roundReproRuntimeInputs, runnerEnv, suites, verificationStackEnv } from '../project.ts';
 import { caseFiles, verificationCases } from '../round/agreement.ts';
 import { sliceContext } from '../round/build-units.ts';
 import { agreementPath } from '../round/agreement.ts';
@@ -53,8 +53,12 @@ import type { VerificationCase } from '../round/agreement.ts';
 import { readState, resolveRoundBase, roundOf, toplevelOf } from '../round/state.ts';
 import { ensureServers } from '../worktrees/serve.ts';
 import { worktreeContentSha } from './content-identity.ts';
-import { checkOutputTail, checkRunLine, suitesLine } from './checks-log.ts';
+import { checkOutputTail, checkRunLine, parseChecksLog, suitesLine } from './checks-log.ts';
 import type { CheckRun, RedCause } from './checks-log.ts';
+import { baselineCandidates, baselineProofKey, environmentDigest, probeContentSha, probeInputs, reusableBaseline } from './baseline-proof.ts';
+import type { BaselineIdentity } from './baseline-proof.ts';
+import { scratchBranchFor, startBaselineScratch } from './baseline-run.ts';
+import type { BaselineScratch } from './baseline-run.ts';
 
 // `pnpm` is a .cmd shim on Windows, so its runs need shell:true; Node then prints DEP0190
 // on every spawn, which would break "silent on green". The argv here is paths wf itself
@@ -285,7 +289,7 @@ export function manualCheck(cell: string | null | undefined): string | null {
 // Pure: the commands to run, in order. `projectTasks(target)` is the project's commands for the diff
 // plus the row's `target` (its test path, named test id and intended line, and `refactor:` — or null);
 // `repro` is the agreement's command line (or null).
-export function buildTasks({ row, projectTasks, repro, reproOnly = false }: { row: { check?: string } | null | undefined; projectTasks: (target: CheckTarget | null) => CheckTask[]; repro: string | null; reproOnly?: boolean }): CheckTask[] {
+export function buildTasks({ row, projectTasks, repro, reproOnly = false, reproEnv }: { row: { check?: string } | null | undefined; projectTasks: (target: CheckTarget | null) => CheckTask[]; repro: string | null; reproOnly?: boolean; reproEnv?: Record<string, string> }): CheckTask[] {
 	// The command is the first `code span` when there is one — a cell may add a note after it
 	// (TJEW-700 row 6: "`vitest run …ts` (fixture carries …)" took `number)` as the path). A cell that
 	// starts with — (or -) is fence only, whatever note follows it (TJEW-682 rows 1 and 5 carried a
@@ -300,8 +304,10 @@ export function buildTasks({ row, projectTasks, repro, reproOnly = false }: { ro
 	if (check !== 'repro' && !reproOnly) return tasks;
 	if (!repro) return [...tasks, { label: 'repro', missing: 'the agreement ## Repro has no `command:` line' }];
 	const [cmd, ...args] = tokenize(repro);
-	// The agreement's repro reproduces the defect in the running app (prompts/agree.md).
-	return [...tasks, { label: repro, cmd, args, cwd: '.', stack: true, ...(reproOnly ? { expectRed: true } : {}) }];
+	// The agreement's repro reproduces the defect in the running app (prompts/agree.md). The project's
+	// stack env rides it too: a repro that imports the project's support helpers reads the round's
+	// seed actors there, the same identities the repro config logs in, not the helpers' own defaults.
+	return [...tasks, { label: repro, cmd, args, cwd: '.', stack: true, ...(reproEnv ? { env: reproEnv } : {}), ...(reproOnly ? { expectRed: true } : {}) }];
 }
 
 // Pure: whether every file of a plan row is in the round's repro folder (a row that fixes the repro
@@ -374,6 +380,10 @@ const unsafeArg = (args: string[]): string | null => args.find((a) => shellArgUn
 // instead of the defect, and blocked commit 2. A repro racing the page fails differently from run to
 // run, or passes once; three runs red at one place is a repro that measures the defect.
 export const REPRO_RUNS = 3;
+// A runner's own output can exceed spawnSync's 1 MiB default (a failing playwright JSON report
+// carries the page snapshot), and ENOBUFS then reads as "the runner never started" (JX-1069 witness,
+// 2026-10-14). Give every captured runner a generous buffer; `spawn` in runSuites already streams.
+export const RUN_MAX_BUFFER = 64 * 1024 * 1024;
 
 // Pure: what a failing run failed on: its first error line and the first stack frame outside
 // node_modules (file:line), colours and durations dropped. Two runs red for one reason share it.
@@ -441,17 +451,18 @@ export function reproVerdict(runs: ReproRun[], folder: string | null): { result:
 }
 
 // Starts the stack and waits for it, or exits red naming its logs: the next command would fail
-// against no app, and say less.
-async function stackOrExit(toplevel: string) {
+// against no app, and say less. `stack` is the seam runBrief already has: a selfcheck passes a
+// stand-in so the repro's own spawn and env can be measured without a browser or a database.
+async function stackOrExit(toplevel: string, stack: typeof ensureServers) {
 	try {
-		console.error(await ensureServers(toplevel, { wait: true }));
+		console.error(await stack(toplevel, { wait: true }));
 	} catch (e) {
 		console.error(`FAILED: ${(e as Error).message}`);
 		process.exit(1);
 	}
 }
 
-export async function runRepro() {
+export async function runRepro({ stack = ensureServers }: { stack?: typeof ensureServers } = {}) {
 	const toplevel = toplevelOf();
 	const state = readState(toplevel);
 	const { folder } = roundOf(state, toplevel);
@@ -461,12 +472,13 @@ export async function runRepro() {
 		console.error(`check --repro: ${research.split(/[\\/]/).pop()} ## Repro has no \`command:\` line yet: write it first`);
 		process.exit(1);
 	}
-	await stackOrExit(toplevel);
+	await stackOrExit(toplevel, stack);
 	const [cmd, ...args] = tokenize(repro);
 	const start = contentOf(toplevel, folder);
 	const runs: ReproRun[] = [];
+	const env = { ...runnerEnv(process.env), ...verificationStackEnv(toplevel) };
 	for (let i = 1; i <= REPRO_RUNS; i++) {
-		const run = spawnSync(cmd, shellArgv(args), { cwd: toplevel, encoding: 'utf8', shell: process.platform === 'win32' });
+		const run = spawnSync(cmd, shellArgv(args), { cwd: toplevel, encoding: 'utf8', shell: process.platform === 'win32', env, maxBuffer: RUN_MAX_BUFFER });
 		const output = `${run.stdout ?? ''}${run.stderr ?? ''}`;
 		// A red counts only if it is a framework assertion inside the repro's own files: a crash, a
 		// generic Error, or a runner wf cannot read never measured the defect (#109 review).
@@ -599,7 +611,7 @@ export async function runCheck(argv: string[] = [], shared: SharedTaskCache = ne
 	const reproOnly = row ? isReproOnly(caseFiles(row), folder) : false;
 	const target = checkCellTarget(row?.check);
 	let served = false;
-	const tasks = buildTasks({ row, projectTasks: (t) => checks({ toplevel, changed, target: t }), repro, reproOnly });
+	const tasks = buildTasks({ row, projectTasks: (t) => checks({ toplevel, changed, target: t }), repro, reproOnly, reproEnv: verificationStackEnv(toplevel) });
 	// Nothing to run is not a green: a case-less or fence-only run with a product file changed and no
 	// project check would log a pass that measured nothing (#109). `changed` is the same list the fence
 	// uses (committed vs base, worktree, index, untracked), so a committed-only or reverse-index (index
@@ -644,7 +656,7 @@ export async function runCheck(argv: string[] = [], shared: SharedTaskCache = ne
 		let run: { status: number | null; stdout?: string | null; stderr?: string | null };
 		if (reused) run = { status: reused.status, stdout: reused.output, stderr: '' };
 		else {
-			run = spawnSync(task.cmd!, shellArgv(task.args!), { cwd: join(toplevel, task.cwd!), env: { ...process.env, ...task.env }, encoding: 'utf8', shell: process.platform === 'win32' });
+			run = spawnSync(task.cmd!, shellArgv(task.args!), { cwd: join(toplevel, task.cwd!), env: { ...runnerEnv(process.env), ...task.env }, encoding: 'utf8', shell: process.platform === 'win32', maxBuffer: RUN_MAX_BUFFER });
 			if (key) {
 				const after = contentOf(toplevel, folder);
 				if (after === content) shared.set(key, { status: run.status, output: `${run.stdout ?? ''}${run.stderr ?? ''}` });
@@ -722,49 +734,115 @@ export async function runCheck(argv: string[] = [], shared: SharedTaskCache = ne
 			logRun('red', 'environment');
 			failRow(batch);
 		}
-		if (redTask.stack && !served) {
-			served = true;
-			try {
-				await ensureServers(toplevel, { wait: true });
-			} catch (e) {
-				const dead = { label, exit: null, missing: (e as Error).message };
+		// The before/after identity the proof binds (#133): the baseline commit, the command, the named
+		// assertion, the case's own test plus the round-folder inputs it declares (which the row-scope
+		// hash excludes), the run environment and the implementation WITH the change. A prior proof
+		// under the same key and the same current bytes, whose runner verdict is exactly the one this
+		// row needs, is reused instead of run again; a changed test, fixture, baseline, environment or
+		// implementation is a different key and runs. A status code alone never qualifies
+		// (baseline-proof.ts).
+		const want: RunEvidence['verdict'] = target?.refactor ? 'passed' : 'behavioral-failure';
+		const isolated = Boolean(redTask.stack);
+		const redBaseContent = contentOf(toplevel, folder);
+		const probeFiles = probeInputs({ testPath: target?.file ?? null, files: caseFiles(row), runtime: roundReproRuntimeInputs(toplevel, target?.file ?? null, folder), folder, testInput: isTestInput, exclude: revert });
+		const probe = probeContentSha(toplevel, probeFiles);
+		// The ONE effective env this run is handed, and the exact object the proof binds: the project's
+		// curated runner profile plus the task's env, and for an isolated run the BASELINE branch's stack
+		// env in place of the live one (baselineRunnerEnv). Harness/session bookkeeping is not in it, so it
+		// is never handed to the runner and a fresh assessment session reuses the proof. The live ports
+		// and database never reach the isolated child.
+		const scratchBranch = isolated ? scratchBranchFor(toplevel) : '';
+		const effectiveEnv = isolated
+			? baselineRunnerEnv({ ambient: process.env, taskEnv: redTask.env, branch: scratchBranch })
+			: { ...runnerEnv(process.env), ...(redTask.env ?? {}) };
+		const environment = environmentDigest(effectiveEnv);
+		const identity: BaselineIdentity = {
+			base: redBaseRef,
+			key: baselineProofKey({ base: redBaseRef, task: redTask as { cmd: string; args: string[]; cwd: string; env?: Record<string, string> }, target: target!, probe, environment, isolated }),
+			current: redBaseContent ?? '',
+			command: redTask.cmd!,
+			argv: redTask.args!,
+			target: target!,
+			probe,
+			environment,
+			isolated,
+		};
+		const logPath = join(toplevel, '.wf', 'checks.log');
+		const prior = redBaseContent
+			? reusableBaseline(baselineCandidates(existsSync(logPath) ? parseChecksLog(readFileSync(logPath, 'utf8')).cases : []), { key: identity.key, current: identity.current, want })
+			: null;
+		let redBase: CheckRun;
+		if (prior) {
+			redBase = { label, exit: prior.exit, expect: target?.refactor ? 'green' : 'red', evidence: prior.evidence, baseline: { ...prior.identity, reused: true } };
+			console.log(`${label}: reused the recorded baseline proof — unchanged baseline, test, fixtures and implementation (${prior.evidence.say})`);
+		} else {
+			// A task that drives the app is measured in a scratch worktree at the baseline (baseline-run.ts):
+			// stashing the change out of the live worktree left the live server on stale code after
+			// restoration (JX-1069). The live worktree, its index and its stack are never touched.
+			let run: { status: number | null; stdout?: string | null; stderr?: string | null; error?: Error } | Error;
+			let evidenceRoot = toplevel;
+			if (isolated) {
+				let scratch: BaselineScratch | null = null;
+				let teardownFailures: string[] = [];
+				try {
+					scratch = await startBaselineScratch({ toplevel, branch: scratchBranch, ref: redBaseRef, probeFiles, log: join(toplevel, '.wf', 'logs', 'baseline-redbase.log') });
+					await ensureServers(scratch.path, { wait: true });
+					evidenceRoot = scratch.path;
+					// The scratch gets the BASELINE root's stack env, never the live ports or database, and
+					// exactly the object the proof bound above.
+					run = spawnSync(redTask.cmd!, shellArgv(redTask.args!), { cwd: join(scratch.path, redTask.cwd!), env: effectiveEnv, encoding: 'utf8', shell: process.platform === 'win32', maxBuffer: RUN_MAX_BUFFER });
+				} catch (e) {
+					run = e as Error;
+				} finally {
+					// The scratch owns a worktree, a stack and a database: it goes in a finally, whatever the run
+					// did. `remove()` returns what it could not confirm released, so a leaked stack/DB/worktree
+					// refuses a green below instead of being silently called gone.
+					if (scratch) teardownFailures = await scratch.remove();
+				}
+				if (teardownFailures.length) {
+					const leaked = { label, exit: null, missing: `the baseline scratch environment was not released: ${teardownFailures.join('; ')}` };
+					console.error(`COULD NOT RUN: ${leaked.missing}`);
+					ran.push(leaked);
+					logRun('red', 'environment');
+					failRow(batch);
+				}
+			} else {
+				// The stash dance restores the working change whatever the run does; a failure to stash or pop
+				// is the environment, never a green.
+				run = (() => {
+					try {
+						return withFixReverted(toplevel, revert, () => spawnSync(redTask.cmd!, shellArgv(redTask.args!), { cwd: join(toplevel, redTask.cwd!), env: effectiveEnv, encoding: 'utf8', shell: process.platform === 'win32', maxBuffer: RUN_MAX_BUFFER }), redBaseRef);
+					} catch (e) {
+						return e as Error;
+					}
+				})();
+			}
+			if (run instanceof Error) {
+				const dead = { label, exit: null, missing: run.message };
 				console.error(`COULD NOT RUN: ${dead.missing}`);
 				ran.push(dead);
 				logRun('red', 'environment');
-				process.exit(1);
+				failRow(batch);
 			}
+			// A spawn that returned no status never started: say why (a missing cwd, a bad executable), the
+			// same as the error the runner's own report would not carry.
+			if (run.status === null && run.error) console.error(`red-base: the runner did not start: ${run.error.message}`);
+			const output = `${run.stdout ?? ''}${run.stderr ?? ''}`;
+			// The verdict comes from the full output, before `output` is cut to its tail: the runner's
+			// provenance (the failing test, its error and the assertion origin) must survive in checks.log
+			// even when the tail does not carry it (#109). The row must name the test id and, for a
+			// red-base row, the intended assertion line; anything less cannot prove the claim, so the row
+			// never greens on a bare exit code.
+			const evidence: RunEvidence = gap
+				? { verdict: 'unavailable', say: gap }
+				: redBaseEvidence({ cmd: redTask.cmd!, args: redTask.args!, cwd: redTask.cwd!, root: evidenceRoot, exit: run.status, output, target: target! });
+			redBase = { label, exit: run.status, expect: target?.refactor ? 'green' : 'red', output: output.split('\n').slice(-15).join('\n').trimEnd(), evidence, baseline: identity };
 		}
-		// The stash dance restores the working change whatever the run does; a failure to stash or pop
-		// is the environment, never a green.
-		const run = (() => {
-			try {
-				return withFixReverted(toplevel, revert, () => spawnSync(redTask.cmd!, shellArgv(redTask.args!), { cwd: join(toplevel, redTask.cwd!), env: { ...process.env, ...redTask.env }, encoding: 'utf8', shell: process.platform === 'win32' }), redBaseRef);
-			} catch (e) {
-				return e as Error;
-			}
-		})();
-		if (run instanceof Error) {
-			const dead = { label, exit: null, missing: run.message };
-			console.error(`COULD NOT RUN: ${dead.missing}`);
-			ran.push(dead);
-			logRun('red', 'environment');
-			failRow(batch);
-		}
-		const output = `${run.stdout ?? ''}${run.stderr ?? ''}`;
-		// The verdict comes from the full output, before `output` is cut to its tail: the runner's
-		// provenance (the failing test, its error and the assertion origin) must survive in checks.log
-		// even when the tail does not carry it (#109). The row must name the test id and, for a
-		// red-base row, the intended assertion line; anything less cannot prove the claim, so the row
-		// never greens on a bare exit code.
-		const evidence: RunEvidence = gap
-			? { verdict: 'unavailable', say: gap }
-			: redBaseEvidence({ cmd: redTask.cmd!, args: redTask.args!, cwd: redTask.cwd!, root: toplevel, exit: run.status, output, target: target! });
-		const redBase: CheckRun = { label, exit: run.status, expect: target?.refactor ? 'green' : 'red', output: output.split('\n').slice(-15).join('\n').trimEnd(), evidence };
 		ran.push(redBase);
 		// A refactor row must leave its selected test green without the change; any other row must fail
 		// on the intended assertion. `passed` is only `passed` when the runner reported the selected
 		// test ran and passed on its own (a skip or a suite total is `unavailable`).
-		const want = target?.refactor ? 'passed' : 'behavioral-failure';
+		const evidence = redBase.evidence!;
 		if (evidence.verdict === want) {
 			// proven: fall through to the content guard and the green line.
 		} else if (target?.refactor) {
@@ -832,7 +910,7 @@ export async function runSuites() {
 	const start = Date.now();
 	const step = (task: CheckTask) => new Promise<{ label: string; exit: number | null; output: string }>((resolve) => {
 		if (task.cmd === undefined) return resolve({ label: task.label, exit: null, output: task.missing });
-		const child = spawn(task.cmd, shellArgv(task.args), { cwd: join(toplevel, task.cwd), env: { ...process.env, ...task.env }, shell: process.platform === 'win32', windowsHide: true });
+		const child = spawn(task.cmd, shellArgv(task.args), { cwd: join(toplevel, task.cwd), env: { ...runnerEnv(process.env), ...task.env }, shell: process.platform === 'win32', windowsHide: true });
 		let output = '';
 		child.stdout.on('data', (d) => { output += d; });
 		child.stderr.on('data', (d) => { output += d; });

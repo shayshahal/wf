@@ -110,8 +110,8 @@ export default defineConfig({
 `;
 }
 
-// Pure: logs each role in through the skill's CLI (control-jewelryx auth <role>), all three at once:
-// 7 s together, measured 2026-09-27.
+// Pure: logs each role in through the skill's CLI (control-jewelryx auth <role>). The first runs alone:
+// three cold snapshot saves raced on glob/unlink (2026-10-14); the remaining two then run together.
 export const REPRO_GLOBAL_SETUP = `// Written by wf new: the three seed roles' logins, saved by the verification skill's CLI
 // (${VERIFY_SKILL}/SKILL.md). A red line here is the stack, not the defect: run its doctor.
 import { execFile } from 'node:child_process';
@@ -128,7 +128,12 @@ const auth = (role: string) =>
 	);
 
 export default async function globalSetup() {
-	await Promise.all(['buyer', 'seller', 'admin'].map(auth));
+	// First run only: control-jewelryx auth saves the whole database when no baseline exists yet (its
+	// ensureBaseline). Three concurrent saves race in db_snapshot.py's glob/unlink (a FileNotFoundError on
+	// a *.bson), so the first initialization runs alone; once the manifest is written the rest log in
+	// together.
+	await auth('buyer');
+	await Promise.all(['seller', 'admin'].map(auth));
 }
 `;
 

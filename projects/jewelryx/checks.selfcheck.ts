@@ -4,7 +4,7 @@
 // and a faithful runner stub for committed and uncommitted red-base measurements.
 import { buildTasks as coreBuildTasks } from '../../src/gates/check.ts';
 import type { CheckTarget } from '../../src/gates/check.ts';
-import { checkTasks, oracleGuardTask, parseStackEnv, oracleCaseGap, seedActorsEnv, suitesTouched } from './checks.ts';
+import { checkTasks, oracleGuardTask, parseStackEnv, oracleCaseGap, roundReproConfigArg, seedActorsEnv, suitesTouched, roundReproRuntimeInputs } from './checks.ts';
 import type { PkgFor } from './checks.ts';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -65,6 +65,39 @@ check('a `vitest run <path>` cell runs that path in its package', vtCmd[0]?.args
 // assertion location the evidence binds (playwright) or a per-test line that names the case (vitest).
 const pwSel = buildTasks({ changed: [], row: { check: 'verification/specs/login.spec.ts::login relogin works' }, pkgFor, repro: null });
 check('a playwright row test is selected with -g and the path is verification-relative', pwSel[0].args!.join(' ') === 'exec playwright test specs/login.spec.ts -g login relogin works --reporter=json' && pwSel[0].cwd === 'verification' && !pwSel[0].args!.join(' ').includes('::') && pwSel[0].redBase === true, JSON.stringify(pwSel[0]));
+// #133 review: a NAMED round repro (`bug-reports/<round>/repro/x.spec.ts::id`) is a stack playwright
+// case, not a root vitest file. It runs from verification/ with the project's own repro config (the
+// same the `## Repro` command names) and the JSON reporter, so the report binds the named assertion.
+const reproRepo = mkdtempSync(join(tmpdir(), 'wf-round-repro-'));
+mkdirSync(join(reproRepo, 'docs', 'agents', 'verify-jewelryx'), { recursive: true });
+writeFileSync(join(reproRepo, 'docs', 'agents', 'verify-jewelryx', 'repro.config.ts'), '// the project repro config\n');
+const roundRepro = checkTasks({ toplevel: reproRepo, changed: ['bug-reports/BJEW-1/repro/slider.spec.ts', 'bug-reports/BJEW-1/repro/fixture.ts'], target: { refactor: false, file: 'bug-reports/BJEW-1/repro/slider.spec.ts', id: 'old slider', line: 42 }, pkgFor, stackEnv });
+check('a named round repro runs playwright through the project repro config, from verification/, with the JSON reporter', roundRepro[0]?.cmd === 'pnpm' && roundRepro[0]?.args!.join(' ') === 'exec playwright test -c ../docs/agents/verify-jewelryx/repro.config.ts ../bug-reports/BJEW-1/repro/slider.spec.ts -g old slider --reporter=json' && roundRepro[0]?.cwd === 'verification' && roundRepro[0]?.stack === true && roundRepro[0]?.redBase === true && !roundRepro.some((t) => t.cmd === 'pnpm' && t.args?.includes('vitest')), JSON.stringify(roundRepro[0]));
+const roundReproFallback = checkTasks({ toplevel: join(reproRepo, 'no-skill-here'), changed: ['bug-reports/BJEW-1/repro/slider.spec.ts'], target: { refactor: true, file: 'bug-reports/BJEW-1/repro/slider.spec.ts', id: 'old slider', line: null }, pkgFor, stackEnv });
+check('without the skill config, a named round repro uses the per-round fallback config wf new wrote', roundReproFallback[0]?.args!.includes('../bug-reports/BJEW-1/repro/playwright.config.ts') && roundReproFallback[0]?.env?.B2B_URL === 'http://localhost:12345', JSON.stringify(roundReproFallback[0]));
+// #133 review (M3): the per-round fallback config exists only in the LIVE worktree, so the named
+// round-repro's before side must copy it (and its global setup) into the scratch, or the runner fails
+// before the spec loads. The shared config's global setup and tsconfig are the same kind of runtime
+// input. `roundReproRuntimeInputs` resolves whichever the route will use; core hands it to probeInputs.
+const runtimeRepo = mkdtempSync(join(tmpdir(), 'wf-round-runtime-'));
+const reproSpec = 'bug-reports/BJEW-9/repro/slider.spec.ts';
+const sharedDir = join(runtimeRepo, 'docs', 'agents', 'verify-jewelryx');
+mkdirSync(sharedDir, { recursive: true });
+const shared = ['repro.config.ts', 'repro-global-setup.ts', 'tsconfig.json'].map((n) => `docs/agents/verify-jewelryx/${n}`);
+for (const f of shared) writeFileSync(join(runtimeRepo, f), '// shared\n');
+check('with the shared config, a named round repro copies the config, its global setup and its tsconfig', JSON.stringify([...roundReproRuntimeInputs(runtimeRepo, reproSpec, 'bug-reports/BJEW-9')].sort()) === JSON.stringify([...shared].sort()), JSON.stringify(roundReproRuntimeInputs(runtimeRepo, reproSpec, 'bug-reports/BJEW-9')));
+rmSync(sharedDir, { recursive: true, force: true });
+const fallbackDir = join(runtimeRepo, 'bug-reports', 'BJEW-9', 'repro');
+mkdirSync(fallbackDir, { recursive: true });
+const fallback = ['bug-reports/BJEW-9/repro/playwright.config.ts', 'bug-reports/BJEW-9/repro/global-setup.ts'];
+for (const f of fallback) writeFileSync(join(runtimeRepo, f), '// fallback\n');
+check('without the shared config, a named round repro copies the per-round fallback config and its global setup', JSON.stringify([...roundReproRuntimeInputs(runtimeRepo, reproSpec, 'bug-reports/BJEW-9')].sort()) === JSON.stringify([...fallback].sort()), JSON.stringify(roundReproRuntimeInputs(runtimeRepo, reproSpec, 'bug-reports/BJEW-9')));
+// The route runs `-c ../<fallback>` from verification/; the runtime inputs copy exactly that file, so the
+// before side has the config the arg names (the missing-file runner failure the review reproduced).
+check('the fallback config the route runs is the one the inputs copy', roundReproRuntimeInputs(runtimeRepo, reproSpec, 'bug-reports/BJEW-9').some((f) => f.endsWith('/repro/playwright.config.ts')) && roundReproConfigArg(runtimeRepo, 'bug-reports/BJEW-9').endsWith('bug-reports/BJEW-9/repro/playwright.config.ts'), JSON.stringify({ runtime: roundReproRuntimeInputs(runtimeRepo, reproSpec, 'bug-reports/BJEW-9'), arg: roundReproConfigArg(runtimeRepo, 'bug-reports/BJEW-9') }));
+check('a non-round-repro target copies no runtime config', roundReproRuntimeInputs(runtimeRepo, 'packages/frontend/b2b/src/x.test.ts', 'bug-reports/BJEW-9').length === 0);
+rmSync(runtimeRepo, { recursive: true, force: true });
+rmSync(reproRepo, { recursive: true, force: true });
 const vtSel = buildTasks({ changed: [], row: { check: 'packages/frontend/b2b/src/x.spec.ts::cart > drops the line' }, pkgFor, repro: null });
 check('a vitest row test is selected with -t and the path is package-relative at the package cwd', vtSel[0].args!.join(' ') === 'exec vitest run src/x.spec.ts -t ^cart > drops the line$ --reporter=verbose' && vtSel[0].cwd === 'packages/frontend/b2b' && !vtSel[0].args!.join(' ').includes('::') && vtSel[0].redBase === true, JSON.stringify(vtSel[0]));
 const pySel = buildTasks({ changed: [], row: { check: 'packages/backend/tests/test_auth.py::test_otp_login@7' }, pkgFor, repro: null });
@@ -191,13 +224,13 @@ try {
 if (process.argv.includes('ruff')) process.exit(0);
 if (!process.argv.includes('pytest')) process.exit(2);
 readFileSync('tests/test_product.py');
-const passed = process.env.WF_TEST_NOOP === '1' || readFileSync('app/product.py', 'utf8').startsWith('FIXED = True');
+const passed = process.env.VERIFY_TEST_NOOP === '1' || readFileSync('app/product.py', 'utf8').startsWith('FIXED = True');
 console.log(passed ? 'PASSED tests/test_product.py::test_fix\\n1 passed' : '___ test_fix ___\\n>       assert FIXED is True\\nE       assert False is True\\ntests/test_product.py:3: AssertionError\\n=== short test summary info ===\\nFAILED tests/test_product.py::test_fix - assert False is True\\n1 failed');
 process.exit(passed ? 0 : 1);
 `);
   const win = process.platform === 'win32';
   writeFileSync(join(bin, win ? 'uv.cmd' : 'uv'), win ? `@"${process.execPath}" "%~dp0runner.cjs" %*\r\n` : `#!/bin/sh\nexec "${process.execPath}" "$(dirname "$0")/runner.cjs" "$@"\n`, win ? {} : { mode: 0o755 });
-  const attempt = (noop = false) => spawnSync(process.execPath, [join(WF_ROOT, 'wf.mjs'), 'check'], { cwd: repo, env: { ...env, WF_TEST_NOOP: noop ? '1' : '0' }, encoding: 'utf8' });
+  const attempt = (noop = false) => spawnSync(process.execPath, [join(WF_ROOT, 'wf.mjs'), 'check'], { cwd: repo, env: { ...env, VERIFY_TEST_NOOP: noop ? '1' : '0' }, encoding: 'utf8' });
   const working = attempt();
   check('single-build check measures the defect before the fix is committed', working.status === 0, `${working.stdout}${working.stderr}`);
   git('add', product, test, folder);

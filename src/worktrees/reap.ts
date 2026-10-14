@@ -7,8 +7,8 @@
 // guards unfinished work, and a finished round has none. BJEW-562 (2026-09-27): wf next said
 // `wf reap <branch>`, it only printed its plan, and Claude Code's auto mode refused the flag.
 // Every step tolerates "already gone": a reap that is re-run is a no-op, not an error.
-import { execFileSync, spawnSync } from 'node:child_process';
-import { appendFileSync, copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { appendFileSync, copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { refuseCaller } from '../refusal.ts';
@@ -20,6 +20,7 @@ import { mergedImplementationGap } from '../round/delivered-round.ts';
 import type { State } from '../round/state.ts';
 import type { RemovalStep } from '../seams.ts';
 import { removalPlan, resolveWorktree, slugForBranch } from './worktree.ts';
+import { runRemovalStep } from './removal.ts';
 
 // Pure: the uncommitted round paperwork in `git status --porcelain --untracked-files=all` output.
 // The root REVIEW.md is written after deliver commits the round folder, so it is uncommitted on
@@ -161,35 +162,7 @@ export async function runReap(argv: string[]) {
 			console.log(`would: ${shown}`);
 			continue;
 		}
-		if (step.rm) {
-			let failed: string | null = null;
-			try {
-				// A dev server just killed holds its folder for a few seconds (EBUSY on Windows):
-				// rmSync retries EBUSY/EPERM itself. BJEW-603 left the folder behind twice without this.
-				rmSync(step.rm, { recursive: true, force: true, maxRetries: 10, retryDelay: 1000 });
-			} catch (e) {
-				// Each step tolerates what is already gone; the next steps still run, and the line says which failed.
-				failed = (e as NodeJS.ErrnoException).code ?? 'failed';
-			}
-			// Judged by the folder, not the error: a process still running in it keeps it (2026-10-06: a
-			// proxy started from BJEW-461's stack kept its folder, EBUSY), and that is not "already gone".
-			console.log(!existsSync(step.rm) ? `${step.label}: ok` : `${step.label}: ${failed ?? 'failed'}, ${step.rm} is still there: a process still runs in it or holds a file in it`);
-			continue;
-		}
-		// A step done in-process: its arguments never pass through the shell (the database drop's
-		// python source would not survive cmd.exe).
-		if (step.run) {
-			try {
-				step.run();
-				console.log(`${step.label}: ok`);
-			} catch (e) {
-				// As above: printed, and the remaining steps run.
-				console.log(`${step.label}: already gone or failed (${(e as Error).message})`);
-			}
-			continue;
-		}
-		const run = spawnSync(step.cmd!, step.args!, { encoding: 'utf8', env: { ...process.env, WF_FORCE_REAP: '1', ...(step as { env?: Record<string, string> }).env }, shell: process.platform === 'win32' });
-		console.log(`${step.label}: ${run.status === 0 ? 'ok' : `already gone or failed (${(run.stderr ?? '').trim().split('\n').at(-1) || `exit ${run.status}`})`}`);
+		console.log(runRemovalStep(step).say);
 	}
 	if (!force) {
 		console.log(`would: take ${slug}'s entries out of the clone's .claude/launch.json`);

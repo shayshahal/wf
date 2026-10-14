@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { createConnection } from 'node:net';
 import { join } from 'node:path';
-import { checkTasks, oracleEdits, parseStackEnv, oracleCaseGap, PRODUCT_BRANCH, seedActorsEnv, realPkgFor, suitesTouched } from './checks.ts';
+import { checkTasks, oracleEdits, parseStackEnv, oracleCaseGap, PRODUCT_BRANCH, roundReproRuntimeInputs, seedActorsEnv, realPkgFor, suitesTouched } from './checks.ts';
 import type { Suite } from './checks.ts';
 import type { CheckTarget, CheckTask } from '../../src/gates/check.ts';
 import { unpairedProofImages } from '../../src/gates/review-format.ts';
@@ -14,7 +14,7 @@ import { dropDatabase, dropStrandedTestDatabases, worktreeDatabase } from './db.
 import { seams } from '../../src/seams.ts';
 import type { Command, RemovalStep } from '../../src/seams.ts';
 import type { State } from '../../src/round/state.ts';
-import { listWorktrees, mainCheckout } from '../../src/worktrees/worktree.ts';
+import { listWorktrees, mainCheckout, basePortForBranch } from '../../src/worktrees/worktree.ts';
 import { homedir } from 'node:os';
 import { delimiter } from 'node:path';
 import { installShim, linkVerifySkill, unlinkCompetingSkills, verifyStackEnv, writeReproConfig } from './round.ts';
@@ -250,14 +250,85 @@ function oracleTouched(toplevel: string): string[] {
 	return oracleEdits([...new Set([...lines(git(['diff', '--name-only', mergeBase, ...paths])), ...lines(git(['ls-files', '--others', '--exclude-standard', ...paths]))])]).sort();
 }
 
+// The env a verification or repro run gets: the round's seed actors (the project's support helpers
+// read these, and they are the identities the repro config logs in) plus .verify-stack.env's URLs.
+// `wf check` passes it to a verification/ spec and to the agreement's repro, so a repro that imports
+// verification/tests/support reads the round's own users, not the helpers' by-hand defaults
+// (verification-owner@), which the round database does not have (BJEW-617, 2026-10-06).
+export function verificationStackEnv(toplevel: string): Record<string, string> {
+	const stackFile = join(toplevel, '.verify-stack.env');
+	return { ...seedActorsEnv(logins), ...(existsSync(stackFile) ? parseStackEnv(readFileSync(stackFile, 'utf8')) : {}) };
+}
+
+// The environment a runner is HANDED: the ambient environment minus the keys that belong to the
+// process that STARTED wf, not to the proof. Core hashes and passes exactly this object
+// (baseline-proof.ts/#133 review). Everything else stays — the OS/tool lookups and config (PATH, HOME,
+// package-manager settings) and any project/CI/test flag — so no useful arbitrary flag is stripped
+// and a changed flag is bound on BOTH proof sides. Only the session/host bookkeeping (PWD, `PI_*`, a
+// session id, `_`, SHLVL, the terminal) is dropped, so a fresh assessment session reuses a proof while
+// the runner never sees the fields the proof ignores.
+export const harnessEnvKeys: string[] = ['PWD', 'OLDPWD', '_', 'SHLVL', 'CLAUDECODE', 'TERM', 'TERM_PROGRAM', 'TERM_PROGRAM_VERSION', 'SESSIONNAME'];
+export const harnessEnvPrefixes: string[] = ['PI_', 'WT_'];
+export function runnerEnv(ambient: NodeJS.ProcessEnv): Record<string, string> {
+	const kept: [string, string][] = [];
+	for (const [key, value] of Object.entries(ambient)) {
+		if (value === undefined) continue;
+		if (harnessEnvKeys.includes(key) || harnessEnvPrefixes.some((prefix) => key.startsWith(prefix))) continue;
+		kept.push([key, value]);
+	}
+	return Object.fromEntries(kept);
+}
+
+// The keys verificationStackEnv (and the worktree's own `.env`) own: the round's seed actors, the
+// stack's own URLs and log path, and the database/resource identifiers. For an isolated baseline run
+// these point at the LIVE round; the baseline branch's own values must replace them, and a key with no
+// baseline value (STACK_LOG, MONGO_URL from the host) is dropped rather than leaking the live
+// URL/database (the scratch's own `.env` then supplies its identifiers).
+export const stackEnvOwnedKeys = (): string[] => [...Object.keys(seedActorsEnv(logins)), 'B2B_URL', 'ADMIN_URL', 'API_URL', 'STACK_LOG', 'MONGO_URL', 'MONGO_URI', 'DATABASE_URL', 'DATABASE_NAME', 'REDIS_URL'];
+
+// The stack env a task gets in an isolated baseline worktree for `branch`: the seed actors and the
+// baseline stack's own URLs, computed from the branch (ports are pure functions of it). Core can bind
+// it to a proof before the worktree exists, and the run then uses exactly these values -- never the
+// live round's ports or database. `setup`'s env step writes the same URLs into the scratch's
+// `.verify-stack.env`.
+export function baselineStackEnv(branch: string): Record<string, string> {
+	const direct = directUrls(basePortForBranch(branch));
+	return { ...seedActorsEnv(logins), B2B_URL: direct.b2b, ADMIN_URL: direct.admin, API_URL: direct.api };
+}
+
+/**
+ * The ONE effective env a red-base task is handed in an isolated baseline worktree. It starts from the
+ * curated runner env, drops the base's owned live resource keys, keeps the task's own non-resource
+ * overrides, and adds the baseline branch's own stack env. Nothing from a live port/database survives.
+ * Core hashes and passes exactly the returned object, so the bound env cannot differ from the run's.
+ */
+export function baselineRunnerEnv({ ambient, taskEnv, branch }: { ambient: NodeJS.ProcessEnv; taskEnv?: Record<string, string>; branch: string }): Record<string, string> {
+	const owned = new Set(stackEnvOwnedKeys());
+	const base = Object.fromEntries(Object.entries(runnerEnv(ambient)).filter(([key]) => !owned.has(key)));
+	const preserved = Object.fromEntries(Object.entries(taskEnv ?? {}).filter(([key]) => !owned.has(key)));
+	return { ...base, ...preserved, ...baselineStackEnv(branch) };
+}
+
+// Whether a changed file is a red-base *input* (the case's own test or a helper/fixture/config it
+// loads) rather than the implementation the row measures. An isolated baseline copies the inputs into
+// the scratch, so a helper the round added is present on the before side instead of reading as a
+// product red (#133 review). The project owns the convention, as it owns the runner and its layout.
+export function isTestInput(file: string): boolean {
+	const f = file.replace(/\\/g, '/');
+	return f.startsWith('verification/') || /(^|\/)tests?\//.test(f) || /(^|\/)test_[^/]+\.py$/.test(f) || /\.(test|spec)\.[cm]?[jt]s$/.test(f);
+}
+
 // wf check's commands for the changed files, plus the row's check cell `target` (its test path, the
 // named test id and intended assertion line, and whether it is a `refactor:`) or null. Each is
 // { label, cmd, args, cwd } (cwd repo-relative), or { label, missing } when the cell is not runnable.
 export function checks({ toplevel, changed, target }: { toplevel: string; changed: string[]; target: CheckTarget | null }): CheckTask[] {
-	const stackFile = join(toplevel, '.verify-stack.env');
-	const stackEnv = { ...seedActorsEnv(logins), ...(existsSync(stackFile) ? parseStackEnv(readFileSync(stackFile, 'utf8')) : {}) };
-	return checkTasks({ changed, target, pkgFor: realPkgFor(toplevel), pushHook: existsSync(join(toplevel, 'lefthook.yml')), onDisk: (f) => existsSync(join(toplevel, f)), stackEnv, oracleTouched: oracleTouched(toplevel) });
+	return checkTasks({ toplevel, changed, target, pkgFor: realPkgFor(toplevel), pushHook: existsSync(join(toplevel, 'lefthook.yml')), onDisk: (f) => existsSync(join(toplevel, f)), stackEnv: verificationStackEnv(toplevel), oracleTouched: oracleTouched(toplevel) });
 }
+
+// The runtime config a named round-repro spec needs in the isolated scratch (checks.ts): the config
+// the route will run with, and its global setup/tsconfig. Core copies these as probe inputs even when
+// the case declared only its spec, so the before side can run at all.
+export { roundReproRuntimeInputs };
 
 // What one red-base run's own output proves (#109, evidence.ts): core's check.ts reads this instead
 // of the exit code, with the check cell's target (`path::test id@<line>`), and greens a row only on

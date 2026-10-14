@@ -2,7 +2,7 @@
 // Pure arms only (no git, no runners): the fence, the repro line, and what buildTasks makes of a
 // plan row's check cell. The project's own commands: projects/<name>/checks.selfcheck.ts.
 import { failedInRepro, failureFrame, failureSignature, reproVerdict } from './check.ts';
-import { checkCellCommand, checkCellPath, checkCellTarget, buildTasks, expectRedVerdict, fenceViolations, isReproOnly, isRoundPaperwork, manualCheck, redBaseFiles, redBaseRun, redCause, reproCommand, resolvedBlockedName, shellArgUnsafe, shellArgv, targetGap, taskRunKey, tokenize, withFixReverted } from './check.ts';
+import { checkCellCommand, checkCellPath, checkCellTarget, buildTasks, expectRedVerdict, fenceViolations, isReproOnly, isRoundPaperwork, manualCheck, redBaseFiles, redBaseRun, redCause, reproCommand, resolvedBlockedName, RUN_MAX_BUFFER, shellArgUnsafe, shellArgv, targetGap, taskRunKey, tokenize, withFixReverted } from './check.ts';
 import type { CheckTarget, CheckTask } from './check.ts';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -57,6 +57,13 @@ check('shellArgv quotes each argument on Windows and leaves argv alone elsewhere
 const markerRun = spawnSync(stub, shellArgv(['%WF_MARKER%']), { shell: win, encoding: 'utf8', env: { ...process.env, WF_MARKER: 'expanded-by-cmd' } });
 check('a quoted %NAME% still expands through the Windows shell: quotes are not protection', !win || markerRun.stdout === JSON.stringify(['expanded-by-cmd']), JSON.stringify({ out: markerRun.stdout }));
 check('shellArgUnsafe names a cmd metavariable, a lone % or a non-Windows platform is safe', shellArgUnsafe('%WF_MARKER%', 'win32') && !shellArgUnsafe('100%', 'win32') && !shellArgUnsafe('a%b', 'win32') && !shellArgUnsafe('%WF_MARKER%', 'linux'));
+// A runner's output can exceed spawnSync's 1 MiB default (a failing playwright JSON report carries
+// the page snapshot); ENOBUFS then reads as "the runner never started" and the row fails as an
+// environment error (the #133 witness, 2026-10-14). RUN_MAX_BUFFER is what the captured spawns use.
+const bigOut = spawnSync(process.execPath, ['-e', 'process.stdout.write("x".repeat(2 * 1024 * 1024))'], { encoding: 'utf8', maxBuffer: RUN_MAX_BUFFER });
+const defaultOut = spawnSync(process.execPath, ['-e', 'process.stdout.write("x".repeat(2 * 1024 * 1024))'], { encoding: 'utf8' });
+check('a runner output over the 1 MiB default is captured, not ENOBUFS', bigOut.status === 0 && (bigOut.stdout ?? '').length === 2 * 1024 * 1024 && !bigOut.error, JSON.stringify({ status: bigOut.status, len: (bigOut.stdout ?? '').length, err: bigOut.error?.message }));
+check('the same output overflows the default buffer: the bug this guards', defaultOut.status === null &&  (defaultOut.error as NodeJS.ErrnoException | undefined)?.code === 'ENOBUFS', JSON.stringify({ status: defaultOut.status, err: (defaultOut.error as NodeJS.ErrnoException | undefined)?.code }));
 rmSync(stubDir, { recursive: true, force: true });
 
 // buildTasks against a stand-in project: it records the test path it was handed.
@@ -75,6 +82,10 @@ const repro = buildTasks({ row: { check: 'repro' }, projectTasks, repro: 'node s
 check('check: repro runs the project tasks, then the agreement command', JSON.stringify(labels(repro)) === '["project -","node scripts/repro.mjs"]' && repro[1].cmd === 'node' && repro[1].args.join(' ') === 'scripts/repro.mjs', JSON.stringify(repro));
 // Nothing serves a worktree from its creation (2026-10-04): the repro drives the app, so wf check starts the stack for it.
 check('check: the repro needs the stack, the project\'s stand-in task does not', repro[1].stack === true && !repro[0].stack, JSON.stringify(repro));
+// The project's stack env rides the repro, whatever the project put in it (core names no project):
+// a repro that imports the project's support helpers reads the round's own values there.
+const reproEnv = buildTasks({ row: { check: 'repro' }, projectTasks, repro: 'node scripts/repro.mjs', reproEnv: { STACK_ENV: 'from-project' } });
+check('check: the repro carries the project stack env; without it there is none', reproEnv[1].env?.STACK_ENV === 'from-project' && repro[1].env === undefined, JSON.stringify(reproEnv[1].env));
 const noRepro = buildTasks({ row: { check: 'repro' }, projectTasks, repro: null });
 check('check: repro with no command line reports it instead of passing', noRepro.at(-1)!.missing?.includes('the agreement'), JSON.stringify(noRepro));
 check('a `repro --grep …` cell is a path for the project, which refuses it', at('`repro --grep auction`') === 'auction');
