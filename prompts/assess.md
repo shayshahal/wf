@@ -16,6 +16,14 @@ verdict never passes one silently. Likewise a `suites red` line of these bytes: 
 untouched, so it is unrelated" is not a ruling, only the person can accept or fix it. Name the
 affected path, what is needed and the command to rerun.
 
+Before counting a referenced proof record as measured, read its setup → run → reset in order. Match
+each claimed result to the scenario state its preceding setup actually produced, including any
+changes between runs. If setup contradicts the claimed state or omits a required transition, quote
+both the setup and result in the finding; that claim cannot back `met:`. For a fixable recording or
+setup gap within the agreement, use `Verdict: repair` and keep the affected Intent line `NOT MEASURED`
+until the build records and drives the scenario consistently. A consistent setup → run → reset
+record remains usable evidence; judge what it supports rather than merely paraphrasing its PASS.
+
 ## Scope
 
 {{scope}}

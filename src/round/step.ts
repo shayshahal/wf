@@ -10,13 +10,13 @@
 // independent assessment.
 // Writes <git-toplevel>/.wf/state.json = { round, class, base, step, waiting_on, since }.
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { refuseCaller } from '../refusal.ts';
 import { CLASSIFY } from '../paths.ts';
 import { agreementGap, agreementPath, agreementSha, AGREEMENT_REVIEW_FILE, consequential } from './agreement.ts';
 import { lastField, readVerdict } from '../gates/review-format.ts';
-import { people } from '../project.ts';
+import { people, proofNamingGap } from '../project.ts';
 import { roundFile, roundOf, readState, writeState, WF_STATE_VERSION } from './state.ts';
 import { worktreeContentSha } from '../gates/content-identity.ts';
 import { parseChecksLog } from '../gates/checks-log.ts';
@@ -28,6 +28,18 @@ import { initializeSlices, parseBuildUnits, sliceContext } from './build-units.t
 import { verificationCases } from './agreement.ts';
 import { assessmentContentSha, verificationFixRulings, verificationProofGap } from './assessment-rulings.ts';
 import { deliveredCommandGap } from './delivered-round.ts';
+
+// #138: judge root proof files at both handoffs, while the capture's owner can still repair it.
+function proofHandoffGap(toplevel: string, state: State): string | null {
+	if (!state.folder) return null;
+	const dir = join(toplevel, state.folder, 'proof');
+	if (!existsSync(dir)) return null;
+	try {
+		return proofNamingGap(readdirSync(dir, { withFileTypes: true }).filter((entry) => entry.isFile()).map((entry) => entry.name));
+	} catch (error) {
+		return `proof handoff: cannot read ${state.folder}/proof: ${error instanceof Error ? error.message : String(error)}`;
+	}
+}
 
 /** All build handoff gates, shared by direct step and next's recovery before it mutates state. */
 export function assessmentHandoffGap(toplevel: string, state: State, phase: 'assess' | 'review'): string | null {
@@ -42,6 +54,8 @@ export function assessmentHandoffGap(toplevel: string, state: State, phase: 'ass
 	const evidence = checksEvidence(toplevel, state);
 	const gap = checkGap(evidence);
 	if (gap) return checkGapLine(gap);
+	const proof = proofHandoffGap(toplevel, state);
+	if (proof) return proof;
 	if (phase !== 'assess' || !state.folder) return null;
 	const file = join(toplevel, state.folder, context.kind === 'unit' ? context.assessmentFile : 'ASSESSMENT.md');
 	const assessment = existsSync(file) ? readFileSync(file, 'utf8') : null;

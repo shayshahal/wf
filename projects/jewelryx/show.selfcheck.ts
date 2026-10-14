@@ -1,13 +1,14 @@
 // show.selfcheck.ts — node show.selfcheck.ts → exit 0 when green.
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { opensWindows } from '../../src/worktrees/editor.ts';
+import { agreementSha } from '../../src/round/agreement.ts';
 import type { Origins } from './index.ts';
-import { openLineOf, paneText, parseOpen, setupArgs, setupLinesOf, showArgs, unMsys } from './show.ts';
+import { noneLineOf, openLineOf, paneText, parseOpen, setupArgs, setupLinesOf, showArgs, unMsys } from './show.ts';
 
 assert.deepEqual(parseOpen('b2b /catalog as buyer mobile'), { app: 'b2b', path: '/catalog', as: 'buyer', mobile: true });
 assert.deepEqual(parseOpen('admin /orders'), { app: 'admin', path: '/orders', as: 'admin', mobile: false });
@@ -33,6 +34,13 @@ assert.equal(openLineOf('## Agreed\n\n  open: a fact without a walk marker\n'), 
 assert.equal(openLineOf('## T2 walk\nZoom.\n\n## Asks\nnone\n'), null);
 assert.equal(openLineOf('## Agreed\n\nthe page opens: a fact\n'), null);
 assert.equal(openLineOf(null), null);
+// #139, JX-1068: an explicit `none — <why>` is the round's own answer when nothing is visible; wf show
+// prints it instead of the generic "pass it" fallback. Both the em dash and the ASCII forms read.
+assert.equal(noneLineOf(agreement.replace('- **T2 walk.** open: `b2b /catalog as buyer mobile`', '- **T2 walk.** none — the API test is the proof')), 'none — the API test is the proof');
+assert.equal(noneLineOf('# TICKET\n\n## Intent\n- x\n\n- **T2 walk.** none: nothing visible this round\n'), 'none — nothing visible this round');
+assert.equal(noneLineOf('# TICKET\n\n## Intent\n- x\n\n- **T2 walk.** none - nothing visible\n'), 'none — nothing visible');
+assert.equal(noneLineOf(agreement), null);
+assert.equal(noneLineOf('# TICKET\n\n## Intent\n- x\n'), null);
 const cli = 'docs/agents/verify-jewelryx/control-jewelryx.mjs';
 assert.deepEqual(showArgs(parseOpen('b2b /catalog as seller mobile')!), [cli, 'open', 'b2b', '/catalog', 'as', 'seller', 'mobile', '--headed']);
 assert.deepEqual(showArgs(parseOpen('admin /orders')!), [cli, 'open', 'admin', '/orders', 'as', 'admin', '--headed']);
@@ -111,6 +119,50 @@ assert.deepEqual(setupLinesOf('- **T2 walk.** open: b2b / as buyer\n\n## Facts\n
 			assert.match(shown, /\/b2b\/catalog/);
 			assert.doesNotMatch(shown, /stale count|ordinary fact/);
 		}
+		// #139: the round's own explicit none is printed, and nothing opens; with no walk at all the
+		// refusal names the round's file rather than "the agreement" on a class A ticket.
+		writeFileSync(join(repo, '.wf', 'state.json'), JSON.stringify({ wf_version: 2, round: 't-1', class: 'A', step: 'assess', folder }));
+		writeFileSync(join(repo, folder, 'TICKET.md'), '# t\n## Intent\n- x\n\n- **T2 walk.** none — nothing visible to walk\n');
+		const noneOut = execFileSync(process.execPath, [run, 'show'], { cwd: repo, encoding: 'utf8', env: { ...process.env, CLAUDECODE: '1' } });
+		assert.match(noneOut, /none — nothing visible to walk/);
+		assert.doesNotMatch(noneOut, /preview_start/);
+		writeFileSync(join(repo, folder, 'TICKET.md'), '# t\n## Intent\n- x\n');
+		const missing = spawnSync(process.execPath, [run, 'show'], { cwd: repo, encoding: 'utf8', env: { ...process.env, CLAUDECODE: '1' } });
+		assert.equal(missing.status, 2, `${missing.stdout}\n${missing.stderr}`);
+		assert.match(missing.stderr, /TICKET\.md's T2 walk bullet/);
+		assert.doesNotMatch(missing.stderr, /b2b \/catalog as buyer mobile/);
+		// #139: real wf show -> a recording control CLI. A build's reset leaves no scenario;
+		// T2 replays the ticket's setup before opening the page, once per completed recipe.
+		const control = join(repo, 'docs/agents/verify-jewelryx');
+		mkdirSync(control, { recursive: true });
+		writeFileSync(join(control, 'control-jewelryx.mjs'), `import fs from 'node:fs';
+const args = process.argv.slice(2);
+if (args[0] !== 'api' || args[1] !== 'makeScenario') process.exit(1);
+const calls = fs.existsSync('control-calls.json') ? JSON.parse(fs.readFileSync('control-calls.json', 'utf8')) : [];
+fs.writeFileSync('control-calls.json', JSON.stringify([...calls, args]));
+fs.writeFileSync('scenario.json', JSON.stringify(JSON.parse(args[2]).body));
+console.log('HTTP 200');
+`);
+		const ticketWalk = (label: string) => `# t\n## Intent\n- x\n\n## Notes\n- **T2 walk.** open: b2b /catalog/necklaces as buyer\n  setup: api makeScenario {"body":{"label":"${label}"}} as seller\n`;
+		writeFileSync(join(repo, 'scenario.json'), '{"label":"build scenario"}');
+		rmSync(join(repo, 'scenario.json')); // The build reset its scenario before T2.
+		writeFileSync(join(repo, folder, 'TICKET.md'), ticketWalk('variants'));
+		const intentSha = agreementSha(repo, 'A', folder);
+		const show = () => execFileSync(process.execPath, [run, 'show'], { cwd: repo, encoding: 'utf8', env: { ...process.env, CLAUDECODE: '1' } });
+		const replay = show();
+		assert.match(replay, /setup: .*HTTP 200/);
+		assert.match(replay, /\/b2b\/catalog\/necklaces/);
+		assert.equal(JSON.parse(readFileSync(join(repo, 'scenario.json'), 'utf8')).label, 'variants');
+		show();
+		assert.equal(JSON.parse(readFileSync(join(repo, 'control-calls.json'), 'utf8')).length, 1);
+		// Intent did not change, but its setup recipe did: the old Intent sha cannot cache it.
+		writeFileSync(join(repo, folder, 'TICKET.md'), ticketWalk('corrected scenario'));
+		assert.equal(agreementSha(repo, 'A', folder), intentSha);
+		show();
+		assert.equal(JSON.parse(readFileSync(join(repo, 'scenario.json'), 'utf8')).label, 'corrected scenario');
+		const calls = JSON.parse(readFileSync(join(repo, 'control-calls.json'), 'utf8'));
+		assert.equal(calls.length, 2);
+		assert.deepEqual(calls[0], ['api', 'makeScenario', '{"body":{"label":"variants"}}', '--as', 'seller']);
 		writeFileSync(join(repo, '.wf', 'state.json'), JSON.stringify({ wf_version: 2, round: 't-1', class: 'B', step: 'build', folder }));
 		// A genuine malformed `setup:` inside the walk still fails, with the actionable message: the
 		// scoping must not swallow real walk setups (only facts outside `## Agreed`).

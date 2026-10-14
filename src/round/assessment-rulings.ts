@@ -79,7 +79,10 @@ export function verificationProofGap(toplevel: string, input: { folder: string; 
 			return fail(`cannot be read (${error instanceof Error ? error.message : String(error)})`);
 		}
 		if (lastField(text, 'source') !== q.source) return fail('must name this ruling\'s source: exactly');
-		if (lastField(text, 'head') !== input.head) return fail('must name the current head:');
+		// JX-1069 (#134): a receipt's own paperwork commit moves HEAD, not measured product/test bytes.
+		// Keep a commit id as provenance; source and content-sha below bind the question and freshness.
+		const measuredHead = lastField(text, 'head');
+		if (!measuredHead || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(measuredHead)) return fail(`must record the full commit id it measured in head: (HEAD is now ${input.head})`);
 		if (input.content === null || lastField(text, 'content-sha') !== input.content) return fail('must name the current implementation content-sha:');
 		const measurement = section(text, 'Measurement');
 		if (!measurement?.trim() || /\b(INCONCLUSIVE|NOT VERIFIED|NOT MEASURED)\b/i.test(measurement)) return fail('needs ## Measurement with the requested check, observed result and evidence references');

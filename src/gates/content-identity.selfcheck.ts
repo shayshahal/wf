@@ -280,7 +280,7 @@ const cliRepo = (branch: string) => {
 	git('checkout', '-q', '-b', branch);
 	mkdirSync(join(repo, folder, 'repro'), { recursive: true });
 	writeFileSync(join(repo, folder, 'repro/run.spec.ts'), 'test\n');
-	writeFileSync(join(repo, folder, 'TICKET.md'), '# 106 - ticket\n\n## Intent\n\n- "x": fix the thing\n');
+	writeFileSync(join(repo, folder, 'TICKET.md'), '# 106 - ticket\n\n## Intent\n\n- "x": fix the thing\n\n## Notes\n- **T2 walk.** none — the review CLI fixture\n');
 	writeFileSync(join(repo, folder, 'ASSESSMENT.md'), `# 106 - assessment\nVerdict: clean\n\nhead: ${git('rev-parse', 'HEAD').trim()}\n\n## Intent\n- "x": met: src/x.ts:1 - before: a - after: b\n`);
 	mkdirSync(join(repo, '.wf'), { recursive: true });
 	writeFileSync(join(repo, '.wf', 'state.json'), `${JSON.stringify({ wf_version: 2, round: '106', id: '106', folder, base: 'main', step: 'review', class: 'A' }, null, 2)}\n`);

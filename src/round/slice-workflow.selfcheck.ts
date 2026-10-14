@@ -46,6 +46,7 @@ const TICKET = `# r — ticket
 | 1 | the schema | 1 | — | — |
 | 2 | the API | 2 | 1 | early look |
 | 3 | the list | 3 | 2 | late look |
+- **T2 walk.** none — the manual case is the proof
 `;
 const UNIT1_CASES = [{ n: 1, check: CHECK1 }];
 const UNIT2_CASES = [{ n: 2, check: CHECK2 }];

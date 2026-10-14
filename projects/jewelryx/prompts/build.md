@@ -4,6 +4,18 @@
 - Files are repo-relative from the root: `packages/backend/…`, `packages/frontend/<app>/…`, `verification/…`.
 - A verification case's `check` cell: a pytest file (`packages/backend/tests/test_x.py`), a vitest file
   (`vitest run packages/frontend/b2b/src/tests/x.test.ts`), or a spec under `verification/`.
+- The T2 walk a class A round records in `TICKET.md` (generic build prompt), in the shape
+  `process/AGREEMENT-TEMPLATE.md` defines:
+  ```
+  - **T2 walk.** open: <b2b|admin> /<path> [as <buyer|seller|admin>] [mobile]
+    setup: api <control-jewelryx api function> <its JSON options on one line> as <buyer|seller|admin>
+  ```
+  One `setup:` per piece of data the scenario needs but the seed lacks (JX-1068: the build reset the
+  database and T2 saw none of the round's necklaces). `wf show` replays a completed setup recipe once. If
+  the round shows nothing, `none — <why no walk is needed>` instead.
+- Keep live proof captures in `{{folder}}/proof/` as `after-<label>.png`, or `before-<label>.png`
+  for a baseline. Rename a timestamped capture when keeping it: `wf step assess` refuses unnamed
+  pictures, and T2/posting use those same names, including on class A rounds.
 - What a JewelryX test needs to know (login and OTP, Hebrew, visual symptoms in pixels, specs outside
   `verification/`): `docs/agents/testing.md`. Seed users and fixed ids: `docs/agents/seed.md`. Specs to
   copy from: `verification/`. Pytest: `packages/backend/tests/`.

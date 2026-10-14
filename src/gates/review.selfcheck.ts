@@ -117,6 +117,9 @@ check('a chunk picture page includes all its unit evidence but no future or earl
 check('no chunk picture references means no whole-round picture dump', chunkProofPairs(['before-1.png', 'after-1.png'], ['met: no pictures for this unit']).length === 0);
 const page = beforeAfterPage({ round: 'TJEW-1', pairs, captions: { 'before-1.png': 'a <b>' }, src: '../bug-reports/TJEW-1/proof' });
 check('the page shows each side from the proof folder, escaped, and says when a side is missing', page.includes('src="../bug-reports/TJEW-1/proof/before-1.png"') && page.includes('a &lt;b&gt;') && page.includes('class="none"'), page);
+// #138: a class A round's live proof is after-only (no agreement baseline), named, and must reach T2's page.
+const namedPage = beforeAfterPage({ round: 'JX-1068', pairs: proofPairs(['after-he-1280-assess.png']), captions: {}, src: '../bug-reports/JX-1068/proof' });
+check('a named after-only capture reaches the before/after page', namedPage.includes('src="../bug-reports/JX-1068/proof/after-he-1280-assess.png"') && namedPage.includes('he-1280-assess'), namedPage);
 const withPage = renderHeader({ round: 'r', files: [], beforeAfter: '/w/.wf/before-after.html' });
 check('the T2 header points at the before/after page', withPage.includes('look at: /w/.wf/before-after.html'), withPage);
 check('the T2 header carries a manual row as a `manual:` line (prompts/plan.md)', renderHeader({ round: 'r', manual: ['manual: row 2 — the badge shows 3'] }).includes('manual: row 2 — the badge shows 3'));

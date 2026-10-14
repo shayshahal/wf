@@ -9,12 +9,13 @@
 // The login and the page are the project's verification skill (round.ts VERIFY_SKILL): its CLI
 // holds how JewelryX logs in, which this file used to repeat in a spec of its own.
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { opensWindows } from '../../src/worktrees/editor.ts';
 import { writeCloneLaunch } from '../../src/worktrees/new.ts';
 import { readState, roundOf, toplevelOf, writeState } from '../../src/round/state.ts';
-import { agreementPath, agreementSha, agreementT2WalkLines } from '../../src/round/agreement.ts';
+import { agreementPath, agreementSha, agreementT2WalkLines, consequential } from '../../src/round/agreement.ts';
 import { basePortForBranch, slugForBranch } from '../../src/worktrees/worktree.ts';
 import { logins, stackUrls } from './index.ts';
 import type { Origins, SeedRole } from './index.ts';
@@ -45,6 +46,16 @@ export function parseOpen(line: string | null | undefined): Open | null {
  * for A; the retired PLAN.md `## T2 walk` heading has no reader (#114). */
 export function openLineOf(text: string | null): string | null {
 	return matchWalkLines(text, /open:/i)[0] ?? null;
+}
+
+/** Pure: the explicit `none — <why>` of the T2 walk bullet, or null. A class A round's is in
+ * TICKET.md; #139 (JX-1068) read one whose missing walk fell through to the generic fallback. */
+export function noneLineOf(text: string | null): string | null {
+	for (const line of agreementT2WalkLines(text)) {
+		const m = /^none\s*(?:—|[-:])\s*(\S.*)$/i.exec(line.trim());
+		if (m) return `none — ${m[1]}`;
+	}
+	return null;
 }
 
 // Pure: the `setup:` lines of the agreement's T2 walk, in order. Each follows the one grammar
@@ -100,11 +111,21 @@ export function runShow(argv: string[]): void {
 		const agreement = folder && agreementPath(toplevel, state?.class ?? null, folder);
 		const text = agreement && existsSync(agreement) ? readFileSync(agreement, 'utf8') : null;
 		line = text && openLineOf(text);
-		// Once per agreement: a second `wf show` would make the data twice.
-		const token = agreementSha(toplevel, state?.class ?? null, folder) ?? 'agreement';
+		// Once per recipe: a second show must not create the data twice. Class A's walk sits outside
+		// Intent (its agreement sha), so correcting its setup must invalidate the replay token (#139).
+		const token = consequential(state?.class ?? null)
+			? agreementSha(toplevel, state?.class ?? null, folder) ?? 'agreement'
+			: createHash('sha256').update(agreementT2WalkLines(text).join('\n')).digest('hex');
 		if (state?.t2_setup !== token) setups = setupLinesOf(text).map((cmd) => ({ cmd, token }));
 		if (!line) {
-			console.error('wf show: no `open:` line in the agreement\'s T2 walk bullet — pass it: wf show b2b /catalog as buyer mobile');
+			// A round with nothing visible says `none — <why>`; print its own reason, never the fallback.
+			const none = text ? noneLineOf(text) : null;
+			if (none) {
+				console.log(`wf show: ${none}`);
+				return;
+			}
+			const walkFile = consequential(state?.class ?? null) ? 'AGREEMENT.md' : 'TICKET.md';
+			console.error(`wf show: no \`open:\` line in ${walkFile}'s T2 walk bullet — record this round's target and setup there, or none — <why no walk is needed>`);
 			process.exit(2);
 		}
 	}

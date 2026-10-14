@@ -36,6 +36,9 @@ const TICKET = `# r — ticket
 ## Intent
 - "x": the modal keeps its scroll position
 `;
+// A class A round's ticket carries the T2 walk the build recorded before T2 (#139). Nothing visible
+// to walk here, so the explicit none; a separate arm below covers an `open:` ticket.
+const TICKET_WALK = `${TICKET}\n## Notes\n- **T2 walk.** none — nothing visible this round\n`;
 const ASSESS = (patch: { verdict?: string; head?: string; material?: string; intent?: string } = {}) => `# r — assessment
 Verdict: ${patch.verdict ?? 'clean'}
 head: ${patch.head ?? 'H4'}
@@ -76,17 +79,27 @@ check('B/C a new agreement sha (material changed): T1 again, not approved', say(
 // ── the assessment
 check('no ASSESSMENT.md: dispatch assess', say(base({ step: 'assess' })).startsWith('dispatch assess') && say(base({ step: 'assess' })).includes('no ASSESSMENT.md'), say(base({ step: 'assess' })));
 check('an assessment of an earlier HEAD is re-run', say(base({ step: 'assess', files: { agreement: null, assessment: ASSESS({ head: 'H3' }), review: null, blocked: null } })).startsWith('dispatch assess') && say(base({ step: 'assess', files: { agreement: null, assessment: ASSESS({ head: 'H3' }), review: null, blocked: null } })).includes('HEAD is H4'), say(base({ step: 'assess' })));
-check('clean assessment → T2 review', say(base({ step: 'assess', files: { agreement: null, assessment: ASSESS(), review: null, blocked: null } })).startsWith('review: T2'), say(base({ step: 'assess' })));
+check('clean assessment → T2 review', say(base({ step: 'assess', files: { agreement: TICKET_WALK, assessment: ASSESS(), review: null, blocked: null } })).startsWith('review: T2'), say(base({ step: 'assess' })));
+
+// ── #139, JX-1068: a class A round (TICKET.md is the agreement, so agreementGap never asks it) records
+// its T2 walk before T2 — an `open:` line or an explicit `none — <why>`. The build owns it; T2 refuses.
+const cleanA = (agreement: string) => base({ step: 'assess', files: { agreement, assessment: ASSESS(), review: null, blocked: null } });
+check('class A with no T2 walk: T2 refuses and dispatches the build to record it', say(cleanA(TICKET)).startsWith('dispatch build') && say(cleanA(TICKET)).includes('T2 walk') && steps(cleanA(TICKET)).join() === 'build', say(cleanA(TICKET)));
+check('class A with an explicit none reaches T2', say(cleanA(TICKET_WALK)).startsWith('review: T2'), say(cleanA(TICKET_WALK)));
+const TICKET_OPEN = `${TICKET}\n## Notes\n- **T2 walk.** open: b2b /catalog as buyer\n  setup: api createVariant {} as seller\n`;
+check('class A with an open: walk reaches T2 (with or without setup lines)', say(cleanA(TICKET_OPEN)).startsWith('review: T2'), say(cleanA(TICKET_OPEN)));
+check('class A at review with no T2 walk refuses too, dispatching the build', say(base({ step: 'review', files: { agreement: TICKET, assessment: ASSESS(), review: null, blocked: null } })).startsWith('dispatch build') && steps(base({ step: 'review', files: { agreement: TICKET, assessment: ASSESS(), review: null, blocked: null } })).join() === 'build', say(base({ step: 'review' })));
+check('a B/C agreement still uses agreementGap, not the class A walk gate (unchanged)', say(base({ klass: 'B', step: 'assess', files: { agreement: AGREEMENT, assessment: ASSESS(), review: null, blocked: null }, t1: { sha: 's1', reviewed: 's1', verdict: 'approved' } })).startsWith('review: T2'));
 check('an intent line without a verdict is not a clean assessment', say(base({ step: 'assess', files: { agreement: null, assessment: ASSESS({ intent: '- "x": looks fine' }), review: null, blocked: null } })).startsWith('dispatch assess') && say(base({ step: 'assess', files: { agreement: null, assessment: ASSESS({ intent: '- "x": looks fine' }), review: null, blocked: null } })).includes('has no verdict'), say(base({ step: 'assess' })));
 
 // repair: back to build, bounded
 const repair = base({ step: 'assess', repairs: 0, files: { agreement: null, assessment: ASSESS({ verdict: 'repair' }), review: null, blocked: null } });
 check('a repair assessment returns to build, counted', repairs(repair) === 1 && steps(repair).join() === 'build' && say(repair).includes('repair 1 of 2'), say(repair));
-const spent = base({ step: 'assess', repairs: 2, files: { agreement: null, assessment: ASSESS({ verdict: 'repair' }), review: null, blocked: null } });
+const spent = base({ step: 'assess', repairs: 2, files: { agreement: TICKET_WALK, assessment: ASSESS({ verdict: 'repair' }), review: null, blocked: null } });
 check('two unsuccessful repairs: one contextual escalation, not another build', repairs(spent) === 0 && steps(spent).length === 0 && asks(spent).length === 1 && asks(spent)[0].source.startsWith('ASSESSMENT.md#') && asks(spent)[0].text.includes('answer `accept`'), say(spent));
 
 // blocked: unmet intent / still-reproducing symptom cannot pass to T2 silently
-const blocked = base({ step: 'assess', files: { agreement: null, assessment: ASSESS({ verdict: 'blocked', intent: '- "x": not met: the modal still jumps' }), review: null, blocked: null } });
+const blocked = base({ step: 'assess', files: { agreement: TICKET_WALK, assessment: ASSESS({ verdict: 'blocked', intent: '- "x": not met: the modal still jumps' }), review: null, blocked: null } });
 check('a blocked assessment asks one fix-or-accept ruling, not T2', asks(blocked).length === 1 && asks(blocked)[0].text.startsWith('fix or accept:') && !say(blocked).startsWith('review: T2'), say(blocked));
 const accepted = { ...blocked, answered: [{ n: 1, to: 'user', text: 'fix or accept: x', source: asks(blocked)[0].source, answer: 'accept: it is a separate ticket', asked: 't', answered: 't' }] };
 check('an explicit accept goes to T2 with the ruling recorded', say(accepted).startsWith('review: T2'), say(accepted));
@@ -94,7 +107,7 @@ const toFix = { ...blocked, answered: [{ n: 1, to: 'user', text: 'fix or accept:
 check('a fix ruling returns to build, not an endless question', steps(toFix).join() === 'build' && asks(toFix).length === 0, say(toFix));
 
 // material change: one renewed-agreement escalation
-const material = base({ step: 'assess', files: { agreement: null, assessment: ASSESS({ material: 'the round also changes the API shape' }), review: null, blocked: null } });
+const material = base({ step: 'assess', files: { agreement: TICKET_WALK, assessment: ASSESS({ material: 'the round also changes the API shape' }), review: null, blocked: null } });
 check('a material change is one renewed-agreement escalation, not a repair', asks(material).length === 1 && asks(material)[0].text.includes('Answer `accept`') && asks(material)[0].text.includes('--revise') && repairs(material) === 0, say(material));
 check('N-5: the material question offers only accept and --revise, not hold/end', !/hold\/end|hold or end/i.test(asks(material)[0].text), asks(material)[0].text);
 
@@ -166,7 +179,7 @@ const ENV_RED = (content?: string) => line({ tasks: [{ label: 'stack', exit: nul
 const CODE_RED = (content: string) => line({ tasks: [{ label: 'unit', exit: 1 }], result: 'red', cause: 'code', content });
 const SUITES = (result: string, content: string, labels = ['unit']) => line({ row: 'suites', head: 'H4', tasks: labels.map((label) => ({ label, exit: result === 'green' ? 0 : 1 })), result, content });
 const ev = (log: string[], content: string | null = 'tree:w1') => ({ log: log.map((l) => `${l}\n`).join(''), content });
-const filesWith = (assessment: string) => ({ agreement: null, assessment, review: null, blocked: null });
+const filesWith = (assessment: string) => ({ agreement: TICKET_WALK, assessment, review: null, blocked: null });
 const cleanLive = ASSESS() + '\n## Live\n- Intent 1: INCONCLUSIVE — mobile/LTR not driven, no scenario setup — proof/none\n';
 
 const noCheck = base({ step: 'assess', checks: ev([]), files: filesWith(ASSESS()) });
@@ -289,7 +302,7 @@ check('suitesGap names the red suites of these bytes only', suitesGap(ev([SUITES
 	git(repo, 'commit', '-q', '-m', 'base');
 	git(repo, 'checkout', '-q', '-b', 'fix/r');
 	mkdirSync(join(repo, 'bug-reports/r'), { recursive: true });
-	writeFileSync(join(repo, 'bug-reports/r/TICKET.md'), TICKET);
+	writeFileSync(join(repo, 'bug-reports/r/TICKET.md'), TICKET_WALK);
 	mkdirSync(join(repo, '.wf'), { recursive: true });
 	writeFileSync(join(repo, '.wf', 'state.json'), `${JSON.stringify({ wf_version: 2, round: 'r', id: 'r', folder: 'bug-reports/r', base: 'main', step: 'build', class: 'A' }, null, 2)}\n`);
 	const logGreen = () => appendFileSync(join(repo, '.wf', 'checks.log'), `${GREEN(worktreeContentSha(repo, 'bug-reports/r', null, 'row'))}\n`);
@@ -331,6 +344,37 @@ check('suitesGap names the red suites of these bytes only', suitesGap(ev([SUITES
 	writeFileSync(join(repo, 'bug-reports/r/ASSESSMENT.md'), ASSESS({ head: git(repo, 'rev-parse', 'HEAD').trim() }));
 	const freshReview = cli(repo, 'next');
 	check('#127 CLI: a fresh assessment restores a review the step gate accepts', freshReview.out.startsWith('review: T2') && cli(repo, 'step', 'review').code === 0, freshReview.out);
+	rmSync(repo, { recursive: true, force: true });
+}
+
+// ── #139, JX-1068 real CLI: a class A ticket with no T2 walk is refused at the review boundary — the
+// direct `wf step review` and `wf next`, which sends the build back to record it — and reaches T2 only
+// once the bullet is there.
+{
+	const repo = mkdtempSync(join(tmpdir(), 'wf-walk-'));
+	git(repo, 'init', '-q', '-b', 'main');
+	git(repo, 'config', 'core.autocrlf', 'false');
+	writeFileSync(join(repo, '.gitignore'), '.wf/\n');
+	writeFileSync(join(repo, 'a.txt'), 'a\n');
+	git(repo, 'add', '-A');
+	git(repo, 'commit', '-q', '-m', 'base');
+	git(repo, 'checkout', '-q', '-b', 'fix/r');
+	mkdirSync(join(repo, 'bug-reports/r'), { recursive: true });
+	writeFileSync(join(repo, 'bug-reports/r/TICKET.md'), TICKET);
+	mkdirSync(join(repo, '.wf'), { recursive: true });
+	const assessState = `${JSON.stringify({ wf_version: 2, round: 'r', id: 'r', folder: 'bug-reports/r', base: 'main', step: 'assess', class: 'A' }, null, 2)}\n`;
+	writeFileSync(join(repo, '.wf', 'state.json'), assessState);
+	writeFileSync(join(repo, 'bug-reports/r/ASSESSMENT.md'), ASSESS({ head: git(repo, 'rev-parse', 'HEAD') }));
+	appendFileSync(join(repo, '.wf', 'checks.log'), `${GREEN(worktreeContentSha(repo, 'bug-reports/r', null, 'row'))}\n`);
+	const refusedReview = cli(repo, 'step', 'review');
+	check('#139 CLI: wf step review refuses a class A ticket with no T2 walk, naming TICKET.md', refusedReview.code === 2 && refusedReview.out.includes('T2 walk') && refusedReview.out.includes('TICKET.md'), refusedReview.out);
+	const refuseNext = cli(repo, 'next');
+	check('#139 CLI: wf next dispatches the build to record the walk, not T2', refuseNext.code === 0 && refuseNext.out.startsWith('dispatch build') && refuseNext.out.includes('T2 walk') && readState(repo)?.step === 'build', refuseNext.out);
+	// The build records the walk; a paperwork change does not move the implementation or the assessed HEAD.
+	writeFileSync(join(repo, 'bug-reports/r/TICKET.md'), TICKET_WALK);
+	writeFileSync(join(repo, '.wf', 'state.json'), assessState);
+	const walked = cli(repo, 'next');
+	check('#139 CLI: with the walk recorded, wf next reaches T2', walked.code === 0 && walked.out.startsWith('review: T2'), walked.out);
 	rmSync(repo, { recursive: true, force: true });
 }
 

@@ -14,9 +14,11 @@ proof; a `deferred:` line waits for its own unit.
 2. For each Intent line in scope, drive the user path on this round's stack (B2B `{{b2b}}`, Admin
    `{{admin}}`) and give it one verdict: `VERIFIED`, `NOT VERIFIED` or `INCONCLUSIVE`. A screen that looks right over
    a failed request or a console error is not `VERIFIED`.
-3. Evidence goes to `{{folder}}/proof/`: `control-jewelryx screenshot --name <n>`, then move the file
-   there. For each `## Observed` before-picture in scope, take the same view as `after-<n>`. Undo anything you
-   changed in the app, then run `control-jewelryx cleanup`.
+3. Keep captures in `{{folder}}/proof/` as `after-<label>.png`, matching the baseline's
+   `before-<label>.png` when there is one, or a fresh label for a new view. Rename the timestamped
+   capture when you keep it: both handoffs refuse unnamed pictures, and posting/T2 use these same
+   names. For each `## Observed` before-picture in scope, take the same view as its after-picture.
+   Undo anything you changed in the app, then run `control-jewelryx cleanup`.
 
 Add this section to the assessment file under `## Behavior and evidence`:
 

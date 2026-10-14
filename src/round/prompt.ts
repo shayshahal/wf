@@ -136,7 +136,7 @@ export function composePrompt(argv: string[]) {
 				const proof = liveGaps.length ? [
 					`Proof record: \`${verificationProofFile(folder, q)}\``,
 					`Before handoff, the builder writes this record with \`source: ${q.source}\`, \`head: <git rev-parse HEAD>\`, \`content-sha: <latest wf check content>\`, and \`## Measurement\` naming the check actually driven, its observed result and evidence references (including the proof the ruling requests).`,
-					'Commit the implementation first; do not edit the assessment to claim closure. If it cannot be measured, write BLOCKED.md instead.',
+					'Commit the implementation first; the receipt keeps the head measured as provenance. Committing its paperwork afterwards does not invalidate it: source and implementation content bind the proof. Product/test changes require fresh measurement. Do not edit the assessment to claim closure. If it cannot be measured, write BLOCKED.md instead.',
 					'The independent assessor reads this record and its referenced proof, judges whether it answers the ruling, and keeps any unresolved check visibly open.',
 				].join('\n\n') : 'Rerun the affected suites and record their current green in .wf/checks.log, or write BLOCKED.md if they cannot run. The independent assessor judges that evidence against this ruling; a case green is not a whole-suite green.';
 				return [`### q${q.n}`, `Open verification:\n${open.map((gap) => `- ${gap}`).join('\n')}`, `Question: ${q.text}`, `The person's ruling, verbatim:\n${q.answer ?? '(no answer recorded)'}`, proof].join('\n\n');

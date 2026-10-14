@@ -17,7 +17,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { refuseCaller } from '../refusal.ts';
 import { addQuestion, blockedQuestion, openRevisions } from './ask.ts';
-import { agreementClass, agreementGap, agreementPath, agreementSha, AGREEMENT_FILE, AGREEMENT_REVIEW_FILE, ASSESSMENT_FILE, assessmentGap, assessmentHead, assessmentMaterial, assessmentOpenGaps, assessmentSurviving, assessmentVerdict, caseFiles, consequential, REVIEW_FILE, verificationCases } from './agreement.ts';
+import { agreementClass, agreementGap, agreementPath, agreementSha, AGREEMENT_FILE, AGREEMENT_REVIEW_FILE, ASSESSMENT_FILE, assessmentGap, assessmentHead, assessmentMaterial, assessmentOpenGaps, assessmentSurviving, assessmentVerdict, caseFiles, consequential, hasT2Walk, REVIEW_FILE, verificationCases } from './agreement.ts';
 import { contractPaths as contractPathsFile } from '../project.ts';
 import { classFromFiles } from '../gates/classify.ts';
 import { changedFiles } from '../gates/check.ts';
@@ -344,10 +344,23 @@ export function nextAction(s: Snapshot): { say: string; effects: Effect[] } {
 				return dispatch('build', `close the verification: ${open.join(' · ')} — the person's ruling: ${ruling.answer ?? ''}`);
 			}
 		}
+		// #138: assessment can add captures after build handoff. Return them to the owner before
+		// offering T2 (or accepting --done), not only when step review later refuses to open it.
+		if (s.assessmentHandoffGap) {
+			effects.push({ step: ['build'] });
+			return dispatch('build', s.assessmentHandoffGap);
+		}
 		if (s.step === 'review' && readVerdict(s.files.review ?? '') === 'dismissed') return act(`wait user: T2 was closed without a verdict — \`${wf} review ${s.branch}\` again when they are ready`);
 		if (context.kind === 'unit' && !context.unit.reviewAfter) {
 			effects.push({ advance: { unit: context.unit.n, head: s.head } });
 			return act(`advance: unit ${context.unit.n} assessed — the next bounded unit gets a fresh builder`);
+		}
+		// Class A's agreement is TICKET.md, so agreementGap never asked it for a T2 walk. `wf show` needs
+		// one to open the round's page, and a round with nothing visible must say so. The build records it
+		// (it knows the page it drove); enforced only at final T2, never on a unit checkpoint (#139 JX-1068).
+		if (!consequential(s.klass) && context.kind !== 'unit' && !hasT2Walk(s.files.agreement)) {
+			effects.push({ step: ['build'] });
+			return dispatch('build', 'TICKET.md needs a T2 walk before T2: a `- **T2 walk.**` bullet with the `open:` line `wf show` follows and any `setup:` lines the scenario needs, or `none — <why no walk is needed>`');
 		}
 		return act(t2);
 	}

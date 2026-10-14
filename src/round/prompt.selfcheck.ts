@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { WF_ROOT } from '../paths.ts';
 import { guidance } from '../project.ts';
+import { worktreeContentSha } from '../gates/content-identity.ts';
 import { agreedMaterial, renderPrompt, reviewRepairText, ticketIntent } from './prompt.ts';
 import { caseFiles, verificationCases } from './agreement.ts';
 import { readState, writeState } from './state.ts';
@@ -99,7 +100,18 @@ rmSync(dir, { recursive: true, force: true });
 			const prompt = wf('prompt', phase);
 			const count = (prompt.match(/keep the existing button/g) ?? []).length;
 			check(`the decision reaches the ${phase} prompt exactly once`, count === 1, `count=${count}`);
+			if (phase === 'assess') check('the assessor receives the proof setup/result consistency obligation and autonomous repair route', prompt.includes('read its setup → run → reset in order') && prompt.includes('quote\nboth the setup and result') && prompt.includes('use `Verdict: repair`') && prompt.includes('A consistent setup → run → reset\nrecord remains usable evidence'));
 		}
+		// #137: a contradictory proof is a fixable reading/recording gap, not a first-pass
+		// human product ruling. This checks routing after the assessor names the contradiction;
+		// recognizing prose consistency remains the assessor's reading obligation above.
+		writeState(repo, () => ({ class: 'A', step: 'assess' }));
+		writeFileSync(join(repo, '.wf/checks.log'), JSON.stringify({ row: null, result: 'green', content: worktreeContentSha(repo, folder, null, 'row'), tasks: [] }) + '\n');
+		const contradiction = 'Setup says parent 40 with variants 45/50/59; result says parent 59 with no variants; no transition recorded.';
+		writeFileSync(join(repo, folder, 'ASSESSMENT.md'), `Verdict: repair\nhead: ${git('rev-parse', 'HEAD')}\n## Intent\n- the behavior: NOT MEASURED — ${contradiction}\n## Behavior and evidence\n${contradiction}\n`);
+		const repair = wf('next');
+		check('a named proof contradiction returns to autonomous build without asking the person', repair.startsWith('dispatch build') && readState(repo)?.step === 'build' && !readState(repo)?.questions?.length, repair);
+		check('the repair builder receives the actual setup/result contradiction', wf('prompt', 'build').includes(contradiction));
 	} finally { rmSync(repo, { recursive: true, force: true }); }
 }
 

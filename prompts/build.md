@@ -52,6 +52,14 @@ phase ends when every verification case in scope passes and you run `wf step ass
 - For a single-task build or final integration, run `wf check --suites` on the committed HEAD: the
   whole suites the round's diff reaches, so a test no case touched cannot break unseen. A unit checks
   its cases and affected integration; the final assessment requires the whole-suite result.
+- Before you hand off, record how T2 sees this work: in the agreement's `- **T2 walk.**` bullet, the
+  `open:` line `wf show` follows and any `setup:` lines that create the scenario the fix needs (a
+  replayable setup lets the reviewer recreate the scenario after the build's reset), or
+  `none — <why nothing is visible to walk>`. On a class A round the bullet is in `TICKET.md`,
+  outside `## Intent` (use the notes); this project's build notes give the exact `open:`/`setup:` grammar. `wf next` refuses T2 without one, so
+  a round that forgot it returns here.
+- When writing proof, record every scenario-changing setup step, the run that uses that state,
+  and the reset afterwards. Each result must be traceable to the setup that produced its scenario.
 - When every case in scope passes, the tree is committed, and `wf check` is green on it, run
   `wf step assess`.
 

@@ -33,7 +33,9 @@ Without `## Units`, build and assess happen once; that assessment is the final o
 A large task: `… → per unit: build → unit assessment [→ checkpoint] → … → integration assessment → T2 → …`
 
 `TICKET.md` is the sole human working document for an ordinary (class A) round — it *is* the
-agreement. For consequential work (class B/C) one `AGREEMENT.md` records the observed facts and the
+agreement, and by T2 it also carries a `- **T2 walk.**` bullet outside `## Intent`: the build writes the `open:` and
+`setup:` lines, or `none — <why>`; `wf next` refuses T2 without one, so `wf show` opens the round's
+own page. For consequential work (class B/C) one `AGREEMENT.md` records the observed facts and the
 agreed behavior, exclusions, choice and verification; T1 approves it before the build. A commit is
 not a workflow transition and there is no per-commit worker: an ordinary task's build is one phase
 that resumes in place, then one independent read-only assessment writes `ASSESSMENT.md`. A large

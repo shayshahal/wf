@@ -24,7 +24,7 @@ for (const klass of ['A', 'B']) {
     mkdirSync(join(dir, folder, 'proof'), { recursive: true });
     mkdirSync(join(dir, '.wf'), { recursive: true });
     const agreementName = klass === 'A' ? 'TICKET.md' : 'AGREEMENT.md';
-    const material = klass === 'A' ? '## Intent\nKeep the intended behavior.\n' : '## Observed\n- behavior — `product.txt:1`\n\n## Agreed\n- Keep the intended behavior.\n\n## Verification\n| # | case | files | check |\n|---|---|---|---|\n| 1 | layout | product.txt | manual: compare captures |\n';
+    const material = klass === 'A' ? '## Intent\nKeep the intended behavior.\n\n## Notes\n- **T2 walk.** none — the caption fixture\n' : '## Observed\n- behavior — `product.txt:1`\n\n## Agreed\n- Keep the intended behavior.\n\n## Verification\n| # | case | files | check |\n|---|---|---|---|\n| 1 | layout | product.txt | manual: compare captures |\n';
     writeFileSync(join(dir, folder, agreementName), `${material}\n## Before\nproof/before-1.png — ROUND-BEFORE-${klass}\n`);
     writeFileSync(join(dir, 'ASSESSMENT.md'), 'proof/after-1.png — WRONG-ROOT-CAPTION\n');
     git('add', 'ASSESSMENT.md'); git('commit', '-qm', 'root caption decoy');

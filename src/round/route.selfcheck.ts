@@ -32,6 +32,9 @@ Class: B
 const TICKET = `# r — ticket
 ## Intent
 - "x": the modal keeps its scroll position
+
+## Notes
+- **T2 walk.** none — nothing visible this round
 `;
 
 function repo(branch: string, klass: 'A' | 'B', agreement: string | null) {

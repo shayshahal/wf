@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import { checkTasks, oracleEdits, parseStackEnv, oracleCaseGap, PRODUCT_BRANCH, seedActorsEnv, realPkgFor, suitesTouched } from './checks.ts';
 import type { Suite } from './checks.ts';
 import type { CheckTarget, CheckTask } from '../../src/gates/check.ts';
+import { unpairedProofImages } from '../../src/gates/review-format.ts';
 import { dropDatabase, dropStrandedTestDatabases, worktreeDatabase } from './db.ts';
 import { seams } from '../../src/seams.ts';
 import type { Command, RemovalStep } from '../../src/seams.ts';
@@ -281,6 +282,17 @@ const SUITES: Record<Suite, CheckTask[]> = {
 };
 /** The whole suites the round's changed files reach: each sequence stops at its first red step; sequences run side by side. */
 export const suites = (changed: string[]): CheckTask[][] => suitesTouched(changed).map((s) => SUITES[s]);
+
+// ── proof naming ─────────────────────────────────────────────────────────────
+
+// JX-1068 (2026-10-13, #138): timestamp-named captures needed hand renames at posting.
+/** Refuse root proof images posting/T2 cannot show; this project's naming uses core's pairing rule. */
+export function proofNamingGap(names: string[]): string | null {
+	const unpaired = unpairedProofImages(names);
+	return unpaired.length
+		? `proof/${unpaired.join(', proof/')} is not named before-<label>.png or after-<label>.png, so wf post drops it and T2's before/after page shows nothing of it; rename it (after-<label>.png, and before-<label>.png when there is a baseline) before the handoff`
+		: null;
+}
 
 // ── delivery ─────────────────────────────────────────────────────────────────
 

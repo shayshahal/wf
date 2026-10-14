@@ -52,7 +52,7 @@ for (const route of ['ordinary', 'consequential', 'unit', 'integration']) {
 		const ticket = '# r\n## Intent\n- verify the requested behavior\n';
 		const cases = '## Verification\n| # | case | files | check |\n|---|---|---|---|\n| 1 | fix: behavior | a.txt | manual: drive the behavior |\n';
 		const units = '## Units\n| # | unit | cases | depends on | review after |\n|---|---|---|---|---|\n| 1 | behavior | 1 | — | behavior |\n';
-		const agreement = route === 'ordinary' ? ticket + cases : '# r\nClass: B\n## Observed\n- before at a.txt:1\n## Agreed\n- Behavior: verify the behavior. Excluding: other behavior.\n- Choice: use the current flow (rejected: replacement).\n- T2 walk: none — the API test is the proof.\n' + cases + (route === 'unit' || route === 'integration' ? units : '');
+		const agreement = route === 'ordinary' ? `${ticket}\n## Notes\n- T2 walk: none — the API test is the proof.\n${cases}` : '# r\nClass: B\n## Observed\n- before at a.txt:1\n## Agreed\n- Behavior: verify the behavior. Excluding: other behavior.\n- Choice: use the current flow (rejected: replacement).\n- T2 walk: none — the API test is the proof.\n' + cases + (route === 'unit' || route === 'integration' ? units : '');
 		writeFileSync(join(repo, folder, 'TICKET.md'), route === 'ordinary' ? agreement : ticket);
 		if (route !== 'ordinary') writeFileSync(join(repo, folder, 'AGREEMENT.md'), agreement);
 		const klass = route === 'ordinary' ? 'A' : 'B';
@@ -158,6 +158,76 @@ for (const route of ['ordinary', 'consequential', 'unit', 'integration']) {
 			check('suite-only: a current suite green hands off without an extra measurement artifact', cli('step', 'assess').code === 0);
 		}
 
+	} finally { rmSync(repo, { recursive: true, force: true }); }
+}
+
+// #134 (JX-1069): a repair receipt binds the implementation's bytes, not the commit that carries the
+// receipt. The builder writes proof/verification-q1.md after committing the implementation, then
+// commits that paperwork; HEAD moves, the measured product/test bytes do not, and the handoff must
+// accept the record as written rather than demand it name the new HEAD. A rebase that rewrites the
+// commits but keeps those bytes (an empty base commit here) leaves the receipt valid too.
+// Another ruling's source, other implementation bytes and a changed product still refuse.
+{
+	const repo = mkdtempSync(join(tmpdir(), 'wf-verification-proof-'));
+	try {
+		const git = (...args: string[]) => execFileSync('git', ['-C', repo, '-c', 'core.autocrlf=false', '-c', 'user.name=t', '-c', 'user.email=t@e.invalid', ...args], { encoding: 'utf8' }).trim();
+		const cli = (...args: string[]) => {
+			const result = spawnSync(process.execPath, [join(WF_ROOT, 'wf.mjs'), ...args], { cwd: repo, encoding: 'utf8' });
+			return { code: result.status, out: `${result.stdout}${result.stderr}` };
+		};
+		git('init', '-q', '-b', 'main');
+		writeFileSync(join(repo, '.gitignore'), '.wf/\n');
+		writeFileSync(join(repo, 'a.txt'), 'before\n');
+		git('add', '-A'); git('commit', '-qm', 'base'); git('checkout', '-qb', 'fix/r');
+		const folder = 'bug-reports/r';
+		mkdirSync(join(repo, folder, 'proof'), { recursive: true });
+		writeFileSync(join(repo, folder, 'TICKET.md'), '# r\n## Intent\n- verify the requested behavior\n');
+		writeFileSync(join(repo, 'a.txt'), 'fixed\n'); git('add', 'a.txt'); git('commit', '-qm', 'fix the behavior');
+		const measuredHead = git('rev-parse', 'HEAD');
+		writeState(repo, () => ({ wf_version: 2, round: 'fix/r', id: 'r', folder, base: 'main', class: 'A', step: 'build' }));
+		const gap = 'INCONCLUSIVE — requested click not driven';
+		const source = `ASSESSMENT.md#${measuredHead}#open:${verificationGapsHash([gap])}`;
+		writeFileSync(join(repo, folder, 'ASSESSMENT.md'), `# r\nVerdict: clean\nhead: ${measuredHead}\n## Live\n- ${gap}\n`);
+		writeState(repo, () => ({ answered: [{ n: 1, to: 'user', text: `open: ${gap}`, source, verification_gaps: [gap], answer: 'fix — drive the requested click with proof', asked: 't', answered: 't' }] }));
+		const content = worktreeContentSha(repo, folder, null, 'row');
+		appendFileSync(join(repo, '.wf/checks.log'), JSON.stringify({ content, result: 'green', tasks: [] }) + '\n');
+		const proof = join(repo, folder, 'proof/verification-q1.md');
+		writeFileSync(join(repo, folder, 'proof/click.txt'), 'fixture live-check observation\n');
+		const receipt = (head: string, sha: string) => `source: ${source}\nhead: ${head}\ncontent-sha: ${sha}\n## Measurement\nScenario capability created; the requested click was driven. Evidence: proof/click.txt\n`;
+		writeFileSync(proof, receipt(measuredHead, content));
+		// The builder commits the round's paperwork: HEAD moves, the measured bytes do not.
+		git('add', folder); git('commit', '-qm', 'paperwork: verification q1 proof');
+		const paperworkHead = git('rev-parse', 'HEAD');
+		check('paperwork commit moves HEAD without changing the measured implementation', paperworkHead !== measuredHead && worktreeContentSha(repo, folder, null, 'row') === content);
+		const handoff = cli('step', 'assess');
+		check('a committed receipt hands off without being rewritten to the new HEAD', handoff.code === 0 && readState(repo)?.step === 'assess' && readFileSync(proof, 'utf8') === receipt(measuredHead, content), handoff.out);
+		// Provenance remains a real commit id, even though it need not be current HEAD.
+		for (const badHead of ['', 'not-a-commit']) {
+			writeFileSync(proof, receipt(badHead, content));
+			const before = readFileSync(join(repo, '.wf/state.json'), 'utf8');
+			const malformed = cli('step', 'assess');
+			check(`missing/malformed measured head refuses without rewriting authority (${badHead || 'empty'})`, malformed.code === 2 && malformed.out.includes('head:') && readFileSync(join(repo, '.wf/state.json'), 'utf8') === before, malformed.out);
+		}
+		// Another ruling's source and other implementation bytes still refuse.
+		writeFileSync(proof, receipt(measuredHead, content).replace(`source: ${source}`, 'source: ASSESSMENT.md#deadbeef#open:00000000'));
+		const wrongSource = cli('step', 'assess');
+		check('a receipt for another ruling refuses', wrongSource.code === 2 && wrongSource.out.includes('source'), wrongSource.out);
+		writeFileSync(proof, receipt(measuredHead, 'tree:other-bytes'));
+		const wrongContent = cli('step', 'assess');
+		check('a receipt of other implementation bytes refuses', wrongContent.code === 2 && wrongContent.out.includes('content-sha'), wrongContent.out);
+		// A product change is other bytes even when a fresh green of them is in checks.log.
+		writeFileSync(join(repo, 'a.txt'), 'tampered\n');
+		appendFileSync(join(repo, '.wf/checks.log'), JSON.stringify({ content: worktreeContentSha(repo, folder, null, 'row'), result: 'green', tasks: [] }) + '\n');
+		const changedProduct = cli('step', 'assess');
+		check('a product change refuses even with a fresh green of it', changedProduct.code === 2 && changedProduct.out.includes('content-sha') && readState(repo)?.step === 'assess', changedProduct.out);
+		git('checkout', '--', 'a.txt');
+		writeFileSync(proof, receipt(measuredHead, content));
+		// A rebase that rewrites the commits while keeping the measured bytes keeps the receipt.
+		git('checkout', '-q', 'main'); git('commit', '--allow-empty', '-qm', 'base advance'); git('checkout', '-q', 'fix/r'); git('rebase', '-q', 'main');
+		const rebasedHead = git('rev-parse', 'HEAD');
+		check('the rebase rewrote HEAD while the measured implementation stayed', rebasedHead !== paperworkHead && worktreeContentSha(repo, folder, null, 'row') === content);
+		const afterRebase = cli('step', 'assess');
+		check('a rebase that keeps the measured bytes keeps the receipt', afterRebase.code === 0 && readFileSync(proof, 'utf8') === receipt(measuredHead, content), afterRebase.out);
 	} finally { rmSync(repo, { recursive: true, force: true }); }
 }
 

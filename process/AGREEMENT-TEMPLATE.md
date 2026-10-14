@@ -2,7 +2,10 @@
 
 The skeleton of `<round folder>/AGREEMENT.md`, the one document class B/C work is agreed on and
 built from (#110, #111). Class A needs none of it: `TICKET.md` is the agreement, and a `## Repro`
-(for a check round) or a `## Verification` table may sit in it. This file is also what the T1
+(for a check round) or a `## Verification` table may sit in it. A class A round still records a
+`- **T2 walk.**` bullet in `TICKET.md`, outside `## Intent`, before T2 (the parser reads the ticket when
+`## Agreed` is absent) — the build writes the `open:`/`setup:` lines, or `none — <why>` (#139,
+JX-1068: a class A round reached T2 with no walk, so `wf show` refused). This file is also what the T1
 agreement session (`skills/design-session/SKILL.md`) follows.
 
 The section order is fixed. The `T2 walk` bullet, `## Verification` cases and `## Units` plan are the

@@ -63,6 +63,14 @@ export function agreementT2WalkLines(text: string | null | undefined): string[] 
 	return lines.filter((line) => line && !line.startsWith('<!--'));
 }
 
+/** Pure: true when the round declares a T2 walk `wf show` can follow: an `open:` target or the
+ * explicit `none — <why>`. Class A's bullet lives in TICKET.md (there is no `## Agreed` to scope it),
+ * B/C's under `## Agreed`; agreementT2WalkLines reads both. Shared by agreementGap (B/C before T1)
+ * and `wf next` (class A before T2, #139 JX-1068: a class A round reached T2 with no walk at all). */
+export function hasT2Walk(text: string | null | undefined): boolean {
+	return agreementT2WalkLines(text).some((line) => /^open:[ \t]*`?[^`\s<]/i.test(line) || /^none\s*(?:—|[-:])\s*\S/i.test(line));
+}
+
 // A verification case: a table row under `## Verification` whose first cell is the case number. A
 // named assertion for `wf check` (check.ts checkCellTarget), the files it may touch (the fence) and
 // the repro it carries. Replaces PLAN.md's `## Commits` row.
@@ -118,9 +126,7 @@ export function agreementGap(text: string | null | undefined, klass: RoundClass 
 	if (!agreed) return `${AGREEMENT_FILE} has no \`## Agreed\` behavior — what changes, what is excluded, the choice, the verification promise`;
 	const cases = verificationCases(text);
 	if (!cases.length) return `${AGREEMENT_FILE} has no \`## Verification\` cases — one table row per case \`| # | case | files | check |\``;
-	const walk = agreementT2WalkLines(text);
-	const readableWalk = walk.some((line) => /^open:[ \t]*`?[^`\s<]/i.test(line) || /^none\s*(?:—|[-:])\s*\S/i.test(line));
-	if (!readableWalk) return `${AGREEMENT_FILE} needs a T2 walk: open: <the review target>, or none — <why no walk is needed>; plain or bold labels are accepted`;
+	if (!hasT2Walk(text)) return `${AGREEMENT_FILE} needs a T2 walk: open: <the review target>, or none — <why no walk is needed>; plain or bold labels are accepted`;
 	// The project's own rule on what a case may touch (projects/<name>/index.ts agreementCaseGap): a fix/ case
 	// listing a verification/ file is refused, so the oracle tests cannot be edited.
 	return agreementCaseGap({ branch, rows: cases.map((c) => ({ n: c.n, message: c.message, files: caseFiles(c) })) });
