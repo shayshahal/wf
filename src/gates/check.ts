@@ -83,6 +83,32 @@ export type RunEvidence = {
 	tests?: { id: string; error: string; source?: string }[];
 };
 
+// One runnable task's result, cached for the cases that follow in the same `wf check` (issue #140):
+// the project's diff-wide commands are byte-identical for every case and ran once per case before.
+// Only the result is reused; the running, its output and its verdict are the same code below.
+export type SharedTaskResult = { status: number | null; output: string };
+export type SharedTaskCache = Map<string, SharedTaskResult>;
+
+// Pure: what makes two rows' tasks the same execution -- the command, its argv, its cwd, the env it is
+// handed and whether its red is expected -- never the human label (two rows' labels can differ while
+// the command is byte-for-byte the same). A row's selected test is its own proof (its command carries
+// the id), so a `redBase` task is never shared: two rows that name the same test still each run it
+// (#140 acceptance). A repro (`expectRed`) or a `stack` task drives other state and a task with no
+// runnable command or no readable tree is not reusable: null.
+export function taskRunKey(task: CheckTask, content: string | undefined): string | null {
+	if (!task.cmd || task.missing || task.redBase || task.expectRed || task.stack || content === undefined) return null;
+	return JSON.stringify([task.cmd, task.args, task.cwd, Object.entries(task.env ?? {}).sort(), content]);
+}
+
+// A measured row failure (its checks.log line is already written) stops the row. The case batch of a
+// unit/slice catches it so every case is recorded and the batch ends non-zero (#140); run alone it
+// exits as before. A harness failure (bad base, stack) stays a hard exit: it is not a row's verdict.
+class RowFailure extends Error {}
+function failRow(batch: boolean): never {
+	if (batch) throw new RowFailure();
+	process.exit(1);
+}
+
 // Everything the round has moved: committed on the branch since `base` (when given), plus unstaged,
 // staged and untracked, repo-relative. A committed-only product change must be seen too — a build that
 // commits before `wf check`, a repair cycle or a resumed round runs on a clean tree (#109).
@@ -479,7 +505,7 @@ export async function runRepro() {
 	console.log(`\nthe last run, for the agreement's red output:\n${runs.at(-1)!.output.split('\n').filter((l) => l.trim()).slice(-10).join('\n')}`);
 }
 
-export async function runCheck(argv: string[] = []) {
+export async function runCheck(argv: string[] = [], shared: SharedTaskCache = new Map(), batch = false) {
 	const toplevel = toplevelOf();
 	const state = readState(toplevel);
 	const { folder } = roundOf(state, toplevel);
@@ -496,11 +522,29 @@ export async function runCheck(argv: string[] = []) {
 	const cases = context.kind === 'unit' ? allCases.filter((c) => context.cases.includes(c.n)) : allCases;
 	// A slice hands off all its named assertions, not an arbitrary one green from the whole ticket.
 	if (scoped && !argv.includes('--case') && cases.length > 1) {
-		for (const c of cases) await runCheck([...argv, '--case', String(c.n)]);
+		// One `wf check` for a unit/slice runs all its cases in this process. The diff-wide tasks are
+		// identical per case, so they run once and their result is reused; a row's own test and red-base
+		// still run and record per case. A case's failure stops that case, not the batch, so a failing
+		// shared task reds every case it covers with the same message (#140). `checkGap` reads each
+		// case's line, so an earlier red still blocks the step; the batch ends non-zero if any failed.
+		const shared: SharedTaskCache = new Map();
+		let failed = false;
+		for (const c of cases) {
+			try {
+				await runCheck([...argv, '--case', String(c.n)], shared, true);
+			} catch (e) {
+				if (!(e instanceof RowFailure)) throw e;
+				failed = true;
+			}
+		}
+		if (failed) process.exit(1);
 		return;
 	}
 	const ran: CheckRun[] = [];
 	const start = contentOf(toplevel, folder);
+	// The tree the shared cache is keyed on; a task that rewrites files moves it, so the next task is
+	// keyed on the bytes it actually measured and a stale result is never reused (#140).
+	let content = start;
 	let row: VerificationCase | null = null;
 	const logRun = (result: string, cause?: RedCause) => {
 		mkdirSync(join(toplevel, '.wf'), { recursive: true });
@@ -549,7 +593,7 @@ export async function runCheck(argv: string[] = []) {
 		const fence = { label: 'fence', exit: 1 };
 		ran.push(fence);
 		logRun('red', redCause(fence));
-		process.exit(1);
+		failRow(batch);
 	}
 	const repro = existsSync(agreementFile) ? reproCommand(readFileSync(agreementFile, 'utf8')) : null;
 	const reproOnly = row ? isReproOnly(caseFiles(row), folder) : false;
@@ -568,7 +612,7 @@ export async function runCheck(argv: string[] = []) {
 		console.error(`COULD NOT RUN: ${nothing.missing}`);
 		ran.push(nothing);
 		logRun('red', redCause(nothing));
-		process.exit(1);
+		failRow(batch);
 	}
 	for (const task of tasks) {
 		const unsafe = task.args ? unsafeArg(task.args) : null;
@@ -577,7 +621,7 @@ export async function runCheck(argv: string[] = []) {
 			console.error(`COULD NOT RUN: ${missing.missing}`);
 			ran.push(missing);
 			logRun('red', redCause(missing));
-			process.exit(1);
+			failRow(batch);
 		}
 		if (task.stack && !served) {
 			served = true;
@@ -591,7 +635,22 @@ export async function runCheck(argv: string[] = []) {
 				process.exit(1);
 			}
 		}
-		const run = spawnSync(task.cmd!, shellArgv(task.args!), { cwd: join(toplevel, task.cwd!), env: { ...process.env, ...task.env }, encoding: 'utf8', shell: process.platform === 'win32' });
+		// Shared-task reuse (#140): the same command on the same bytes is one measurement. The result is
+		// stored under the tree it left unchanged, so a `--fix` hook or a repro that rewrote files never
+		// makes its bytes reusable; a miss runs the task and re-measures. A `redBase`/`expectRed`/`stack`
+		// task keys null (taskRunKey) and always runs its own row.
+		const key = taskRunKey(task, content);
+		const reused = key ? shared.get(key) : undefined;
+		let run: { status: number | null; stdout?: string | null; stderr?: string | null };
+		if (reused) run = { status: reused.status, stdout: reused.output, stderr: '' };
+		else {
+			run = spawnSync(task.cmd!, shellArgv(task.args!), { cwd: join(toplevel, task.cwd!), env: { ...process.env, ...task.env }, encoding: 'utf8', shell: process.platform === 'win32' });
+			if (key) {
+				const after = contentOf(toplevel, folder);
+				if (after === content) shared.set(key, { status: run.status, output: `${run.stdout ?? ''}${run.stderr ?? ''}` });
+				else content = after;
+			}
+		}
 		const output = `${run.stdout ?? ''}${run.stderr ?? ''}`;
 		if (task.expectRed) {
 			const before = { label: task.label, exit: run.status, expect: 'red' as const, output: output.split('\n').slice(-15).join('\n').trimEnd() };
@@ -601,11 +660,11 @@ export async function runCheck(argv: string[] = []) {
 			if (verdict.result === 'passed-before-fix') {
 				console.error(`FAILED: the repro passes before the fix. A row that only edits the repro must leave it red on the defect: ${task.label}`);
 				logRun('red', redCause(before));
-				process.exit(1);
+				failRow(batch);
 			}
 			console.error(`COULD NOT RUN: ${verdict.say}: ${task.label}`);
 			logRun('red', 'environment');
-			process.exit(1);
+			failRow(batch);
 		}
 		const failed: CheckRun = { label: task.label, exit: run.status };
 		// Every row-selected task (the project marks it `redBase`) is checked on the current
@@ -619,14 +678,14 @@ export async function runCheck(argv: string[] = []) {
 			if (failed.evidence && failed.evidence.verdict !== 'passed') {
 				console.error(`FAILED: the selected test is not shown to have run and passed with the change: ${failed.evidence.say}. A row checked against \`path::test id\` must run that test green on the current tree; a skip or a suite total is not a pass (prompts/agree.md).`);
 				logRun('red', redCause(failed));
-				process.exit(1);
+				failRow(batch);
 			}
 			continue;
 		}
 		console.error(`FAILED: ${task.cmd} ${task.args!.join(' ')}`);
 		console.error(checkOutputTail(output));
 		logRun('red', redCause(failed));
-		process.exit(1);
+		failRow(batch);
 	}
 
 	// Red-base (process/PRACTICES.md, TDD): the row's own test must fail with the row's change taken
@@ -653,7 +712,7 @@ export async function runCheck(argv: string[] = []) {
 			console.error(`FAILED: ${redTask.missing}`);
 			ran.push(unmeasured);
 			logRun('red', 'code'); // the case's author can repair its file list, not an environment blocker
-			process.exit(1);
+			failRow(batch);
 		}
 		const unsafeRed = unsafeArg(redTask.args!);
 		if (unsafeRed) {
@@ -661,7 +720,7 @@ export async function runCheck(argv: string[] = []) {
 			console.error(`COULD NOT RUN: ${dead.missing}`);
 			ran.push(dead);
 			logRun('red', 'environment');
-			process.exit(1);
+			failRow(batch);
 		}
 		if (redTask.stack && !served) {
 			served = true;
@@ -689,7 +748,7 @@ export async function runCheck(argv: string[] = []) {
 			console.error(`COULD NOT RUN: ${dead.missing}`);
 			ran.push(dead);
 			logRun('red', 'environment');
-			process.exit(1);
+			failRow(batch);
 		}
 		const output = `${run.stdout ?? ''}${run.stderr ?? ''}`;
 		// The verdict comes from the full output, before `output` is cut to its tail: the runner's
@@ -711,15 +770,15 @@ export async function runCheck(argv: string[] = []) {
 		} else if (target?.refactor) {
 			console.error(`FAILED: refactor: ${evidence.say}. A behavior-preserving row's selected test must pass with the change taken away too: make it green on both sides, or drop \`refactor:\` when the case really changes behavior (prompts/agree.md).`);
 			logRun('red', redCause(redBase));
-			process.exit(1);
+			failRow(batch);
 		} else if (evidence.verdict === 'passed') {
 			console.error(`FAILED: ${redTask.label} passes with the row's change taken away — it does not measure the defect. Make the test fail without the fix, or mark a genuine behavior-preserving case \`refactor:\` and prove it green on both sides. If the agreed verification cannot be met, write ${folder ?? 'the round folder'}/BLOCKED.md.`);
 			logRun('red', redCause(redBase));
-			process.exit(1);
+			failRow(batch);
 		} else {
 			console.error(`FAILED: red-base cannot prove the intended assertion: ${evidence.say}. Make the run fail on the assertion the case names (\`path::test id@<line>\`), or correct the runner/environment problem. If the evidence still cannot be obtained, write ${folder ?? 'the round folder'}/BLOCKED.md.`);
 			logRun('red', redCause(redBase));
-			process.exit(1);
+			failRow(batch);
 		}
 	}
 	// A task that rewrote the tree (a `--fix` hook, a repro) measured bytes other than the ones it was
@@ -730,12 +789,12 @@ export async function runCheck(argv: string[] = []) {
 	if (gap === 'unavailable') {
 		console.error('FAILED: could not read the implementation before and after the check (git could not compute the tree); refusing to record a green.');
 		logRun('unavailable');
-		process.exit(1);
+		failRow(batch);
 	}
 	if (gap === 'changed') {
 		console.error('FAILED: the check rewrote files while it ran; a green would name bytes the run did not all measure. Commit or revert them, then run `wf check` again.');
 		logRun('changed');
-		process.exit(1);
+		failRow(batch);
 	}
 	// Resolve a block before recording green: the renamed file is trailing paperwork (a block the build
 	// got past becomes its record). The case number names it when there is one.
