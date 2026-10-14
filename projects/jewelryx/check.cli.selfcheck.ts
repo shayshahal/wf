@@ -28,11 +28,16 @@ const check = (name: string, cond: unknown, detail = '') =>
 const stubSource = `// wf check selfcheck's runner stub: a uv that reports pytest's output from a fixture.
 const fs = require('node:fs');
 const args = process.argv.slice(2);
+if (process.env.WF_STUB_COUNT) fs.appendFileSync(process.env.WF_STUB_COUNT, args.join(' ') + '\\n');
+if (process.env.WF_STUB_MUTATE && !fs.existsSync(process.env.WF_STUB_MUTATE)) { fs.writeFileSync(process.env.WF_STUB_MUTATE, '1'); fs.appendFileSync(process.env.WF_STUB_GUARD, '\\n# hook rewrite\\n'); }
 if (!args.join(' ').includes('pytest')) process.exit(0); // ruff and the rest are green
 const s = JSON.parse(fs.readFileSync(process.env.WF_STUB_SCENARIO, 'utf8'));
 let text = '';
 try { text = fs.readFileSync(process.env.WF_STUB_GUARD, 'utf8'); } catch { text = ''; }
-const pick = text.includes(s.fixedMarker) ? s.current : s.reverted;
+const current = text.includes(s.fixedMarker);
+// A selected test (its argv carries ::<id>) reports that one case; the shared suite reports s.current.
+const id = /::([^\\s]+)/.exec(args.join(' '))?.[1];
+const pick = (id && s.perTest && s.perTest[id]) ? (current ? s.perTest[id].current : s.perTest[id].reverted) : (current ? s.current : s.reverted);
 process.stdout.write(pick.out || '');
 process.stderr.write(pick.err || '');
 process.exit(pick.code || 0);
@@ -316,6 +321,92 @@ const refactorOther = runCli({ cell: cell(true), files, reverted: { code: 0, out
 check('a refactor row reds when the reverted pass report names another test, not the selected one', refactorOther.code !== 0 && refactorOther.result === 'red' && refactorOther.evidence?.verdict === 'unavailable', `exit ${refactorOther.code}, ${JSON.stringify(refactorOther)}`);
 const refactorCurrentOther = runCli({ cell: cell(true), files, current: { code: 0, out: passOther }, reverted: { code: 0, out: passOut } });
 check('a refactor row reds when the WITH-change pass report names another test', refactorCurrentOther.code !== 0 && refactorCurrentOther.result === 'red', `exit ${refactorCurrentOther.code}, ${JSON.stringify(refactorCurrentOther)}`);
+
+// ── #140: a unit's cases share the diff-wide tasks, once per unchanged tree ─────────────────────
+// The unit's three cases name three ids of one changed test file, so the project builds, per case:
+// ruff check/format, the shared `pytest tests/test_multi.py`, and the row's own `pytest …::<id> -rA`
+// (redBase). `wf check` with no --case runs all three in this process. The stub counts its calls, so
+// the arm measures the shared suite once, each row's own test on both sides, and — with the shared
+// suite red — every covered row red on that same task.
+type MultiRowResult = { code: number | null; lines: { row?: unknown; result?: string; tasks?: { label?: string; exit?: number | null }[] }[]; calls: string[] };
+
+function runMultiRow({ suiteRed = false, mutate = false }: { suiteRed?: boolean; mutate?: boolean } = {}): MultiRowResult {
+  const repo = mkdtempSync(join(tmpdir(), 'wf-check-multi-'));
+  const gitEnv = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('GIT_')));
+  const git = (args: string[]) => {
+    const r = spawnSync('git', args, { cwd: repo, env: gitEnv, encoding: 'utf8' });
+    if (r.status !== 0) throw new Error(`fixture git ${args.join(' ')}: ${r.stderr}`);
+    return r.stdout.trim();
+  };
+  git(['init', '-q', '-b', 'main']);
+  git(['config', 'user.name', 'wf check selfcheck']);
+  git(['config', 'user.email', 'wf-check@example.invalid']);
+  mkdirSync(join(repo, 'packages', 'backend', 'app'), { recursive: true });
+  mkdirSync(join(repo, 'packages', 'backend', 'tests'), { recursive: true });
+  mkdirSync(join(repo, 'bug-reports', 'BJEW-140'), { recursive: true });
+  const product = join(repo, 'packages', 'backend', 'app', 'pricing.py');
+  const testFile = join(repo, 'packages', 'backend', 'tests', 'test_multi.py');
+  const testSource = (value: number) => ['def test_one():', '    assert login() == 200', `    assert total() == ${value}`, '', 'def test_two():', '    assert login() == 200', `    assert total() == ${value}`, '', 'def test_three():', '    assert login() == 200', `    assert total() == ${value}`, ''].join('\n');
+  writeFileSync(product, 'BROKEN\n');
+  writeFileSync(testFile, testSource(100));
+  git(['add', '.']);
+  git(['commit', '-qm', 'base']);
+  git(['switch', '-qc', 'round/bug']);
+  writeFileSync(product, 'FIXED\n');
+  writeFileSync(testFile, testSource(120));
+  const caseLine = (n: number, id: string) => `| ${n} | fix: ${id} | \`packages/backend/app/pricing.py\` \`packages/backend/tests/test_multi.py\` | \`packages/backend/tests/test_multi.py::${id}@3\` |`;
+  const ticket = [
+    '# BJEW-140 — multi-row', '', '## Intent', '', '- three cases share the diff-wide tasks', '',
+    '## Verification', '| # | case | files | check |', '|---|---------|-------|-------|',
+    caseLine(1, 'test_one'), caseLine(2, 'test_two'), caseLine(3, 'test_three'), '',
+    '## Units', '| # | unit | cases | depends on | review after |', '|---|---|---|---|---|',
+    '| 1 | shared | 1, 2, 3 | — | — |', '',
+  ].join('\n');
+  writeFileSync(join(repo, 'bug-reports', 'BJEW-140', 'TICKET.md'), ticket);
+  mkdirSync(join(repo, '.wf'), { recursive: true });
+  const plan = parseBuildUnits(ticket);
+  const slices = plan.kind === 'units' ? initializeSlices(plan, git(['rev-parse', 'HEAD'])) : undefined;
+  writeFileSync(join(repo, '.wf', 'state.json'), `${JSON.stringify({ wf_version: 2, id: 'BJEW-140', folder: 'bug-reports/BJEW-140', base: 'main', step: 'build', class: 'A', ...(slices ? { slices } : {}) })}\n`);
+  const countDir = mkdtempSync(join(tmpdir(), 'wf-check-count-'));
+  const countPath = join(countDir, 'stub-calls.log');
+  const mutateGuard = mutate ? join(countDir, 'mutated') : undefined;
+  const passFor = (id: string) => passOut.replace('::test_bug', `::${id}`).replaceAll('tests/test_bug.py', 'tests/test_multi.py');
+  const perTest = Object.fromEntries(['test_one', 'test_two', 'test_three'].map((id) => [id, { current: { code: 0, out: passFor(id) }, reverted: { code: 1, out: pyFail('test_multi', id, 3, '401 == 200') } }]));
+  writeFileSync(scenarioPath, JSON.stringify({
+    fixedMarker: 'FIXED',
+    current: suiteRed ? { code: 1, out: `F\nFAILED tests/test_multi.py\n1 failed in 0.04s\n` } : { code: 0, out: passFor('test_one') },
+    reverted: { code: 1, out: pyFail('test_multi', 'test_one', 3, '401 == 200') },
+    perTest,
+  }));
+  try {
+    const run = spawnSync(process.execPath, [join(WF_ROOT, 'wf.mjs'), 'check'], {
+      cwd: repo,
+      env: { ...gitEnv, PATH: `${stubDir}${delimiter}${process.env.PATH ?? ''}`, WF_STUB_SCENARIO: scenarioPath, WF_STUB_GUARD: product, WF_STUB_COUNT: countPath, ...(mutateGuard ? { WF_STUB_MUTATE: mutateGuard } : {}) },
+      encoding: 'utf8',
+      timeout: 60000,
+    });
+    const lines = existsSync(join(repo, '.wf', 'checks.log')) ? readFileSync(join(repo, '.wf', 'checks.log'), 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l) as MultiRowResult['lines'][number]) : [];
+    const calls = existsSync(countPath) ? readFileSync(countPath, 'utf8').split('\n').filter(Boolean) : [];
+    return { code: run.status, lines, calls };
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+    rmSync(countDir, { recursive: true, force: true });
+  }
+}
+
+const suiteCalls = (r: MultiRowResult) => r.calls.filter((c) => c.includes('pytest tests/test_multi.py') && !c.includes('::')).length;
+const idCalls = (r: MultiRowResult, id: string) => r.calls.filter((c) => c.includes(`::${id}`)).length;
+const multi = runMultiRow();
+check('the shared suite runs once for the unit\'s three cases, not once per case', suiteCalls(multi) === 1, JSON.stringify(multi.calls));
+check('each case still runs and records its own selected test on both sides, and all three green', ['test_one', 'test_two', 'test_three'].every((id) => idCalls(multi, id) === 2) && multi.lines.length === 3 && multi.lines.every((l) => l.result === 'green'), JSON.stringify({ calls: multi.calls, lines: multi.lines }));
+check('each row records the shared suite task as its own', multi.lines.every((l) => (l.tasks ?? []).some((t) => t.label?.startsWith('pytest tests/test_multi.py') && !t.label.includes('::'))), JSON.stringify(multi.lines));
+const multiRed = runMultiRow({ suiteRed: true });
+check('a failing shared task reds every case it covers', multiRed.code !== 0 && multiRed.lines.length === 3 && multiRed.lines.every((l) => l.result === 'red' && (l.tasks ?? []).some((t) => t.label?.startsWith('pytest tests/test_multi.py') && !t.label.includes('::') && t.exit !== 0)), JSON.stringify({ code: multiRed.code, lines: multiRed.lines }));
+check('a failing shared task runs once; the rows it reds do not run their own tests', suiteCalls(multiRed) === 1 && ['test_one', 'test_two', 'test_three'].every((id) => idCalls(multiRed, id) === 0), JSON.stringify(multiRed.calls));
+const multiChanged = runMultiRow({ mutate: true });
+const ruffCalls = (r: MultiRowResult) => r.calls.filter((c) => c.includes('ruff check')).length;
+check('a task that rewrites the tree invalidates reuse: the next row reruns the shared task on the new bytes', multiChanged.lines[0]?.result === 'changed' && ruffCalls(multiChanged) === 2 && multiChanged.lines.slice(1).every((l) => l.result === 'green'), JSON.stringify({ calls: multiChanged.calls, lines: multiChanged.lines }));
+check('the changed-tree row reruns the shared suite it could not reuse, and the settled tree is shared again', suiteCalls(multiChanged) === 1 && multiChanged.lines.length === 3, JSON.stringify(multiChanged.calls));
 
 rmSync(stubDir, { recursive: true, force: true });
 rmSync(fixtureDir, { recursive: true, force: true });

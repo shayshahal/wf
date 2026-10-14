@@ -2,7 +2,7 @@
 // Pure arms only (no git, no runners): the fence, the repro line, and what buildTasks makes of a
 // plan row's check cell. The project's own commands: projects/<name>/checks.selfcheck.ts.
 import { failedInRepro, failureFrame, failureSignature, reproVerdict } from './check.ts';
-import { checkCellCommand, checkCellPath, checkCellTarget, buildTasks, expectRedVerdict, fenceViolations, isReproOnly, isRoundPaperwork, manualCheck, redBaseFiles, redBaseRun, redCause, reproCommand, resolvedBlockedName, shellArgUnsafe, shellArgv, targetGap, tokenize, withFixReverted } from './check.ts';
+import { checkCellCommand, checkCellPath, checkCellTarget, buildTasks, expectRedVerdict, fenceViolations, isReproOnly, isRoundPaperwork, manualCheck, redBaseFiles, redBaseRun, redCause, reproCommand, resolvedBlockedName, shellArgUnsafe, shellArgv, targetGap, taskRunKey, tokenize, withFixReverted } from './check.ts';
 import type { CheckTarget, CheckTask } from './check.ts';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -185,6 +185,18 @@ check('red-base preserves the staged repair as well as its working bytes', redGi
 const noOp = withFixReverted(redRepo, [], () => ({ bytes: readFileSync(join(redRepo, 'product.ts'), 'utf8'), index: redGit(['show', ':product.ts']), stash: redGit(['rev-parse', 'refs/stash']).trim() }), unitBase);
 check('an empty revert selection never stashes/restores unrelated working bytes, index or stash', noOp.bytes === 'staged repair\n' && noOp.index === 'staged repair\n' && noOp.stash === previousStash);
 rmSync(redRepo, { recursive: true, force: true });
+
+// #140: two rows' tasks are the same execution by their real shape, not their label. The row's own
+// test (`redBase`), a repro (`expectRed`), a stack task and a task with no readable tree are never
+// shared; the same bytes and the same command are. Two rows whose labels differ but whose command is
+// the same must share (the per-case task lists label a task with the row's path/selector, which is
+// already in the argv; a shared suite task keeps one label).
+const call = { label: 'ruff check a.py', cmd: 'uv', args: ['run', 'ruff', 'check', 'a.py'], cwd: 'packages/backend' };
+const sameCall = { ...call, label: 'ruff check a.py (row 7)' };
+check('the run key is the real command shape, not the label', taskRunKey(call, 'tree:x') === taskRunKey(sameCall, 'tree:x'));
+check('a different argv, cwd, env or tree is a different run', taskRunKey(call, 'tree:x') !== taskRunKey({ ...call, args: ['run', 'ruff', 'check', 'b.py'] }, 'tree:x') && taskRunKey(call, 'tree:x') !== taskRunKey({ ...call, cwd: '.' }, 'tree:x') && taskRunKey(call, 'tree:x') !== taskRunKey({ ...call, env: { A: '1' } }, 'tree:x') && taskRunKey(call, 'tree:x') !== taskRunKey(call, 'tree:y'));
+check('the env is order-free', taskRunKey({ ...call, env: { A: '1', B: '2' } }, 'tree:x') === taskRunKey({ ...call, env: { B: '2', A: '1' } }, 'tree:x'));
+check('the row\'s own test, a repro, a stack task, a missing task and an unreadable tree are never shared', taskRunKey({ ...call, redBase: true }, 'tree:x') === null && taskRunKey({ ...call, expectRed: true }, 'tree:x') === null && taskRunKey({ ...call, stack: true }, 'tree:x') === null && taskRunKey({ label: 'x', missing: 'no runner' }, 'tree:x') === null && taskRunKey(call, undefined) === null);
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');
 process.exit(failures ? 1 : 0);
