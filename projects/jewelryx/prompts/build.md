@@ -1,6 +1,8 @@
 
 ## This project (JewelryX)
 
+- `control-jewelryx` is not a command on PATH: wherever a doc or prompt writes `control-jewelryx …`, run `node docs/agents/verify-jewelryx/control-jewelryx.mjs …` from the worktree root.
+
 - Files are repo-relative from the root: `packages/backend/…`, `packages/frontend/<app>/…`, `verification/…`.
 - A verification case's `check` cell: a pytest file (`packages/backend/tests/test_x.py`), a vitest file
   (`vitest run packages/frontend/b2b/src/tests/x.test.ts`), or a spec under `verification/`.
