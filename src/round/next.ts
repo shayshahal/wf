@@ -17,7 +17,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { refuseCaller } from '../refusal.ts';
 import { addQuestion, blockedQuestion, openRevisions } from './ask.ts';
-import { agreementClass, agreementGap, agreementPath, agreementSha, AGREEMENT_FILE, AGREEMENT_REVIEW_FILE, ASSESSMENT_FILE, assessmentGap, assessmentHead, assessmentMaterial, assessmentOpenGaps, assessmentSurviving, assessmentVerdict, caseFiles, consequential, hasT2Walk, REVIEW_FILE, verificationCases } from './agreement.ts';
+import { agreementClass, agreementGap, agreementPath, agreementSha, revisionSha, AGREEMENT_FILE, AGREEMENT_REVIEW_FILE, ASSESSMENT_FILE, assessmentGap, assessmentHead, assessmentMaterial, assessmentOpenGaps, assessmentSurviving, assessmentVerdict, caseFiles, consequential, hasT2Walk, REVIEW_FILE, verificationCases } from './agreement.ts';
 import { contractPaths as contractPathsFile } from '../project.ts';
 import { classFromFiles } from '../gates/classify.ts';
 import { changedFiles } from '../gates/check.ts';
@@ -54,7 +54,7 @@ export type Snapshot = {
 	questions: Question[];
 	answered: Question[];
 	files: Record<'agreement' | 'assessment' | 'review' | 'blocked', string | null>;
-	t1: { sha: string | null; reviewed: string | null; verdict: string | null };
+	t1: { sha: string | null; revisionSha?: string | null; reviewed: string | null; verdict: string | null };
 	head: string;
 	note: { file: string; text: string | null } | null;
 	models?: Models;
@@ -131,7 +131,7 @@ export function nextAction(s: Snapshot): { say: string; effects: Effect[] } {
 	// `wf decide --revise` records the agreement's material sha at the time. The revision is open until
 	// that sha moves (a fresh agreement the person can approve); while it is open the round cannot build
 	// on the old T1, so the agree session is dispatched again (#111.4).
-	const pending = openRevisions(s.revisions ?? [], s.t1.sha);
+	const pending = openRevisions(s.revisions ?? [], s.t1.revisionSha === undefined ? s.t1.sha : s.t1.revisionSha);
 	if (pending.length) {
 		if (s.step !== 'agree') effects.push({ step: ['agree', '--waiting-on', 'user'] });
 		// A revision with no recorded sha is a malformed state (the producer always writes one); keep it
@@ -423,7 +423,7 @@ export function snapshotOf(toplevel: string): Snapshot {
 			review: read(join(dir, context.kind === 'unit' ? context.reviewFile : REVIEW_FILE)),
 			blocked: read(join(dir, 'BLOCKED.md')),
 		},
-		t1: { sha: agreementSha(toplevel, state.class ?? null, state.folder ?? null), reviewed: lastField(agreementReview, 'agreement-sha'), verdict: readVerdict(agreementReview) },
+		t1: { sha: agreementSha(toplevel, state.class ?? null, state.folder ?? null), revisionSha: revisionSha(toplevel, state.class ?? null, state.folder ?? null), reviewed: lastField(agreementReview, 'agreement-sha'), verdict: readVerdict(agreementReview) },
 		note: state.note ? { file: state.note, text: read(join(toplevel, state.note)) } : null,
 		models: seams.models,
 		contractPaths: read(join(toplevel, contractPathsFile)),

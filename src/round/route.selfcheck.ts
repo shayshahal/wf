@@ -7,7 +7,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { agreementSha } from './agreement.ts';
+import { agreementSha, revisionSha } from './agreement.ts';
 import { worktreeContentSha } from '../gates/content-identity.ts';
 import { WF_ROOT } from '../paths.ts';
 
@@ -285,10 +285,16 @@ const approve = (dir: string, klass: 'B', agreement: string) => {
 // ── agreement prompts use the same open-revision facts as dispatch, never old brief timestamps
 {
 	const { dir } = repo('fix/routeRevisionPrompt', 'A', null);
-	writeFileSync(join(dir, 'bug-reports/r/TICKET.md'), TICKET.replace('scroll position', 'old symptom'));
-	const oldSha = agreementSha(dir, 'A', 'bug-reports/r');
-	writeFileSync(join(dir, 'bug-reports/r/TICKET.md'), TICKET);
-	const currentSha = agreementSha(dir, 'A', 'bug-reports/r');
+	writeFileSync(join(dir, 'bug-reports/r/TICKET.md'), `${TICKET}
+## Agreed
+- old
+`);
+	const oldSha = revisionSha(dir, 'A', 'bug-reports/r');
+	writeFileSync(join(dir, 'bug-reports/r/TICKET.md'), `${TICKET}
+## Agreed
+- new
+`);
+	const currentSha = revisionSha(dir, 'A', 'bug-reports/r');
 	writeFileSync(join(dir, '.wf/state.json'), `${JSON.stringify({ wf_version: 2, round: 'r', id: 'r', folder: 'bug-reports/r', base: 'main', step: 'agree', class: 'A', revisions: [
 		{ text: 'discharged-revision-marker', at: '2026-10-10T02:00:00Z', sha: oldSha },
 		{ text: 'open-revision-marker', at: '2026-10-10T01:00:00Z', sha: currentSha },

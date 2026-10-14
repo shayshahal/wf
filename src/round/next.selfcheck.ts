@@ -145,6 +145,9 @@ check('R-3: an unchanged agreement after --revise cannot build on the old T1', s
 check('R-3: an unchanged agreement after --revise also refuses at assess', say({ ...revised, step: 'assess' }).startsWith('dispatch agree'));
 const revisedA = base({ step: 'agree', klass: 'A', revisions: [{ text: 'change x', at: 't', sha: null }], files: { agreement: TICKET, assessment: null, review: null, blocked: null } });
 check('a revision on a class A round also dispatches a fresh agreement', say(revisedA).startsWith('dispatch agree'));
+const revA = (recorded: string, now: string) => base({ step: 'agree', klass: 'A', check: true, revisions: [{ text: 'change x', at: 't', sha: recorded }], files: { agreement: TICKET, assessment: null, review: null, blocked: null }, t1: { sha: 'intent', revisionSha: now, reviewed: null, verdict: null } });
+check('class A: a revision stays open while the agreed sections are unchanged', say(revA('x1', 'x1')).includes('the person asked the agreement to change'));
+check('class A: a revision closes once the agreed sections change (JX-1096)', !say(revA('x1', 'x2')).includes('the person asked the agreement to change'), say(revA('x1', 'x2')));
 
 // ── an answered BLOCKED.md resumes the build once; the same answer never loops
 const blockedBuild = base({ step: 'build', files: { agreement: null, assessment: null, review: null, blocked: 'Question: which label?\n' } });

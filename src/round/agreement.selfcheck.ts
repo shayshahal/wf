@@ -5,7 +5,7 @@
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { agreementClass, agreementFile, agreementGap, agreementPath, agreementSha, assessmentGap, assessmentHead, assessmentMaterial, assessmentOpenGaps, assessmentSurviving, assessmentVerdict, ASSESSMENT_FILE, caseFiles, consequential, intentGap, section, verificationCases } from './agreement.ts';
+import { agreementClass, agreementFile, agreementGap, agreementPath, agreementSha, revisionSha, assessmentGap, assessmentHead, assessmentMaterial, assessmentOpenGaps, assessmentSurviving, assessmentVerdict, ASSESSMENT_FILE, caseFiles, consequential, intentGap, section, verificationCases } from './agreement.ts';
 
 let failures = 0;
 const check = (name: string, cond: boolean, detail = '') =>
@@ -58,6 +58,12 @@ writeFileSync(join(dir, 'TICKET.md'), '# t\n\n## Intent\n- x\n\n## Repro\ncomman
 check('a class A sha binds ## Intent, not the mutable ## Repro command', agreementSha(dir, 'A', null) === a0);
 writeFileSync(join(dir, 'TICKET.md'), '# t\n\n## Intent\n- y\n');
 check('a changed ## Intent changes the class A sha', agreementSha(dir, 'A', null) !== a0);
+const r0 = (t: string) => { writeFileSync(join(dir, 'TICKET.md'), t); return revisionSha(dir, 'A', null); };
+const rBase = '# t\n\n## Intent\n- x\n\n## Agreed\n- a\n';
+const r1 = r0(rBase);
+check('class A revisionSha ignores ## Decisions (wf decide appends it)', r0(rBase + '\n## Decisions\n- q1\n') === r1);
+check('class A revisionSha moves when ## Agreed changes', r0(rBase.replace('- a', '- b')) !== r1);
+check('class A revisionSha moves when ## Verification is added', r0(rBase + '\n## Verification\n| 1 | m |\n') !== r1);
 rmSync(dir, { recursive: true, force: true });
 
 // The assessment format.

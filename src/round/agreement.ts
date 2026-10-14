@@ -112,6 +112,18 @@ export function agreementSha(toplevel: string, klass: RoundClass | null | undefi
 	return createHash('sha256').update(material).digest('hex');
 }
 
+// The sha a `wf decide --revise` records and `openRevisions` compares. B/C: the agreed material. Class A:
+// agreementSha binds `## Intent`, which the agree phase may not edit, so a revision keyed on it never
+// closed (JX-1096: `wf next` dispatched agree forever). A's revision answers when the ticket's agreed
+// sections (`## Agreed`, `## Verification`) change; `## Decisions`, which `wf decide` appends, is not in.
+export function revisionSha(toplevel: string, klass: RoundClass | null | undefined, folder: string | null | undefined): string | null {
+	if (consequential(klass)) return agreementSha(toplevel, klass, folder);
+	const file = agreementPath(toplevel, klass, folder);
+	if (!existsSync(file)) return null;
+	const text = readFileSync(file, 'utf8');
+	return createHash('sha256').update([section(text, 'Agreed'), section(text, 'Verification')].map((x) => (x ?? '').trim()).join('\n---\n')).digest('hex');
+}
+
 // Pure: null when `text` is an agreement a build can start from, else why not. Class A: the ticket
 // needs `## Intent` (composePrompt enforces that) and nothing else — no AGREEMENT.md, no extra
 // artifact to record the repro (#110). Class B/C: the observed facts and the agreed behavior are the
