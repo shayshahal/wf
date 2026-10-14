@@ -12,6 +12,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { repo, setup, teardown } from '../src/project.ts';
 import type { State } from '../src/round/state.ts';
+import { mergedImplementationGap } from '../src/round/delivered-round.ts';
 import { urlLines } from '../src/worktrees/worktree.ts';
 import { stackNames } from './projects/jewelryx/index.ts';
 
@@ -95,7 +96,8 @@ export async function runHook(argv: string[]) {
 		const file = join(worktree, '.wf', 'state.json');
 		let state: State | null | undefined;
 		if (existsSync(file)) try { state = JSON.parse(readFileSync(file, 'utf8')); } catch { state = null; }
-		const refusal = gateVerdict({ state, force: process.env.WF_FORCE_REAP === '1' });
+		const force = process.env.WF_FORCE_REAP === '1';
+		const refusal = gateVerdict({ state, force }) ?? (!force && state ? mergedImplementationGap(worktree, state)?.reason ?? null : null);
 		if (!refusal) {
 			// git worktree remove leaves junctions, and the folders holding them, behind (measured
 			// 2026-10-06: 15 worktrees removed through wt kept their 21 skill links, 27 entries each). The

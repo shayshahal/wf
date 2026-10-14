@@ -5,6 +5,7 @@
 import { plug, seams } from './seams.ts';
 import type { Command, Seams } from './seams.ts';
 import { refusalKind, refuseCaller } from './refusal.ts';
+import { deliveredCommandGap } from './round/delivered-round.ts';
 
 // A wf command that exits non-zero inside a round goes to .wf/events.log, for the line reap prints
 // (friction.ts): a refusal was only in the session's scrollback until 2026-09-28. Its message is the
@@ -65,7 +66,7 @@ export async function run(argv: string[], pieces: Partial<Seams> = {}) {
 			// another entry) is not applied to `next`, which a resumed session runs from the same entry.
 			const legacy = ['status', 'classify'].includes(cmd) ? null : legacyStateGap(state);
 			const entry = ['status', 'next'].includes(cmd) ? null : entryGap(state, seams.madeBy);
-			gap = legacy ?? entry;
+			gap = legacy ?? entry ?? deliveredCommandGap(state, argv);
 		} catch (e) {
 			// A state file that is not the round's is the round's: report it and stop, instead of running
 			// the command as if there were no round here (issue #107).

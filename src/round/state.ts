@@ -13,6 +13,8 @@ import { baseBranch, roundsDir } from '../project.ts';
 import { sliceProgressGap } from './build-units.ts';
 import type { SliceProgress } from './build-units.ts';
 import { verificationQuestionGap } from './assessment-rulings.ts';
+import { deliveryReceiptGap } from './delivered-round.ts';
+import type { DeliveryReceipt } from './delivered-round.ts';
 
 export type RoundClass = 'A' | 'B' | 'C';
 // The latest received answer in its thread's message order; transport alone grants no authority.
@@ -84,6 +86,8 @@ export type State = {
 	// The tracker note `wf deliver` wrote, from the worktree's top: `wf next` reads which of its
 	// sections are posted (src/round/next.ts, unpostedSections).
 	note?: string;
+	/** The remote PR, exact merged head and product identity; follow-ups get a fresh round. */
+	delivery?: DeliveryReceipt;
 	// When a person last re-read the ticket against the round's paperwork after it changed
 	// (`wf post --ticket-reread`): changes before it are read; the round's first step is the baseline
 	// until then (projects/jewelryx/ticket-changes.ts).
@@ -177,6 +181,10 @@ export function readState(toplevel: string): State | null {
 	if ('assessment_baseline' in parsed) {
 		const baseline = parsed.assessment_baseline;
 		if (baseline === null || typeof baseline !== 'object' || !('file' in baseline) || typeof baseline.file !== 'string' || !/^ASSESSMENT(?:-unit-[1-9]\d*)?\.md$/.test(baseline.file) || !('sha' in baseline) || (baseline.sha !== null && (typeof baseline.sha !== 'string' || !/^[a-f0-9]{64}$/.test(baseline.sha)))) throw new CorruptStateError(file, 'invalid assessment_baseline');
+	}
+	if ('delivery' in parsed) {
+		const gap = deliveryReceiptGap(parsed.delivery);
+		if (gap) throw new CorruptStateError(file, gap);
 	}
 	if ('slices' in parsed) {
 		const gap = sliceProgressGap(parsed.slices);

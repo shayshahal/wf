@@ -5,7 +5,7 @@
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { agreementClass, agreementFile, agreementGap, agreementPath, agreementSha, assessmentGap, assessmentHead, assessmentMaterial, assessmentOpenGaps, assessmentVerdict, ASSESSMENT_FILE, caseFiles, consequential, intentGap, section, verificationCases } from './agreement.ts';
+import { agreementClass, agreementFile, agreementGap, agreementPath, agreementSha, assessmentGap, assessmentHead, assessmentMaterial, assessmentOpenGaps, assessmentSurviving, assessmentVerdict, ASSESSMENT_FILE, caseFiles, consequential, intentGap, section, verificationCases } from './agreement.ts';
 
 let failures = 0;
 const check = (name: string, cond: boolean, detail = '') =>
@@ -61,14 +61,14 @@ check('a changed ## Intent changes the class A sha', agreementSha(dir, 'A', null
 rmSync(dir, { recursive: true, force: true });
 
 // The assessment format.
-const assess = (patch: { verdict?: string; head?: string; material?: string; intent?: string } = {}) => `# r — assessment
+const assess = (patch: { verdict?: string; head?: string; material?: string; intent?: string; agreement?: string; design?: string } = {}) => `# r — assessment
 Verdict: ${patch.verdict ?? 'clean'}
 head: ${patch.head ?? 'abc123'}
 ## Intent
 ${patch.intent ?? '- "x": met: a.ts:1 · before: red · after: green'}
 ## Agreement
-${patch.material ? `material: ${patch.material}` : 'none'}
-`;
+${patch.agreement ?? (patch.material ? `material: ${patch.material}` : 'none')}
+${patch.design ? `## Design\n${patch.design}\n` : ''}`;
 check('the assessment verdict is read', assessmentVerdict(assess()) === 'clean' && assessmentVerdict(assess({ verdict: 'repair' })) === 'repair' && assessmentVerdict(assess({ verdict: 'blocked' })) === 'blocked');
 check('the assessment head is read', assessmentHead(assess({ head: 'H1' })) === 'H1');
 check('a material line under ## Agreement is read', assessmentMaterial(assess({ material: 'the API shape moved' })) === 'the API shape moved' && assessmentMaterial(assess()) === null);
@@ -79,6 +79,22 @@ check('an intent line with no verdict is a gap', (assessmentGap(assess({ intent:
 check('a met line without before/after is a gap', (assessmentGap(assess({ intent: '- "x": met: a.ts:1' })) ?? '').includes('before'));
 check('NOT MEASURED and left out: are verdicts', intentGap('## Intent\n- "x": NOT MEASURED\n- "y": left out: moved to a new ticket\n') === null);
 check('an empty left out: is a gap', (intentGap('## Intent\n- "y": left out:\n') ?? '').includes('no reason'));
+
+// #130: a known intent/agreement mismatch (JX-810/1377: add_tracking_number still called
+// _announce_delivery_delay, the buyer signal the agreement removed). It is recorded as a durable
+// `surviving:` line, not an advisory `## Design` note; a clean verdict cannot carry it, and a
+// blocked one names the unmet line so the person's ruling carries it.
+const mismatch = assess({ agreement: 'surviving: add_tracking_number still calls _announce_delivery_delay', design: '- advisory: order_service.py:2637 could reuse the window helper' });
+check('a surviving: line is read from ## Agreement', assessmentSurviving(mismatch).join() === 'add_tracking_number still calls _announce_delivery_delay' && assessmentSurviving(assess()).length === 0);
+check('a surviving agreed effect cannot stay a clean advisory Design item', (assessmentGap(mismatch) ?? '').includes('surviving'));
+check('an empty surviving marker cannot claim a clean pass', (assessmentGap(assess({ agreement: '  surviving:  ' })) ?? '').includes('empty'));
+check('a bullet surviving marker is also a known mismatch', (assessmentGap(assess({ agreement: '- surviving: the alternate call still fires' })) ?? '').includes('surviving'));
+check('an empty bullet surviving marker is refused', (assessmentGap(assess({ agreement: '- surviving: ' })) ?? '').includes('empty'));
+check('a blocked mismatch in Design is not an unmet Intent line', (assessmentGap(assess({ verdict: 'blocked', agreement: 'surviving: the effect still fires', design: '- not met: an unrelated finding' })) ?? '').includes('## Intent'));
+check('the same mismatch as a repair routes to the build autonomously', assessmentGap(assess({ verdict: 'repair', agreement: 'surviving: add_tracking_number still calls _announce_delivery_delay' })) === null);
+check('a blocked mismatch must name the unmet line, not leave the ruling without it', (assessmentGap(assess({ verdict: 'blocked', agreement: 'surviving: add_tracking_number still calls _announce_delivery_delay' })) ?? '').includes('surviving'));
+check('a blocked mismatch naming its not met: line is a durable ruling, not a gap', assessmentGap(assess({ verdict: 'blocked', intent: '- "x": not met: the buyer signal still fires', agreement: 'surviving: add_tracking_number still calls _announce_delivery_delay' })) === null);
+check('ordinary advisory design notes gain no approval', assessmentGap(assess({ design: '- advisory: order_service.py:2637 the helper could move' })) === null);
 
 const live = (l: string) => `${assess()}## Live
 ${l}

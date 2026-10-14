@@ -165,16 +165,31 @@ export function assessmentMaterial(text: string | null | undefined): string | nu
 	return /^material:[ \t]*(.+)$/m.exec(body)?.[1].trim() || null;
 }
 
+/** Known agreement mismatches in report order; surviving agreed effects need repair or a durable ruling. */
+export function assessmentSurviving(text: string | null | undefined): string[] {
+	const body = section(text, 'Agreement') ?? '';
+	return body
+		.split('\n')
+		.map((l) => /^(?:-[ \t]+)?surviving:[ \t]*(.+)$/i.exec(l.trim())?.[1].trim())
+		.filter((l): l is string => Boolean(l));
+}
+
 // Pure: null when ASSESSMENT.md is an assessment a T2 can read, else why not. The `head:` is what
 // binds it to the tree it judged, so a missing one is refused; a `clean` verdict may not carry an
 // unmet item (`not met:`/`differs:`/`still reproduces:`) — that is a blocked round wearing a clean
-// label (#113.4).
+// label (#113.4). A `clean` verdict may not carry a `surviving:` agreed effect either: a known
+// intent/agreement mismatch is repaired or durably ruled on, never an advisory `## Design` note
+// (#130). A `blocked` one names the mismatch on an intent line so the durable ruling carries it.
 export function assessmentGap(text: string | null | undefined, deferredUnits: readonly number[] = []): string | null {
 	if (text == null) return `no ${ASSESSMENT_FILE}`;
 	const verdict = assessmentVerdict(text);
 	if (!verdict) return `${ASSESSMENT_FILE} has no \`Verdict: clean | repair | blocked\` line`;
 	if (!assessmentHead(text)) return `${ASSESSMENT_FILE} has no \`head: <commit>\` line — the assessment names the tree it judged`;
 	if (verdict === 'clean' && /(not met:|differs:|still reproduces:)/i.test(text)) return `${ASSESSMENT_FILE} says clean but states an unmet item — a clean assessment cannot carry \`not met:\``;
+	if ((section(text, 'Agreement') ?? '').split('\n').some((line) => /^(?:-[ \t]+)?surviving:[ \t]*$/i.test(line.trim()))) return `${ASSESSMENT_FILE} has an empty \`surviving:\` item — name the agreed effect still in place`;
+	const surviving = assessmentSurviving(text);
+	if (verdict === 'clean' && surviving.length) return `${ASSESSMENT_FILE} says clean but an agreed removal or exclusion still takes effect (\`surviving:\`) — a surviving effect the agreement removes is not a \`## Design\` note: fix it with \`Verdict: repair\`, or record it for a ruling with \`Verdict: blocked\``;
+	if (surviving.length && verdict === 'blocked' && !/(not met:|differs:|still reproduces:)/i.test(section(text, 'Intent') ?? '') && !assessmentMaterial(text)) return `${ASSESSMENT_FILE} is blocked by a surviving agreed effect but names no \`not met:\` ## Intent line or \`material:\` change — the person's ruling must carry the mismatch`;
 	return intentGap(text, deferredUnits);
 }
 

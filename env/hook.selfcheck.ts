@@ -3,6 +3,13 @@
 // Nothing is run. What the project's steps do: projects/<name>/index.selfcheck.ts.
 import { gateVerdict, hookBlock, teardownFailures, withHookBlock } from './hook.ts';
 import { repo, setup } from '../src/project.ts';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { WF_ROOT } from '../src/paths.ts';
+import { headContentSha } from '../src/gates/content-identity.ts';
+import { WF_STATE_VERSION } from '../src/round/state.ts';
 
 let failures = 0;
 const check = (name: string, cond: unknown, detail = '') =>
@@ -26,6 +33,32 @@ check('a merged round is removable', gateVerdict({ state: { step: 'merged' }, fo
 check('an unmerged round is refused, naming its step', /"implement"/.test(gateVerdict({ state: { step: 'implement' }, force: false })!));
 check('unreadable state is refused', /unreadable/.test(gateVerdict({ state: null, force: false })!));
 check('WF_FORCE_REAP overrides', gateVerdict({ state: { step: 'implement' }, force: true }) === null);
+
+// ── direct wt pre-remove follows the same delivery protection as wf reap, before unlinking.
+const dir = mkdtempSync(join(tmpdir(), 'wf-hook-delivery-'));
+const git = (...args: string[]) => execFileSync('git', ['-C', dir, '-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { encoding: 'utf8' }).trim();
+const gate = (force: boolean) => spawnSync(process.execPath, [join(WF_ROOT, 'env/wf.mjs'), 'hook', 'gate', 'fixture'], { cwd: dir, env: { ...process.env, WF_FORCE_REAP: force ? '1' : '0' }, encoding: 'utf8' });
+try {
+  git('init', '-q', '-b', 'dev'); git('config', 'core.autocrlf', 'false');
+  writeFileSync(join(dir, 'product.txt'), 'delivered\n');
+  git('add', '.'); git('commit', '-qm', 'delivered');
+  mkdirSync(join(dir, '.wf'));
+  const folder = 'bug-reports/fixture';
+  const state = { wf_version: WF_STATE_VERSION, round: 'fixture', folder, step: 'merged', delivery: { url: 'https://github.com/o/r/pull/1', head: git('rev-parse', 'HEAD'), contentSha: headContentSha(dir, folder, null, 'row') } };
+  writeFileSync(join(dir, '.wf/state.json'), JSON.stringify(state));
+  check('direct pre-remove permits an unchanged delivered tree', gate(false).status === 0);
+  writeFileSync(join(dir, 'product.txt'), 'follow-up\n');
+  const refusal = gate(false);
+  check('direct pre-remove refuses follow-up product work', refusal.status === 1 && refusal.stderr.includes('product changes exist after delivery'), refusal.stderr);
+  check('explicit force permits intentional direct removal', gate(true).status === 0);
+  git('add', 'product.txt'); writeFileSync(join(dir, 'product.txt'), 'delivered\n');
+  check('direct pre-remove sees index-only follow-up work', gate(false).status === 1);
+  git('reset', '-q', '--', 'product.txt');
+  const { delivery: _receipt, ...unbound } = state;
+  writeFileSync(join(dir, '.wf/state.json'), JSON.stringify(unbound));
+  check('unbound old rounds cannot be silently removed', gate(false).status === 1);
+  check('explicit force is also a recovery for unbound old rounds', gate(true).status === 0);
+} finally { rmSync(dir, { recursive: true, force: true }); }
 
 // ── teardown: a piece already gone is not a failure
 const run = (status: number, stderr: string) => ({ t: { cmd: 'docker', args: ['rm', 'x'] }, r: { status, stdout: '', stderr } });

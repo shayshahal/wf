@@ -16,6 +16,7 @@ import { roundsDir } from '../project.ts';
 import { writeCloneLaunch } from './new.ts';
 import { frictionLine } from '../round/friction.ts';
 import { readState } from '../round/state.ts';
+import { mergedImplementationGap } from '../round/delivered-round.ts';
 import type { State } from '../round/state.ts';
 import type { RemovalStep } from '../seams.ts';
 import { removalPlan, resolveWorktree, slugForBranch } from './worktree.ts';
@@ -140,6 +141,12 @@ export async function runReap(argv: string[]) {
 	}
 	const slug = slugForBranch(branch);
 	const state = readState(path);
+	const mergedGap = state ? mergedImplementationGap(path, state) : null;
+	if (mergedGap && process.env.WF_FORCE_REAP !== '1') {
+		console.error(`wf reap: ${mergedGap.reason}; nothing removed. WF_FORCE_REAP=1 intentionally discards the worktree and local branch`);
+		process.exit(2);
+	}
+	if (mergedGap) console.warn(`wf reap: forcing removal despite ${mergedGap.reason}; product changes are not archived`);
 	const force = reapRuns(process.env, state);
 	// Paperwork first: when it cannot be listed, reap stops, and ROUNDS.md gets no line for a round
 	// that is still there (2026-10-04, a broken .git: the line was written, then reap stopped).

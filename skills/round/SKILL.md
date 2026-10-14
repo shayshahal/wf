@@ -107,7 +107,10 @@ agent's own. T2 layout corrections repair the existing agreed behavior in build;
 the active review file's latest corrections and screenshot references. They do not, by themselves, renew T1. A genuinely new scope or behavior — a new user-visible surface, a changed contract
 path, a different persistence choice, or dropping an agreed item — is a renewed agreement: the
 build writes `BLOCKED.md` with a `Question:` line, or the assessment records a `material:` line, and
-the round goes back to `agree` for a new T1. The assessment's own fixable findings return to the
+the round goes back to `agree` for a new T1. A known agreement mismatch is recorded as `surviving:`
+in the assessment's `## Agreement`: clear within-agreement fixes use `repair`; a scope decision uses
+`blocked` and the recorded question. Accepting that exception uses `wf decide --revise --q <n>` to
+renew the agreement, not a chat-only answer or a plain `accept`. The assessment's own fixable findings return to the
 build autonomously, at most twice per unit or final integration; after that, or on a genuine blocker,
 `wf next` raises one contextual question rather than one per finding. Every dispatch is a **fresh** agent: never resume
 or message a finished round agent, and never read its session file to "see what happened". If a
@@ -159,6 +162,17 @@ anytime, not a checkpoint, and adds no approval.
 
 `wf status --all` says which rounds exist, who each waits on, and the open questions word for
 word. In the round's worktree, *The loop*. Nothing lives in your context that the files do not have.
+
+### Follow-up after delivery
+
+A merged round owns one delivery. When the user asks for more product work, follow *Start* with a
+fresh branch: `wf new <new-branch> --reopen --class <A|B|C> --id <id>`. Read its `EARLIER.md` and
+refresh the ticket/scope before agreeing; earlier rulings inform the new work, but earlier assessment
+and approval do not cover it. Keep the delivered round and its note intact. If work already landed
+there, preserve those changes for the fresh round rather than resetting state or reaping the tree.
+For an older round without bound evidence, post its saved note and restore its original delivery/T2
+binding before cleanup. `WF_FORCE_REAP=1` is only an intentional discard: product changes and the
+local branch are not preserved.
 
 ## Authority — who may do what
 

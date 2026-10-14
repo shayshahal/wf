@@ -25,7 +25,7 @@ if (mode === 'new-round' && repo && branch) {
 		excludeWfFolder(path);
 		return { path, branch };
 	} });
-	await runNew([branch, '--base', 'HEAD', '--class', 'A']);
+	await runNew([branch, '--base', 'HEAD', '--class', 'A', ...(process.argv.includes('--reopen') ? ['--id', 'X-1', '--reopen'] : [])]);
 	process.exit(0);
 }
 
@@ -101,6 +101,24 @@ try {
 		check(`${branch} starts without --force while the earlier rounds remain live`, result.status === 0 && state?.round === branch && state.step === 'classify', `${result.stdout}\n${result.stderr}`);
 	}
 	check('starting more rounds preserves the existing rounds', existing.every(({ path, before }) => readFileSync(join(path, '.wf/state.json'), 'utf8') === before));
+
+	// #129 uses the existing fresh-worktree route, not a state reset on the delivered branch.
+	const earlierFolder = 'bug-reports/fix-x-1-first';
+	mkdirSync(join(fixture, earlierFolder), { recursive: true });
+	writeFileSync(join(fixture, earlierFolder, 'AGREEMENT.md'), '# earlier\n## Decisions\n- preserve the chosen behavior\n');
+	writeFileSync(join(fixture, earlierFolder, 'TICKET.md'), '# earlier ticket\n## Decisions\n- reuse the original boundary\n');
+	writeFileSync(join(fixture, earlierFolder, 'ASSESSMENT.md'), 'Verdict: clean\nhead: earlier-head\n');
+	execFileSync('git', ['add', earlierFolder], { cwd: fixture });
+	execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'X-1 first delivery'], { cwd: fixture });
+	execFileSync('git', ['update-ref', 'refs/remotes/origin/dev', 'HEAD'], { cwd: fixture });
+	const original = readFileSync(join(fixture, earlierFolder, 'ASSESSMENT.md'), 'utf8');
+	const result = spawnSync(process.execPath, [fileURLToPath(import.meta.url), 'new-round', fixture, 'round/reopened', '--reopen'], { encoding: 'utf8' });
+	const path = join(fixture, 'trees', slugForBranch('round/reopened'));
+	const fresh = readState(path);
+	const earlier = readFileSync(join(path, fresh?.folder ?? '', 'EARLIER.md'), 'utf8');
+	check('reopen starts a fresh round, never inherits assessment, approval or phase history', result.status === 0 && fresh?.step === 'classify' && fresh.delivery === undefined && fresh.assessment_baseline === undefined && fresh.folder !== earlierFolder && fresh.history?.every((visit) => visit.step === 'classify') === true, `${result.stdout}\n${result.stderr}`);
+	check('EARLIER links the delivered folder and current-format rulings without inheriting approval', earlier.includes(earlierFolder) && earlier.includes('preserve the chosen behavior') && earlier.includes('reuse the original boundary') && earlier.includes('not this round'), earlier);
+	check('the earlier delivered assessment stays intact', readFileSync(join(fixture, earlierFolder, 'ASSESSMENT.md'), 'utf8') === original);
 } finally {
 	rmSync(fixture, { recursive: true, force: true });
 }

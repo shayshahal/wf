@@ -180,6 +180,10 @@ export async function runDecide(argv: string[]): Promise<void> {
 	const decided = { question: null as Question | null };
 	try {
 		writeState(toplevel, (current) => {
+			const source = current.questions?.find((q) => q.n === target)?.source;
+			// #130: accepting a surviving agreed effect changes behavior. Keep the question open
+			// until that acceptance explicitly renews the agreement, not just the old assessment.
+			if (isAssessmentRulingSource(source) && /#surviving:[a-f0-9]{8}(?:#material)?$/.test(source ?? '') && /^\s*accept\b/i.test(answer) && !a.revise) throw new Error('accepting this agreement exception needs --revise; record the renewed behavior with wf decide --revise --q <n> "<the renewed behavior>"');
 			const result = closeQuestion(current, target, undefined, answer);
 			decided.question = result.question;
 			const said = revisionText(result.question, answer);

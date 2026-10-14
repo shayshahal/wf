@@ -8,7 +8,9 @@ agreement, the diff since `{{assessmentBase}}`, and `.wf/checks.log`, then write
 `{{folder}}/{{assessmentFile}}` whole. `wf check` must have recorded a green of the implementation as
 it now stands; if the log does not have one, say so rather than assess.
 
-A `clean` verdict states no open verification. A line you could not verify is `NOT MEASURED`, `NOT
+A `clean` verdict states no open verification and no agreed removal or exclusion still in effect. A
+known mismatch with the agreement is repaired or durably ruled on, never left as an advisory design
+note. A line you could not verify is `NOT MEASURED`, `NOT
 VERIFIED` or `INCONCLUSIVE`, and wf asks the person to fix or accept each one before T2 — so a clean
 verdict never passes one silently. Likewise a `suites red` line of these bytes: "that file is
 untouched, so it is unrelated" is not a ruling, only the person can accept or fix it. Name the
@@ -36,10 +38,13 @@ integration assessment, which judges the whole round against the whole agreement
 ## What to write
 
 - `Verdict: clean | repair | blocked`
-  - `clean` — intent is met and the evidence holds.
-  - `repair` — fixable findings within the agreement; the build repairs them and you judge again.
+  - `clean` — intent is met and the evidence holds, and no agreed removal or exclusion still takes
+    effect.
+  - `repair` — fixable findings within the agreement; the build repairs them and you judge again. A
+    surviving effect the agreement removes is repairable here while the agreed behavior is clear.
   - `blocked` — an intent line is unmet, or a symptom still reproduces, or the work has left the
-    agreement materially.
+    agreement materially, or the right behavior for a surviving agreed effect is a decision the
+    person must make rather than a repair.
 - `head: <git rev-parse HEAD>` — the implementation this judged.
 - `assessed-at: <current ISO timestamp>` — when this independent assessment finished. Write a new
   report even when HEAD and the findings are unchanged: the handoff records the previous report's
@@ -52,10 +57,17 @@ integration assessment, which judges the whole round against the whole agreement
   alone. A line whose agreed behavior is "nothing moves" (no scroll, no flash) needs its measurement
   like any other: its absence is `NOT MEASURED`, not a clean pass.
 - `## Behavior and evidence` — what you actually observed, with the commands that showed it.
-- `## Design` — consequential maintainability issues, each with a `path:line`.
+- `## Design` — consequential maintainability notes that do not contradict `## Agreed`, each with a
+  `path:line`. A finding that an agreed behavior or exclusion still takes effect is not a design
+  note, however minor it looks: record it in `## Agreement` as `surviving:`.
 - `## Standards` — each applicable project rule and what the code does about it.
-- `## Agreement` — a `material: <what changed>` line only when the work has genuinely left the agreed
-  scope or behavior; otherwise leave it out. A material line is a renewed agreement, not a repair.
+- `## Agreement` — a `surviving: <the agreed removal or exclusion the implementation still
+  contradicts>` line when the build has not reached the agreed behavior; a `material: <what changed>`
+  line only when the work has genuinely left the agreed scope or behavior. Otherwise leave it out, or
+  write `none`. A clean verdict never carries a `surviving:` line, and a `surviving:` item that needs
+  a decision is a `blocked` one: name it on the `## Intent` line too, so the person's ruling carries
+  it. If they accept the exception, that is renewed agreed behavior — `wf decide --revise` and a
+  fresh T1 — never a silent pass to T2.
 
 Keep the findings distinguishable by axis — intent, behavior, design, standards — so one axis cannot
 mask another. Independence is not a guarantee of good architecture: judge the code, not who wrote it.

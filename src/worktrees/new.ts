@@ -50,21 +50,21 @@ export function findExistingRounds(ids: string[], base: string) {
 	return hits;
 }
 
-// Pure: the lines of a PLAN.md's `## Decisions` (wf decide writes them), or none.
+// Pure: the lines of a working agreement's `## Decisions` (wf decide writes them), or none.
 export function decisionsOf(planText: string | null) {
 	const section = /^## Decisions[ \t]*\n([\s\S]*?)(?=^## |(?![\s\S]))/m.exec((planText ?? '').replace(/\r\n/g, '\n'))?.[1] ?? '';
 	return section.split('\n').map((l) => l.trim()).filter((l) => l.startsWith('- '));
 }
 
-// Pure: EARLIER.md for a reopened ticket: the earlier work, and the rulings its rounds recorded. The
-// plan's Asks take a ruling as their default: the 2026-09-27 replay of TJEW-682 re-asked both
-// questions Shay had ruled on four days before, whose round folder the plan agent never read.
+// Pure: EARLIER.md links a fresh round to earlier deliveries without inheriting their approval.
+// TJEW-682, 2026-09-27: unread earlier rulings were asked again; JX-1350, 2026-10-13: follow-up
+// work reused a merged round. The current ticket decides whether earlier behavior still applies.
 export function earlierText({ ids, dupes, rulings }: { ids: string[]; dupes: string[]; rulings: { folder: string; lines: string[] }[] }) {
 	const ruled = rulings.filter((r) => r.lines.length);
 	return [
-		`# Earlier work on ${ids.join(', ')}`, '', 'This ticket came back. Every earlier fix below shipped and did not hold.', '',
+		`# Earlier work on ${ids.join(', ')}`, '', 'Read these earlier rounds before agreeing this follow-up. Their assessments and approvals cover only their deliveries, not this round; refresh the ticket and scope for the new work.', '',
 		...dupes.map((d) => `- ${d.trim()}`),
-		...(ruled.length ? ['', '## Earlier rulings', '', 'What the people asked decided in those rounds (their PLAN.md `## Decisions`), verbatim.', '', ...ruled.flatMap((r) => [`${r.folder}:`, ...r.lines, ''])] : ['']),
+		...(ruled.length ? ['', '## Earlier rulings', '', 'Earlier working agreements\' `## Decisions`, verbatim (legacy PLAN.md where applicable). Reuse only where the current scope still agrees.', '', ...ruled.flatMap((r) => [`${r.folder}:`, ...r.lines, ''])] : ['']),
 	].join('\n').replace(/\n+$/, '\n');
 }
 
@@ -160,8 +160,11 @@ export async function runNew(argv: string[]) {
 	const openedBy = seams.opener?.() ?? null;
 	writeState(path, () => ({ wf_version: WF_STATE_VERSION, id: ids[0] ?? branch, ...(ids.length > 1 ? { ids } : {}), folder, made_by: seams.madeBy, entry: seams.entry.replace(/\\/g, '/'), ...(openedBy ? { opened_by: openedBy } : {}), ...(argv.includes('--check') ? { check: true } : {}) }));
 	if (reopen && dupes.length) {
-		const plan = (f: string) => { try { return execFileSync('git', ['show', `${base}:${f}/PLAN.md`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }); } catch { /* that round left no PLAN.md: it has no rulings */ return null; } };
-		const rulings = dupes.filter((d) => d.startsWith(`${roundsDir}/`)).map((f) => ({ folder: f, lines: decisionsOf(plan(f)) }));
+		const decisions = (folder: string) => ['AGREEMENT.md', 'TICKET.md', 'PLAN.md'].flatMap((file) => {
+			try { return decisionsOf(execFileSync('git', ['show', `${base}:${folder}/${file}`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })); }
+			catch { /* an earlier round need not have every working-document variant */ return []; }
+		});
+		const rulings = dupes.filter((d) => d.startsWith(`${roundsDir}/`)).map((folder) => ({ folder, lines: [...new Set(decisions(folder))] }));
 		writeFileSync(join(path, folder, 'EARLIER.md'), earlierText({ ids, dupes, rulings }));
 	}
 	const urls = stackUrls({ slug: slugForBranch(branch), port: basePortForBranch(branch) });

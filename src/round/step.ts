@@ -27,6 +27,7 @@ import { changedFiles, isRoundPaperwork } from '../gates/check.ts';
 import { initializeSlices, parseBuildUnits, sliceContext } from './build-units.ts';
 import { verificationCases } from './agreement.ts';
 import { assessmentContentSha, verificationFixRulings, verificationProofGap } from './assessment-rulings.ts';
+import { deliveredCommandGap } from './delivered-round.ts';
 
 /** All build handoff gates, shared by direct step and next's recovery before it mutates state. */
 export function assessmentHandoffGap(toplevel: string, state: State, phase: 'assess' | 'review'): string | null {
@@ -217,6 +218,8 @@ export async function runStep(argv: string[], { quiet = false } = {}) {
 	let state: State;
 	try {
 		state = writeState(toplevel, (current) => {
+			const delivered = deliveredCommandGap(current, ['step', ...argv]);
+			if (delivered) throw new StepGateError(delivered);
 			const klass: RoundClass | null = step === 'classify'
 				? higherClass(assertedClass ?? current.class ?? null, measured as RoundClass)
 				: assertedClass ?? current.class ?? null;

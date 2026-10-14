@@ -17,7 +17,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { refuseCaller } from '../refusal.ts';
 import { addQuestion, blockedQuestion, openRevisions } from './ask.ts';
-import { agreementClass, agreementGap, agreementPath, agreementSha, AGREEMENT_FILE, AGREEMENT_REVIEW_FILE, ASSESSMENT_FILE, assessmentGap, assessmentHead, assessmentMaterial, assessmentOpenGaps, assessmentVerdict, caseFiles, consequential, REVIEW_FILE, verificationCases } from './agreement.ts';
+import { agreementClass, agreementGap, agreementPath, agreementSha, AGREEMENT_FILE, AGREEMENT_REVIEW_FILE, ASSESSMENT_FILE, assessmentGap, assessmentHead, assessmentMaterial, assessmentOpenGaps, assessmentSurviving, assessmentVerdict, caseFiles, consequential, REVIEW_FILE, verificationCases } from './agreement.ts';
 import { contractPaths as contractPathsFile } from '../project.ts';
 import { classFromFiles } from '../gates/classify.ts';
 import { changedFiles } from '../gates/check.ts';
@@ -33,6 +33,8 @@ import { stepHistory } from './friction.ts';
 import { assessmentHandoffGap, checkGap, checkGapLine, checksEvidence, higherClass, runStep, suitesGap } from './step.ts';
 import type { ChecksEvidence } from './step.ts';
 import { assessmentContentSha, assessmentRulingSource, verificationGapsHash } from './assessment-rulings.ts';
+import { mergedImplementationGap } from './delivered-round.ts';
+import type { MergedImplementationGap } from './delivered-round.ts';
 
 // How many times a within-agreement finding is repaired autonomously before one contextual escalation
 // (#113.3). An evaluated default, not a universal rule (#110).
@@ -71,6 +73,8 @@ export type Snapshot = {
 	assessmentBaselineMissing?: boolean;
 	assessmentHandoffGap?: string | null;
 	returnedFromAssess?: boolean;
+	/** A merged round cannot post/reap on the old delivery while carrying new product work. */
+	mergedGap?: MergedImplementationGap | null;
 };
 export type Effect =
 	| { step?: string[]; ask?: { to: string; text: string; dflt: string | null; source: string; verification_gaps?: string[] }; repair?: true; blockedAnswered?: number; advance?: { unit: number; head: string } };
@@ -98,8 +102,10 @@ export function nextAction(s: Snapshot): { say: string; effects: Effect[] } {
 	// The tracker hears last, one section per item; a session can die between two posts, so the note
 	// says which are posted and a resumed round posts the rest, never one twice.
 	if (s.step === 'merged') {
+		if (s.mergedGap?.kind === 'changed') return act(`wait user: ${s.mergedGap.reason}`);
 		const left = unpostedSections(s.note?.text ?? null);
 		if (left.length) return act(`post: ${left.join(', ')} — each section of ${s.note!.file} on its own item, with the delivered status (ROUND.md); right after each, its heading gets \` (posted)\`. Then \`${wf} next\``);
+		if (s.mergedGap) return act(`wait user: ${s.mergedGap.reason}`);
 		return act(`done: \`${wf} reap ${s.branch}\``);
 	}
 	if (s.step === 'pr' && context.kind !== 'single' && context.kind !== 'integration') return act('wait user: unit approval is not delivery approval — finish the units and integration');
@@ -256,15 +262,22 @@ export function nextAction(s: Snapshot): { say: string; effects: Effect[] } {
 		const assessmentSource = assessmentRulingSource(s.files.assessment, context);
 		const verdict = assessmentVerdict(s.files.assessment);
 		const material = assessmentMaterial(s.files.assessment);
+		const surviving = assessmentSurviving(s.files.assessment);
+		const findingSource = surviving.length ? `${assessmentSource}#surviving:${verificationGapsHash(surviving)}` : assessmentSource;
+		const choices = surviving.length
+			? `say how to fix it within the agreement, or use \`${wf} decide --revise --q <n> "<the renewed behavior>"\` to accept an exception with a renewed agreement`
+			: 'answer `accept` to carry it into T2, or say how to fix it';
 		if (material) {
 			// One contextual escalation, recorded so it cannot repeat. A material change is outside the
 			// agreement, so only an explicit `accept` (the literal word, case-insensitive) carries it into
 			// T2; any other answer returns to the build, where `wf decide --revise` renews the agreement
 			// (#111.4). The question offers only the paths the code takes (N-5): accept, or --revise.
-			const source = `${assessmentSource}#material`;
-			const ruling = (s.answered ?? []).find((q) => q.source === source);
-			if (!ruling) {
-				const q = `the assessment found a material change outside the agreement: ${material}. Answer \`accept\` to carry it into T2, or \`${wf} decide --revise "<the renewed behavior>"\` to renew the agreement (then a fresh T1)`;
+			const source = `${findingSource}#material`;
+			const ruling = (s.answered ?? []).findLast((q) => q.source === source);
+			if (!ruling || (surviving.length && /^\s*accept\b/i.test(ruling.answer ?? ''))) {
+				const q = surviving.length
+					? `the assessment found a material change outside the agreement: ${material} · surviving: ${surviving.join(' · ')} — ${choices}`
+					: `the assessment found a material change outside the agreement: ${material}. Answer \`accept\` to carry it into T2, or \`${wf} decide --revise "<the renewed behavior>"\` to renew the agreement (then a fresh T1)`;
 				effects.push({ ask: { to: 'user', text: q, dflt: null, source } });
 				return act(`wait user: ${q}`);
 			}
@@ -277,11 +290,11 @@ export function nextAction(s: Snapshot): { say: string; effects: Effect[] } {
 		if (verdict === 'blocked') {
 			// Unmet intent or a still-reproducing symptom: never silently passed to T2 (#113.4, #75).
 			// One recorded fix-or-accept ruling, not a question per finding.
-			const source = assessmentSource;
-			const ruling = (s.answered ?? []).find((q) => q.source === source);
-			if (!ruling) {
+			const source = findingSource;
+			const ruling = (s.answered ?? []).findLast((q) => q.source === source);
+			if (!ruling || (surviving.length && /^\s*accept\b/i.test(ruling.answer ?? ''))) {
 				const unmet = (s.files.assessment ?? '').replace(/\r\n/g, '\n').split('\n').filter((l) => /(not met:|differs:|still reproduces:)/i.test(l)).map((l) => l.trim().replace(/^-\s*"[^"]*":\s*/, '')).join(' · ');
-				const q = `fix or accept: ${unmet || 'ASSESSMENT.md is blocked'} — answer \`accept\` to carry it into T2, or say how to fix it`;
+				const q = `fix or ${surviving.length ? 'revise' : 'accept'}: ${unmet || 'ASSESSMENT.md is blocked'}${surviving.length ? ` · surviving: ${surviving.join(' · ')}` : ''} — ${choices}`;
 				effects.push({ ask: { to: 'user', text: q, dflt: null, source } });
 				return act(`wait user: ${q}`);
 			}
@@ -296,10 +309,10 @@ export function nextAction(s: Snapshot): { say: string; effects: Effect[] } {
 			if (attempts >= MAX_REPAIRS) {
 				// The bounded repair ran out: one contextual escalation, recorded so it cannot repeat. An
 				// answer that is not `accept` is a ruling to fix (build); `accept` carries into T2.
-				const source = assessmentSource;
-				const ruling = (s.answered ?? []).find((q) => q.source === source);
-				if (!ruling) {
-					const q = `${MAX_REPAIRS} autonomous repairs did not clear ASSESSMENT.md: read its findings and rule — answer \`accept\` to carry it into T2, or say how to fix it (\`${wf} decide --revise …\` renews the agreement)`;
+				const source = findingSource;
+				const ruling = (s.answered ?? []).findLast((q) => q.source === source);
+				if (!ruling || (surviving.length && /^\s*accept\b/i.test(ruling.answer ?? ''))) {
+					const q = `${MAX_REPAIRS} autonomous repairs did not clear ASSESSMENT.md: read its findings and rule${surviving.length ? ` · surviving: ${surviving.join(' · ')}` : ''} — ${choices} (\`${wf} decide --revise …\` renews the agreement)`;
 					effects.push({ ask: { to: 'user', text: q, dflt: null, source } });
 					return act(`wait user: ${q}`);
 				}
@@ -404,6 +417,7 @@ export function snapshotOf(toplevel: string): Snapshot {
 		folder: state.folder ?? null,
 		filesChanged,
 		checks: checksEvidence(toplevel, state),
+		mergedGap: mergedImplementationGap(toplevel, state),
 	};
 }
 

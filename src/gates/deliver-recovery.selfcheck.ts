@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { trackerNote } from '../project.ts';
-import { approvalIdentity, trackerNotePath } from './content-identity.ts';
+import { approvalIdentity, headContentSha, trackerNotePath } from './content-identity.ts';
 
 const ROOT = mkdtempSync(join(tmpdir(), 'wf-deliver-recovery-'));
 const BRANCH = 'fix/108';
@@ -193,6 +193,8 @@ function attempt(f: Fixture, mode = 'ok') {
 	const r = attempt(f);
 	check('a retry after a completed merge exits clean', r.code === 0, `${r.code}: ${r.out}`);
 	check('…finishes the local step at merged', readState(f).step === 'merged', JSON.stringify(readState(f)));
+	const receipt = readState(f).delivery;
+	check('…records the actual remote PR, merged head and product content for follow-up detection', receipt !== null && typeof receipt === 'object' && 'url' in receipt && receipt.url === PR_URL && 'head' in receipt && receipt.head === f.head && 'contentSha' in receipt && receipt.contentSha === headContentSha(f.work, FOLDER, null, 'row'), JSON.stringify(receipt));
 	check('…writes the tracker note and records it', readState(f).note === NOTE && readFileSync(join(f.work, NOTE), 'utf8').includes(`## BJEW-1`) && readFileSync(join(f.work, NOTE), 'utf8').includes(PR_URL));
 	check('…does not merge a merged PR again', readRemote(f).merge === 1, JSON.stringify(readRemote(f)));
 	check('…does not push the merged branch back', !remoteBranches(f.work).includes(BRANCH), remoteBranches(f.work).join(','));

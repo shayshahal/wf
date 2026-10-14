@@ -37,6 +37,12 @@ active round is silently reinterpreted. These slices are not obsolete `implement
 Verification cases remain working detail, not commit-completion obligations.
 
 One round is one PR to the base branch: CI runs on it, T2 approves it, and it merges with
-`gh pr merge <n> --merge` (a merge commit, not a squash). The round folder merges with it and stays: it is the round's memory. Then
+`gh pr merge <n> --merge` (a merge commit, not a squash). The round folder merges with it and stays: it is the round's memory.
+Further product work starts a fresh branch through `wf new <new-branch> --reopen --class A|B|C
+--id <id>`, with earlier deliveries/rulings linked in `EARLIER.md` and fresh agreement, assessment and
+T2. A merged round refuses workflow mutations, and post/reap is not its next action when product
+content differs from the delivered receipt (or the bound T2 tree on a pre-receipt round). Older
+unbound rounds may post their saved delivery note, but cleanup needs restored original evidence or
+an intentional `WF_FORCE_REAP=1` discard. The installed pre-remove hook enforces the same guard. Then
 `wf step merged` opens the reap gate and `wf reap <branch>` removes the worktree (skills/round/SKILL.md,
 *T2 approved*).

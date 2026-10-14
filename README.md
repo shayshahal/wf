@@ -165,6 +165,16 @@ After a push to `main`, the next `wf` command installs it by itself and prints
 `wf: updated <old> → <new>`. `wf update` fetches first. After changing `env/hook.ts` or the project's
 `setup` steps: `wf hook install` again.
 
+## Follow-up after delivery
+
+A merged round owns one PR. More work on the same ticket starts a fresh branch with
+`wf new <new-branch> --reopen --class A|B|C --id <id>`; `EARLIER.md` links earlier work and rulings,
+not reusable approval. wf preserves the first delivery's identity and refuses to build on its merged
+state. Refresh the ticket/scope and obtain fresh assessment and T2 for the follow-up.
+`WF_FORCE_REAP=1` remains an explicit discard of the worktree and local branch; product changes are
+not archived. Older rounds without a content binding can post their saved note, but cleanup requires
+restored original evidence or that explicit discard.
+
 ## Async round questions
 
 On Shay's entry, `wf inbox` sends open `wf ask` questions addressed to `user` to Plannotator

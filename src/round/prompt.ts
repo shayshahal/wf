@@ -15,12 +15,12 @@ import { anchorToolPaths } from '../plugin/anchor.ts';
 import { seams } from '../seams.ts';
 import { readVerdict } from '../gates/review-format.ts';
 import { basePortForBranch } from '../worktrees/worktree.ts';
-import { agreementFile, agreementPath, agreementSha, assessmentOpenGaps, ASSESSMENT_FILE, caseFiles, consequential, section, TICKET_FILE, verificationCases } from './agreement.ts';
+import { agreementFile, agreementPath, agreementSha, assessmentOpenGaps, assessmentSurviving, ASSESSMENT_FILE, caseFiles, consequential, section, TICKET_FILE, verificationCases } from './agreement.ts';
 import { openQuestionGate, openRevisions, overruledAsks } from './ask.ts';
 import { guidanceSection, notesFor, readNotes } from './guidance.ts';
 import { readState, resolveRoundBase, roundOf, toplevelOf } from './state.ts';
 import { sliceContext } from './build-units.ts';
-import { verificationFixRulings, verificationProofFile } from './assessment-rulings.ts';
+import { assessmentRulingSource, verificationFixRulings, verificationGapsHash, verificationProofFile } from './assessment-rulings.ts';
 import { checksEvidence, suitesGap } from './step.ts';
 
 export function renderPrompt(template: string, vars: Record<string, unknown>) {
@@ -106,6 +106,7 @@ export function composePrompt(argv: string[]) {
 		vars.revisions = [...overruled.map((q) => `- q${q.n}: ${q.text}${q.default ? ` (default: ${q.default})` : ''} → ${q.answer}`), ...revisions.map((r) => `- ${r.text}`)].join('\n');
 	}
 	// build: the verification cases and, after a `repair` assessment, its findings.
+	let agreementRulings = '';
 	let files: string[] = [];
 	if (phase === 'build' || phase === 'assess') {
 		const allCases = verificationCases(agreementText);
@@ -119,6 +120,12 @@ export function composePrompt(argv: string[]) {
 	}
 	if ((phase === 'build' || phase === 'assess') && folder && existsSync(join(toplevel, folder, assessmentFile))) {
 		const a = readFileSync(join(toplevel, folder, assessmentFile), 'utf8');
+		const surviving = assessmentSurviving(a);
+		if (phase === 'build' && surviving.length) {
+			const source = `${assessmentRulingSource(a, context)}#surviving:${verificationGapsHash(surviving)}`;
+			const rulings = (state?.answered ?? []).filter((q) => q.source === source || q.source === `${source}#material`);
+			if (rulings.length) agreementRulings = `\n\n## Agreement mismatch rulings\n\n${rulings.map((q) => `q${q.n}: ${q.text}\nThe person's ruling, verbatim:\n${q.answer ?? '(no answer recorded)'}`).join('\n\n')}`;
+		}
 		const liveGaps = assessmentOpenGaps(a);
 		const suiteGap = suitesGap(checksEvidence(toplevel, state));
 		const open = [...liveGaps, ...(suiteGap ? [suiteGap] : [])];
@@ -146,11 +153,11 @@ export function composePrompt(argv: string[]) {
 	if (existsSync(notes)) template += `\n${readFileSync(notes, 'utf8')}`;
 	if (phase === 'assess') vars.agreementFile = vars.file;
 	const wf = `node ${seams.entry.replace(/\\/g, '/')}`;
-	// #126: anchoring a quoted `wf ...` or tool path would change the person's verbatim ruling.
-	// Anchor the template's instructions, then insert the ruling block without rewriting its words.
+	// #126/#130: anchor template instructions before inserting people's verbatim rulings.
+	// The agreement mismatch block is appended after anchoring for the same reason.
 	const text = template.split('{{verificationRepairs}}')
 		.map((part) => anchorToolPaths(renderPrompt(part, vars).replace(/`wf /g, `\`${wf} `), WF_HOME, projectName))
-		.join(vars.verificationRepairs) + guidanceSection(notesFor(readNotes(toplevel, guidance), files));
+		.join(vars.verificationRepairs) + guidanceSection(notesFor(readNotes(toplevel, guidance), files)) + agreementRulings;
 	return { text, toplevel, state, folder, phase, assessmentFile, n: null, key: phase };
 }
 

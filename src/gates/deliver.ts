@@ -22,7 +22,7 @@ import { openQuestionGate } from '../round/ask.ts';
 import { readVerdict, approvalBinding, approvalContentGap, lastField, reviewScopeBinding } from './review-format.ts';
 import { parseBuildUnits, sliceProgressGap } from '../round/build-units.ts';
 import type { BuildUnitsParse, SliceProgress } from '../round/build-units.ts';
-import { headContentSha, trackerNotePath, worktreeContentSha } from './content-identity.ts';
+import { commitContentSha, headContentSha, trackerNotePath, worktreeContentSha } from './content-identity.ts';
 import type { ContentIdentity } from './content-identity.ts';
 import { readState, resolveRoundBase, roundOf, toplevelOf, writeState } from '../round/state.ts';
 import { runStep } from '../round/step.ts';
@@ -510,7 +510,7 @@ export function existingNoteAction(text: string, noteText: string, ids: string[]
 // refused, not overwritten — those sections may be the only posted copy. A note that is a prefix of
 // the one deliver would write is deliver's own interrupted write and is completed. A failed branch
 // delete is ignored: the branch may already be gone, and the step and the note must still be finished.
-async function finishDelivery({ toplevel, state, folder, ids, url, because }: { toplevel: string; state: State | null; folder: string; ids: string[]; url: string; because: string }) {
+async function finishDelivery({ toplevel, state, folder, ids, url, head, because }: { toplevel: string; state: State | null; folder: string; ids: string[]; url: string; head: string; because: string }) {
 	const note = trackerNote({ ids, url });
 	const rel = `${folder}/${note.file}`;
 	const recorded = state?.note && existsSync(join(toplevel, state.note)) ? state.note : null;
@@ -538,7 +538,10 @@ async function finishDelivery({ toplevel, state, folder, ids, url, because }: { 
 	// out in the person's clone (deliver.ts, the merge). The delete is ignored: the branch may already
 	// be gone.
 	spawnSync('git', ['-C', toplevel, 'push', '-q', 'origin', '--delete', branch], { encoding: 'utf8' });
-	writeState(toplevel, () => ({ note: kept }));
+	// Bind the receipt to the remotely merged commit, never a concurrent local HEAD. A retry after
+	// the receipt but before step merged reasserts this same identity from the remote (#129).
+	const contentSha = commitContentSha(toplevel, head, folder, rel, 'row');
+	writeState(toplevel, () => ({ note: kept, delivery: { url, head, contentSha } }));
 	console.log(`${url} ${because}; tracker note: ${kept}`);
 	await runStep(['merged']);
 }
@@ -643,7 +646,7 @@ export async function runDeliver() {
 		process.exit(2);
 	}
 	if (resume.do === 'finish') {
-		await finishDelivery({ toplevel, state, folder, ids: state?.ids ?? [id], url: resume.url, because: 'was already merged' });
+		await finishDelivery({ toplevel, state, folder, ids: state?.ids ?? [id], url: resume.url, head, because: 'was already merged' });
 		return;
 	}
 	// The round's own base, not the project's base branch (O3, 2026-10-10): a round started with
@@ -736,7 +739,7 @@ export async function runDeliver() {
 	}
 	// A concurrent actor merged this exact commit: finish, as the pre-push lookup would have.
 	if (fresh.kind === 'found' && fresh.state === 'MERGED' && fresh.headRefOid === headNow && fresh.url === prUrl) {
-		await finishDelivery({ toplevel, state, folder, ids: state?.ids ?? [id], url: fresh.url, because: 'was already merged' });
+		await finishDelivery({ toplevel, state, folder, ids: state?.ids ?? [id], url: fresh.url, head: headNow, because: 'was already merged' });
 		return;
 	}
 	if (fresh.kind !== 'found' || fresh.state !== 'OPEN' || fresh.url !== prUrl) {
@@ -765,7 +768,7 @@ export async function runDeliver() {
 		process.exit(1);
 	}
 	// Every --id the round was made with: a round on subitems has one note per subitem (TJEW-670).
-	await finishDelivery({ toplevel, state, folder, ids: state?.ids ?? [id], url: prUrl, because: 'merged' });
+	await finishDelivery({ toplevel, state, folder, ids: state?.ids ?? [id], url: prUrl, head: headNow, because: 'merged' });
 }
 
 if (process.argv[1]?.endsWith('deliver.ts')) await runDeliver();
