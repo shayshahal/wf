@@ -24,6 +24,15 @@ setup gap within the agreement, use `Verdict: repair` and keep the affected Inte
 until the build records and drives the scenario consistently. A consistent setup → run → reset
 record remains usable evidence; judge what it supports rather than merely paraphrasing its PASS.
 
+`wf check` records each red-base ("before") run in `.wf/checks.log`: the `baseline` object names the
+baseline commit, command, named assertion, test/fixture inputs, run environment and implementation
+bytes it measured, and `evidence` is the runner's own report. When a referenced before measurement is
+already recorded there with the current implementation `content` and the verdict the case needs
+(`behavioral-failure`, or `passed` for a `refactor:` case), cite that run: a fresh assessment does not
+make an already-measured before side unmeasured, and a recorded `reused: true` line is the same
+measurement re-emitted, not a new one. Raise `NOT MEASURED` only for a before side no recorded run
+covers.
+
 Before counting a case as proof, inspect its selected test and named assertion against the case's
 behavioral claim. Defect proof must fail at that behavioral assertion on baseline and pass with the
 change; preservation (`refactor:`) must be green on both sides. A failure caused by a newly introduced

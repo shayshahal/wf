@@ -21,6 +21,19 @@
 - The repro is spec files in `{{folder}}/repro/`, nothing else. Its command: the verification skill's
   `docs/agents/verify-jewelryx/repro.config.ts`, else `{{folder}}/repro/playwright.config.ts`.
   `## Repro` carries `command: pnpm --dir verification exec playwright test -c ../<that config> ../{{folder}}/repro`.
+- A named repro case points its check cell at one repro spec (`refactor:` for unchanged behavior,
+  otherwise `path@line`): `bug-reports/<round>/repro/slider.spec.ts::old slider@42`. `wf check` runs it
+  as a stack playwright case with the same config, from `verification/`, with the JSON reporter — so a
+  red-base run measures that round repro on the baseline, not the whole suite. `check: repro` still
+  runs every repro spec.
+- A repro spec imports only what this checkout's runner supports for a spec outside `verification/`.
+  `docs/agents/testing.md` ("Specs outside `verification/`") is the authority, not the presence of a
+  config file. When that checkout can load the project's shared support helpers
+  (`verification/tests/support/`: `api`, `orders`, `marketplace`, `fixtures`, `env`), reuse them for
+  login, actors, scenario setup and guarded navigation instead of copying a login or setup into the
+  round; the config logs the three seed roles in, so the spec holds only the defect's own steps. When
+  it cannot (an older base, or a config whose runtime does not load the helpers' ESM), the spec stays
+  self-contained: `@playwright/test` and `node:*` only.
 - On a `fix/*` or `feat/*` branch no case lists a file under `verification/` or `JewelryX-Tools/`: the
   repo's lefthook `oracle-guard` fails the push of any such branch, and `wf check` refuses it
   (BJEW-617, 2026-10-06). Coverage for it lands via bugs-to-tests / cr-to-tests on a `verification/*`

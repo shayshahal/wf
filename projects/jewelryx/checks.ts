@@ -10,6 +10,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import type { CheckTarget, CheckTask } from '../../src/gates/check.ts';
+import { REPRO_CONFIG } from './round.ts';
 
 // ── the oracle guard ─────────────────────────────────────────────────────────
 
@@ -64,16 +65,44 @@ export function selectorLiteral(id: string, anchored = false): string {
 	return anchored ? `^${escaped}$` : escaped;
 }
 
+// The config a named round-repro spec runs with, relative to the `verification` cwd: the project's own
+// repro config when this checkout has it, else the per-round fallback `wf new` writes. This is the same
+// config the agreement's `## Repro` command names, so a named case and `check: repro` measure alike.
+export function roundReproConfigArg(toplevel: string, folder: string): string {
+	return existsSync(join(toplevel, REPRO_CONFIG)) ? `../${REPRO_CONFIG}` : `../${folder}/repro/playwright.config.ts`;
+}
+
+// The runtime config a named round-repro spec needs beside it in the isolated baseline scratch. The
+// route runs the spec with the shared skill config when the checkout has it, else the per-round
+// fallback `wf new` writes (roundReproConfigArg). That fallback exists in the LIVE worktree only — it
+// is generated, never in the base commit — so the before side would have no config and the runner
+// fails before the spec loads (review: an older base without `REPRO_CONFIG`). The shared config's
+// global setup and tsconfig carry the same kind of runtime need (the aliases a spec imports by name),
+// so an older base, or one whose tooling differs, still gets them. These are copied into the scratch
+// and hashed with the spec; they are the runner's own inputs, never the row's implementation.
+// `isTestInput` deliberately does not cover them: they are the oracle, shared at the base, and must
+// resolve from the base — a round-folder fallback is the one generated exception. Empty for any other
+// check target, so a vitest or pytest cell copies nothing extra.
+export function roundReproRuntimeInputs(toplevel: string, testPath: string | null, folder: string | null): string[] {
+	const test = (testPath ?? '').replace(/\\/g, '/');
+	if (!folder || !/^bug-reports\/[^/]+\/repro\/[^/]+\.spec\.[cm]?[jt]s$/.test(test)) return [];
+	const dir = dirname(REPRO_CONFIG).replace(/\\/g, '/');
+	const files = existsSync(join(toplevel, REPRO_CONFIG))
+		? [REPRO_CONFIG, `${dir}/repro-global-setup.ts`, `${dir}/tsconfig.json`]
+		: [`${folder.replace(/\\/g, '/')}/repro/playwright.config.ts`, `${folder.replace(/\\/g, '/')}/repro/global-setup.ts`];
+	return files.filter((f) => existsSync(join(toplevel, f)));
+}
+
 // Pure: the commands to run, in order. `pkgFor(file)` returns { name, dir, svelte } for a frontend
 // file or null; `target` is the plan row's check cell (its repo-relative test path, the intended test
 // id and assertion line, and whether the row is a `refactor:`) or null; `pushHook`: the repo has a
 // lefthook.yml; `onDisk(file)`: the file is still there (not deleted by the diff).
 // `oracleTouched`: the oracle files the working tree differs from the base in, on a fix/ or feat/
 // branch (index.ts), else empty.
-export function checkTasks({ changed, target, pkgFor, pushHook = false, onDisk = () => true, stackEnv = {}, oracleTouched = [] }: { changed: string[]; target: CheckTarget | null; pkgFor: PkgFor; pushHook?: boolean; onDisk?: (file: string) => boolean; stackEnv?: Record<string, string>; oracleTouched?: string[] }): CheckTask[] {
+export function checkTasks({ toplevel = '', changed, target, pkgFor, pushHook = false, onDisk = () => true, stackEnv = {}, oracleTouched = [] }: { toplevel?: string; changed: string[]; target: CheckTarget | null; pkgFor: PkgFor; pushHook?: boolean; onDisk?: (file: string) => boolean; stackEnv?: Record<string, string>; oracleTouched?: string[] }): CheckTask[] {
 	const oracle = oracleGuardTask(oracleTouched);
 	if (oracle) return [oracle];
-	const tasks = rowTasks({ changed, target, pkgFor, pushHook, stackEnv, onDisk });
+	const tasks = rowTasks({ toplevel, changed, target, pkgFor, pushHook, stackEnv, onDisk });
 	if (!pushHook || !changed.length || tasks.some((t) => t.missing)) return tasks;
 	// What the commit will run, run first: ESLint (lint-kit's Svelte rules, @shadcn/lint) runs only in
 	// pre-commit, so an implementer met it at `git commit`, after wf check had said green (2026-10-04).
@@ -101,7 +130,7 @@ export function checkTasks({ changed, target, pkgFor, pushHook = false, onDisk =
 // A deleted frontend file still puts its package through svelte-check, whose imports it may have broken.
 // The row's own test gets its own task that selects the named test id, so its result is about that one
 // case, not a suite total (#109: `1 passed, 1 skipped` cannot say whether the selected case ran).
-function rowTasks({ changed, target, pkgFor, pushHook, stackEnv, onDisk }: { changed: string[]; target: CheckTarget | null; pkgFor: PkgFor; pushHook: boolean; stackEnv: Record<string, string>; onDisk: (file: string) => boolean }): CheckTask[] {
+function rowTasks({ toplevel, changed, target, pkgFor, pushHook, stackEnv, onDisk }: { toplevel: string; changed: string[]; target: CheckTarget | null; pkgFor: PkgFor; pushHook: boolean; stackEnv: Record<string, string>; onDisk: (file: string) => boolean }): CheckTask[] {
 	const tasks: CheckTask[] = [];
 	const test = target?.file ?? null;
 	const id = target?.id ?? null;
@@ -156,6 +185,13 @@ function rowTasks({ changed, target, pkgFor, pushHook, stackEnv, onDisk }: { cha
 	if (test.startsWith('verification/')) {
 		const local = relative('verification', test).replace(/\\/g, '/');
 		add({ label: `playwright ${test}${id ? ` ${id}` : ''}`, cmd: 'pnpm', args: ['exec', 'playwright', 'test', local, ...(id ? ['-g', selectorLiteral(id)] : []), '--reporter=json'], cwd: 'verification', env: stackEnv, stack: true, redBase: true });
+	} else if (/^bug-reports\/[^/]+\/repro\/[^/]+\.spec\.[cm]?[jt]s$/.test(test)) {
+		// A named round repro (#133 review): the round's own `{{folder}}/repro/x.spec.ts::id`. It is
+		// NOT copied into verification/, so it is run with the project's own repro config (the same the
+		// `## Repro` command uses) from the `verification` cwd, with the JSON reporter so the runner's
+		// report binds the named assertion. `check: repro` (buildTasks) still runs the whole repro.
+		const folder = `bug-reports/${test.split('/')[1]}`;
+		add({ label: `playwright ${test}${id ? ` ${id}` : ''}`, cmd: 'pnpm', args: ['exec', 'playwright', 'test', '-c', roundReproConfigArg(toplevel, folder), `../${test}`, ...(id ? ['-g', selectorLiteral(id)] : []), '--reporter=json'], cwd: 'verification', env: stackEnv, stack: true, redBase: true });
 	} else {
 		// vitest lives in the package, not at the root (TJEW-700 row 3: `Command "vitest" not found`).
 		// The row's own test carries `--reporter=verbose` by id, so the report names the one case that

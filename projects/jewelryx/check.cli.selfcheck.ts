@@ -19,6 +19,7 @@ import { tmpdir } from 'node:os';
 import { delimiter, dirname, join } from 'node:path';
 import { WF_ROOT } from '../../src/paths.ts';
 import { initializeSlices, parseBuildUnits } from '../../src/round/build-units.ts';
+import { runRepro } from '../../src/gates/check.ts';
 
 let failures = 0;
 const check = (name: string, cond: unknown, detail = '') =>
@@ -28,12 +29,12 @@ const check = (name: string, cond: unknown, detail = '') =>
 const stubSource = `// wf check selfcheck's runner stub: a uv that reports pytest's output from a fixture.
 const fs = require('node:fs');
 const args = process.argv.slice(2);
-if (process.env.WF_STUB_COUNT) fs.appendFileSync(process.env.WF_STUB_COUNT, args.join(' ') + '\\n');
-if (process.env.WF_STUB_MUTATE && !fs.existsSync(process.env.WF_STUB_MUTATE)) { fs.writeFileSync(process.env.WF_STUB_MUTATE, '1'); fs.appendFileSync(process.env.WF_STUB_GUARD, '\\n# hook rewrite\\n'); }
+if (process.env.VERIFY_STUB_COUNT) fs.appendFileSync(process.env.VERIFY_STUB_COUNT, (process.env.INJECT_TAG ? 'INJECT=' + process.env.INJECT_TAG + ' ' : '') + args.join(' ') + '\\n');
+if (process.env.VERIFY_STUB_MUTATE && !fs.existsSync(process.env.VERIFY_STUB_MUTATE)) { fs.writeFileSync(process.env.VERIFY_STUB_MUTATE, '1'); fs.appendFileSync(process.env.VERIFY_STUB_GUARD, '\\n# hook rewrite\\n'); }
 if (!args.join(' ').includes('pytest')) process.exit(0); // ruff and the rest are green
-const s = JSON.parse(fs.readFileSync(process.env.WF_STUB_SCENARIO, 'utf8'));
+const s = JSON.parse(fs.readFileSync(process.env.VERIFY_STUB_SCENARIO, 'utf8'));
 let text = '';
-try { text = fs.readFileSync(process.env.WF_STUB_GUARD, 'utf8'); } catch { text = ''; }
+try { text = fs.readFileSync(process.env.VERIFY_STUB_GUARD, 'utf8'); } catch { text = ''; }
 const current = text.includes(s.fixedMarker);
 // A selected test (its argv carries ::<id>) reports that one case; the shared suite reports s.current.
 const id = /::([^\\s]+)/.exec(args.join(' '))?.[1];
@@ -174,7 +175,7 @@ function runCli(scenario: Scenario) {
     const path = scenario.runnerInRepo ? `${join(repo, 'tools')}${delimiter}${toolPath}` : `${stubDir}${delimiter}${process.env.PATH ?? ''}`;
     const run = spawnSync(process.execPath, [join(WF_ROOT, 'wf.mjs'), 'check', ...(scenario.unit ? ['--case', '1'] : [])], {
       cwd: repo,
-      env: { ...gitEnv, PATH: path, WF_STUB_SCENARIO: scenarioPath, WF_STUB_GUARD: product },
+      env: { ...gitEnv, PATH: path, VERIFY_STUB_SCENARIO: scenarioPath, VERIFY_STUB_GUARD: product },
       encoding: 'utf8',
       timeout: 60000,
     });
@@ -381,7 +382,7 @@ function runMultiRow({ suiteRed = false, mutate = false }: { suiteRed?: boolean;
   try {
     const run = spawnSync(process.execPath, [join(WF_ROOT, 'wf.mjs'), 'check'], {
       cwd: repo,
-      env: { ...gitEnv, PATH: `${stubDir}${delimiter}${process.env.PATH ?? ''}`, WF_STUB_SCENARIO: scenarioPath, WF_STUB_GUARD: product, WF_STUB_COUNT: countPath, ...(mutateGuard ? { WF_STUB_MUTATE: mutateGuard } : {}) },
+      env: { ...gitEnv, PATH: `${stubDir}${delimiter}${process.env.PATH ?? ''}`, VERIFY_STUB_SCENARIO: scenarioPath, VERIFY_STUB_GUARD: product, VERIFY_STUB_COUNT: countPath, ...(mutateGuard ? { VERIFY_STUB_MUTATE: mutateGuard } : {}) },
       encoding: 'utf8',
       timeout: 60000,
     });
@@ -407,6 +408,149 @@ const multiChanged = runMultiRow({ mutate: true });
 const ruffCalls = (r: MultiRowResult) => r.calls.filter((c) => c.includes('ruff check')).length;
 check('a task that rewrites the tree invalidates reuse: the next row reruns the shared task on the new bytes', multiChanged.lines[0]?.result === 'changed' && ruffCalls(multiChanged) === 2 && multiChanged.lines.slice(1).every((l) => l.result === 'green'), JSON.stringify({ calls: multiChanged.calls, lines: multiChanged.lines }));
 check('the changed-tree row reruns the shared suite it could not reuse, and the settled tree is shared again', suiteCalls(multiChanged) === 1 && multiChanged.lines.length === 3, JSON.stringify(multiChanged.calls));
+
+// ── wf check --repro: the project's stack env reaches the repro child (no browser, no DB) ────────
+// A repro that imports the project's support helpers reads the round's seed actors and the stack
+// URLs from its process env. The stack is a stand-in (the seam runBrief's selfcheck already uses),
+// and the repro command is a stub that records the env it received and exits green. The stub writes
+// outside the repo: a repro that rewrites the tree is refused by runRepro itself.
+async function runReproEnv(): Promise<Record<string, string> | null> {
+  const repo = mkdtempSync(join(tmpdir(), 'wf-repro-env-'));
+  const seenDir = mkdtempSync(join(tmpdir(), 'wf-repro-seen-'));
+  const seen = join(seenDir, 'env.json');
+  const gitEnv = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('GIT_')));
+  const git = (args: string[]) => {
+    const r = spawnSync('git', args, { cwd: repo, env: gitEnv, encoding: 'utf8' });
+    if (r.status !== 0) throw new Error(`fixture git ${args.join(' ')}: ${r.stderr}`);
+    return r.stdout.trim();
+  };
+  const cwd = process.cwd();
+  try {
+    git(['init', '-q', '-b', 'main']);
+    git(['config', 'user.name', 'wf repro selfcheck']);
+    git(['config', 'user.email', 'wf-repro@example.invalid']);
+    mkdirSync(join(repo, 'bug-reports', 'BJEW-144'), { recursive: true });
+    mkdirSync(join(repo, '.wf'), { recursive: true });
+    writeFileSync(join(repo, 'repro-stub.cjs'), [
+      'try {',
+      "  require('node:fs').writeFileSync(process.env.WF_ENV_OUT, JSON.stringify({ owner: process.env.B2B_OWNER_EMAIL, supplier: process.env.B2B_SUPPLIER_EMAIL, url: process.env.B2B_URL, sentinel: process.env.WF_SELFCHECK_SENTINEL }));",
+      '} catch (e) { console.error(e); }',
+      '',
+    ].join('\n'));
+    writeFileSync(join(repo, '.verify-stack.env'), 'B2B_URL=http://localhost:11111\nAPI_URL=http://127.0.0.1:11112/api/v1\nWF_SELFCHECK_SENTINEL=from-selfcheck\n');
+    writeFileSync(join(repo, 'bug-reports', 'BJEW-144', 'TICKET.md'), ['# BJEW-144', '', '## Intent', '', '- env reaches the repro', '', '## Repro', 'command: node repro-stub.cjs', ''].join('\n'));
+    writeFileSync(join(repo, '.wf', 'state.json'), `${JSON.stringify({ wf_version: 2, id: 'BJEW-144', folder: 'bug-reports/BJEW-144', base: 'main', step: 'build', class: 'A' })}\n`);
+    git(['add', '.']);
+    git(['commit', '-qm', 'base']);
+    process.chdir(repo);
+    process.env.WF_ENV_OUT = seen;
+    await runRepro({ stack: async () => 'wf serve: stand-in (no server started)' });
+    return existsSync(seen) ? JSON.parse(readFileSync(seen, 'utf8')) as Record<string, string> : null;
+  } finally {
+    delete process.env.WF_ENV_OUT;
+    process.chdir(cwd);
+    rmSync(repo, { recursive: true, force: true });
+    rmSync(seenDir, { recursive: true, force: true });
+  }
+}
+
+const reproSeen = await runReproEnv();
+check('wf check --repro spawns the repro with the round seed actors and .verify-stack.env, no browser or DB', reproSeen?.owner === 'buyer@seed.jewelryx' && reproSeen?.supplier === 'seller@seed.jewelryx' && reproSeen?.url === 'http://localhost:11111' && reproSeen?.sentinel === 'from-selfcheck', JSON.stringify(reproSeen));
+
+// ── #133: a validated red-base proof is reused across paperwork; a changed fixture is not ─────
+// The observed failure (JX-1069): a later assessment discarded an existing before-the-fix
+// measurement and asked for another run, and each run swapped the fix out of the live worktree. The
+// same `wf check` on the same implementation, with only the round's assessment paperwork changed,
+// must reuse the recorded red-base proof (its runner verdict and all its bound inputs): the stub
+// counts its `pytest …::test_bug` invocations, once with the change and once reverted. Changed
+// paperwork does not re-run; a changed round-folder fixture in the case's `files` does.
+type ReuseStep = { env?: Record<string, string>; before?: (ctx: { folder: string; fixture: string }) => void };
+function runReuse(steps: ReuseStep[]): { codes: (number | null)[]; redBase: { reused?: boolean; key?: string }[]; calls: number[]; countLines: string[] } {
+  const repo = mkdtempSync(join(tmpdir(), 'wf-check-reuse-'));
+  const countDir = mkdtempSync(join(tmpdir(), 'wf-check-reuse-count-'));
+  const countPath = join(countDir, 'calls.log');
+  const gitEnv = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('GIT_')));
+  const git = (args: string[]) => {
+    const r = spawnSync('git', args, { cwd: repo, env: gitEnv, encoding: 'utf8' });
+    if (r.status !== 0) throw new Error(`fixture git ${args.join(' ')}: ${r.stderr}`);
+    return r.stdout.trim();
+  };
+  const folder = join(repo, 'bug-reports', 'BJEW-133');
+  const product = join(repo, 'packages', 'backend', 'app', 'pricing.py');
+  const testFile = join(repo, 'packages', 'backend', 'tests', 'test_bug.py');
+  const fixture = join(folder, 'repro', 'fixture.py');
+  try {
+    git(['init', '-q', '-b', 'main']);
+    git(['config', 'user.name', 'wf check selfcheck']);
+    git(['config', 'user.email', 'wf-check@example.invalid']);
+    mkdirSync(join(repo, 'packages', 'backend', 'app'), { recursive: true });
+    mkdirSync(join(repo, 'packages', 'backend', 'tests'), { recursive: true });
+    mkdirSync(join(folder, 'repro'), { recursive: true });
+    writeFileSync(product, 'BROKEN\n');
+    writeFileSync(testFile, 'def test_bug():\n    assert login() == 200\n    assert total() == 120\n');
+    git(['add', '.']);
+    git(['commit', '-qm', 'base']);
+    git(['switch', '-qc', 'round/bug']);
+    writeFileSync(product, 'FIXED\n');
+    writeFileSync(fixture, 'SEED = 1\n');
+    const ticket = [
+      '# BJEW-133 — ticket', '', '## Intent', '', '- reuse the before proof', '',
+      '## Verification', '| # | case | files | check |', '|---|---------|-------|-------|',
+      '| 1 | fix: pricing | `packages/backend/app/pricing.py` `packages/backend/tests/test_bug.py` `bug-reports/BJEW-133/repro/fixture.py` | `packages/backend/tests/test_bug.py::test_bug@3` |', '',
+    ].join('\n');
+    writeFileSync(join(folder, 'TICKET.md'), ticket);
+    mkdirSync(join(repo, '.wf'), { recursive: true });
+    writeFileSync(join(repo, '.wf', 'state.json'), `${JSON.stringify({ wf_version: 2, id: 'BJEW-133', folder: 'bug-reports/BJEW-133', base: 'main', step: 'build', class: 'A' })}\n`);
+    writeFileSync(scenarioPath, JSON.stringify({ fixedMarker: 'FIXED', current: { code: 0, out: passOut }, reverted: { code: 1, out: assertFail } }));
+    const countNow = () => (existsSync(countPath) ? readFileSync(countPath, 'utf8').split('\n').filter((c) => c.includes('::test_bug')).length : 0);
+    const codes: (number | null)[] = [];
+    const calls: number[] = [];
+    for (const step of steps) {
+      step.before?.({ folder, fixture });
+      const before = countNow();
+      const run = spawnSync(process.execPath, [join(WF_ROOT, 'wf.mjs'), 'check'], {
+        cwd: repo,
+        env: { ...gitEnv, PATH: `${stubDir}${delimiter}${process.env.PATH ?? ''}`, VERIFY_STUB_SCENARIO: scenarioPath, VERIFY_STUB_GUARD: product, VERIFY_STUB_COUNT: countPath, ...(step.env ?? {}) },
+        encoding: 'utf8',
+        timeout: 60000,
+      });
+      codes.push(run.status);
+      calls.push(countNow() - before);
+    }
+    const redBase = readFileSync(join(repo, '.wf', 'checks.log'), 'utf8').split('\n').filter(Boolean)
+      .map((l) => JSON.parse(l) as { row?: unknown; tasks?: { label?: string; baseline?: { reused?: boolean; key?: string } }[] })
+      .filter((l) => l.row === 1)
+      .map((l) => l.tasks?.find((t) => t.label?.startsWith('red-base'))?.baseline ?? {});
+    const countLines = existsSync(countPath) ? readFileSync(countPath, 'utf8').split('\n').filter(Boolean) : [];
+    return { codes, redBase, calls, countLines };
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+    rmSync(countDir, { recursive: true, force: true });
+  }
+}
+
+// A fresh assessment session is a different host process: its PWD/session id/`_`/SHLVL differ while
+// the proof's inputs do not. Those must NOT reach the runner nor invalidate (runs 2 and 3 reuse); a
+// genuine change to a bound input (the fixture, run 4) or to a semantic flag (run 5) must re-run.
+const session = { PWD: '/somewhere/else', PI_SESSION_ID: 'fresh-session', _: '/other/node', SHLVL: '9' };
+const reuse = runReuse([
+  {},
+  { env: session },
+  { env: session, before: ({ folder }) => writeFileSync(join(folder, 'ASSESSMENT.md'), '# assessment\nVerdict: clean\n') },
+  { env: session, before: ({ fixture }) => writeFileSync(fixture, 'SEED = 2\n') },
+  { env: { ...session, VERIFY_CHANGED: '1' } },
+  { env: { ...session, INJECT_TAG: 'a' } },
+  { env: { ...session, INJECT_TAG: 'b' } },
+]);
+// Each run's red-base `::test_bug` invocations: a fresh run does the current side + the reverted side
+// (2); a reused run does only the current side (1). Changed session bookkeeping reuses; a changed
+// fixture, a changed VERIFY_* flag and a changed arbitrary (non-VERIFY) flag all re-run.
+check('a fresh session reuses an unchanged proof; a changed fixture or any semantic flag re-runs red-base', reuse.codes.every((c) => c === 0) && JSON.stringify(reuse.calls) === '[2,1,1,2,2,2,2]' && JSON.stringify(reuse.redBase.map((b) => b.reused === true)) === '[false,true,true,false,false,false,false]', JSON.stringify({ codes: reuse.codes, calls: reuse.calls, reused: reuse.redBase.map((b) => b.reused) }));
+check('every red-base run records the identity it measured', reuse.redBase.every((b) => typeof b.key === 'string' && b.key.length > 0), JSON.stringify(reuse.redBase));
+// A non-VERIFY flag is not stripped: it reaches BOTH proof sides (the current-side task and the
+// reverted red-base task each append it), so a changed one is bound and seen.
+const injectedA = reuse.countLines.filter((l) => l.startsWith('INJECT=a') && l.includes('::test_bug')).length;
+check('a non-VERIFY semantic flag reaches both proof sides', injectedA === 2, JSON.stringify(reuse.countLines.filter((l) => l.startsWith('INJECT='))));
 
 rmSync(stubDir, { recursive: true, force: true });
 rmSync(fixtureDir, { recursive: true, force: true });

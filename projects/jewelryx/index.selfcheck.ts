@@ -6,11 +6,14 @@ import { strandedTestDatabases, worktreeDatabase } from './db.ts';
 import { devCommands } from './dev.ts';
 import { includedFiles, sanitizeEnv } from './env.ts';
 import { agreementGap } from '../../src/round/agreement.ts';
-import { checks, directUrls, pageOf, agreementCaseGap, setup, stackUrls, teardown, trackerNote } from './index.ts';
+import { checks, directUrls, pageOf, agreementCaseGap, baselineRunnerEnv, baselineStackEnv, isTestInput, runnerEnv, setup, stackUrls, teardown, trackerNote, verificationStackEnv } from './index.ts';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { WF_ROOT } from '../../src/paths.ts';
+import { basePortForBranch } from '../../src/worktrees/worktree.ts';
+import { environmentDigest } from '../../src/gates/baseline-proof.ts';
 import { installShim, SHIM_CMD, SHIM_SH, REPRO_CONFIG, REPRO_GLOBAL_SETUP, reproConfig, verifyStackEnv, VERIFY_SKILL, writeReproConfig } from './round.ts';
 
 let failures = 0;
@@ -40,6 +43,27 @@ check('setup steps in wt order: env node verify tools db', Object.keys(setup).jo
   rmSync(home, { recursive: true, force: true });
   void SHIM_SH;
 }
+
+// ── the red-base proof's environment (#133 review): ONE curated env, hashed and handed to the runner
+// Host bookkeeping (PWD, PI_*, _, SHLVL) must not reach the runner nor the proof; OS/tool lookups and
+// the test flags must. The isolated merge replaces ONLY the live stack's owned keys with the baseline
+// branch's, and drops a key with no baseline value rather than leaking the live one.
+const ambient = { PATH: '/bin:/usr/bin', HOME: '/home/x', TEMP: '/tmp', PWD: '/a', PI_SESSION: 's1', _: '/bin/node', SHLVL: '2', CLAUDECODE: '1', CI: '1', TZ: 'UTC', VERIFY_ACTORS: 'seed', OTHER: 'x', npm_config_registry: 'https://r', MONGO_URL: 'mongodb://live' } as NodeJS.ProcessEnv;
+const curated = runnerEnv(ambient);
+check('the runner env keeps every non-bookkeeping key (OS/tool config, CI, arbitrary flags) and drops only host/session bookkeeping', curated.PATH === '/bin:/usr/bin' && curated.HOME === '/home/x' && curated.CI === '1' && curated.TZ === 'UTC' && curated.VERIFY_ACTORS === 'seed' && curated.npm_config_registry === 'https://r' && curated.OTHER === 'x' && curated.MONGO_URL === 'mongodb://live' && curated.PWD === undefined && curated.PI_SESSION === undefined && curated._ === undefined && curated.SHLVL === undefined && curated.CLAUDECODE === undefined, JSON.stringify(curated));
+check('baseline stack env is the seed actors and the BASELINE branch\'s URLs, no live port and no DB', (() => { const e = baselineStackEnv('fix/r'); const base = directUrls(basePortForBranch('fix/r')); return e.B2B_OWNER_EMAIL === 'buyer@seed.jewelryx' && e.B2B_URL === base.b2b && e.API_URL === base.api && e.STACK_LOG === undefined && e.B2B_URL !== directUrls(12345).b2b; })());
+const live = directUrls(12345);
+const isolated = baselineRunnerEnv({ ambient, taskEnv: { B2B_URL: live.b2b, ADMIN_URL: live.admin, API_URL: live.api, STACK_LOG: '/live/.wf/logs/dev.log', B2B_OWNER_EMAIL: 'live@x', VERIFY_CUSTOM: 'keep' }, branch: 'fix/r' });
+const baseline = baselineStackEnv('fix/r');
+check('the isolated effective env replaces only the live resource keys, keeps other test config, has no live URL/DB/path', isolated.B2B_URL === baseline.B2B_URL && isolated.API_URL === baseline.API_URL && isolated.B2B_OWNER_EMAIL === baseline.B2B_OWNER_EMAIL && isolated.B2B_OWNER_EMAIL !== 'live@x' && isolated.STACK_LOG === undefined && isolated.MONGO_URL === undefined && isolated.VERIFY_CUSTOM === 'keep' && isolated.OTHER === 'x' && isolated.PATH === '/bin:/usr/bin', JSON.stringify(isolated));
+check('isTestInput names tests, specs, fixtures and verification/, not the implementation', isTestInput('packages/backend/tests/test_bug.py') && isTestInput('packages/backend/tests/support/db.py') && isTestInput('verification/specs/login.spec.ts') && isTestInput('verification/tests/support/login.ts') && isTestInput('packages/frontend/b2b/src/x.spec.ts') && !isTestInput('packages/backend/app/pricing.py') && !isTestInput('packages/frontend/b2b/src/routes/x/+page.svelte'));
+// The proof environment digest: a fresh assessment session's PWD/PI_*/_/SHLVL bookkeeping must not
+// change it, so reuse survives; a changed CI/TZ/tool path must, so the proof is re-measured.
+const envA = { PATH: '/bin', PWD: '/a', PI_SESSION: 's1', _: '/bin/node', SHLVL: '2', CI: '1', TZ: 'UTC' } as NodeJS.ProcessEnv;
+const envB = { PATH: '/bin', PWD: '/b', PI_SESSION: 's2', _: '/other/node', SHLVL: '9', CI: '1', TZ: 'UTC' } as NodeJS.ProcessEnv;
+const envC = { ...envB, CI: '0' };
+const envD = { ...envB, PATH: '/other/bin' };
+check('the proof environment ignores host bookkeeping but binds CI and a tool path', environmentDigest(runnerEnv(envA)) === environmentDigest(runnerEnv(envB)) && environmentDigest(runnerEnv(envA)) !== environmentDigest(runnerEnv(envC)) && environmentDigest(runnerEnv(envA)) !== environmentDigest(runnerEnv(envD)));
 
 // ── pages a reviewer should open
 check('a b2b page, route groups dropped', JSON.stringify(pageOf('packages/frontend/b2b/src/routes/(auth)/login/+page.svelte')) === '{"app":"b2b","path":"b2b/login"}', JSON.stringify(pageOf('packages/frontend/b2b/src/routes/(auth)/login/+page.svelte')));
@@ -90,7 +114,16 @@ const authed = reproConfig({ direct, withAuth: true });
 check('repro config without the skill: no global setup', !/globalSetup|VERIFY_AUTH/.test(bare) && bare.includes("process.env.B2B_URL ??= 'http://localhost:12345'"), bare);
 check('repro config with the skill: global setup, and the saved logins under the gitignored .verify/auth', authed.includes("globalSetup: './global-setup.ts'") && authed.includes("resolve(__dirname, '../../../.verify/auth')"), authed);
 check('the repro files never use import.meta (they sit outside verification/)', ![bare, authed, REPRO_GLOBAL_SETUP].some((t) => t.replace(/^\/\/.*$/gm, '').includes('import.meta')));
-check('global setup logs all three roles in through control-jewelryx auth', REPRO_GLOBAL_SETUP.includes("['buyer', 'seller', 'admin'].map(auth)") && REPRO_GLOBAL_SETUP.includes('docs/agents/verify-jewelryx/control-jewelryx.mjs') && REPRO_GLOBAL_SETUP.includes("'auth', role"));
+// The fallback is a self-contained harness on purpose: it exists only for a base without the
+// project's repro.config.ts, and it bans the project's support helpers (whose import.meta the
+// commonjs package cannot load). A round that reuses them needs the project-owned config.
+check('the legacy fallback config is self-contained by design: it bans the project helpers (import only @playwright/test and node:*)', /import only @playwright\/test and node:\*/.test(bare) && !/verification\/tests\/support/.test(bare), bare);
+const agree = readFileSync(join(WF_ROOT, 'projects', 'jewelryx', 'prompts', 'agree.md'), 'utf8');
+check('the agree prompt reuses the project support helpers only where the checkout\'s runner supports them, and keeps the self-contained fallback', agree.includes('verification/tests/support/') && agree.includes('reuse them') && agree.includes('testing.md') && agree.includes('self-contained'), agree);
+// The first-run baseline save must run alone: `control-jewelryx auth` saves the whole database when
+// none exists yet, and three concurrent saves raced in db_snapshot.py's glob/unlink (a FileNotFoundError
+// on a *.bson). The remaining roles still log in together once the manifest exists (#133 review).
+check('global setup initializes the baseline alone, then logs the remaining roles in parallel through control-jewelryx auth', REPRO_GLOBAL_SETUP.includes("await auth('buyer');") && REPRO_GLOBAL_SETUP.includes("await Promise.all(['seller', 'admin'].map(auth));") && !REPRO_GLOBAL_SETUP.includes("['buyer', 'seller', 'admin'].map(auth)") && REPRO_GLOBAL_SETUP.includes('docs/agents/verify-jewelryx/control-jewelryx.mjs') && REPRO_GLOBAL_SETUP.includes("'auth', role"));
 
 // A base with the verification skill's own repro config gets no per-round files (JewelryX #242).
 const tree = mkdtempSync(join(tmpdir(), 'wf-repro-'));
@@ -105,6 +138,8 @@ rmSync(tree, { recursive: true, force: true });
 // ── wf check's env for a verification/ spec: the stack's URLs and the round seed's actors
 const stackTree = mkdtempSync(join(tmpdir(), 'wf-checks-'));
 writeFileSync(join(stackTree, '.verify-stack.env'), verifyStackEnv(direct, 'dev.log'));
+const vEnv = verificationStackEnv(stackTree);
+check('the verification/repro env carries the round\'s seed actors and the stack URLs', vEnv.B2B_OWNER_EMAIL === 'buyer@seed.jewelryx' && vEnv.B2B_OWNER_PASSWORD === 'seed1234' && vEnv.B2B_SUPPLIER_EMAIL === 'seller@seed.jewelryx' && vEnv.B2B_URL === direct.b2b && vEnv.API_URL === direct.api, JSON.stringify(vEnv));
 const [spec] = checks({ toplevel: stackTree, changed: [], target: { refactor: false, file: 'verification/specs/login-relogin.spec.ts', id: null, line: null } }).filter((t) => t.stack);
 check('a verification spec runs as the seeded owner and supplier, who are in the round database (not verification-owner@)', spec?.env?.B2B_OWNER_EMAIL === 'buyer@seed.jewelryx' && spec.env.B2B_OWNER_PASSWORD === 'seed1234' && spec.env.B2B_SUPPLIER_EMAIL === 'seller@seed.jewelryx' && spec.env.B2B_SUPPLIER_PASSWORD === 'seed1234', JSON.stringify(spec?.env));
 check('and still against the round stack', spec?.env?.B2B_URL === direct.b2b && spec.env.API_URL === direct.api, JSON.stringify(spec?.env));
