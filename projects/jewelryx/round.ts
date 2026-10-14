@@ -1,5 +1,5 @@
 // projects/jewelryx/round.ts — what a new JewelryX round gets besides its folder (index.ts newRound).
-import { existsSync, lstatSync, mkdirSync, rmdirSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, readFileSync, rmdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Origins } from './index.ts';
 
@@ -40,6 +40,33 @@ export function linkVerifySkill(worktree: string): string[] {
 		linked.push(`${dir}/verify-jewelryx`);
 	}
 	return linked;
+}
+
+// The bare command `control-jewelryx` for every agent shell. A shell inherits one PATH for all
+// worktrees, so the shim sits in one PATH folder and finds the worktree from the shell's cwd, then
+// runs that worktree's own copy. 2026-10-14, round jx-1240-1241-1367-auction repair build 1: "isn't
+// on PATH in this shell", live walks skipped.
+export const SHIM_SH = `#!/bin/sh
+top=$(git rev-parse --show-toplevel 2>/dev/null) || { echo "control-jewelryx: not inside a git worktree" >&2; exit 1; }
+cli="$top/${VERIFY_SKILL}/control-jewelryx.mjs"
+[ -f "$cli" ] || { echo "control-jewelryx: $cli not found" >&2; exit 1; }
+exec node "$cli" "$@"
+`;
+export const SHIM_CMD = [
+	'@echo off',
+	'for /f "delims=" %%i in (\'git rev-parse --show-toplevel\') do set "WF_TOP=%%i"',
+	`node "%WF_TOP%/${VERIFY_SKILL}/control-jewelryx.mjs" %*`,
+	'',
+].join('\r\n');
+// The first of `dirs` that exists gets both shims, rewritten only when they differ. Returns the folder, or null.
+export function installShim(dirs: string[]): string | null {
+	const dir = dirs.find((d) => existsSync(d));
+	if (!dir) return null;
+	for (const [file, text] of [['control-jewelryx', SHIM_SH], ['control-jewelryx.cmd', SHIM_CMD]] as const) {
+		const path = join(dir, file);
+		if (!existsSync(path) || readFileSync(path, 'utf8') !== text) writeFileSync(path, text, { mode: 0o755 });
+	}
+	return dir;
 }
 
 // Pure: the stack's direct URLs, for control-jewelryx (it reads .verify-stack.env at the repo root),

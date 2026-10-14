@@ -10,7 +10,6 @@ proof; a `deferred:` line waits for its own unit.
 
 1. Read `docs/agents/verify-jewelryx/SKILL.md` and `features/README.md`, then the feature file for each
    Intent line in scope. Run `control-jewelryx doctor`: a red line there makes every verdict below
-   `control-jewelryx` is not on PATH: run `node docs/agents/verify-jewelryx/control-jewelryx.mjs …` from the worktree root.
    `INCONCLUSIVE`.
 2. For each Intent line in scope, drive the user path on this round's stack (B2B `{{b2b}}`, Admin
    `{{admin}}`) and give it one verdict: `VERIFIED`, `NOT VERIFIED` or `INCONCLUSIVE`. A screen that looks right over

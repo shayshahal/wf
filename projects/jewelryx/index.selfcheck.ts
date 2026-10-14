@@ -11,7 +11,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { REPRO_CONFIG, REPRO_GLOBAL_SETUP, reproConfig, verifyStackEnv, VERIFY_SKILL, writeReproConfig } from './round.ts';
+import { installShim, SHIM_CMD, SHIM_SH, REPRO_CONFIG, REPRO_GLOBAL_SETUP, reproConfig, verifyStackEnv, VERIFY_SKILL, writeReproConfig } from './round.ts';
 
 let failures = 0;
 const check = (name: string, cond: unknown, detail = '') =>
@@ -22,6 +22,24 @@ const direct = directUrls(12345);
 check('direct: B2B on P, admin P+20000, API on 127.0.0.1 at P+10000', direct.b2b === 'http://localhost:12345' && direct.admin === 'http://localhost:32345' && direct.api === 'http://127.0.0.1:22345/api/v1', JSON.stringify(direct));
 check('with no machine names, a person gets the direct addresses, B2B first (wf status probes it)', JSON.stringify(stackUrls({ slug: 's', port: 12345 })) === JSON.stringify(direct) && Object.keys(direct)[0] === 'b2b');
 check('setup steps in wt order: env node verify tools db', Object.keys(setup).join(' ') === 'env node verify tools db', Object.keys(setup).join(' '));
+
+// ── the bare control-jewelryx: a shim that runs the cwd's worktree's own copy
+{
+  const home = mkdtempSync(join(tmpdir(), 'wf-shim-'));
+  const bin = join(home, 'bin');
+  const mk = (n: string) => { const w = join(home, n); mkdirSync(join(w, VERIFY_SKILL), { recursive: true }); execFileSync('git', ['init', '-q', w]); writeFileSync(join(w, VERIFY_SKILL, 'control-jewelryx.mjs'), `console.log('${n}', process.argv.slice(2).join(' '))`); return w; };
+  const a = mk('wt-a'), b = mk('wt-b');
+  check('no PATH folder: no shim, no throw', installShim([join(home, 'missing')]) === null);
+  mkdirSync(bin);
+  check('installs into the first existing folder', installShim([join(home, 'missing'), bin]) === bin && existsSync(join(bin, 'control-jewelryx')) && existsSync(join(bin, 'control-jewelryx.cmd')));
+  check('the .cmd shim is CRLF and passes arguments on', SHIM_CMD.includes('\r\n') && SHIM_CMD.includes('%*'));
+  if (process.platform !== 'win32' || process.env.MSYSTEM) {
+    const run = (cwd: string) => execFileSync('sh', [join(bin, 'control-jewelryx').replaceAll('\\', '/'), 'doctor', 'x'], { cwd, encoding: 'utf8' }).trim();
+    check("bare command in worktree a runs a's copy, in b runs b's", run(a) === 'wt-a doctor x' && run(join(a, VERIFY_SKILL)) === 'wt-a doctor x' && run(b) === 'wt-b doctor x');
+  }
+  rmSync(home, { recursive: true, force: true });
+  void SHIM_SH;
+}
 
 // ── pages a reviewer should open
 check('a b2b page, route groups dropped', JSON.stringify(pageOf('packages/frontend/b2b/src/routes/(auth)/login/+page.svelte')) === '{"app":"b2b","path":"b2b/login"}', JSON.stringify(pageOf('packages/frontend/b2b/src/routes/(auth)/login/+page.svelte')));

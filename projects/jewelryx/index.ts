@@ -15,7 +15,9 @@ import { seams } from '../../src/seams.ts';
 import type { Command, RemovalStep } from '../../src/seams.ts';
 import type { State } from '../../src/round/state.ts';
 import { listWorktrees, mainCheckout } from '../../src/worktrees/worktree.ts';
-import { linkVerifySkill, unlinkCompetingSkills, verifyStackEnv, writeReproConfig } from './round.ts';
+import { homedir } from 'node:os';
+import { delimiter } from 'node:path';
+import { installShim, linkVerifySkill, unlinkCompetingSkills, verifyStackEnv, writeReproConfig } from './round.ts';
 
 // This folder's name: skills, agents and prompts reach its notes as {{project}} (ROUND.md, prompts/<phase>.md).
 export const name: string = 'jewelryx';
@@ -178,6 +180,11 @@ export const setup: Record<string, SetupStep> = {
 		sanitizeWorktreeEnv(worktree, { url: m.database.url({ slug, port }), name: worktreeDatabase(slug) });
 		// The verification skill's CLI finds this checkout's stack here (round.ts VERIFY_SKILL).
 		writeFileSync(join(worktree, '.verify-stack.env'), verifyStackEnv(directUrls(port), join(worktree, '.wf', 'logs', 'dev.log') /* dev.ts writes it */.replace(/\\/g, '/')));
+		// The bare `control-jewelryx` (round.ts SHIM_SH): in a folder of the person's own that is already on PATH.
+		const norm = (p: string) => p.replaceAll('\\', '/').replace(/\/$/, '').toLowerCase();
+		const onPath = (process.env.PATH ?? '').split(delimiter).map(norm);
+		const dir = installShim([join(homedir(), 'bin'), join(homedir(), '.local', 'bin')].filter((d) => onPath.includes(norm(d))));
+		if (!dir) console.warn('wf: no ~/bin or ~/.local/bin on PATH, so `control-jewelryx` is not a bare command; run it as node docs/agents/verify-jewelryx/control-jewelryx.mjs');
 	},
 	node: 'pnpm install --frozen-lockfile && pnpm build:types && pnpm build:data && pnpm build:filters',
 	verify: 'pnpm --dir verification install --ignore-workspace',
