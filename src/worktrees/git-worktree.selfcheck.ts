@@ -7,32 +7,20 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { addWorktree, removalPlan } from './git-worktree.ts';
-import { stragglersStep } from './serve.ts';
-import { hiddenHop, stopServersStep } from './serve.ts';
+import { hiddenHop } from './serve.ts';
 
 let failures = 0;
 const check = (name: string, cond: unknown, detail = '') =>
 	(console.log(cond ? `  ok   ${name}` : `  FAIL ${name}${detail ? ` — ${detail}` : ''}`) as unknown) || (cond || failures++);
 
-check('Windows: taskkill takes the whole tree', stopServersStep(4242, 'win32').args.join(' ') === '/PID 4242 /T /F');
-check('elsewhere: the detached process\'s group gets SIGTERM', stopServersStep(4242, 'darwin').cmd === 'kill' && stopServersStep(4242, 'darwin').args.join(' ') === '-TERM -4242');
 
 const tree = mkdtempSync(join(tmpdir(), 'wf-gw-'));
 const labels = () => removalPlan({ path: tree, slug: 'fix-a' } as Parameters<typeof removalPlan>[0]).map((s) => s.label).join(' → ');
-check('no stack started: teardown before the folder goes, then prune', labels() === 'kill stragglers → drop database → drop stranded test databases → rm -rf worktree → git worktree prune', labels());
+check('no stack started: teardown before the folder goes, then prune', labels() === 'stop owned servers → drop database → drop stranded test databases → rm -rf worktree → git worktree prune', labels());
 mkdirSync(join(tree, '.wf'));
 writeFileSync(join(tree, '.wf', 'serve.pid'), '31337\n');
-check('a stack started: it stops first', labels().startsWith('stop servers → kill stragglers → drop database'), labels());
-check('the stop names the recorded pid', removalPlan({ path: tree, slug: 'fix-a' } as Parameters<typeof removalPlan>[0])[0].args!.includes(process.platform === 'win32' ? '31337' : '-31337'));
-check('the folder goes in-process, no path through the shell', removalPlan({ path: tree, slug: 'fix-a' } as Parameters<typeof removalPlan>[0]).filter((s) => s.label !== 'kill stragglers').every((s) => !s.args?.includes(tree)));
-const sweep = Buffer.from(stragglersStep('C:/wt/fix-a', 4242, 'win32').args[2], 'base64').toString('utf16le');
-// 2026-10-12: portless starts an app as cmd -> portless -> mise -> app; the first three name the
-// worktree only as their working directory, so the command-line match alone left them holding
-// fix/jx-810's folder after its round merged. The cwd arm is what reaches them.
-check('the sweep matches both path spellings and spares reap itself', sweep.includes('C:/wt/fix-a') && sweep.includes(String.raw`C:\wt\fix-a`) && sweep.includes('-ne 4242'), sweep);
-check('the sweep reads each process\'s working directory too (the portless launcher names the worktree nowhere else)', /WfCwdOf \$_.ProcessId/.test(sweep) && sweep.includes('WfHolds $cwd $_.CommandLine'), sweep);
-check('the sweep covers the portless launchers, not only node and python', ['portless.exe', 'mise.exe', 'cmd.exe'].every((n) => sweep.includes(n)), sweep);
-check('elsewhere: pkill on the path, no portless names', stragglersStep('/wt/fix-a', 1, 'darwin').args.join(' ') === '-f /wt/fix-a');
+check('a stack started: it stops first', labels().startsWith('stop owned servers → drop database'), labels());
+check('cleanup verifies ownership in-process rather than handing a raw PID or path to a kill command', Boolean(removalPlan({ path: tree, slug: 'fix-a' } as Parameters<typeof removalPlan>[0])[0].run));
 rmSync(tree, { recursive: true, force: true });
 
 // A base git cannot check out (a git~1 entry: invalid path on every platform) fails the add after

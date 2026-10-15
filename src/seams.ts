@@ -5,6 +5,7 @@
 // 2026-09-27). The kit never imports an env; it only reads what was plugged in here.
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
+import { snapshotProcesses, killOwnedProcesses } from './process-tree.ts';
 import { WF_ROOT } from './paths.ts';
 import { CLAUDE_CODE_MODELS } from './models.ts';
 import type { Models } from './models.ts';
@@ -16,7 +17,7 @@ import type { QuestionReply } from './round/state.ts';
 export type RemovalStep = { label: string } & (
 	| { cmd: string; args: string[]; env?: Record<string, string>; rm?: never; run?: never }
 	| { rm: string; cmd?: never; args?: never; env?: never; run?: never }
-	| { run: () => unknown; cmd?: never; args?: never; env?: never; rm?: never }
+	| { run: () => unknown | Promise<unknown>; cmd?: never; args?: never; env?: never; rm?: never }
 );
 export type Worktree = { path: string; branch: string | null };
 export type ReviewUI = {
@@ -36,6 +37,8 @@ export type Command = (argv: string[]) => unknown;
 export type GhResult = { status: number | null; stdout: string; stderr: string };
 export type Gh = (args: string[], cwd: string) => GhResult;
 export type Seams = {
+	/** Machine process probes must distinguish unavailable inventory from absence. */
+	processes: { snapshot: typeof snapshotProcesses; kill: typeof killOwnedProcesses };
 	entry: string;
 	madeBy: string;
 	createWorktree: ((o: { branch: string; base: string; log: string }) => Worktree | Promise<Worktree>) | null;
@@ -54,6 +57,7 @@ export type Seams = {
 };
 
 export const seams: Seams = {
+	processes: { snapshot: snapshotProcesses, kill: killOwnedProcesses },
 	// The wf.mjs every child process and prompt runs: the entry that started this one.
 	entry: join(WF_ROOT, 'wf.mjs'),
 	// Whose wf this is, recorded in each round it makes (state.ts entryGap): 'kit', or the env's name.

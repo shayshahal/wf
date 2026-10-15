@@ -278,7 +278,12 @@ function attempt(f: Fixture, mode = 'ok') {
 	const r = attempt(f);
 	check('a round whose base is main (origin/dev absent) delivers', r.code === 0 && readState(f).step === 'merged' && readRemote(f).create === 1 && readRemote(f).merge === 1, `${r.code}: ${r.out}`);
 	check('…the merged branch is deleted, not left pushed', !remoteBranches(f.work).includes(BRANCH), remoteBranches(f.work).join(','));
+	// A worker died after signalling cleanup but before clearing ownership. Delivery is already
+	// merged; a fresh worker must finish that release without another remote mutation (#154).
+	writeFileSync(join(f.work, '.wf', 'serve.pid'), '2000000000');
+	writeFileSync(join(f.work, '.wf', 'serve-owner.json'), JSON.stringify({ token: 'interrupted-delivery', state: 'releasing', processes: [{ pid: 2000000000, parent: 1, born: '2026-10-15T10:00:00Z' }] }));
 	const again = attempt(f);
+	check('a fresh delivery worker confirms an interrupted cleanup and clears its ownership', !existsSync(join(f.work, '.wf', 'serve.pid')) && !existsSync(join(f.work, '.wf', 'serve-owner.json')), `${again.code}: ${again.out}`);
 	check('…a retry neither creates a second PR nor merges again', again.code === 2 && readRemote(f).create === 1 && readRemote(f).merge === 1 && /already merged/.test(again.out), `${again.code}: ${again.out}`);
 }
 {

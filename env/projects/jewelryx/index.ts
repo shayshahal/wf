@@ -73,12 +73,9 @@ function startProxyFromHome() {
 export const pieces = {
 	secretsFrom: () => SECRETS,
 	names: stackNames,
-	// Only serve calls this (projects/jewelryx/index.ts serve), so the proxy starts when servers do.
-	servers: (slug: string) => {
-		const servers = portlessServers(slug);
-		if (servers) startProxyFromHome();
-		return servers;
-	},
+	// Shared proxy acquisition precedes the detached server owner; releasing one round cannot own it.
+	prepareServe: () => { if (process.env.PORTLESS !== '0') startProxyFromHome(); },
+	servers: portlessServers,
 	// portless prune drops the routes whose server died with the worktree; CI=1 keeps it from prompting.
 	teardown: ({ slug }) => [oldContainer(slug), { label: 'portless prune', cmd: 'portless', args: ['prune'], env: { CI: '1' } }],
 } satisfies Partial<Machine>;

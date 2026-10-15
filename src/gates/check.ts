@@ -42,7 +42,8 @@
 // green|red, and a red's `cause`: `environment` when no task ran at all). The assessment agent reads
 // that, never the commit message: "the check was run"
 // is then observed, not claimed (llm-as-a-verifier: trust observed output, not narration).
-import { execFileSync, spawn, spawnSync } from 'node:child_process';
+import { runCheckProcess } from './check-process.ts';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { baseBranch, baselineRunnerEnv, checks, isTestInput, redBaseEvidence, reproFailure, roundReproRuntimeInputs, runnerEnv, suites, verificationStackEnv } from '../project.ts';
@@ -245,11 +246,7 @@ export function withFixReverted<T>(toplevel: string, paths: string[], run: () =>
 		}
 		for (const path of paths.filter((p) => !present.includes(p))) rmSync(join(toplevel, path), { force: true });
 	};
-	try {
-		// A committed unit is compared with its starting commit, keeping its prerequisite units intact.
-		if (base !== 'HEAD') restore(base);
-		return run();
-	} finally {
+	const cleanup = () => {
 		if (base !== 'HEAD') restore('HEAD');
 		// A clean committed slice creates no stash. Never pop a stash belonging to earlier work.
 		if (ownStash) {
@@ -259,7 +256,18 @@ export function withFixReverted<T>(toplevel: string, paths: string[], run: () =>
 				process.exit(1);
 			}
 		}
-	}
+	};
+	try {
+		if (base !== 'HEAD') restore(base);
+		const result = run();
+		if (result instanceof Promise) {
+			// SAFETY: finally preserves the Promise's value; generic T is that same Promise type.
+			return result.finally(cleanup) as T;
+		}
+		cleanup();
+		return result;
+	} catch (error) { cleanup(); throw error; }
+
 }
 
 // `command: <line>` under `## Repro` in the round agreement (TICKET.md for class A, AGREEMENT.md for B/C).
@@ -478,7 +486,7 @@ export async function runRepro({ stack = ensureServers }: { stack?: typeof ensur
 	const runs: ReproRun[] = [];
 	const env = { ...runnerEnv(process.env), ...verificationStackEnv(toplevel) };
 	for (let i = 1; i <= REPRO_RUNS; i++) {
-		const run = spawnSync(cmd, shellArgv(args), { cwd: toplevel, encoding: 'utf8', shell: process.platform === 'win32', env, maxBuffer: RUN_MAX_BUFFER });
+		const run = await runCheckProcess(cmd, shellArgv(args), { worktree: toplevel, cwd: toplevel, shell: process.platform === 'win32', env, maxBuffer: RUN_MAX_BUFFER });
 		const output = `${run.stdout ?? ''}${run.stderr ?? ''}`;
 		// A red counts only if it is a framework assertion inside the repro's own files: a crash, a
 		// generic Error, or a runner wf cannot read never measured the defect (#109 review).
@@ -656,7 +664,7 @@ export async function runCheck(argv: string[] = [], shared: SharedTaskCache = ne
 		let run: { status: number | null; stdout?: string | null; stderr?: string | null };
 		if (reused) run = { status: reused.status, stdout: reused.output, stderr: '' };
 		else {
-			run = spawnSync(task.cmd!, shellArgv(task.args!), { cwd: join(toplevel, task.cwd!), env: { ...runnerEnv(process.env), ...task.env }, encoding: 'utf8', shell: process.platform === 'win32', maxBuffer: RUN_MAX_BUFFER });
+			run = await runCheckProcess(task.cmd!, shellArgv(task.args!), { worktree: toplevel, cwd: join(toplevel, task.cwd!), env: { ...runnerEnv(process.env), ...task.env }, shell: process.platform === 'win32', maxBuffer: RUN_MAX_BUFFER });
 			if (key) {
 				const after = contentOf(toplevel, folder);
 				if (after === content) shared.set(key, { status: run.status, output: `${run.stdout ?? ''}${run.stderr ?? ''}` });
@@ -790,7 +798,7 @@ export async function runCheck(argv: string[] = [], shared: SharedTaskCache = ne
 					evidenceRoot = scratch.path;
 					// The scratch gets the BASELINE root's stack env, never the live ports or database, and
 					// exactly the object the proof bound above.
-					run = spawnSync(redTask.cmd!, shellArgv(redTask.args!), { cwd: join(scratch.path, redTask.cwd!), env: effectiveEnv, encoding: 'utf8', shell: process.platform === 'win32', maxBuffer: RUN_MAX_BUFFER });
+					run = await runCheckProcess(redTask.cmd!, shellArgv(redTask.args!), { worktree: scratch.path, cwd: join(scratch.path, redTask.cwd!), env: effectiveEnv, shell: process.platform === 'win32', maxBuffer: RUN_MAX_BUFFER });
 				} catch (e) {
 					run = e as Error;
 				} finally {
@@ -809,9 +817,9 @@ export async function runCheck(argv: string[] = [], shared: SharedTaskCache = ne
 			} else {
 				// The stash dance restores the working change whatever the run does; a failure to stash or pop
 				// is the environment, never a green.
-				run = (() => {
+				run = await (async () => {
 					try {
-						return withFixReverted(toplevel, revert, () => spawnSync(redTask.cmd!, shellArgv(redTask.args!), { cwd: join(toplevel, redTask.cwd!), env: effectiveEnv, encoding: 'utf8', shell: process.platform === 'win32', maxBuffer: RUN_MAX_BUFFER }), redBaseRef);
+						return await withFixReverted(toplevel, revert, () => runCheckProcess(redTask.cmd!, shellArgv(redTask.args!), { worktree: toplevel, cwd: join(toplevel, redTask.cwd!), env: effectiveEnv, shell: process.platform === 'win32', maxBuffer: RUN_MAX_BUFFER }), redBaseRef);
 					} catch (e) {
 						return e as Error;
 					}
@@ -908,15 +916,11 @@ export async function runSuites() {
 	const base = git('merge-base', state?.base ?? `origin/${baseBranch}`, 'HEAD');
 	const picked = suites(git('diff', '--name-only', base, 'HEAD').split('\n').filter(Boolean));
 	const start = Date.now();
-	const step = (task: CheckTask) => new Promise<{ label: string; exit: number | null; output: string }>((resolve) => {
-		if (task.cmd === undefined) return resolve({ label: task.label, exit: null, output: task.missing });
-		const child = spawn(task.cmd, shellArgv(task.args), { cwd: join(toplevel, task.cwd), env: { ...runnerEnv(process.env), ...task.env }, shell: process.platform === 'win32', windowsHide: true });
-		let output = '';
-		child.stdout.on('data', (d) => { output += d; });
-		child.stderr.on('data', (d) => { output += d; });
-		child.on('error', (e) => resolve({ label: task.label, exit: null, output: `${output}${e.message}` }));
-		child.on('close', (exit) => resolve({ label: task.label, exit, output }));
-	});
+	const step = async (task: CheckTask) => {
+		if (task.cmd === undefined) return { label: task.label, exit: null, output: task.missing };
+		const result = await runCheckProcess(task.cmd, shellArgv(task.args), { worktree: toplevel, cwd: join(toplevel, task.cwd), env: { ...runnerEnv(process.env), ...task.env }, shell: process.platform === 'win32', maxBuffer: RUN_MAX_BUFFER });
+		return { label: task.label, exit: result.status, output: result.stdout + result.stderr };
+	};
 	// A suite's steps in order, stopping at the first red one, which then names the suite's result.
 	const contentStart = contentOf(toplevel, folder);
 	const runs = await Promise.all(picked.map(async (steps) => {

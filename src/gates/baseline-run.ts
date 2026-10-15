@@ -27,7 +27,7 @@
 // ref it did not make. `remove()` deletes only the branch and worktree this run created.
 import { execFileSync, spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { closeSync, copyFileSync, existsSync, lstatSync, mkdirSync, openSync, readFileSync, rmSync, writeSync } from 'node:fs';
+import { closeSync, copyFileSync, existsSync, lstatSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync, writeSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { createWorktree, listWorktrees, removalPlan, resolveWorktree, slugForBranch } from '../worktrees/worktree.ts';
 import { runRemovalStep } from '../worktrees/removal.ts';
@@ -58,16 +58,18 @@ export function scratchBranchFor(toplevel: string): string {
  * lock, on every path (a clean teardown, a throwing removalPlan, a repeated `remove()`). */
 async function removeScratch({ toplevel, branch, path, slug, lock }: { toplevel: string; branch: string; path: string | null; slug: string; lock: ScratchLock }): Promise<string[]> {
 	const failures: string[] = [];
+	const recovery = join(commonGitDir(toplevel), `wf-baseline-${slug}.recovery.json`);
 	try {
 		let worktree = path;
 		if (!worktree) {
 			try { worktree = resolveWorktree(branch, listWorktrees(toplevel)).path; } catch { /* createWorktree never made one: nothing on disk to remove */ }
 		}
 		if (worktree) {
+			writeFileSync(recovery, JSON.stringify({ branch, path: worktree, token: lock.token }));
 			try {
 				for (const step of await removalPlan({ branch, path: worktree, slug, pid: process.pid })) {
-					const outcome = runRemovalStep(step);
-					if (!outcome.ok) failures.push(outcome.say);
+					const outcome = await runRemovalStep(step);
+					if (!outcome.ok) { failures.push(outcome.say); break; }
 					console.error(`baseline scratch: ${outcome.say}`);
 				}
 			} catch (e) {
@@ -80,13 +82,15 @@ async function removeScratch({ toplevel, branch, path, slug, lock }: { toplevel:
 		}
 		// The branch did not exist before this run (startBaselineScratch refused otherwise, under the lock),
 		// so it is ours.
-		spawnSync('git', ['-C', toplevel, 'branch', '-D', branch], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+		if (!failures.length) spawnSync('git', ['-C', toplevel, 'branch', '-D', branch], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
 		if (spawnSync('git', ['-C', toplevel, 'show-ref', '--verify', '--quiet', `refs/heads/${branch}`]).status === 0) failures.push(`the scratch branch ${branch} is still there`);
 	} finally {
 		// Exactly once, and only this run's lock: a second release (the caller's outer finally repeats it
 		// after the catch) or a release after another run reacquired the lock is a no-op.
 		lock.release();
 	}
+	if (!failures.length) rmSync(recovery, { force: true });
+	else if (existsSync(recovery)) failures.push(`scratch recovery path retained in ${recovery}`);
 	return failures;
 }
 
@@ -194,8 +198,10 @@ export async function startBaselineScratch({ toplevel, branch, ref, probeFiles, 
 		// Never delete a ref this run did not make; refuse and name it with the recovery.
 		if (spawnSync('git', ['-C', toplevel, 'show-ref', '--verify', '--quiet', `refs/heads/${branch}`]).status === 0) {
 			let at = '';
+			const recovery = join(commonGitDir(toplevel), `wf-baseline-${slug}.recovery.json`);
+			if (existsSync(recovery)) at = ` (recovery record ${recovery})`;
 			try { at = ` at ${resolveWorktree(branch, listWorktrees(toplevel)).path}`; } catch { /* the branch exists with no worktree on disk */ }
-			const recover = at ? `git worktree remove --force${at.slice(3)} && ` : '';
+			const recover = at.startsWith(' at ') ? `git worktree remove --force${at.slice(3)} && ` : '';
 			throw new Error(`the baseline scratch branch ${branch} already exists${at} — a crash's leftover. wf will not delete a ref it did not make; inspect it (git worktree list) and remove it yourself (${recover}git branch -D ${branch}) before retrying`);
 		}
 		mkdirSync(dirname(log), { recursive: true });

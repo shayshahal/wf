@@ -7,7 +7,7 @@ import { closeSync, openSync, readFileSync } from 'node:fs';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { setup, teardown } from '../project.ts';
 import type { RemovalStep, Seams, Worktree } from '../seams.ts';
-import { servePid, stopServersStep, stragglersStep } from './serve.ts';
+import { stopWorktreeServers } from './serve.ts';
 import { basePortForBranch, excludeFromGit, excludeWfFolder, listWorktrees, slugForBranch, worktreesHome } from './worktree.ts';
 
 // The project's setup steps all at once, as worktrunk runs them: a command runs in a shell, its
@@ -60,13 +60,12 @@ export async function createWorktree({ branch, base, log }: Parameters<NonNullab
 // Pure but for the pid file: the ordered steps. The project's teardown runs before the folder goes:
 // dropping the database takes the worktree's own python. No `git worktree remove`: rm and prune do
 // the same without a path through the shell reap runs commands in.
-export function removalPlan({ path, slug, pid: self }: Pick<Parameters<NonNullable<Seams['removalPlan']>>[0], 'path' | 'slug' | 'pid'>): RemovalStep[] {
-	const pid = servePid(path);
+export function removalPlan({ path, slug }: Pick<Parameters<NonNullable<Seams['removalPlan']>>[0], 'path' | 'slug' | 'pid'>): RemovalStep[] {
 	return [
-		...(pid ? [stopServersStep(pid)] : []),
-		// Whatever else still runs from the tree (a `wf show` window's daemon, BJEW-562): its folder
-		// cannot go while it does. `self`: reap's own pid, spared.
-		stragglersStep(path, self),
+		{ label: 'stop owned servers', run: async () => {
+			const result = await stopWorktreeServers(path);
+			if (result.kind === 'refused') throw new Error(result.why);
+		} },
 		...teardown({ slug, worktree: path }),
 		{ label: 'rm -rf worktree', rm: path },
 		{ label: 'git worktree prune', cmd: 'git', args: ['worktree', 'prune'] },

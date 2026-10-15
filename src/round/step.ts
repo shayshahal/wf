@@ -28,6 +28,8 @@ import { initializeSlices, parseBuildUnits, sliceContext } from './build-units.t
 import { verificationCases } from './agreement.ts';
 import { assessmentContentSha, verificationFixRulings, verificationProofGap } from './assessment-rulings.ts';
 import { deliveredCommandGap } from './delivered-round.ts';
+import { shouldStopRoundServers } from './round-servers.ts';
+import { stopWorktreeServers } from '../worktrees/serve.ts';
 
 // #138: judge root proof files at both handoffs, while the capture's owner can still repair it.
 function proofHandoffGap(toplevel: string, state: State): string | null {
@@ -288,6 +290,12 @@ export async function runStep(argv: string[], { quiet = false } = {}) {
 		if (!(e instanceof StepGateError)) throw e;
 		console.error(`wf step ${step}: ${e.message}`);
 		process.exit(2);
+	}
+	if (shouldStopRoundServers({ step: state.step, waitingOn: state.waiting_on })) {
+		const stopped = await stopWorktreeServers(toplevel);
+		// Cleanup cannot invalidate a phase already committed; explicit serve --stop still refuses.
+		if (stopped.kind === 'refused') console.error(stopped.why);
+		else if (stopped.kind === 'stopped') console.error(`wf serve: released idle server tree ${stopped.pid}`);
 	}
 	if (!quiet) console.log(JSON.stringify(state));
 }

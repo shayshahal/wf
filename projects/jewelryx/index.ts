@@ -88,6 +88,8 @@ export type Machine = {
 		seedUrl?: (o: Stack) => string;
 		teardown: (o: { slug: string; worktree: string }) => RemovalStep[];
 	};
+	/** Prepare shared infrastructure outside the owned server tree. */
+	prepareServe?: () => void;
 	names?: (slug: string) => Origins;
 	servers?: (slug: string) => { origins: Origins; wrap: Wrap } | null;
 	teardown: (o: { slug: string; worktree: string }) => RemovalStep[];
@@ -199,6 +201,9 @@ export const setup: Record<string, SetupStep> = {
 		seedDatabase({ worktree, database: worktreeDatabase(slug), mongoUrl: seedUrl({ slug, port }) });
 	},
 };
+
+/** Prepare shared infrastructure before acquiring a worktree's server process tree. */
+export function prepareServe(): void { machine().prepareServe?.(); }
 
 // The stack: the three dev servers, until they die (`wf serve`, when a phase needs them).
 export async function serve({ worktree, slug, port }: { worktree: string } & Stack): Promise<void> {

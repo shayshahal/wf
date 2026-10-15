@@ -49,7 +49,13 @@ round commits (for JewelryX, `bug-reports/<round>/`).
     `git-worktree.ts` makes them in `<repo>/.claude/worktrees/`. No worktree is served from its
     creation: `wf serve` (`serve.ts`) runs the stack in the background (pid and logs in the
     worktree's `.wf/`), started by the phases that use it (`wf brief assess`, `wf check`
-    before the repro or a test that drives the app, `wf review`)
+    before the repro or a test that drives the app, `wf review`). `wf next`/`wf step` release
+    idle stacks at classify, agreement, held, approved or merged boundaries and non-review human waits;
+    build, assessment, CI waits and T2 review keep theirs. `wf serve --stop` closes only the recorded server
+    tree, without reaping the checkout or database; use it after a helper checkout's live work.
+    Stops verify process identity and working directory, rather than trusting a recycled PID, and await
+    shutdown before clearing the record. Unverified ownership warns at a phase boundary without blocking
+    its action; an explicit stop refuses and preserves the record.
   - `src/plugin/`: `plugin.ts` writes `claude/agents/` from `agents/`; `anchor.ts` fills the paths
     in text (below)
   - `src/selfcheck.ts` runs every selfcheck and tsc; `src/boundary.selfcheck.ts` fails if the kit

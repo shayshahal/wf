@@ -66,27 +66,27 @@ const stepDir = mkdtempSync(join(tmpdir(), 'wf-removal-step-'));
 try {
   const sub = join(stepDir, 'sub');
   mkdirSync(sub);
-  check('a command step runs and reports ok', runRemovalStep({ label: 'init', cmd: 'git', args: ['-C', sub, 'init', '-q'] }).ok && existsSync(join(sub, '.git')));
+  check('a command step runs and reports ok', (await runRemovalStep({ label: 'init', cmd: 'git', args: ['-C', sub, 'init', '-q'] })).ok && existsSync(join(sub, '.git')));
   let ran = false;
-  const ranStep = runRemovalStep({ label: 'mark', run: () => { ran = true; } });
+  const ranStep = await runRemovalStep({ label: 'mark', run: () => { ran = true; } });
   check('an in-process step runs and reports ok', ranStep.ok && ran && ranStep.say === 'mark: ok');
   const gone = join(stepDir, 'gone');
   mkdirSync(gone);
   writeFileSync(join(gone, 'x'), 'x');
-  check('a folder step removes it and reports ok', runRemovalStep({ label: 'rm', rm: gone }).ok && !existsSync(gone));
-  check('an already-gone folder step still reports ok', runRemovalStep({ label: 'rm', rm: gone }).ok);
-  const bad = runRemovalStep({ label: 'bad', cmd: 'node', args: ['-e', 'process.exit(3)'] });
+  check('a folder step removes it and reports ok', (await runRemovalStep({ label: 'rm', rm: gone })).ok && !existsSync(gone));
+  check('an already-gone folder step still reports ok', (await runRemovalStep({ label: 'rm', rm: gone })).ok);
+  const bad = await runRemovalStep({ label: 'bad', cmd: 'node', args: ['-e', 'process.exit(3)'] });
   check('a failing command step never throws and is NOT ok', !bad.ok && bad.say.startsWith('bad: already gone or failed'));
   let threw = false;
-  let boom: ReturnType<typeof runRemovalStep> | null = null;
-  try { boom = runRemovalStep({ label: 'boom', run: () => { throw new Error('no database'); } }); } catch { threw = true; }
+  let boom: Awaited<ReturnType<typeof runRemovalStep>> | null = null;
+  try { boom = await runRemovalStep({ label: 'boom', run: () => { throw new Error('no database'); } }); } catch { threw = true; }
   check('an in-process step that throws is reported as not ok, not thrown', !threw && boom !== null && !boom.ok && boom.say.includes('no database'));
   // The structured outcome is what a baseline teardown refuses a green on: a folder that survives
   // removal is never reported as ok.
   const busy = join(stepDir, 'busy');
   mkdirSync(busy);
   const survives = { label: 'rm busy', rm: busy };
-  const first = runRemovalStep(survives);
+  const first = await runRemovalStep(survives);
   check('a folder step whose path came back is not ok (the resource was not released)', first.ok === !existsSync(busy));
 } finally {
   rmSync(stepDir, { recursive: true, force: true });
