@@ -118,7 +118,7 @@ const approve = (dir: string, klass: 'B', agreement: string) => {
 // ── the assessment: a repair returns to build, bounded; an unmet intent blocks T2 with one ruling
 {
 	const { dir } = repo('fix/routeR', 'A', null);
-	const assess = (v: string, intent: string) => `# r — assessment\nVerdict: ${v}\nhead: ${execFileSync('git', ['-C', dir, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()}\n## Intent\n${intent}\n`;
+	const assess = (v: string, intent: string) => `# r — assessment\nVerdict: ${v}\nhead: ${execFileSync('git', ['-C', dir, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()}\n## Intent\n${intent}\n${v === 'repair' ? '\n## Repairs\n- R1: scroll position | action: fix the scroll restoration and drive the modal regression case\n' : ''}`;
 	const setStep = (step: string, extra: object = {}) => writeFileSync(join(dir, '.wf/state.json'), `${JSON.stringify({ wf_version: 2, round: 'r', id: 'r', folder: 'bug-reports/r', base: 'main', step, class: 'A', ...extra })}\n`);
 	setStep('assess');
 	checked(dir);

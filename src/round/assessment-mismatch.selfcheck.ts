@@ -7,6 +7,7 @@ import { agreementSha } from './agreement.ts';
 import { readState, writeState } from './state.ts';
 import { worktreeContentSha } from '../gates/content-identity.ts';
 import { WF_ROOT } from '../paths.ts';
+import { assessmentContentSha } from './assessment-rulings.ts';
 
 let failures = 0;
 const check = (name: string, cond: boolean, detail = '') => {
@@ -41,6 +42,7 @@ ${intent}
 surviving: the alternate path still fires the effect
 ## Design
 - advisory: shared helper could move
+${verdict === 'repair' ? '\n## Repairs\n- R1: remove the agreed effect | action: remove the alternate path call and measure that it no longer fires\n' : ''}
 `;
 try {
 	git('init', '-q', '-b', 'main');
@@ -65,6 +67,9 @@ try {
 	const repair = cli('next');
 	check('clear agreed repairs return to build without a human question', repair.stdout.includes('repair 1 of 2') && readState(dir)?.step === 'build' && !readState(dir)?.questions?.length, `${repair.stdout}${repair.stderr}`);
 
+	const approvedMaterial = agreementSha(dir, 'B', folder);
+	writeFileSync(file('AGREEMENT.md'), `${AGREEMENT}\n## Repair responses\nsource: ${assessmentContentSha(readFileSync(file('ASSESSMENT.md'), 'utf8'))}\ncontent-sha: ${worktreeContentSha(dir, folder, null, 'row')}\n- R1: done: removed the alternate call and measured the silent path | evidence: effect regression check passed\n`);
+	check('repair answers do not invalidate unchanged T1 material', agreementSha(dir, 'B', folder) === approvedMaterial);
 	const handoff = cli('step', 'assess');
 	check('the repaired build can hand off through the normal command', handoff.status === 0, `${handoff.stdout}${handoff.stderr}`);
 	writeFileSync(file('ASSESSMENT.md'), report('blocked', '- "remove the effect": not met: alternate path still fires'));

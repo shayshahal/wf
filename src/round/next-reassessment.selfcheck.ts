@@ -23,6 +23,7 @@ head: ${head}
 - "x": met: a.txt:1 · before: red · after: green
 ## Agreement
 (none)
+${verdict === 'repair' ? '\n## Repairs\n- R1: certificate opens | action: drive the missing page check and record the second size\n' : ''}
 `;
 const repo = mkdtempSync(join(tmpdir(), 'wf-reassessment-'));
 try {
@@ -39,6 +40,8 @@ try {
 	const head = git(repo, 'rev-parse', 'HEAD');
 	const file = join(repo, folder, 'ASSESSMENT.md');
 	writeFileSync(file, assessment(head));
+	const answerRepairs = () => writeFileSync(join(repo, folder, 'TICKET.md'), `# r\n## Intent\n- "x": the certificate opens\n## Repair responses\nsource: ${assessmentContentSha(readFileSync(file, 'utf8'))}\ncontent-sha: ${worktreeContentSha(repo, folder, null, 'row')}\n- R1: done: drove the missing page check and recorded the second size | evidence: proof/after-certificate.png\n`);
+	answerRepairs();
 	utimesSync(file, new Date(0), new Date(0));
 	writeFileSync(join(repo, '.wf/state.json'), JSON.stringify({ wf_version: 2, folder, round: 'r', id: 'r', base: 'main', class: 'A', step: 'build', repairs: 2, answered: [{ n: 1, to: 'user', text: 'fix or accept', source: `ASSESSMENT.md#${head}`, answer: 'perform the missing page check', asked: 't', answered: 't' }] }));
 	appendFileSync(join(repo, '.wf/checks.log'), `${JSON.stringify({ result: 'green', content: worktreeContentSha(repo, folder, null, 'row') })}\n`);
@@ -73,10 +76,11 @@ try {
 	check('checkout newline conversion does not change assessment identity', converted.out.startsWith('dispatch assess'), converted.out);
 	const repeatedHandoff = cli(repo, 'step', 'assess');
 	check('a repeated assess step preserves its baseline instead of consuming the report', repeatedHandoff.code === 0 && readState(repo)?.assessment_baseline?.sha === originalBaseline?.sha, repeatedHandoff.out);
-	writeFileSync(file, assessment(head) + `\nassessed-at: ${new Date().toISOString()}\n`);
+	writeFileSync(file, assessment(head).replace('## Intent', `assessed-at: ${new Date().toISOString()}\n## Intent`));
 	utimesSync(file, new Date(0), new Date(0));
 	const freshRepair = cli(repo, 'next');
 	check('a new same-HEAD repair report is consumed even with an old filesystem timestamp', freshRepair.out.startsWith('dispatch build') && readState(repo)?.step === 'build', freshRepair.out);
+	answerRepairs();
 	const secondHandoff = cli(repo, 'step', 'assess');
 	const secondReview = cli(repo, 'next');
 	check('the next handoff invalidates even that freshly consumed report', secondHandoff.code === 0 && secondReview.out.startsWith('dispatch assess') && readState(repo)?.step === 'assess', secondHandoff.out + secondReview.out);
