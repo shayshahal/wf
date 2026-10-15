@@ -62,7 +62,7 @@ const repairs = (s: Snapshot) => nextAction(s).effects.filter((e) => e.repair).l
 
 // ── ordinary (class A): the ticket is the agreement, no T1, straight to build
 check('class A: the ticket is the agreement → step build and dispatch build', steps(base()) .join() === 'build' && say(base()).startsWith('dispatch build'), say(base()));
-check('class A build: one phase, resumed in place (no per-commit dispatch)', say(base({ step: 'build' })) === 'dispatch build: run `node C:/wf/wf.mjs brief build` in this worktree and do exactly what it prints', say(base({ step: 'build' })));
+check('class A build: one phase, resumed in place (no per-commit dispatch)', say(base({ step: 'build' })) === 'dispatch build: run `node C:/wf/wf.mjs brief build` in this worktree and do exactly what it prints (again: implement and verify the current agreement)', say(base({ step: 'build' })));
 check('a blocked build waits on the user with the question', say(base({ step: 'build', files: { agreement: null, assessment: null, review: null, blocked: 'Question: which label?\n' } })) === 'wait user: blocked — which label?');
 
 // ── a check round: it writes ## Repro, then wf check --repro is the answer
@@ -80,6 +80,17 @@ check('B/C a new agreement sha (material changed): T1 again, not approved', say(
 check('no ASSESSMENT.md: dispatch assess', say(base({ step: 'assess' })).startsWith('dispatch assess') && say(base({ step: 'assess' })).includes('no ASSESSMENT.md'), say(base({ step: 'assess' })));
 check('an assessment of an earlier HEAD is re-run', say(base({ step: 'assess', files: { agreement: null, assessment: ASSESS({ head: 'H3' }), review: null, blocked: null } })).startsWith('dispatch assess') && say(base({ step: 'assess', files: { agreement: null, assessment: ASSESS({ head: 'H3' }), review: null, blocked: null } })).includes('HEAD is H4'), say(base({ step: 'assess' })));
 check('clean assessment → T2 review', say(base({ step: 'assess', files: { agreement: TICKET_WALK, assessment: ASSESS(), review: null, blocked: null } })).startsWith('review: T2'), say(base({ step: 'assess' })));
+
+// #151: only an explicitly recorded handoff return can recover without a build.
+for (const klass of ['A', 'B'] as const) {
+	const snapshot = base({ step: 'build', klass, buildReason: { kind: 'handoff', text: 'rename capture' }, assessmentChangedSinceHandoff: true, files: { agreement: klass === 'A' ? TICKET_WALK : AGREEMENT, assessment: ASSESS(), review: null, blocked: null }, t1: { sha: 's1', reviewed: 's1', verdict: 'approved' } });
+	check(`${klass}: a cleared handoff re-evaluates the current clean assessment`, say(snapshot).startsWith('review: T2') && repairs(snapshot) === 0);
+	check(`${klass}: an unresolved handoff returns its current reason`, say({ ...snapshot, assessmentHandoffGap: 'rename new capture' }).includes('rename new capture'));
+	check(`${klass}: an unchanged pre-handoff report still needs assessment`, say({ ...snapshot, assessmentChangedSinceHandoff: false }).startsWith('dispatch assess'));
+	check(`${klass}: a cleared handoff cannot ignore a repair verdict`, say({ ...snapshot, files: { ...snapshot.files, assessment: ASSESS({ verdict: 'repair' }) } }).includes('repair 1 of 2'));
+	const work = { ...snapshot, buildReason: { kind: 'work' as const, text: 'implement the repair findings' } };
+	check(`${klass}: ordinary work is not mistaken for a transient gap`, say(work).startsWith('dispatch build') && say(work).includes('implement the repair findings'));
+}
 
 // ── #139, JX-1068: a class A round (TICKET.md is the agreement, so agreementGap never asks it) records
 // its T2 walk before T2 — an `open:` line or an explicit `none — <why>`. The build owns it; T2 refuses.
@@ -134,7 +145,7 @@ const liveB = (patch: Partial<Snapshot>) => base({ klass: 'B', files: { agreemen
 check('B/C build: a changed ## Agreed sends back to T1, not build', say(liveB({ step: 'build', t1: { sha: 's2', reviewed: 's1', verdict: 'approved' } })).startsWith('wait user: T1') && steps(liveB({ step: 'build', t1: { sha: 's2', reviewed: 's1', verdict: 'approved' } })).join() === 'agree --waiting-on user');
 check('B/C assess: a changed ## Agreed sends back to T1 too', say(liveB({ step: 'assess', t1: { sha: 's2', reviewed: 's1', verdict: 'approved' } })).startsWith('wait user: T1'));
 check('B/C review: a changed ## Agreed sends back to T1 too', say(liveB({ step: 'review', t1: { sha: 's2', reviewed: 's1', verdict: 'approved' } })).startsWith('wait user: T1'));
-check('B/C build: an approved agreement at the same sha builds (progress does not renew T1)', say(liveB({ step: 'build', t1: { sha: 's1', reviewed: 's1', verdict: 'approved' } })) === 'dispatch build: run `node C:/wf/wf.mjs brief build` in this worktree and do exactly what it prints');
+check('B/C build: an approved agreement at the same sha builds (progress does not renew T1)', say(liveB({ step: 'build', t1: { sha: 's1', reviewed: 's1', verdict: 'approved' } })) === 'dispatch build: run `node C:/wf/wf.mjs brief build` in this worktree and do exactly what it prints (again: implement and verify the current agreement)');
 
 // ── a recorded revision (`wf decide --revise`) reaches a fresh agreement before any build, and an
 // unchanged agreement cannot leave the old T1 approval in force

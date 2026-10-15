@@ -173,8 +173,8 @@ export function appendDecision(agreementText: string, text: string, date = new D
 	return body.replace(/^## Decisions[ \t]*\n([\s\S]*?)(?=^## |(?![\s\S]))/m, (m, section: string) => `## Decisions\n${section.trimEnd() ? `${section.trimEnd()}\n` : ''}${line}\n\n`).trimEnd() + '\n';
 }
 
-// `quiet`: wf next steps a round as bookkeeping and prints only its own line.
-export async function runStep(argv: string[], { quiet = false } = {}) {
+/** Transition the round under its gates; next may resume a cleared handoff without replacing its baseline. */
+export async function runStep(argv: string[], { quiet = false, buildReason, resumeAssessment }: { quiet?: boolean; buildReason?: State['build_reason']; resumeAssessment?: true } = {}) {
 	const flag = (name: string) => {
 		const i = argv.indexOf(`--${name}`);
 		return i >= 0 ? argv[i + 1] : null;
@@ -272,11 +272,12 @@ export async function runStep(argv: string[], { quiet = false } = {}) {
 			const base = flag('base') ?? current.base ?? null;
 			const assessmentFile = context.kind === 'unit' ? context.assessmentFile : 'ASSESSMENT.md';
 			const assessmentPath = current.folder ? join(toplevel, current.folder, assessmentFile) : null;
-			const baseline = step === 'assess' && (current.step !== 'assess' || current.assessment_baseline?.file !== assessmentFile)
+			const baseline = step === 'assess' && !(resumeAssessment && current.build_reason?.kind === 'handoff' && current.assessment_baseline?.file === assessmentFile) && (current.step !== 'assess' || current.assessment_baseline?.file !== assessmentFile)
 				? { assessment_baseline: { file: assessmentFile, sha: assessmentContentSha(assessmentPath && existsSync(assessmentPath) ? readFileSync(assessmentPath, 'utf8') : null) } }
 				: {};
 			return {
 				...baseline,
+				build_reason: step === 'build' ? buildReason ?? current.build_reason ?? null : null,
 				wf_version: WF_STATE_VERSION,
 				...(restarting && plan?.kind === 'units' ? { slices: initializeSlices(plan, sh(['rev-parse', 'HEAD'])), repairs: 0 } : step === 'build' && context.kind === 'pending' ? { slices: initializeSlices(context.plan, sh(['rev-parse', 'HEAD'])), repairs: 0 } : {}),
 				round, class: klass, base, step, since,

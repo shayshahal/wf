@@ -111,6 +111,14 @@ NOT VERIFIED: LTR
 check('a fully verified assessment has no open gap, and prose outside those sections is not read', assessmentOpenGaps(live('- Intent 1: VERIFIED — drove it')).length === 0 && assessmentOpenGaps(`${assess()}## Design
 INCONCLUSIVE naming
 `).length === 0);
+for (const status of ['VERIFIED', 'met:', 'left out: authorized exclusion']) {
+	for (const history of ['INCONCLUSIVE', 'NOT VERIFIED', 'NOT MEASURED']) {
+		check(`present ${status} ignores historical ${history}`, assessmentOpenGaps(live(`- Intent 1: ${status} — earlier assessment had this ${history}`)).length === 0);
+	}
+}
+check('quoted intent text is not its status', assessmentOpenGaps(assess({ intent: '- "previously NOT MEASURED": met: before: red · after: green' })).length === 0);
+check('a leading verified status wins over a later colon and historical status', assessmentOpenGaps(live('- VERIFIED — earlier status: NOT MEASURED')).length === 0);
+check('bold current status still reports a gap', assessmentOpenGaps(live('- Intent 1: **NOT MEASURED** — earlier VERIFIED was wrong')).length === 1);
 check('no assessment has no open gaps', assessmentOpenGaps(null).length === 0);
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');

@@ -26,7 +26,7 @@ import { seams } from '../seams.ts';
 import { modelFor } from '../models.ts';
 import type { Models } from '../models.ts';
 import { readState, resolveRoundBase, toplevelOf, writeState } from './state.ts';
-import type { Question, RoundClass } from './state.ts';
+import type { Question, RoundClass, State } from './state.ts';
 import { advanceSlice, sliceContext } from './build-units.ts';
 import type { SliceProgress } from './build-units.ts';
 import { stepHistory } from './friction.ts';
@@ -73,11 +73,12 @@ export type Snapshot = {
 	assessmentBaselineMissing?: boolean;
 	assessmentHandoffGap?: string | null;
 	returnedFromAssess?: boolean;
+	buildReason?: State['build_reason'];
 	/** A merged round cannot post/reap on the old delivery while carrying new product work. */
 	mergedGap?: MergedImplementationGap | null;
 };
 export type Effect =
-	| { step?: string[]; ask?: { to: string; text: string; dflt: string | null; source: string; verification_gaps?: string[] }; repair?: true; blockedAnswered?: number; advance?: { unit: number; head: string } };
+	| { step?: string[]; ask?: { to: string; text: string; dflt: string | null; source: string; verification_gaps?: string[] }; repair?: true; blockedAnswered?: number; buildReason?: State['build_reason']; resumeAssessment?: true; advance?: { unit: number; head: string } };
 
 // Pure: the ids of the tracker note's `## <id>` sections not yet marked ` (posted)`.
 export function unpostedSections(note: string | null): string[] {
@@ -91,7 +92,14 @@ export function nextAction(s: Snapshot, purpose: 'dispatch' | 'brief' = 'dispatc
 	const wf = `node ${s.entry}`;
 	const context = sliceContext(s.files.agreement, s.slices);
 	// The line a fresh round-worker gets: it runs wf brief itself, so its brief is wf's own text.
-	const dispatch = (phase: string, again: string | null = null) => {
+	const dispatch = (phase: string, again: string | null = null, kind: 'work' | 'handoff' = 'work') => {
+		if (phase === 'build') {
+			again ??= s.buildReason?.text ?? 'implement and verify the current agreement';
+			const transition = effects.find((e) => e.step?.[0] === 'build');
+			const buildReason = { kind, text: again };
+			if (transition) transition.buildReason = buildReason;
+			else effects.push({ step: ['build'], buildReason });
+		}
 		if (phase === 'assess' && s.step === 'review') effects.push({ step: ['assess'] });
 		const model = s.models ? ` (model: ${modelFor(phase, s.models)})` : '';
 		return act(`dispatch ${phase}${model}: run \`${wf} brief ${phase}\` in this worktree and do exactly what it prints${context.kind === 'unit' ? ` (scope: unit:${context.unit.n} — ${context.unit.title})` : context.kind === 'integration' ? ' (scope: integration)' : ''}${again ? ` (again: ${again})` : ''}`);
@@ -220,11 +228,16 @@ export function nextAction(s: Snapshot, purpose: 'dispatch' | 'brief' = 'dispatc
 		const source = assessmentRulingSource(s.files.assessment, context);
 		const fix = s.answered.some((q) => (q.source === source || q.source?.startsWith(`${source}#`)) && !/^\s*accept\b/i.test(q.answer ?? ''));
 		if (!trouble && s.files.assessment && s.assessmentChangedSinceHandoff === false && s.returnedFromAssess && fix) {
-			if (s.assessmentHandoffGap) return dispatch('build', s.assessmentHandoffGap);
+			if (s.assessmentHandoffGap) return dispatch('build', s.assessmentHandoffGap, 'handoff');
 			effects.push({ step: ['assess'] });
 			return dispatch('assess', 'the completed build still needs a fresh assessment of the new evidence, even at the same HEAD');
 		}
-		return dispatch('build');
+		if (s.buildReason?.kind === 'handoff') {
+			if (s.assessmentHandoffGap) return dispatch('build', s.assessmentHandoffGap, 'handoff');
+			// JX-1392 (#151): re-evaluate the current assessment, not an empty repair or a new baseline.
+			effects.push({ step: ['assess'], resumeAssessment: true });
+			step = 'assess';
+		} else return dispatch('build');
 	}
 
 	// assess: one independent final assessment by default (#113). A within-agreement finding repairs
@@ -237,13 +250,13 @@ export function nextAction(s: Snapshot, purpose: 'dispatch' | 'brief' = 'dispatc
 		if (unchecked?.kind === 'harness') return act(`wait user: harness — ${checkGapLine(unchecked)}. Once fixed, run \`${wf} check\`, then \`${wf} next\``);
 		if (unchecked) {
 			effects.push({ step: ['build'] });
-			return dispatch('build', checkGapLine(unchecked));
+			return dispatch('build', checkGapLine(unchecked), 'handoff');
 		}
 		if (s.assessmentChangedSinceHandoff === false) {
 			if (s.assessmentBaselineMissing) {
 				if (s.assessmentHandoffGap) {
 					effects.push({ step: ['build'] });
-					return dispatch('build', s.assessmentHandoffGap);
+					return dispatch('build', s.assessmentHandoffGap, 'handoff');
 				}
 				// Legacy visits have no durable report identity. Capture it once before dispatch;
 				// touching an old report must not make it a new assessment.
@@ -351,7 +364,7 @@ export function nextAction(s: Snapshot, purpose: 'dispatch' | 'brief' = 'dispatc
 		// offering T2 (or accepting --done), not only when step review later refuses to open it.
 		if (s.assessmentHandoffGap) {
 			effects.push({ step: ['build'] });
-			return dispatch('build', s.assessmentHandoffGap);
+			return dispatch('build', s.assessmentHandoffGap, 'handoff');
 		}
 		if (s.step === 'review' && readVerdict(s.files.review ?? '') === 'dismissed') return act(`wait user: T2 was closed without a verdict — \`${wf} review ${s.branch}\` again when they are ready`);
 		if (context.kind === 'unit' && !context.unit.reviewAfter) {
@@ -410,6 +423,7 @@ export function snapshotOf(toplevel: string): Snapshot {
 		answered: state.answered ?? [],
 		revisions: state.revisions ?? [],
 		blockedAnswered: state.blocked_answered ?? 0,
+		buildReason: state.build_reason,
 		repairs: state.repairs ?? 0,
 		slices: state.slices,
 		assessmentChangedSinceHandoff,
@@ -446,7 +460,7 @@ export async function runNext() {
 	}
 	let { say, effects } = nextAction(snapshotOf(toplevel));
 	for (const e of effects) {
-		if (e.step) await runStep(e.step, { quiet: true });
+		if (e.step) await runStep(e.step, { quiet: true, buildReason: e.buildReason, resumeAssessment: e.resumeAssessment });
 		if (e.advance) {
 			const receipt = e.advance;
 			writeState(toplevel, (current) => {
