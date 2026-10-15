@@ -32,7 +32,9 @@ export function parseRepairFindings(assessment: string | null): { readonly kind:
 export function repairResponseGap(assessment: string | null, agreement: string, content: string | null): string | null {
 	if (assessmentVerdict(assessment) !== 'repair') return null;
 	const parsed = parseRepairFindings(assessment);
-	if (parsed.kind === 'invalid') return parsed.why;
+	// An already-dispatched build may predate the findings contract (#152). Let it request a fresh
+	// assessment: next refuses to spend another repair until that assessor supplies actionable ids.
+	if (parsed.kind === 'invalid') return null;
 	const responses = section(agreement, 'Repair responses');
 	if (!responses || lastField(responses, 'source') !== assessmentContentSha(assessment)) return 'repair responses: add ## Repair responses to the working document with source: <assessment content sha>; answer every finding without editing the assessment';
 	if (!content || lastField(responses, 'content-sha') !== content) return 'repair responses: content-sha: must name the current wf check implementation';

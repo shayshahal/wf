@@ -515,6 +515,7 @@ function runReuse(steps: ReuseStep[]): { codes: (number | null)[]; redBase: { re
         timeout: 60000,
       });
       codes.push(run.status);
+      if (run.status !== 0) console.error(`proof reuse fixture run ${codes.length}: ${run.error?.message ?? ''}\n${run.stdout ?? ''}${run.stderr ?? ''}`);
       calls.push(countNow() - before);
     }
     const redBase = readFileSync(join(repo, '.wf', 'checks.log'), 'utf8').split('\n').filter(Boolean)

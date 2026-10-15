@@ -109,5 +109,14 @@ try {
 	const fresh = cli('next');
 	assert.match(fresh.out, /^dispatch assess/);
 	assert.equal(JSON.parse(readFileSync(stateFile, 'utf8')).repairs, 0);
+	// Existing builds can have a pre-contract report. They must reach an assessor to clarify it,
+	// rather than being told to answer nonexistent ids or edit the assessor's report themselves.
+	writeFileSync(assessmentFile, assessment.split('## Repairs')[0]);
+	writeFileSync(ticketFile, ticket);
+	writeFileSync(stateFile, JSON.stringify({ wf_version: 2, folder, round: 'r', id: 'r', base: 'main', class: 'A', step: 'build', repairs: 1 }));
+	const legacy = cli('step', 'assess');
+	assert.equal(legacy.code, 0, legacy.out);
+	assert.match(cli('next').out, /^dispatch assess/);
+	assert.equal(JSON.parse(readFileSync(stateFile, 'utf8')).repairs, 1);
 } finally { rmSync(repo, { recursive: true, force: true }); }
 console.log('all repair finding contracts and the one-repair CLI replay green');
