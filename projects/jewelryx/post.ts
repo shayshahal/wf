@@ -1,15 +1,15 @@
 #!/usr/bin/env node
 // wf post — post the round's filled tracker note (JIRA.md) to Jira: per `## <key>` section not yet
-// `(posted)`, attach the round's before/after pictures to the issue, post the section as a comment
-// with those pictures shown in it, set *Fixed in Local*, and mark the heading. The round skill fills
-// the Hebrew text and shows it to the user first; this does the rest, the same way every round.
+// `(posted)`, attach the proof/ pictures its `pictures:` line names to the issue, post the section as a
+// comment with those pictures shown in it, set *Fixed in Local*, and mark the heading. The round skill
+// fills the Hebrew text and shows it to the user first; this does the rest, the same way every round.
 // JX-268 (BJEW-562, 2026-10-07): the post was hand-made from MCP calls, the pictures were left for
 // the user to attach, and the reap after it deleted them. Atlassian's MCP cannot put a picture in a
 // comment; REST v2 can: wiki markup `!name|thumbnail!` shows an attachment of the issue (tried on a
 // throwaway issue, 2026-10-07: Jira stored it as the comment's own media).
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { proofPairs, unpairedProofImages } from '../../src/gates/review-format.ts';
+import { isProofImage, proofPairs } from '../../src/gates/review-format.ts';
 import { readState, roundFile, toplevelOf, writeState } from '../../src/round/state.ts';
 import type { State } from '../../src/round/state.ts';
 import { baselineOf, changesOf, isOwnPost, jiraTime, refusalText } from './ticket-changes.ts';
@@ -49,13 +49,49 @@ export function picturesOf(pr: string, names: string[]) {
 // Pure: the file's picture type for the upload (proofPairs accepts png, jpg, jpeg and webp).
 export const pictureType = (file: string) => ({ png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp' })[file.split('.').pop()!.toLowerCase()] ?? 'application/octet-stream';
 
-// Pure: what the post did with proof/'s pictures, exactly: the files it attaches, and the picture files
-// it leaves out because their name is neither `before-<name>` nor `after-<name>`. JX-1239 (2026-10-12): a
-// post attached zero of a round's screenshots and said nothing about it.
-export function pictureNotes(pictures: ReturnType<typeof picturesOf>, names: string[]): string {
+// JX-1392 (2026-10-14, #148): the post took every before-/after- picture in proof/ (15, superseded
+// states among them) where the note meant after-1.png and after-2.png; undoing it took a hand comment
+// edit and 13 attachment deletions. proof/ is the round's evidence, not what the reporter is shown: each
+// section names its pictures on a `pictures:` line (or `pictures: none`), and nothing else goes up. The
+// line lives in the note itself, so the choice survives an interrupted post and a resumed round.
+const PICTURES_LINE = /^pictures:[ \t]*(.*)$/i;
+
+// Pure: the section's text as the comment carries it, without its `pictures:` line.
+export const commentText = (s: Section) => s.text.split('\n').filter((l) => !PICTURES_LINE.test(l)).join('\n').trim();
+
+// Pure: the proof/ files a section names for the reporter, each once, in the order the comment shows
+// them (by label, before then after); or why it cannot be posted. A missing line is refused, never
+// read as "all of proof/"; `none` is an empty selection.
+export function selectedPictures(s: Section, proofNames: string[]): { files: string[] } | { gap: string } {
+	const lines = s.text.split('\n').map((l) => PICTURES_LINE.exec(l)).filter((m) => m !== null);
+	if (lines.length !== 1) return { gap: `${s.key}: ${lines.length ? 'more than one pictures: line' : 'no pictures: line'}; name the proof/ pictures the reporter sees (pictures: after-1.png after-2.png), or write pictures: none` };
+	const names = [...new Set(lines[0][1].split(/[\s,]+/).filter(Boolean).map((n) => n.replace(/^proof\//, '')))];
+	if (names.length === 1 && names[0].toLowerCase() === 'none') return { files: [] };
+	if (!names.length || names.some((n) => n.toLowerCase() === 'none')) return { gap: `${s.key}: pictures: names files or says none, not both and not neither` };
+	const missing = names.filter((n) => !proofNames.includes(n));
+	if (missing.length) return { gap: `${s.key}: pictures: ${missing.join(', ')} not in proof/` };
+	const unlabeled = names.filter((n) => !proofPairs([n]).length);
+	if (unlabeled.length) return { gap: `${s.key}: pictures: ${unlabeled.join(', ')} not named before-<label> or after-<label> (png, jpg, jpeg, webp); rename it in proof/ and here` };
+	return { files: proofPairs(names).flatMap((p) => [p.before, p.after]).filter((n) => n !== undefined) };
+}
+
+// Pure: what goes up for a section, printed before anything does: the comment, the exact files, and
+// the proof/ pictures that stay in the round.
+export function previewOf(s: Section, files: string[], proofNames: string[]): string {
+	const kept = proofNames.filter((n) => isProofImage(n) && !files.includes(n));
+	return [
+		`${s.key}: comment:`,
+		...commentText(s).split('\n').map((l) => `  ${l}`),
+		files.length ? `${s.key}: pictures (${files.length}): ${files.join(', ')}` : `${s.key}: pictures: none selected, the comment goes up with no picture`,
+		...(kept.length ? [`${s.key}: not posted, kept as round evidence (${kept.length}): ${kept.join(', ')}`] : []),
+	].join('\n');
+}
+
+// Pure: what the post attached, exactly. JX-1239 (2026-10-12): a post attached zero of a round's
+// screenshots and said nothing about it.
+export function pictureNotes(pictures: ReturnType<typeof picturesOf>): string {
 	const attached = pictures.flatMap((p) => [p.before, p.after]).filter((p) => p !== undefined).map((p) => p.file);
-	const refused = unpairedProofImages(names);
-	return `attached ${attached.length}${attached.length ? `: ${attached.join(', ')}` : ': proof/ has no before-/after- picture'}${refused.length ? `; NOT attached (rename to before-<name>.png or after-<name>.png): ${refused.join(', ')}` : ''}`;
+	return `attached ${attached.length}${attached.length ? `: ${attached.join(', ')}` : ': none selected'}`;
 }
 
 // Pure: the comment, in Jira wiki markup (the REST v2 body): the section's lines, then each pair.
@@ -107,7 +143,7 @@ export async function ticketRefusal(state: State | null, keys: string[], then: s
 const roundKeys = (state: State | null, sections: Section[]) => [...new Set([...(state?.ids ?? (state?.id ? [state.id] : [])), ...sections.map((s) => s.key)])];
 const ownOf = (sections: Section[]): Own => (key) => {
 	const s = sections.find((n) => n.key === key);
-	return (body) => s !== undefined && isOwnPost(body, s.text, prNumberOf(s.text));
+	return (body) => s !== undefined && isOwnPost(body, commentText(s), prNumberOf(s.text));
 };
 
 // wf post --ticket-reread: a person has read what changed on the ticket and the round's paperwork
@@ -142,12 +178,6 @@ async function runTicketReread(): Promise<void> {
 
 export async function runPost(argv: string[] = []): Promise<void> {
 	if (argv.includes('--ticket-reread')) return runTicketReread();
-	const { JIRA_EMAIL: email, JIRA_TOKEN: token } = process.env;
-	if (!email || !token) {
-		console.error('wf post: this session has no JIRA_EMAIL or JIRA_TOKEN (set them, then start a new session and "resume <id>"); nothing posted');
-		process.exit(1);
-	}
-	const auth = Buffer.from(`${email}:${token}`).toString('base64');
 	const toplevel = toplevelOf();
 	const state = readState(toplevel);
 	const notePath = state?.note ? join(toplevel, state.note) : null;
@@ -158,11 +188,24 @@ export async function runPost(argv: string[] = []): Promise<void> {
 	let note = readFileSync(notePath, 'utf8');
 	const sections = sectionsOf(note);
 	const todo = sections.filter((s) => !s.posted);
-	const gaps = todo.map(unfilled).filter((g) => g !== null);
+	const proofDir = join(toplevel, state!.folder ?? '', 'proof');
+	const names = existsSync(proofDir) ? readdirSync(proofDir) : [];
+	const selections = new Map(todo.map((s) => [s.key, selectedPictures(s, names)]));
+	const gaps = [...todo.map(unfilled), ...todo.map((s) => { const sel = selections.get(s.key)!; return 'gap' in sel ? sel.gap : null; })].filter((g) => g !== null);
 	if (gaps.length) {
 		console.error(`wf post: fill the note first (${state!.note}); nothing posted\n${gaps.join('\n')}`);
 		process.exit(1);
 	}
+	const filesOf = (s: Section) => (selections.get(s.key) as { files: string[] }).files;
+	// The exact comment and files, before anything leaves the machine; --preview stops here.
+	for (const s of todo) console.log(previewOf(s, filesOf(s), names));
+	if (argv.includes('--preview')) return;
+	const { JIRA_EMAIL: email, JIRA_TOKEN: token } = process.env;
+	if (!email || !token) {
+		console.error('wf post: this session has no JIRA_EMAIL or JIRA_TOKEN (set them, then start a new session and "resume <id>"); nothing posted');
+		process.exit(1);
+	}
+	const auth = Buffer.from(`${email}:${token}`).toString('base64');
 	// Before anything goes up: a ticket that changed since the round began is not what the round built to.
 	let refusal: string | null;
 	try {
@@ -175,8 +218,6 @@ export async function runPost(argv: string[] = []): Promise<void> {
 		console.error(`wf post: ${refusal}\nNothing posted.`);
 		process.exit(1);
 	}
-	const proofDir = join(toplevel, state!.folder ?? '', 'proof');
-	const names = existsSync(proofDir) ? readdirSync(proofDir) : [];
 	for (const s of todo) {
 		const pr = prNumberOf(s.text);
 		if (!pr) {
@@ -186,7 +227,8 @@ export async function runPost(argv: string[] = []): Promise<void> {
 		const issue = await jira(auth, `2/issue/${s.key}?fields=attachment,comment`);
 		// A session can die between the post and the mark: a comment with this PR's url is that post.
 		const already = issue.fields.comment.comments.some((c: { body: string }) => c.body.includes(`/pull/${pr}`));
-		const pictures = picturesOf(pr, names);
+		const pictures = picturesOf(pr, filesOf(s));
+		// A session that died mid-upload left some attached: only the missing ones go up.
 		if (!already) {
 			const have = new Set(issue.fields.attachment.map((a: { filename: string }) => a.filename));
 			for (const pic of pictures.flatMap((p) => [p.before, p.after]).filter((p) => p !== undefined)) {
@@ -195,7 +237,7 @@ export async function runPost(argv: string[] = []): Promise<void> {
 				form.append('file', new Blob([readFileSync(join(proofDir, pic.file))], { type: pictureType(pic.file) }), pic.as);
 				await jira(auth, `3/issue/${s.key}/attachments`, { method: 'POST', body: form, headers: { 'X-Atlassian-Token': 'no-check' } });
 			}
-			await jira(auth, `2/issue/${s.key}/comment`, { method: 'POST', body: JSON.stringify({ body: commentBody(s.text, pictures) }), headers: { 'content-type': 'application/json' } });
+			await jira(auth, `2/issue/${s.key}/comment`, { method: 'POST', body: JSON.stringify({ body: commentBody(commentText(s), pictures) }), headers: { 'content-type': 'application/json' } });
 		}
 		const { transitions } = await jira(auth, `3/issue/${s.key}/transitions`);
 		const to = transitions.find((t: { to: { name: string } }) => t.to.name === DELIVERED);
@@ -204,7 +246,7 @@ export async function runPost(argv: string[] = []): Promise<void> {
 		note = markPosted(note, s.key);
 		writeFileSync(notePath, note);
 		const count = pictures.flatMap((p) => [p.before, p.after]).filter(Boolean).length;
-		console.log(`${s.key}: ${already ? 'already posted, pictures not re-attached' : `posted with ${count} picture(s) — ${pictureNotes(pictures, names)}`}, ${DELIVERED} — ${SITE}/browse/${s.key}`);
+		console.log(`${s.key}: ${already ? 'already posted, pictures not re-attached' : `posted with ${count} picture(s) — ${pictureNotes(pictures)}`}, ${DELIVERED} — ${SITE}/browse/${s.key}`);
 	}
 }
 

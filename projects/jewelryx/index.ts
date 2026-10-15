@@ -368,7 +368,7 @@ export const suites = (changed: string[]): CheckTask[][] => suitesTouched(change
 export function proofNamingGap(names: string[]): string | null {
 	const unpaired = unpairedProofImages(names);
 	return unpaired.length
-		? `proof/${unpaired.join(', proof/')} is not named before-<label>.png or after-<label>.png, so wf post drops it and T2's before/after page shows nothing of it; rename it (after-<label>.png, and before-<label>.png when there is a baseline) before the handoff`
+		? `proof/${unpaired.join(', proof/')} is not named before-<label>.png or after-<label>.png, so wf post cannot attach it and T2's before/after page shows nothing of it; rename it (after-<label>.png, and before-<label>.png when there is a baseline) before the handoff`
 		: null;
 }
 
@@ -380,8 +380,8 @@ export function proofNamingGap(names: string[]): string | null {
 // (docs/agents/jira.md), and PLAN.md's Cause and Approach are written for the code. TJEW-670
 // (2026-09-28): the note carried PLAN.md's Cause, file:line and all, as one note for four subitems.
 export function trackerNote({ ids, url }: { ids: string[]; url: string }): { file: string; text: string } {
-	const section = (id: string) => [`## ${id}`, 'תוקן ✅', 'מה היה: <what the reporter saw, from TICKET.md ## Intent>', 'מה שונה: <what she sees now>', 'לבדיקה: <where to look, step by step>', `PR: ${url}`].join('\n');
-	const head = '<!-- One comment per ## section, posted on that issue. Fill the <...> lines in plain Hebrew for the reporter: no file path, code name or line number (docs/agents/jira.md, Comments on an issue). The ## line is not posted. -->';
+	const section = (id: string) => [`## ${id}`, 'תוקן ✅', 'מה היה: <what the reporter saw, from TICKET.md ## Intent>', 'מה שונה: <what she sees now>', 'לבדיקה: <where to look, step by step>', 'pictures: <the proof/ files that show the reporter the delivered screen, e.g. after-1.png after-2.png, or none; wf post attaches only these>', `PR: ${url}`].join('\n');
+	const head = '<!-- One comment per ## section, posted on that issue. Fill the <...> lines in plain Hebrew for the reporter: no file path, code name or line number (docs/agents/jira.md, Comments on an issue). The ## line is not posted, nor the pictures: line: wf post attaches and shows exactly the proof/ files it names, nothing else. -->';
 	return { file: 'JIRA.md', text: `${[head, ...ids.map(section)].join('\n\n')}\n` };
 }
 
