@@ -48,15 +48,20 @@ before *Start*.
 
 - The tracker note is `JIRA.md` in the round folder (`wf deliver` writes it): one `## <id>` section
   per issue. Fill each section's lines in plain Hebrew from `TICKET.md` and what the round changed, with
-  no file path, code name or line number, and show the user the exact text. Then `wf post` from the
-  worktree posts it, the same way every round: for each section not yet ` (posted)`, it attaches the
-  round's `proof/before-<n>.png` and `proof/after-<n>.png` to the issue, posts the section (without
-  its `##` line) as a comment with those pictures shown in it, sets *Fixed in Local*, and marks the
-  heading itself. Run again, it skips what is already done (a comment with the PR's url, a picture
-  already attached under the PR's number). Never post a note or a picture by hand (JX-268,
+  no file path, code name or line number. Its `pictures:` line names the `proof/` files the reporter
+  sees, the final state only (`pictures: after-1.png after-2.png`), or `pictures: none`; the rest of
+  `proof/` stays round evidence (JX-1392, 2026-10-14: every labeled capture went up, superseded ones
+  among them). `wf post --preview` prints each comment and its exact files without touching Jira; show
+  the user that. Then `wf post` from the worktree posts it, the same way every round: it prints the
+  same preview, then for each section not yet ` (posted)` attaches the files its `pictures:` line
+  names to the issue, posts the section (without its `##` and `pictures:` lines) as a comment with
+  those pictures shown in it, sets *Fixed in Local*, and marks the heading itself. Run again, it skips
+  what is already done (a comment with the PR's url, a picture already attached under the PR's
+  number). Never post a note or a picture by hand (JX-268,
   2026-10-07: posted without its pictures, the user told to attach them, and the reap after it
   deleted them).
-- `wf post` refuses, posting nothing, when a section still has a `<...>` line, or when the session
+- `wf post` refuses, posting nothing, when a section still has a `<...>` line, has no `pictures:`
+  line or names a file not in `proof/` or not named `before-`/`after-<label>`, or when the session
   has no `JIRA_EMAIL` or `JIRA_TOKEN`: tell the user the session started without them, and stop; a
   new session, after they set them, picks the round up with "resume <id>".
 - `wf post` (and `wf review`, as T2 opens) also refuses when the ticket got an edited description or
