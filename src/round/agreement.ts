@@ -217,8 +217,14 @@ export function assessmentGap(text: string | null | undefined, deferredUnits: re
 // assessment's head and these lines). 2026-10-12 JX-1239: an assessment said clean with its mobile/LTR
 // lines INCONCLUSIVE, and T2 opened as though they had been checked.
 export function assessmentOpenGaps(text: string | null | undefined): string[] {
+	const marker = /^(INCONCLUSIVE|NOT VERIFIED|NOT MEASURED|VERIFIED|met|not met|left out|deferred)\b/i;
 	return ['Intent', 'Live', 'Behavior and evidence']
 		.flatMap((name) => (section(text, name) ?? '').split('\n'))
 		.map((l) => l.trim().replace(/^[-*]\s*/, ''))
-		.filter((l) => /\b(INCONCLUSIVE|NOT VERIFIED|NOT MEASURED)\b/i.test(l));
+		.filter((line) => {
+			// JX-1392 (#151): read the present status, never quoted history in its evidence.
+			const plain = line.replace(/\*\*/g, '');
+			const status = marker.exec(plain) ?? marker.exec(plain.replace(/^(?:"[^"]*"|[^:]+):\s*/, ''));
+			return /^(INCONCLUSIVE|NOT VERIFIED|NOT MEASURED)$/i.test(status?.[1] ?? '');
+		});
 }

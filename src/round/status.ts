@@ -168,6 +168,7 @@ export type T1Fact = { sha: string | null; reviewed: string | null; verdict: str
 // null = the binding could not be recomputed). Null when the round has no REVIEW.md.
 export type T2Fact = { verdict: string | null; contentSha: string | null; headSha: string | null; fresh: boolean | null };
 export type RoundInspect = {
+  buildReason?: string | null;
   scope?: { label: string; assessment: string; review: string };
   agreement: { file: string; sha: string | null; exists: boolean };
   // `files` null = git could not read the worktree (UNKNOWN, never an empty-as-clean list); it is the
@@ -303,6 +304,7 @@ export function inspectRound({ path, state, git, guidance = [], wfRoot = WF_ROOT
   return {
     ...(context.kind === 'unit' || context.kind === 'integration' ? { scope: { label: context.kind === 'unit' ? `unit ${context.unit.n}: ${context.unit.title}${context.reviewRepair ? ' · repairing review chunk' : ''}${context.unit.reviewAfter ? ` · checkpoint ${context.unit.reviewAfter}` : ''}` : 'integration · final delivery approval', assessment: `${folder}/${assessmentFile}`, review: `${folder}/${reviewFile}` } } : {}),
     agreement,
+    buildReason: state.step === 'build' ? state.build_reason?.text ?? null : null,
     diff,
     evidence: { ...evidence, binding: evidenceBinding(evidence.case, currentRow) },
     facts: {
@@ -371,6 +373,7 @@ function evidenceLine(e: RoundInspect['evidence']): string {
 // Pure: the inspect block for a person. One line per fact, references as paths.
 export function formatInspect(i: RoundInspect): string {
   const out: string[] = [];
+  if (i.buildReason) out.push(`  build reason: ${i.buildReason}`);
   if (i.scope) out.push(`  scope: ${i.scope.label} · ${i.scope.assessment} · ${i.scope.review}`);
   out.push(`  agreement: ${i.agreement.file}${i.agreement.exists ? '' : ' (absent)'}${i.agreement.sha ? ` · sha ${i.agreement.sha.slice(0, 12)}` : ''}`);
   const d = i.diff;

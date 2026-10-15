@@ -7,6 +7,8 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { assessmentContentSha } from './assessment-rulings.ts';
+import { readState } from './state.ts';
 import { agreementSha, revisionSha } from './agreement.ts';
 import { worktreeContentSha } from '../gates/content-identity.ts';
 import { WF_ROOT } from '../paths.ts';
@@ -123,6 +125,8 @@ const approve = (dir: string, klass: 'B', agreement: string) => {
 	writeFileSync(join(dir, 'bug-reports/r/ASSESSMENT.md'), assess('repair', '- "x": met: src/Page.svelte:1 · before: red · after: green'));
 	const repair = cli(dir, 'next');
 	check('assessment: a repair returns to build, counted', repair.out.includes('repair 1 of 2') && state(dir).step === 'build' && state(dir).repairs === 1, repair.out);
+	const repairBrief = cli(dir, 'brief', 'build');
+	check('assessment: repair reason survives into the fresh build brief', repairBrief.code === 0 && repairBrief.out.includes('repair 1 of 2'), repairBrief.out.slice(-1200));
 	// After two attempts, one contextual escalation, no third build.
 	setStep('assess', { repairs: 2 });
 	writeFileSync(join(dir, 'bug-reports/r/ASSESSMENT.md'), assess('repair', '- "x": met: src/Page.svelte:1 · before: red · after: green'));
@@ -134,6 +138,48 @@ const approve = (dir: string, klass: 'B', agreement: string) => {
 	writeFileSync(join(dir, 'bug-reports/r/ASSESSMENT.md'), assess('blocked', '- "x": not met: the modal still jumps'));
 	const blocked = cli(dir, 'next');
 	check('assessment: unmet intent asks one fix-or-accept ruling, never T2', blocked.out.includes('fix or accept:') && state(dir).step === 'assess' && (state(dir).questions ?? []).length === 1, blocked.out);
+	rmSync(dir, { recursive: true, force: true });
+}
+
+// ── #151: next → transient gap → brief → clear → next → handoff, across real processes
+{
+	const { dir, git } = repo('fix/routeGap', 'A', null);
+	const report = join(dir, 'bug-reports/r/ASSESSMENT.md');
+	const proof = join(dir, 'bug-reports/r/proof');
+	cli(dir, 'next');
+	checked(dir);
+	check('gap recovery: build handoff records a baseline', cli(dir, 'step', 'assess').code === 0);
+	const baseline = readState(dir)?.assessment_baseline;
+	writeFileSync(report, `Verdict: clean
+head: ${git('rev-parse', 'HEAD').trim()}
+## Intent
+- "x": met: before: red · after: green
+## Live
+- Intent 1: VERIFIED — arrow click driven (earlier assessment had this NOT MEASURED)
+`);
+	mkdirSync(proof);
+	writeFileSync(join(proof, '20261014.png'), 'capture');
+	const bounced = cli(dir, 'next');
+	const reason = readState(dir)?.build_reason;
+	check('gap recovery: the real proof gap returns to build with a durable reason', bounced.out.includes('dispatch build') && reason?.kind === 'handoff' && reason.text.includes('20261014.png') && state(dir).repairs !== 1, bounced.out);
+	const brief = cli(dir, 'brief', 'build');
+	check('gap recovery: a fresh worker sees the reason in its served brief', brief.code === 0 && brief.out.includes('## Build dispatch reason') && brief.out.includes(reason?.text ?? 'MISSING'), brief.out.slice(-1800));
+	check('gap recovery: an unresolved gap keeps dispatching actionable work', cli(dir, 'next').out.includes('20261014.png'));
+	rmSync(join(proof, '20261014.png'));
+	const recovered = cli(dir, 'next');
+	check('gap recovery: cleared gap with current clean report goes to T2 without a question or empty build', recovered.out.startsWith('review: T2') && state(dir).step === 'assess' && !(state(dir).questions ?? []).length, recovered.out);
+	check('gap recovery: recovering does not recapture the current report as a new handoff baseline', JSON.stringify(readState(dir)?.assessment_baseline) === JSON.stringify(baseline));
+	check('gap recovery: a stale build brief is refused after the gap clears', cli(dir, 'brief', 'build').code === 2);
+	check('gap recovery: the recovered report passes the direct review handoff too', cli(dir, 'step', 'review').code === 0);
+	writeFileSync(join(proof, 'new-capture.png'), 'capture');
+	check('gap recovery: a new gap blocks T2 again', cli(dir, 'next').out.includes('new-capture.png'));
+	rmSync(join(proof, 'new-capture.png'));
+	git('commit', '-q', '--allow-empty', '-m', 'head moved');
+	const stale = cli(dir, 'next');
+	check('gap recovery: clearing a gap cannot approve a stale report', stale.out.startsWith('dispatch assess') && !stale.out.includes('review: T2'), stale.out);
+	cli(dir, 'step', 'build');
+	checked(dir);
+	check('gap recovery: explicit build handoff still records the current report baseline', cli(dir, 'step', 'assess').code === 0 && readState(dir)?.assessment_baseline?.sha === assessmentContentSha(readFileSync(report, 'utf8')));
 	rmSync(dir, { recursive: true, force: true });
 }
 
@@ -265,8 +311,21 @@ const approve = (dir: string, klass: 'B', agreement: string) => {
 	check('blocked: the answer lands in BLOCKED.md § Answer', decided.out.includes('§ Answer'), decided.out);
 	const resume = cli(dir, 'next');
 	check('blocked: an answered BLOCKED.md resumes the build once', resume.out.includes('dispatch build') && resume.out.includes('answered'), resume.out);
+	const brief = cli(dir, 'brief', 'build');
+	check('blocked: dispatched build receives its brief and the answer', brief.code === 0 && brief.out.includes('## Answered build block') && brief.out.includes('cancel the dialog') && brief.out.includes('wf step assess'), brief.out.slice(-1500));
 	const again = cli(dir, 'next');
 	check('blocked: the same answer does not resume twice', again.out.includes('wait user: blocked'), again.out);
+	for (const question of ['which label?', 'which endpoint?']) {
+		writeFileSync(join(dir, 'bug-reports/r/BLOCKED.md'), `Question: ${question}\n`);
+		check('blocked: a fresh block refuses the old build brief', cli(dir, 'brief', 'build').code === 2);
+		check('blocked: a fresh block waits for a new answer', cli(dir, 'next').out.includes('wait user: blocked'));
+		cli(dir, 'ask', '--blocked');
+		cli(dir, 'decide', 'use the approved option');
+		check('blocked: a new answer dispatches a build', cli(dir, 'next').out.includes('dispatch build'));
+		const fresh = cli(dir, 'brief', 'build');
+		check('blocked: the new brief carries the current answer', fresh.code === 0 && fresh.out.includes('use the approved option'), fresh.out.slice(-1000));
+		check('blocked: the new answer also dispatches only once', !cli(dir, 'next').out.includes('dispatch build'));
+	}
 	rmSync(dir, { recursive: true, force: true });
 }
 

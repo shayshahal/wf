@@ -69,6 +69,22 @@ writeFileSync(stateFile(bad), good);
 check('a restored file reads again', readState(bad)?.revisions?.[0]?.text === 'a');
 rmSync(bad, { recursive: true, force: true });
 
+// A malformed recovery marker cannot silently turn a real repair into a cleared handoff.
+{
+	const dir = tempDir();
+	writeState(dir, () => ({}));
+	for (const build_reason of [null, { kind: 'work', text: 'repair findings' }, { kind: 'handoff', text: 'rename proof' }]) {
+		writeFileSync(stateFile(dir), JSON.stringify({ build_reason }));
+		check('build reason: valid recovery metadata roundtrips', JSON.stringify(readState(dir)?.build_reason) === JSON.stringify(build_reason));
+	}
+	for (const build_reason of [{}, { kind: 'handoff', text: '' }, { kind: 'unknown', text: 'x' }, 'handoff', { kind: 'handoff', text: 1 }]) {
+		const raw = JSON.stringify({ build_reason });
+		writeFileSync(stateFile(dir), raw);
+		check('build reason: malformed recovery metadata is refused without mutation', throws(() => readState(dir)) instanceof CorruptStateError && readFileSync(stateFile(dir), 'utf8') === raw);
+	}
+	rmSync(dir, { recursive: true, force: true });
+}
+
 // ── merge, and the updater that sees the state under the lock
 const dir = tempDir();
 writeState(dir, () => ({ round: 'r', revisions: [rev('a')] }));
