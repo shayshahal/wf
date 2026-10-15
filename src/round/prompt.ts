@@ -15,12 +15,12 @@ import { anchorToolPaths } from '../plugin/anchor.ts';
 import { seams } from '../seams.ts';
 import { readVerdict } from '../gates/review-format.ts';
 import { basePortForBranch } from '../worktrees/worktree.ts';
-import { agreementFile, agreementPath, revisionSha, assessmentOpenGaps, assessmentSurviving, ASSESSMENT_FILE, caseFiles, consequential, section, TICKET_FILE, verificationCases } from './agreement.ts';
+import { agreementFile, agreementPath, revisionSha, assessmentOpenGaps, assessmentSurviving, assessmentVerdict, ASSESSMENT_FILE, caseFiles, consequential, section, TICKET_FILE, verificationCases } from './agreement.ts';
 import { openQuestionGate, openRevisions, overruledAsks } from './ask.ts';
 import { guidanceSection, notesFor, readNotes } from './guidance.ts';
 import { readState, resolveRoundBase, roundOf, toplevelOf } from './state.ts';
 import { sliceContext } from './build-units.ts';
-import { assessmentRulingSource, verificationFixRulings, verificationGapsHash, verificationProofFile } from './assessment-rulings.ts';
+import { assessmentContentSha, assessmentRulingSource, verificationFixRulings, verificationGapsHash, verificationProofFile } from './assessment-rulings.ts';
 import { checksEvidence, suitesGap } from './step.ts';
 
 export function renderPrompt(template: string, vars: Record<string, unknown>) {
@@ -131,6 +131,7 @@ export function composePrompt(argv: string[]) {
 		const open = [...liveGaps, ...(suiteGap ? [suiteGap] : [])];
 		const rulings = verificationFixRulings(a, context, state?.answered ?? [], suiteGap);
 		if (phase === 'build' && (context.kind !== 'single' || /^Verdict:[ \t]*(repair|blocked)\b/m.test(a) || rulings.length)) vars.assessment = `## Findings from the last assessment\n\n${a.trim()}`;
+		if (phase === 'build' && assessmentVerdict(a) === 'repair') vars.assessment += `\n\nBefore handing off, answer every repair finding in ## Repair responses in ${folder}/${vars.file} (outside agreed material). Record source: ${assessmentContentSha(a)} and content-sha: <current wf check content>. Each finding needs - R1: done: <what ran/changed> | evidence: <measurement/reference>, or - R1: impossible: <why> | owner: <owner> | next: <recovery>. Do not edit the assessment. A selected-case green alone does not answer a finding.`;
 		if (rulings.length) {
 			const repairs = rulings.map((q) => {
 				const proof = liveGaps.length ? [
@@ -143,6 +144,8 @@ export function composePrompt(argv: string[]) {
 			});
 			vars.verificationRepairs = `## Verification repair rulings\n\nThese fix rulings bind this repair even if the agreement says no live check is needed. A green wf check alone does not close them.\n\n${repairs.join('\n\n')}`;
 		}
+		const responses = section(agreementText, 'Repair responses');
+		if (phase === 'assess' && assessmentVerdict(a) === 'repair' && responses) vars.verificationRepairs += `\n\n## Builder's repair responses\n\n${responses.trim()}\n\nJudge each response against the prior assessment's finding and actual evidence; impossible is not closure or approval.\n\n## Prior assessment\n\n${a.trim()}`;
 	}
 	if (phase === 'build' && existsSync(join(toplevel, folder!, reviewFile))) {
 		const repair = reviewRepairText(readFileSync(join(toplevel, folder!, reviewFile), 'utf8'));

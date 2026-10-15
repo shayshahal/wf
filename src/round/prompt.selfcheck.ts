@@ -114,7 +114,7 @@ rmSync(dir, { recursive: true, force: true });
 		writeState(repo, () => ({ class: 'A', step: 'assess' }));
 		writeFileSync(join(repo, '.wf/checks.log'), JSON.stringify({ row: null, result: 'green', content: worktreeContentSha(repo, folder, null, 'row'), tasks: [] }) + '\n');
 		const contradiction = 'Setup says parent 40 with variants 45/50/59; result says parent 59 with no variants; no transition recorded.';
-		writeFileSync(join(repo, folder, 'ASSESSMENT.md'), `Verdict: repair\nhead: ${git('rev-parse', 'HEAD')}\n## Intent\n- the behavior: NOT MEASURED — ${contradiction}\n## Behavior and evidence\n${contradiction}\n`);
+		writeFileSync(join(repo, folder, 'ASSESSMENT.md'), `Verdict: repair\nhead: ${git('rev-parse', 'HEAD')}\n## Intent\n- the behavior: NOT MEASURED — ${contradiction}\n## Behavior and evidence\n${contradiction}\n## Repairs\n- R1: contradictory proof | action: replay the setup and record the transition to the measured parent and variants\n`);
 		const repair = wf('next');
 		check('a named proof contradiction returns to autonomous build without asking the person', repair.startsWith('dispatch build') && readState(repo)?.step === 'build' && !readState(repo)?.questions?.length, repair);
 		check('the repair builder receives the actual setup/result contradiction', wf('prompt', 'build').includes(contradiction));

@@ -34,6 +34,7 @@ import { stepHistory } from './friction.ts';
 import { assessmentHandoffGap, checkGap, checkGapLine, checksEvidence, higherClass, runStep, suitesGap } from './step.ts';
 import type { ChecksEvidence } from './step.ts';
 import { assessmentContentSha, assessmentRulingSource, verificationGapsHash } from './assessment-rulings.ts';
+import { parseRepairFindings } from './repair-findings.ts';
 import { mergedImplementationGap } from './delivered-round.ts';
 import { shouldStopRoundServers } from './round-servers.ts';
 import { stopWorktreeServers } from '../worktrees/serve.ts';
@@ -326,6 +327,16 @@ export function nextAction(s: Snapshot, purpose: 'dispatch' | 'brief' = 'dispatc
 			// Accepted explicitly: T2 reads the acceptance beside the assessment, never in silence.
 		}
 		if (verdict === 'repair') {
+			const parsed = parseRepairFindings(s.files.assessment);
+			if (parsed.kind === 'invalid') return dispatch('assess', parsed.why);
+			const blockers = parsed.findings.filter((finding) => finding.kind === 'blocker');
+			if (blockers.length) {
+				const recovery = blockers.map((finding) => `${finding.id} (${finding.obligation}): ${finding.blocker}; owner: ${finding.owner}; next: ${finding.next}`).join(' · ');
+				// Put the continuing work at build so harness recovery's next cannot redispatch the same
+				// blocked report forever. Its normal handoff records answers and requests fresh assessment.
+				effects.push({ step: ['build'], buildReason: { kind: 'work', text: `execution recovery (no product repair charged): ${recovery}` } });
+				return act(`wait user: harness — ${recovery} — after recovery, run \`${wf} next\` to resume the build and answer every finding before fresh assessment; no product repair charged`);
+			}
 			const attempts = s.repairs ?? 0;
 			if (attempts >= MAX_REPAIRS) {
 				// The bounded repair ran out: one contextual escalation, recorded so it cannot repeat. An

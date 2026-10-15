@@ -43,6 +43,8 @@ function makeRepo(name: string) {
 	git('-c', 'user.name=wf', '-c', 'user.email=wf@selfcheck', 'commit', '-qm', 'base', '--allow-empty');
 	git('checkout', '-qb', 'fix/stack');
 	mkdirSync(join(repo, '.wf')); mkdirSync(join(repo, folder));
+	// Dispatch persists the build reason through step build (#151), which needs a working document.
+	writeFileSync(join(repo, folder, 'TICKET.md'), '# stack fixture\n## Intent\n- preserve the running stack during active work\n');
 	writeFileSync(join(repo, '.wf/state.json'), JSON.stringify({ wf_version: 2, round: 'fix/stack', id: 'X-1', folder, base: 'main', class: 'A', step: 'agree' }));
 	return repo;
 }

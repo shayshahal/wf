@@ -70,6 +70,18 @@ integration assessment, which judges the whole round against the whole agreement
     agreement materially, or the right behavior for a surviving agreed effect is a decision the
     person must make rather than a repair.
 - `head: <git rev-parse HEAD>` — the implementation this judged.
+- For `repair`, `## Repairs` lists every finding with a stable local id and its scoped obligation:
+  `- R1: Intent 5, unavailable rate | action: <concrete authorized command, test change or setup>`.
+  Name the actual test/assertion, request-failure tool or project setup that can drive the state on
+  this stack. Discover available tools before declaring a capability missing: no seeded role does
+  not mean a failed request is unreachable. Disposable local fixtures/helpers within scope are
+  authorized setup, not a product permission question. Keep an unmeasured intent visibly open.
+  If no action is currently executable, use
+  `- R1: <obligation> | blocker: <capability/runtime/authority gap> | owner: <owner> | next: <concrete recovery/options>`.
+  That pauses execution without spending a product repair or creating an accept/fix vote. Use
+  `blocked` and a question only for a real intent/authority decision. Do not label omitted effort
+  as missing capability. The builder answers each id in the working document's
+  `## Repair responses`; judge those measurements or impossibility reasons on reassessment.
 - `assessed-at: <current ISO timestamp>` — when this independent assessment finished. Write a new
   report even when HEAD and the findings are unchanged: the handoff records the previous report's
   content identity, so merely touching or rewriting that old report does not answer this assessment.

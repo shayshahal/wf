@@ -27,6 +27,7 @@ import { changedFiles, isRoundPaperwork } from '../gates/check.ts';
 import { initializeSlices, parseBuildUnits, sliceContext } from './build-units.ts';
 import { verificationCases } from './agreement.ts';
 import { assessmentContentSha, verificationFixRulings, verificationProofGap } from './assessment-rulings.ts';
+import { repairResponseGap } from './repair-findings.ts';
 import { deliveredCommandGap } from './delivered-round.ts';
 import { shouldStopRoundServers } from './round-servers.ts';
 import { stopWorktreeServers } from '../worktrees/serve.ts';
@@ -61,6 +62,8 @@ export function assessmentHandoffGap(toplevel: string, state: State, phase: 'ass
 	if (phase !== 'assess' || !state.folder) return null;
 	const file = join(toplevel, state.folder, context.kind === 'unit' ? context.assessmentFile : 'ASSESSMENT.md');
 	const assessment = existsSync(file) ? readFileSync(file, 'utf8') : null;
+	const repair = repairResponseGap(assessment, existsSync(agreement) ? readFileSync(agreement, 'utf8') : '', evidence.content);
+	if (repair) return repair;
 	const suite = suitesGap(evidence);
 	if (suite && verificationFixRulings(assessment, context, state.answered ?? [], suite).length) return `verification repair: ${suite} — the ruling is to fix it; run wf check --suites or write BLOCKED.md, a selected-case green alone is not the repair`;
 	const rulings = verificationFixRulings(assessment, context, state.answered ?? []);

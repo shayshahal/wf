@@ -46,6 +46,7 @@ head: ${patch.head ?? 'H4'}
 ${patch.intent ?? '- "x": met: src/Page.svelte:1 · before: red · after: green'}
 ## Agreement
 ${patch.material ? `material: ${patch.material}` : '(none)'}
+${patch.verdict === 'repair' ? '\n## Repairs\n- R1: Intent x | action: strengthen src/Page.spec.ts::scroll to measure the preserved position\n' : ''}
 `;
 
 const base = (patch: Partial<Snapshot> = {}): Snapshot => ({
@@ -106,6 +107,10 @@ check('an intent line without a verdict is not a clean assessment', say(base({ s
 // repair: back to build, bounded
 const repair = base({ step: 'assess', repairs: 0, files: { agreement: null, assessment: ASSESS({ verdict: 'repair' }), review: null, blocked: null } });
 check('a repair assessment returns to build, counted', repairs(repair) === 1 && steps(repair).join() === 'build' && say(repair).includes('repair 1 of 2'), say(repair));
+const vague = { ...repair, files: { ...repair.files, assessment: ASSESS({ verdict: 'repair', intent: '- "x": NOT MEASURED — no seeded role lacks permission' }).split('## Repairs')[0] } };
+check('JX-1393: an unexecutable finding returns to assess without a product repair or a human vote', say(vague).startsWith('dispatch assess') && repairs(vague) === 0 && asks(vague).length === 0);
+const owned = { ...repair, files: { ...repair.files, assessment: `${vague.files.assessment}\n## Repairs\n- R1: Intent x | blocker: request-failure tool unavailable | owner: environment maintainer | next: restore browser routing and rerun the unavailable-rate case\n` } };
+check('an owned capability gap uses harness recovery without consuming a repair or creating an accept/fix question', say(owned).startsWith('wait user: harness —') && say(owned).includes('environment maintainer') && repairs(owned) === 0 && asks(owned).length === 0);
 const spent = base({ step: 'assess', repairs: 2, files: { agreement: TICKET_WALK, assessment: ASSESS({ verdict: 'repair' }), review: null, blocked: null } });
 check('two unsuccessful repairs: one contextual escalation, not another build', repairs(spent) === 0 && steps(spent).length === 0 && asks(spent).length === 1 && asks(spent)[0].source.startsWith('ASSESSMENT.md#') && asks(spent)[0].text.includes('answer `accept`'), say(spent));
 

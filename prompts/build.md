@@ -36,6 +36,13 @@ phase ends when every verification case in scope passes and you run `wf step ass
   to this build, not a new T1. Genuinely new scope or behavior (a new surface, contract or
   persistence choice, or dropping an agreed item) needs `{{folder}}/BLOCKED.md` with a `Question:`
   line.
+- After an assessment repair, answer every `## Repairs` id in `## Repair responses` in the
+  working document (outside its agreed material). The brief supplies the assessment `source:`;
+  add the current `wf check` `content-sha:`. Use `- R1: done: <what ran/changed> | evidence:
+  <measurement/reference>` or `- R1: impossible: <why> | owner: <owner> | next: <recovery>`.
+  Preserve the assessor's report. `wf step assess` refuses missing or stale answers; a green
+  selected case alone does not answer the findings. Resolve authorized setup yourself; ask only
+  when an actual decision or missing authority needs the person.
 - When a reviewed correction is likely to recur or protects a consequential project boundary,
   prefer preserving it as a test/check. For remaining judgment, update an existing scoped project
   note with the reason, scope, exceptions and durable source. Keep this within the agreement and
