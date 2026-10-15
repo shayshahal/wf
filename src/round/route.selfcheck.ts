@@ -265,8 +265,21 @@ const approve = (dir: string, klass: 'B', agreement: string) => {
 	check('blocked: the answer lands in BLOCKED.md § Answer', decided.out.includes('§ Answer'), decided.out);
 	const resume = cli(dir, 'next');
 	check('blocked: an answered BLOCKED.md resumes the build once', resume.out.includes('dispatch build') && resume.out.includes('answered'), resume.out);
+	const brief = cli(dir, 'brief', 'build');
+	check('blocked: dispatched build receives its brief and the answer', brief.code === 0 && brief.out.includes('## Answered build block') && brief.out.includes('cancel the dialog') && brief.out.includes('wf step assess'), brief.out.slice(-1500));
 	const again = cli(dir, 'next');
 	check('blocked: the same answer does not resume twice', again.out.includes('wait user: blocked'), again.out);
+	for (const question of ['which label?', 'which endpoint?']) {
+		writeFileSync(join(dir, 'bug-reports/r/BLOCKED.md'), `Question: ${question}\n`);
+		check('blocked: a fresh block refuses the old build brief', cli(dir, 'brief', 'build').code === 2);
+		check('blocked: a fresh block waits for a new answer', cli(dir, 'next').out.includes('wait user: blocked'));
+		cli(dir, 'ask', '--blocked');
+		cli(dir, 'decide', 'use the approved option');
+		check('blocked: a new answer dispatches a build', cli(dir, 'next').out.includes('dispatch build'));
+		const fresh = cli(dir, 'brief', 'build');
+		check('blocked: the new brief carries the current answer', fresh.code === 0 && fresh.out.includes('use the approved option'), fresh.out.slice(-1000));
+		check('blocked: the new answer also dispatches only once', !cli(dir, 'next').out.includes('dispatch build'));
+	}
 	rmSync(dir, { recursive: true, force: true });
 }
 

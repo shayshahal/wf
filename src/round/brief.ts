@@ -36,10 +36,13 @@ export function briefGap(argv: string[], say: string): string | null {
 export async function runBrief(argv: string[], { stack = ensureServers }: { stack?: typeof ensureServers } = {}): Promise<void> {
 	const phase = argv[0];
 	let composed: ReturnType<typeof composePrompt>;
+	let blockedAnswer = '';
 	try {
 		const toplevel = toplevelOf();
-		const gap = briefGap(argv, nextAction(snapshotOf(toplevel)).say);
+		const snapshot = snapshotOf(toplevel);
+		const gap = briefGap(argv, nextAction(snapshot, 'brief').say);
 		if (gap) throw new Error(`${phase}: ${gap}`);
+		if (phase === 'build' && snapshot.files.blocked) blockedAnswer = `\n## Answered build block\n\n${snapshot.files.blocked.trim()}\n`;
 		composed = composePrompt(argv);
 	} catch (e) {
 		console.error(`wf brief ${(e as Error).message}`);
@@ -55,7 +58,7 @@ export async function runBrief(argv: string[], { stack = ensureServers }: { stac
 	if (USES_STACK.has(phase)) {
 		try { console.error(await stack(toplevel, { wait: true })); } catch (e) { /* the brief still goes out */ console.error((e as Error).message); }
 	}
-	process.stdout.write(`${composed.text.trimEnd()}\n${handoffText(phase, folder, readState(toplevel)?.class ?? state?.class ?? null, composed.assessmentFile)}`);
+	process.stdout.write(`${composed.text.trimEnd()}\n${blockedAnswer}${handoffText(phase, folder, readState(toplevel)?.class ?? state?.class ?? null, composed.assessmentFile)}`);
 }
 
 if (process.argv[1]?.endsWith('brief.ts')) await runBrief(process.argv.slice(2));

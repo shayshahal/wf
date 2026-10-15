@@ -84,7 +84,8 @@ export function unpostedSections(note: string | null): string[] {
 	return [...(note ?? '').matchAll(/^## (\S+)(.*)$/gm)].filter((m) => !/\(posted\)/.test(m[2])).map((m) => m[1]);
 }
 
-export function nextAction(s: Snapshot): { say: string; effects: Effect[] } {
+/** Compute the next action; a brief may read an answered build assignment after dispatch consumed it. */
+export function nextAction(s: Snapshot, purpose: 'dispatch' | 'brief' = 'dispatch'): { say: string; effects: Effect[] } {
 	const effects: Effect[] = [];
 	const act = (say: string) => ({ say, effects });
 	const wf = `node ${s.entry}`;
@@ -202,8 +203,10 @@ export function nextAction(s: Snapshot): { say: string; effects: Effect[] } {
 			// An answer to the blocked question (`wf decide` writes `## Answer`) resumes the build once;
 			// a build that comes back still blocked asks the person again with a fresh question.
 			const answered = [...(s.answered ?? [])].reverse().find((a) => a.source?.startsWith('BLOCKED.md'));
-			if (answered && answered.n !== s.blockedAnswered) {
-				effects.push({ blockedAnswered: answered.n });
+			// JX-1101 (#141): next consumes the dispatch, but the assigned worker still needs its brief.
+			// A rewritten block must not inherit the previous answer, even with the same Question.
+			if (answered && answered.text === q && /^## Answer[ \t]*\r?$/m.test(s.files.blocked) && (answered.n !== s.blockedAnswered || purpose === 'brief')) {
+				if (purpose === 'dispatch') effects.push({ blockedAnswered: answered.n });
 				return dispatch('build', `the blocked question was answered: ${answered.answer ?? ''}`);
 			}
 			return act(`wait user: blocked — ${q}`);

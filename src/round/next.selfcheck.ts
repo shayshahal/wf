@@ -152,7 +152,7 @@ check('class A: a revision closes once the agreed sections change (JX-1096)', !s
 // ── an answered BLOCKED.md resumes the build once; the same answer never loops
 const blockedBuild = base({ step: 'build', files: { agreement: null, assessment: null, review: null, blocked: 'Question: which label?\n' } });
 check('a blocked build with no answer waits on the user', say(blockedBuild) === 'wait user: blocked — which label?');
-const answeredBlocked = { ...blockedBuild, answered: [{ n: 1, to: 'user', text: 'which label?', source: 'BLOCKED.md', answer: 'cancel', asked: 't', answered: 't' }] };
+const answeredBlocked = { ...blockedBuild, files: { ...blockedBuild.files, blocked: 'Question: which label?\n\n## Answer\ncancel\n' }, answered: [{ n: 1, to: 'user', text: 'which label?', source: 'BLOCKED.md', answer: 'cancel', asked: 't', answered: 't' }] };
 check('an answered BLOCKED.md resumes the build once', say(answeredBlocked).startsWith('dispatch build') && say(answeredBlocked).includes('answered'), say(answeredBlocked));
 check('the same answer does not resume a second time', say({ ...answeredBlocked, blockedAnswered: 1 }) === 'wait user: blocked — which label?');
 
