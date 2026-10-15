@@ -42,6 +42,17 @@ export function section(text: string | null | undefined, name: string): string |
 	return m ? m[1] : null;
 }
 
+/** Read anticipated repo-relative paths from Scope's `paths:` lines and the optional Files hint. */
+export function anticipatedPaths(text: string | null | undefined): string[] {
+	// #132: explicit path hints classify known scope without interpreting exclusions or requiring a plan.
+	const scope = (section(text, 'Scope') ?? '').split('\n')
+		.flatMap((line) => line.match(/^[ \t]*(?:-[ \t]+)?paths:[ \t]*(.*)$/i)?.[1] ?? []);
+	const files = (section(text, 'Files') ?? '').split('\n').map((line) => line.replace(/^[ \t]*-[ \t]+/, ''));
+	return [...new Set([...scope, ...files].flatMap((line) => line.split(/[\s,]+/))
+		.map((path) => path.replace(/`/g, '').replace(/\\/g, '/').replace(/^\.\//, ''))
+		.filter(Boolean))];
+}
+
 /** The explicit T2 walk bullet and its indented continuations; never sibling facts or headings. */
 export function agreementT2WalkLines(text: string | null | undefined): string[] {
 	const normalized = (text ?? '').replace(/\r\n/g, '\n');

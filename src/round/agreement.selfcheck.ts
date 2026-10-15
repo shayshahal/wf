@@ -5,6 +5,7 @@
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { anticipatedPaths } from './agreement.ts';
 import { agreementClass, agreementFile, agreementGap, agreementPath, agreementSha, revisionSha, assessmentGap, assessmentHead, assessmentMaterial, assessmentOpenGaps, assessmentSurviving, assessmentVerdict, ASSESSMENT_FILE, caseFiles, consequential, intentGap, section, verificationCases } from './agreement.ts';
 
 let failures = 0;
@@ -14,6 +15,8 @@ const check = (name: string, cond: boolean, detail = '') =>
 check('class A\'s agreement is the ticket; B/C have AGREEMENT.md', agreementFile('A') === 'TICKET.md' && agreementFile('B') === 'AGREEMENT.md' && agreementFile('C') === 'AGREEMENT.md');
 check('consequential is B or C', consequential('B') && consequential('C') && !consequential('A') && !consequential(null));
 check('a section body is read, heading excluded', section('## Observed\n- x\n\n## Agreed\n- y\n', 'Observed') === '- x\n\n');
+check('anticipated paths read explicit scope and file hints, normalize and deduplicate', JSON.stringify(anticipatedPaths('## Scope\r\n- paths: `./src/shared/new.ts`, src\\api\\new.ts\r\n- Excluding: `src/ignored.ts`\r\n## Files\r\n- `src/shared/new.ts`\r\n- package.json\r\n## Notes\r\npaths: src/history.ts\r\n')) === JSON.stringify(['src/shared/new.ts', 'src/api/new.ts', 'package.json']));
+check('routine prose and absent hints require no speculative file plan', anticipatedPaths('## Scope\n- Fix the label.\n').length === 0 && anticipatedPaths(null).length === 0);
 
 const AGREEMENT = `# r — agreement
 Class: B

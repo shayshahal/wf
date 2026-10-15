@@ -34,6 +34,10 @@ deleted them.
 The paths are the project's contract-paths file (one git pathspec glob per
 line; `projects/<name>/index.ts` says where it lives), and last match wins,
 so the `** wf-class=A` default comes first. `wf:classify` reports the class
-for the diff. `wf next` also measures an agreement's verification-case files against the same
-globs before anything is built: an agreement whose cases touch one is B whatever its
-`Class:` line says, and a class never downgrades (A→B→C).
+for the diff. For known implementation paths, record `paths: src/path, another/path`
+in the ticket's `## Scope` (an optional `## Files` list in the ticket or agreement also works).
+These are anticipated repo-relative files, including new files; a directory uses its trailing `/`.
+Record paths already known from intake or discovered during build; ordinary work needs no exhaustive file plan.
+`wf next` measures these hints and verification-case files against the same globs before
+dispatching a build. A match requires B and T1 whatever the `Class:` line says; new contract
+scope discovered during build stops the next build brief for agreement. A class never downgrades (A→B→C).
