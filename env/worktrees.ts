@@ -3,7 +3,7 @@
 import { closeSync, openSync, readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { teardown } from '../src/project.ts';
-import { servePid, stopServersStep, stragglersStep } from '../src/worktrees/serve.ts';
+import { stopWorktreeServers } from '../src/worktrees/serve.ts';
 import { excludeWfFolder, resolveWorktree } from '../src/worktrees/worktree.ts';
 import type { RemovalStep, Seams } from '../src/seams.ts';
 
@@ -34,17 +34,13 @@ export function createWorktree({ branch, base, log }: Parameters<NonNullable<Sea
 // the straggler sweep, so the selfcheck can check Windows's plan on any machine (it read
 // process.platform, and was red everywhere but Windows, 2026-10-03).
 export function removalPlan({ branch, path, slug, pid }: Parameters<NonNullable<Seams['removalPlan']>>[0], platform: NodeJS.Platform = process.platform): RemovalStep[] {
-	// Stragglers go first: a live dev server holds the tree, and `wt remove` fails on Windows while
-	// it runs, leaving git without the worktree but the folder, container, volume, network and
-	// routes in place (measured 2026-09-24: 23 processes). The sweep is the kit's (serve.ts).
-	// The project's teardown before the folder goes, as the kit's plan has it: dropping the database
-	// runs the worktree's python. Until 2026-10-04 it came after, which was right while a container
-	// per worktree needed no worktree; the first shared-mongo reap failed its drop that way.
-	// A stack `wf serve` started (serve.ts) goes with its whole process tree first, as the kit's plan has it.
-	const served = servePid(path);
+	// Verified release must succeed before the project's teardown can remove scenario data.
+	// The safe cwd and recovery journal belong to reap, outside the directory wt may unregister.
 	return [
-		...(served ? [stopServersStep(served, platform)] : []),
-		stragglersStep(path, pid, platform),
+		{ label: 'stop owned servers', run: async () => {
+			const result = await stopWorktreeServers(path);
+			if (result.kind === 'refused') throw new Error(result.why);
+		} },
 		...teardown({ slug, worktree: path }),
 		{ label: 'wt remove', cmd: 'wt', args: ['remove', branch, '--no-delete-branch', '--force', '--foreground', '-y'] },
 		{ label: 'rm -rf worktree', rm: path },

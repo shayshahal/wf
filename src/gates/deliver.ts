@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { stopWorktreeServers } from '../worktrees/serve.ts';
 // deliver.ts — wf deliver: after T2 approved (skills/round/SKILL.md). T2 is local and comes first: the
 // approval is the merge, and nothing leaves the machine before it (Shay, 2026-09-27).
 //   1. `wf check` with the agreement's verification case (the repro)
@@ -544,6 +545,8 @@ async function finishDelivery({ toplevel, state, folder, ids, url, head, because
 	writeState(toplevel, () => ({ note: kept, delivery: { url, head, contentSha } }));
 	console.log(`${url} ${because}; tracker note: ${kept}`);
 	await runStep(['merged']);
+	const released = await stopWorktreeServers(toplevel);
+	if (released.kind === 'refused') { console.error(`wf deliver: merged, cleanup incomplete: ${released.why}; retry deliver`); process.exitCode = 1; }
 }
 
 export async function runDeliver() {
@@ -552,6 +555,8 @@ export async function runDeliver() {
 	// The step is the delivery's last write; once it is `merged` there is nothing left to finish. A
 	// retry that never reached it is recovered above, from what the remote shows.
 	if (state?.step === 'merged') {
+		const released = await stopWorktreeServers(toplevel);
+		if (released.kind === 'refused') { console.error(released.why); process.exitCode = 1; return; }
 		console.error(`wf deliver: already merged${state.note ? ` (tracker note: ${state.note})` : ''}; \`wf next\` says what is left`);
 		process.exit(2);
 	}

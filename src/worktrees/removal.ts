@@ -9,8 +9,8 @@ import type { RemovalStep } from '../seams.ts';
 /** One step's outcome: `ok` false means the resource was not confirmed released (or the step failed). */
 export type RemovalOutcome = { ok: boolean; say: string };
 
-/** Runs one step, never throwing: the next step still runs, and the outcome says what happened. */
-export function runRemovalStep(step: RemovalStep): RemovalOutcome {
+/** Runs one step and reports expected failure; the caller retains progress and decides recovery. */
+export async function runRemovalStep(step: RemovalStep): Promise<RemovalOutcome> {
 	if (step.rm) {
 		let failed: string | null = null;
 		try {
@@ -28,7 +28,7 @@ export function runRemovalStep(step: RemovalStep): RemovalOutcome {
 	// A step done in-process: its arguments never pass through the shell (the database drop's python
 	// source would not survive cmd.exe).
 	if (step.run) {
-		try { step.run(); return { ok: true, say: `${step.label}: ok` }; } catch (e) { return { ok: false, say: `${step.label}: already gone or failed (${(e as Error).message})` }; }
+		try { await step.run(); return { ok: true, say: `${step.label}: ok` }; } catch (e) { return { ok: false, say: `${step.label}: already gone or failed (${(e as Error).message})` }; }
 	}
 	const run = spawnSync(step.cmd!, step.args!, { encoding: 'utf8', env: { ...process.env, WF_FORCE_REAP: '1', ...(step.env ?? {}) }, shell: process.platform === 'win32' });
 	return { ok: run.status === 0, say: `${step.label}: ${run.status === 0 ? 'ok' : `already gone or failed (${(run.stderr ?? '').trim().split('\n').at(-1) || `exit ${run.status}`})`}` };

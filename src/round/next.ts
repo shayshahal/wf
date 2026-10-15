@@ -35,6 +35,8 @@ import { assessmentHandoffGap, checkGap, checkGapLine, checksEvidence, higherCla
 import type { ChecksEvidence } from './step.ts';
 import { assessmentContentSha, assessmentRulingSource, verificationGapsHash } from './assessment-rulings.ts';
 import { mergedImplementationGap } from './delivered-round.ts';
+import { shouldStopRoundServers } from './round-servers.ts';
+import { stopWorktreeServers } from '../worktrees/serve.ts';
 import type { MergedImplementationGap } from './delivered-round.ts';
 
 // How many times a within-agreement finding is repaired autonomously before one contextual escalation
@@ -483,5 +485,12 @@ export async function runNext() {
 		if (e.ask) writeState(toplevel, (state) => addQuestion(state, e.ask!));
 	}
 	if (effects.some((e) => e.ask || e.advance)) ({ say } = nextAction(snapshotOf(toplevel)));
+	const current = readState(toplevel);
+	if (shouldStopRoundServers({ step: current?.step, waitingOn: current?.waiting_on, say })) {
+		const stopped = await stopWorktreeServers(toplevel);
+		// A stale PID is a cleanup warning, not a refusal of the next action already selected.
+		if (stopped.kind === 'refused') console.error(stopped.why);
+		else if (stopped.kind === 'stopped') console.error(`wf serve: released idle server tree ${stopped.pid}`);
+	}
 	console.log(say);
 }

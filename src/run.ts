@@ -55,7 +55,8 @@ export async function run(argv: string[], pieces: Partial<Seams> = {}) {
 	process.noDeprecation = true;
 	await logRefusals(argv);
 	// The hooks run whichever wf the plugin carries; the env's own commands are not a round's.
-	if (!['handoff', 'hook', 'update'].includes(cmd)) {
+	// Releasing a verified stack needs no round schema/entry permission: old rounds leak too.
+	if (!['handoff', 'hook', 'update'].includes(cmd) && !(cmd === 'serve' && rest.includes('--stop'))) {
 		const { CorruptStateError, entryGap, legacyStateGap, readState, toplevelOf } = await import('./round/state.ts');
 		let gap = null;
 		try {

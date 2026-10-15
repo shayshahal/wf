@@ -8,9 +8,10 @@
 // `wf reap <branch>`, it only printed its plan, and Claude Code's auto mode refused the flag.
 // Every step tolerates "already gone": a reap that is re-run is a no-op, not an error.
 import { execFileSync } from 'node:child_process';
-import { appendFileSync, copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
+import { appendFileSync, closeSync, copyFileSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { createHash, randomUUID } from 'node:crypto';
+import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { refuseCaller } from '../refusal.ts';
 import { roundsDir } from '../project.ts';
 import { writeCloneLaunch } from './new.ts';
@@ -19,7 +20,7 @@ import { readState } from '../round/state.ts';
 import { mergedImplementationGap } from '../round/delivered-round.ts';
 import type { State } from '../round/state.ts';
 import type { RemovalStep } from '../seams.ts';
-import { removalPlan, resolveWorktree, slugForBranch } from './worktree.ts';
+import { listWorktrees, removalPlan, resolveWorktree, slugForBranch } from './worktree.ts';
 import { runRemovalStep } from './removal.ts';
 
 // Pure: the uncommitted round paperwork in `git status --porcelain --untracked-files=all` output.
@@ -127,19 +128,37 @@ export function branchStep(state: State | null, branch: string, gitDir: string):
 	return state?.step === 'merged' ? { label: `delete local branch ${branch}`, cmd: 'git', args: [`--git-dir=${gitDir}`, 'branch', '-D', branch] } : null;
 }
 
+// Directory identity survives a partially deleted .wf folder; a replacement gets another file ID.
+function reapDirectoryIdentity(path: string): string {
+	const stat = statSync(path, { bigint: true });
+	return `${stat.dev}:${stat.ino}:${stat.birthtimeNs}`;
+}
+
 export async function runReap(argv: string[]) {
 	const branch = argv.find((a) => !a.startsWith('-'));
 	if (!branch) {
 		console.error('usage: wf reap <branch>   (WF_FORCE_REAP=1 to actually run)');
 		refuseCaller();
 	}
+	const trees = listWorktrees();
+	const common = execFileSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { encoding: 'utf8' }).trim();
+	const journal = join(common, `wf-reap-${createHash('sha256').update(branch).digest('hex')}.json`);
+	let progress = 0;
+	let rememberedMerged = false;
+	let token: string = randomUUID();
+	let directory: string | null = null;
 	let path: string;
-	try {
-		path = resolveWorktree(branch).path;
-	} catch (e) {
-		console.error((e as Error).message);
-		process.exit(1);
+	if (existsSync(journal)) {
+		const saved: unknown = JSON.parse(readFileSync(journal, 'utf8'));
+		if (typeof saved !== 'object' || saved === null || !('branch' in saved) || saved.branch !== branch || !('path' in saved) || typeof saved.path !== 'string' || !isAbsolute(saved.path) || !('next' in saved) || typeof saved.next !== 'number' || !Number.isSafeInteger(saved.next) || saved.next < 0 || !('merged' in saved) || typeof saved.merged !== 'boolean' || !('token' in saved) || typeof saved.token !== 'string' || !('directory' in saved) || typeof saved.directory !== 'string') throw new Error('wf reap: invalid recovery journal; nothing removed');
+		path = saved.path; progress = saved.next; rememberedMerged = saved.merged; token = saved.token; directory = saved.directory;
+	} else {
+		path = resolveWorktree(branch, trees).path;
 	}
+	// Never delete an ancestor of the surviving repository or its metadata. Resolve before rm.
+	path = resolve(path);
+	const survivor = trees.find((tree) => resolve(tree.path) !== path && !tree.bare)?.path ?? common;
+	const withinTarget = (candidate: string) => resolve(candidate).toLowerCase() === path.toLowerCase() || resolve(candidate).toLowerCase().startsWith(`${path.toLowerCase()}\\` ) || resolve(candidate).startsWith(`${path}/`);
 	const slug = slugForBranch(branch);
 	const state = readState(path);
 	const mergedGap = state ? mergedImplementationGap(path, state) : null;
@@ -148,30 +167,68 @@ export async function runReap(argv: string[]) {
 		process.exit(2);
 	}
 	if (mergedGap) console.warn(`wf reap: forcing removal despite ${mergedGap.reason}; product changes are not archived`);
-	const force = reapRuns(process.env, state);
+	const force = existsSync(journal) || reapRuns(process.env, state);
 	// Paperwork first: when it cannot be listed, reap stops, and ROUNDS.md gets no line for a round
 	// that is still there (2026-10-04, a broken .git: the line was written, then reap stopped).
-	const kept = force ? keepRoundPaperwork(path, slug, state?.folder) : null;
-	if (force && state) recordFriction(path, state);
 	// Read before the worktree goes: the repository the branch lives in.
-	const gitDir = execFileSync('git', ['-C', path, 'rev-parse', '--path-format=absolute', '--git-common-dir'], { encoding: 'utf8' }).trim();
-	const deleteBranch = branchStep(state, branch, gitDir);
-	for (const step of [...(await removalPlan({ branch, path, slug, pid: process.pid })), ...(deleteBranch ? [deleteBranch] : [])]) {
-		const shown = step.rm ? `rm -rf ${step.rm}` : step.run ? step.label : `${step.cmd} ${step.args!.join(' ')}`;
-		if (!force) {
-			console.log(`would: ${shown}`);
-			continue;
+	const gitDir = common;
+	const deleteBranch = rememberedMerged ? { label: `delete local branch ${branch}`, cmd: 'git', args: [`--git-dir=${gitDir}`, 'branch', '-D', branch] } : branchStep(state, branch, gitDir);
+	const steps = [...(await removalPlan({ branch, path, slug, pid: process.pid })), ...(deleteBranch ? [deleteBranch] : [])];
+	if (withinTarget(common) || withinTarget(survivor)) throw new Error('wf reap: target contains the surviving repository; nothing removed');
+	const lock = `${journal}.lock`;
+	const lockBytes = `${process.pid}:${randomUUID()}`;
+	if (force) {
+		const fd = openSync(lock, 'wx');
+		try { writeFileSync(fd, lockBytes); } finally { closeSync(fd); }
+	}
+	try {
+		if (force && existsSync(path)) {
+			const current = reapDirectoryIdentity(path);
+			if (directory !== null && current !== directory) throw new Error('wf reap: recovery target ownership changed; nothing removed');
+			directory = current;
 		}
-		console.log(runRemovalStep(step).say);
-	}
-	if (!force) {
-		console.log(`would: take ${slug}'s entries out of the clone's .claude/launch.json`);
-		console.log('(dry run: the round is not merged. WF_FORCE_REAP=1 wf reap does it anyway)');
-		return;
-	}
-	writeCloneLaunch(slug, null);
-	console.log('launch.json entries: ok');
-	if (kept) console.log(reapSummary({ slug, dest: join(homedir(), '.cache', 'wf-reaped', slug), ...kept, folder: state?.folder, worktree: path, worktreeGone: !existsSync(path) }));
+		const kept = force && !existsSync(journal) ? keepRoundPaperwork(path, slug, state?.folder) : null;
+		if (force && state && !existsSync(journal)) recordFriction(path, state);
+		const save = (next: number) => {
+			const temp = `${journal}.${process.pid}.tmp`;
+			writeFileSync(temp, JSON.stringify({ branch, path, token, directory, next, merged: rememberedMerged || state?.step === 'merged' }));
+			renameSync(temp, journal);
+		};
+		if (force) {
+			save(progress);
+			// The invoking process must not hold the directory it is about to remove (Windows EBUSY).
+			process.chdir(survivor);
+		}
+		for (let index = progress; index < steps.length; index++) {
+			const step = steps[index];
+			const shown = step.rm ? `rm -rf ${step.rm}` : step.run ? step.label : `${step.cmd} ${step.args!.join(' ')}`;
+			if (!force) { console.log(`would: ${shown}`); continue; }
+			if (existsSync(path) && reapDirectoryIdentity(path) !== directory) throw new Error('wf reap: target ownership changed during cleanup; recovery journal retained');
+			const registered = listWorktrees(survivor).filter((tree) => tree.branch === branch);
+			if (registered.some((tree) => resolve(tree.path) !== path)) throw new Error('wf reap: branch is now owned by another worktree; recovery journal retained');
+			const outcome = await runRemovalStep(step);
+			console.log(outcome.say);
+			// wt may unregister first, then fail deleting an open directory. The journal still owns it;
+			// continue to the explicit directory removal, which will preserve progress if that fails too.
+			const unregistered = step.label === 'wt remove' && !listWorktrees(survivor).some((tree) => resolve(tree.path) === path);
+			if (!outcome.ok && !unregistered) {
+				console.error(`wf reap: incomplete; recovery journal ${journal}. Retry wf reap ${branch} from ${survivor}`);
+				process.exitCode = 1;
+				return;
+			}
+			save(index + 1);
+		}
+		if (!force) {
+			console.log(`would: take ${slug}'s entries out of the clone's .claude/launch.json`);
+			console.log('(dry run: the round is not merged. WF_FORCE_REAP=1 wf reap does it anyway)');
+			return;
+		}
+		if (existsSync(path)) { console.error(`wf reap: ${path} remains; recovery journal retained`); process.exitCode = 1; return; }
+		writeCloneLaunch(slug, null);
+		unlinkSync(journal);
+		console.log('launch.json entries: ok');
+		if (kept) console.log(reapSummary({ slug, dest: join(homedir(), '.cache', 'wf-reaped', slug), ...kept, folder: state?.folder, worktree: path, worktreeGone: !existsSync(path) }));
+	} finally { if (force && existsSync(lock) && readFileSync(lock, 'utf8') === lockBytes) unlinkSync(lock); }
 }
 
 if (process.argv[1]?.endsWith('reap.ts')) runReap(process.argv.slice(2));

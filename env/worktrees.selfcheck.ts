@@ -14,32 +14,16 @@ const check = (name: string, cond: unknown, detail = '') =>
 
 plug({ project: pieces });
 const plan = removalPlan({ branch: 'fix/bjew-1', path: 'C:\\wt\\fix-bjew-1', slug: 'fix-bjew-1', pid: 4242 }, 'win32');
-const sweep = Buffer.from(plan[0].args![2], 'base64').toString('utf16le');
-// The project's teardown before the folder goes: the database drop runs the worktree's python (the
-// first shared-mongo reap, 2026-10-04, dropped nothing with it after).
+const labels = plan.map((step) => step.label);
 const down = teardown({ slug: 'fix-bjew-1', worktree: 'C:\\wt\\fix-bjew-1' });
-const at = (label: string) => plan.findIndex((s) => s.label === label);
-check('stragglers, the project\'s teardown, then wt\'s three steps', plan.map((s) => s.label).join(' → ') === ['kill stragglers', ...down.map((s) => s.label), 'wt remove', 'rm -rf worktree', 'git worktree prune'].join(' → '), plan.map((s) => s.label).join(' → '));
-check('the database is dropped while the folder is still there', at('drop database') > 0 && at('drop database') < at('rm -rf worktree'));
-check('wt remove keeps the branch and runs in the foreground', plan[at('wt remove')].args!.join(' ') === 'remove fix/bjew-1 --no-delete-branch --force --foreground -y', plan[at('wt remove')].args!.join(' '));
-check('the straggler sweep matches both path spellings and spares this process', sweep.includes('C:\\wt\\fix-bjew-1') && sweep.includes('-ne 4242'), sweep);
-// 2026-10-12: the sweep also reads each process's working directory and covers the portless launcher
-// chain (cmd -> portless -> mise -> app): those name the worktree nowhere in their command line, so the
-// command-line match alone left fix/jx-810's proxy holding the folder after its round merged.
-check('the sweep also matches by working directory', /WfCwdOf \$_.ProcessId/.test(sweep) && sweep.includes('WfHolds $cwd $_.CommandLine'), sweep);
-check('the sweep covers node, python and the portless launchers', ['node.exe', 'python.exe', 'portless.exe', 'mise.exe', 'cmd.exe'].every((n) => sweep.includes(n)), sweep);
-check('rm is in-process, not a command', plan[at('rm -rf worktree')].rm === 'C:\\wt\\fix-bjew-1' && !plan[at('rm -rf worktree')].cmd);
-const posix = removalPlan({ branch: 'fix/bjew-1', path: '/wt/fix-bjew-1', slug: 'fix-bjew-1', pid: 4242 }, 'linux');
-check('off Windows the sweep is pkill on the tree\'s path, the rest the same', posix[0].cmd === 'pkill' && posix[0].args!.join(' ') === '-f /wt/fix-bjew-1' && posix.slice(1).map((s) => s.label).join() === plan.slice(1).map((s) => s.label).join(), JSON.stringify(posix[0]));
-
-// A stack `wf serve` started (its pid in .wf/serve.pid) stops first, with its whole tree (2026-10-04:
-// nothing serves a worktree from its creation any more, so a running stack is always wf serve's).
+check('verified owned release precedes project teardown and directory removal', labels.join('|') === ['stop owned servers', ...down.map((step) => step.label), 'wt remove', 'rm -rf worktree', 'git worktree prune'].join('|'));
+check('release uses the identity-verifying operation, never a path sweep', Boolean(plan[0].run) && !plan[0].cmd);
+check('wt remove preserves the local branch', plan.find((step) => step.label === 'wt remove')?.args?.includes('--no-delete-branch'));
 const served = mkdtempSync(join(tmpdir(), 'wf-served-'));
 mkdirSync(join(served, '.wf'));
 writeFileSync(join(served, '.wf', 'serve.pid'), '5150');
 const withStack = removalPlan({ branch: 'fix/bjew-1', path: served, slug: 'fix-bjew-1', pid: 4242 }, 'win32');
-check('a served worktree: stop servers first, the tree of serve.pid', withStack[0].label === 'stop servers' && withStack[0].args!.join(' ') === '/PID 5150 /T /F' && withStack[1].label === 'kill stragglers', withStack.map((s) => s.label).join(' → '));
-check('not served: no stop step', plan[0].label === 'kill stragglers');
+check('both served and unserved worktrees use verified release', Boolean(withStack[0].run) && withStack[0].label === plan[0].label);
 rmSync(served, { recursive: true, force: true });
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');

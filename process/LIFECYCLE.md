@@ -18,8 +18,32 @@ Ports: one hashed port P per branch, from the branch name (`ports.ts`, 10000–1
 spreads its apps from there. No worktree is served from its creation (Shay, 2026-10-04: a stack per
 worktree was too much). `wf serve [--wait]` starts the project's `serve` in the background, and the
 phases that drive the app run it themselves: `wf brief assess`,
-`wf check` before the repro or a task marked `stack`, and `wf review`. It stops at reap. `wf status`
-probes P and prints the first app's name.
+`wf check` before the repro or a task marked `stack`, and `wf review`. `wf next` and `wf step`
+release idle stacks at classify, agreement, held, approved and merged boundaries, and at non-review
+human waits. Active build, assessment, CI waits and T2 review retain theirs; the next app-driving
+phase starts the stack again. `wf serve --stop` stops a helper checkout's recorded server tree without
+removing the checkout or database. Ownership is verified before stopping, and shutdown is confirmed
+before clearing the PID record. A failed automatic release warns without blocking the workflow action;
+an explicit stop refuses and preserves the record. Reap still stops processes before teardown.
+`wf status` probes P and prints the first app's name.
+
+Release records the observed descendants and creation times before signalling, then confirms both
+process absence and closed direct endpoints. Unavailable probes are unknown, never absence. A partial
+release keeps `.wf/serve-owner.json` and `serve.pid`; `wf serve --stop` retries that release. A stop
+handle from an older start cannot release a replacement. A missing owner before release, a reused PID,
+or an interrupted ownership lock requires inspection rather than a path-based kill. Shared infrastructure
+is prepared outside the detached server tree.
+
+Checks (including the isolated baseline runner) use an owned supervisor, a 30-minute task timeout,
+and `.wf/check-processes/` recovery records. Cancellation releases the observed descendants before
+returning a failed measurement. Unconfirmed release cannot supply green evidence. A later check only
+clears an interrupted release record after confirming absence; unknown/running leftovers refuse a new run.
+
+Reap changes to a surviving checkout before removal and stops on failed cleanup. Its recovery journal
+lives in the common git directory, outside the target: unregistering a worktree cannot lose its path.
+Retry `wf reap <branch>` from a surviving checkout to continue the saved steps. The target's directory
+identity must still match the external journal; a replacement checkout is refused. A failed directory removal retains the journal.
+
 
 Reap gate: `wf reap` refuses unless `.wf/state.json` says `step: "merged"`. Override with
 `WF_FORCE_REAP=1`. Worktrees that never entered the workflow (no
