@@ -60,6 +60,8 @@ export type State = {
 	repairs?: number;
 	// The report present at the last assess handoff; an unchanged report is not a new judgment.
 	assessment_baseline?: { file: string; sha: string | null };
+	/** Why the current build was dispatched; handoff gaps can clear without another build. */
+	build_reason?: { kind: 'work' | 'handoff'; text: string } | null;
 	/** Executable units and review receipts; absent on the single-task route. */
 	slices?: SliceProgress;
 	// The step a round-worker was sent back for by `wf handoff check` (handoff-hook.ts): one hand-back
@@ -181,6 +183,10 @@ export function readState(toplevel: string): State | null {
 	if ('assessment_baseline' in parsed) {
 		const baseline = parsed.assessment_baseline;
 		if (baseline === null || typeof baseline !== 'object' || !('file' in baseline) || typeof baseline.file !== 'string' || !/^ASSESSMENT(?:-unit-[1-9]\d*)?\.md$/.test(baseline.file) || !('sha' in baseline) || (baseline.sha !== null && (typeof baseline.sha !== 'string' || !/^[a-f0-9]{64}$/.test(baseline.sha)))) throw new CorruptStateError(file, 'invalid assessment_baseline');
+	}
+	if ('build_reason' in parsed && parsed.build_reason !== null) {
+		const reason = parsed.build_reason;
+		if (typeof reason !== 'object' || !('kind' in reason) || (reason.kind !== 'work' && reason.kind !== 'handoff') || !('text' in reason) || typeof reason.text !== 'string' || !reason.text.trim()) throw new CorruptStateError(file, 'invalid build_reason');
 	}
 	if ('delivery' in parsed) {
 		const gap = deliveryReceiptGap(parsed.delivery);
