@@ -285,6 +285,38 @@ head: ${git('rev-parse', 'HEAD').trim()}
 	rmSync(dir, { recursive: true, force: true });
 }
 
+// ── #132: known contract scope is classified before an implementation or verification case exists.
+for (const path of ['src/api/future.ts', 'src/shared/Control.ts', 'package.json']) {
+	const { dir, git } = repo('fix/routeScope', 'A', null);
+	mkdirSync(join(dir, 'docs/agents'), { recursive: true });
+	writeFileSync(join(dir, 'docs/agents/contract-paths.txt'), 'src/api/**\nsrc/shared/**\npackage.json\n');
+	writeFileSync(join(dir, 'bug-reports/r/TICKET.md'), `${TICKET}\n## Scope\n- paths: \`${path}\`\n`);
+	check('scope: no implementation diff exists before classification', git('diff', '--name-only', 'main...HEAD').trim() === '' && git('diff', '--name-only').trim() === '');
+	check('scope: direct build brief refuses anticipated contract work before T1', cli(dir, 'brief', 'build').code === 2);
+	const measured = cli(dir, 'next');
+	check(`scope: ${path} upgrades A to B before dispatch`, measured.code === 0 && state(dir).class === 'B' && !measured.out.includes('dispatch build'), measured.out);
+	check('scope: the consequential agreement is requested before building', cli(dir, 'next').out.includes('dispatch agree'));
+	writeFileSync(join(dir, 'bug-reports/r/AGREEMENT.md'), AGREEMENT);
+	check('scope: a completed agreement still needs T1', cli(dir, 'next').out.includes('wait user: T1'));
+	approve(dir, 'B', AGREEMENT);
+	check('scope: approved T1 permits build and its brief', cli(dir, 'next').out.includes('dispatch build') && cli(dir, 'brief', 'build').code === 0);
+	rmSync(dir, { recursive: true, force: true });
+}
+for (const mode of ['ordinary', 'check', 'C', 'discovery']) {
+	const { dir } = repo('fix/routeScopeModes', 'A', null);
+	mkdirSync(join(dir, 'docs/agents'), { recursive: true });
+	writeFileSync(join(dir, 'docs/agents/contract-paths.txt'), 'src/shared/**\n');
+	const ticket = `${TICKET}\n## Scope\n- paths: ${mode === 'ordinary' ? 'src/Page.svelte' : 'src/shared/Future.ts'}\n`;
+	writeFileSync(join(dir, 'bug-reports/r/TICKET.md'), ticket);
+	if (mode !== 'ordinary') writeFileSync(join(dir, '.wf/state.json'), JSON.stringify({ wf_version: 2, round: 'r', id: 'r', folder: 'bug-reports/r', base: 'main', step: mode === 'discovery' ? 'build' : 'agree', class: mode === 'C' ? 'C' : 'A', check: mode === 'check' }));
+	const next = cli(dir, 'next');
+	if (mode === 'ordinary') check('scope: ordinary planned paths stay lightweight', next.out.includes('dispatch build') && state(dir).class === 'A', next.out);
+	if (mode === 'check') check('scope: a check round still reproduces without upgrading', next.out.includes('dispatch agree') && state(dir).class === 'A', next.out);
+	if (mode === 'C') check('scope: anticipated paths never downgrade C', state(dir).class === 'C' && !next.out.includes('dispatch build'), next.out);
+	if (mode === 'discovery') check('scope: newly discovered contract scope interrupts build before more work', state(dir).class === 'B' && !next.out.includes('dispatch build') && cli(dir, 'brief', 'build').code === 2, next.out);
+	rmSync(dir, { recursive: true, force: true });
+}
+
 // ── class measurement sees the index too: a restored worktree must not hide a contract edit
 {
 	const { dir, git } = repo('fix/routeIndexClass', 'A', null);

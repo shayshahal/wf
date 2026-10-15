@@ -64,7 +64,8 @@ only human gates, and only T2's approval is the merge.
    must do, for whom, what it must *not* touch) and write the answers into `TICKET.md` under `## Scope`.
 2. Classify the ticket **and scope answers** before building (`process/CLASSES.md`): A for ordinary
    work, B for a contract or persistence change, C for an owed product decision. An empty diff says
-   nothing about the requested work. `wf new <branch> --class <A|B|C> --id <id>` → worktree, seeded
+   nothing about the requested work. Record known implementation paths as `paths: <repo-relative paths>`
+   in `TICKET.md`'s `## Scope`; `process/CLASSES.md` defines the pre-build path guard. `wf new <branch> --class <A|B|C> --id <id>` → worktree, seeded
    database, `{{folder}}` (the stack starts when a
    phase needs it). Set the ticket's started status.
 3. The loop below, from the round's worktree.

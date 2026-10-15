@@ -20,6 +20,7 @@ import { addQuestion, blockedQuestion, openRevisions } from './ask.ts';
 import { agreementClass, agreementGap, agreementPath, agreementSha, revisionSha, AGREEMENT_FILE, AGREEMENT_REVIEW_FILE, ASSESSMENT_FILE, assessmentGap, assessmentHead, assessmentMaterial, assessmentOpenGaps, assessmentSurviving, assessmentVerdict, caseFiles, consequential, hasT2Walk, REVIEW_FILE, verificationCases } from './agreement.ts';
 import { contractPaths as contractPathsFile } from '../project.ts';
 import { classFromFiles } from '../gates/classify.ts';
+import { anticipatedPaths, TICKET_FILE } from './agreement.ts';
 import { changedFiles } from '../gates/check.ts';
 import { lastField, readVerdict } from '../gates/review-format.ts';
 import { seams } from '../seams.ts';
@@ -61,6 +62,8 @@ export type Snapshot = {
 	contractPaths?: string | null;
 	folder?: string | null;
 	filesChanged?: string[];
+	/** Ticket path hints remain available after AGREEMENT.md becomes the working agreement. */
+	pathsAnticipated?: string[];
 	revisions?: { text: string; at: string; sha?: string | null }[];
 	blockedAnswered?: number;
 	repairs?: number;
@@ -128,12 +131,12 @@ export function nextAction(s: Snapshot, purpose: 'dispatch' | 'brief' = 'dispatc
 	// answers a question, not a build, so it is exempt.
 	if (!s.check) {
 		const cases = verificationCases(s.files.agreement);
-		const files = [...cases.flatMap((c) => caseFiles(c)), ...(s.filesChanged ?? [])];
+		const files = [...cases.flatMap((c) => caseFiles(c)), ...anticipatedPaths(s.files.agreement), ...(s.pathsAnticipated ?? []), ...(s.filesChanged ?? [])];
 		const byFiles = s.contractPaths ? classFromFiles(files, s.contractPaths) : 'A';
 		const planned = higherClass(higherClass(s.klass, agreementClass(s.files.agreement) ?? 'A'), byFiles);
 		if (planned !== (s.klass ?? 'A')) {
 			effects.push({ step: ['classify', '--class', planned] });
-			return act(`classify: the round measures class ${planned} (a declared Class:, a case, or a changed file on a contract path) — \`${wf} next\` takes T1 next`);
+			return act(`classify: the round measures class ${planned} (a declared Class:, an anticipated path, a case, or a changed file on a contract path) — \`${wf} next\` takes T1 next`);
 		}
 	}
 
@@ -446,6 +449,7 @@ export function snapshotOf(toplevel: string): Snapshot {
 		contractPaths: read(join(toplevel, contractPathsFile)),
 		folder: state.folder ?? null,
 		filesChanged,
+		pathsAnticipated: anticipatedPaths(read(join(dir, TICKET_FILE))),
 		checks: checksEvidence(toplevel, state),
 		mergedGap: mergedImplementationGap(toplevel, state),
 	};

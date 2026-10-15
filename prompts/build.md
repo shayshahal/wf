@@ -28,6 +28,9 @@ phase ends when every verification case in scope passes and you run `wf step ass
   integration build owns the whole agreement and repairs the failures between units, within it.
 - Implement within the agreement. New helpers, new files, local corrections, added tests and naming
   are yours: ordinary implementation freedom, never a renewed agreement.
+- Before editing a newly discovered contract path, add it to `paths:` in the ticket's `## Scope`
+  and run `wf next`. If it upgrades the class, return for agreement/T1 before implementing there
+  (`{{wf}}/process/CLASSES.md`); ordinary helpers remain within the build.
 - Repair review corrections (a unit checkpoint's or T2's) against the existing agreed behavior,
   using the review's screenshots and references. A layout regression or missing agreed item returns
   to this build, not a new T1. Genuinely new scope or behavior (a new surface, contract or
