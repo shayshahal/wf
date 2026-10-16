@@ -30,19 +30,25 @@ an explicit stop refuses and preserves the record. Reap still stops processes be
 Release records the observed descendants and creation times before signalling, then confirms both
 process absence and closed direct endpoints. Unavailable probes are unknown, never absence. A partial
 release keeps `.wf/serve-owner.json` and `serve.pid`; `wf serve --stop` retries that release. A stop
-handle from an older start cannot release a replacement. A missing owner before release, a reused PID,
-or an interrupted ownership lock requires inspection rather than a path-based kill. Shared infrastructure
-is prepared outside the detached server tree.
+handle from an older start cannot release a replacement. An interrupted release can finish from its
+saved identity even if `serve.pid` was already removed. A lock whose creator is provably dead is reclaimed
+under a serialized acquisition guard; live, malformed or unavailable ownership and an abandoned guard
+require inspection, never a path-based kill. Startup with an unavailable identity fails explicitly and
+retains its launch reference rather than claiming a successful start. Shared infrastructure is prepared
+outside the detached server tree.
 
 Checks (including the isolated baseline runner) use an owned supervisor, a 30-minute task timeout,
 and `.wf/check-processes/` recovery records. Cancellation releases the observed descendants before
 returning a failed measurement. Unconfirmed release cannot supply green evidence. A later check only
 clears an interrupted release record after confirming absence; unknown/running leftovers refuse a new run.
+Parent loss retains the last established process identities even when the disconnect probe is unavailable.
 
 Reap changes to a surviving checkout before removal and stops on failed cleanup. Its recovery journal
 lives in the common git directory, outside the target: unregistering a worktree cannot lose its path.
 Retry `wf reap <branch>` from a surviving checkout to continue the saved steps. The target's directory
-identity must still match the external journal; a replacement checkout is refused. A failed directory removal retains the journal.
+identity must still match the external journal; a replacement checkout is refused. A journal with no target
+identity can only finish while that target remains absent, never adopt a newly created directory. A failed
+directory removal retains the journal. Paperwork failures release the reap lock without deleting the target.
 
 
 Reap gate: `wf reap` refuses unless `.wf/state.json` says `step: "merged"`. Override with

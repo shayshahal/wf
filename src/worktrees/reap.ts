@@ -8,7 +8,7 @@
 // `wf reap <branch>`, it only printed its plan, and Claude Code's auto mode refused the flag.
 // Every step tolerates "already gone": a reap that is re-run is a no-op, not an error.
 import { execFileSync } from 'node:child_process';
-import { appendFileSync, closeSync, copyFileSync, existsSync, mkdirSync, openSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
+import { appendFileSync, copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { createHash, randomUUID } from 'node:crypto';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
@@ -18,6 +18,7 @@ import { writeCloneLaunch } from './new.ts';
 import { frictionLine } from '../round/friction.ts';
 import { readState } from '../round/state.ts';
 import { mergedImplementationGap } from '../round/delivered-round.ts';
+import { acquireProcessLock } from '../process-lock.ts';
 import type { State } from '../round/state.ts';
 import type { RemovalStep } from '../seams.ts';
 import { listWorktrees, removalPlan, resolveWorktree, slugForBranch } from './worktree.ts';
@@ -73,8 +74,9 @@ export function keepRoundPaperwork(path: string, slug: string, folder: string | 
 	let porcelain = '';
 	try { porcelain = execFileSync('git', ['-C', path, 'status', '--porcelain', '--untracked-files=all'], { encoding: 'utf8' }); } catch (e) {
 		// Reap removes the worktree next: without the list, its uncommitted paperwork went with it, unsaid.
-		console.error(`wf reap: cannot list ${path}'s uncommitted paperwork (git status: ${e instanceof Error ? e.message.split('\n')[0] : String(e)}); nothing removed`);
-		process.exit(1);
+		// A thrown value, not process.exit: reap holds its lock here, and exit would bypass the finally
+		// that releases it (#154, 2026-10-16), stranding every later reap.
+		throw new Error(`wf reap: cannot list ${path}'s uncommitted paperwork (git status: ${e instanceof Error ? e.message.split('\n')[0] : String(e)}); nothing removed`);
 	}
 	const proofDir = folder ? join(path, folder, 'proof') : null;
 	const pictures = folder && proofDir && existsSync(proofDir) ? proofToKeep(folder, filesUnder(proofDir)) : [];
@@ -150,7 +152,9 @@ export async function runReap(argv: string[]) {
 	let path: string;
 	if (existsSync(journal)) {
 		const saved: unknown = JSON.parse(readFileSync(journal, 'utf8'));
-		if (typeof saved !== 'object' || saved === null || !('branch' in saved) || saved.branch !== branch || !('path' in saved) || typeof saved.path !== 'string' || !isAbsolute(saved.path) || !('next' in saved) || typeof saved.next !== 'number' || !Number.isSafeInteger(saved.next) || saved.next < 0 || !('merged' in saved) || typeof saved.merged !== 'boolean' || !('token' in saved) || typeof saved.token !== 'string' || !('directory' in saved) || typeof saved.directory !== 'string') throw new Error('wf reap: invalid recovery journal; nothing removed');
+		// A null identity is valid only while the target remains gone. Never adopt a replacement
+		// directory from an interrupted journal that recorded no authority to remove it (#154).
+		if (typeof saved !== 'object' || saved === null || !('branch' in saved) || saved.branch !== branch || !('path' in saved) || typeof saved.path !== 'string' || !isAbsolute(saved.path) || !('next' in saved) || typeof saved.next !== 'number' || !Number.isSafeInteger(saved.next) || saved.next < 0 || !('merged' in saved) || typeof saved.merged !== 'boolean' || !('token' in saved) || typeof saved.token !== 'string' || !('directory' in saved) || (saved.directory !== null && typeof saved.directory !== 'string')) throw new Error('wf reap: invalid recovery journal; nothing removed');
 		path = saved.path; progress = saved.next; rememberedMerged = saved.merged; token = saved.token; directory = saved.directory;
 	} else {
 		path = resolveWorktree(branch, trees).path;
@@ -167,7 +171,8 @@ export async function runReap(argv: string[]) {
 		process.exit(2);
 	}
 	if (mergedGap) console.warn(`wf reap: forcing removal despite ${mergedGap.reason}; product changes are not archived`);
-	const force = existsSync(journal) || reapRuns(process.env, state);
+	const recovering = existsSync(journal);
+	const force = recovering || reapRuns(process.env, state);
 	// Paperwork first: when it cannot be listed, reap stops, and ROUNDS.md gets no line for a round
 	// that is still there (2026-10-04, a broken .git: the line was written, then reap stopped).
 	// Read before the worktree goes: the repository the branch lives in.
@@ -175,19 +180,31 @@ export async function runReap(argv: string[]) {
 	const deleteBranch = rememberedMerged ? { label: `delete local branch ${branch}`, cmd: 'git', args: [`--git-dir=${gitDir}`, 'branch', '-D', branch] } : branchStep(state, branch, gitDir);
 	const steps = [...(await removalPlan({ branch, path, slug, pid: process.pid })), ...(deleteBranch ? [deleteBranch] : [])];
 	if (withinTarget(common) || withinTarget(survivor)) throw new Error('wf reap: target contains the surviving repository; nothing removed');
-	const lock = `${journal}.lock`;
-	const lockBytes = `${process.pid}:${randomUUID()}`;
-	if (force) {
-		const fd = openSync(lock, 'wx');
-		try { writeFileSync(fd, lockBytes); } finally { closeSync(fd); }
+	const reapLock = force ? acquireProcessLock(`${journal}.lock`) : null;
+	if (reapLock && reapLock.kind === 'refused') {
+		console.error(reapLock.why);
+		process.exitCode = 1;
+		return;
 	}
 	try {
 		if (force && existsSync(path)) {
 			const current = reapDirectoryIdentity(path);
-			if (directory !== null && current !== directory) throw new Error('wf reap: recovery target ownership changed; nothing removed');
-			directory = current;
+			if (directory !== null) {
+				if (current !== directory) throw new Error('wf reap: recovery target ownership changed; nothing removed');
+			} else if (recovering) {
+				// The journal recorded no identity because the target had already gone when it was written;
+				// a path there now is a replacement this stale record may not delete.
+				throw new Error('wf reap: recovery journal has no target identity and the target now exists; nothing removed');
+			} else {
+				directory = current;
+			}
 		}
-		const kept = force && !existsSync(journal) ? keepRoundPaperwork(path, slug, state?.folder) : null;
+		let kept: { files: string[]; committed: string[] | null } | null = null;
+		if (force && !existsSync(journal)) {
+			// A thrown value is handled here so the finally still releases the lock.
+			try { kept = keepRoundPaperwork(path, slug, state?.folder); }
+			catch (e) { console.error(e instanceof Error ? e.message : String(e)); process.exitCode = 1; return; }
+		}
 		if (force && state && !existsSync(journal)) recordFriction(path, state);
 		const save = (next: number) => {
 			const temp = `${journal}.${process.pid}.tmp`;
@@ -228,7 +245,7 @@ export async function runReap(argv: string[]) {
 		unlinkSync(journal);
 		console.log('launch.json entries: ok');
 		if (kept) console.log(reapSummary({ slug, dest: join(homedir(), '.cache', 'wf-reaped', slug), ...kept, folder: state?.folder, worktree: path, worktreeGone: !existsSync(path) }));
-	} finally { if (force && existsSync(lock) && readFileSync(lock, 'utf8') === lockBytes) unlinkSync(lock); }
+	} finally { reapLock?.release(); }
 }
 
 if (process.argv[1]?.endsWith('reap.ts')) runReap(process.argv.slice(2));

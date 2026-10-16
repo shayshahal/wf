@@ -13,6 +13,7 @@ import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { closeSync, existsSync, mkdirSync, openSync, readFileSync, readlinkSync, unlinkSync, writeFileSync, appendFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { acquireProcessLock } from '../process-lock.ts';
 import { ownedProcessTree, parseProcessIdentities } from '../process-tree.ts';
 import { connect } from 'node:net';
 import { directUrls, prepareServe, serve, stackUrls } from '../project.ts';
@@ -26,15 +27,9 @@ export const pidFile = (worktree: string) => join(worktree, '.wf', 'serve.pid');
 // Serialize starts and stops; a crashed lock is recoverable only with a known, absent creator.
 function reserveServerOwnership(worktree: string): () => void {
 	mkdirSync(join(worktree, '.wf'), { recursive: true });
-	const lock = join(worktree, '.wf', 'serve.lock');
-	const snapshot = seams.processes.snapshot();
-	const owner = snapshot.kind === 'known' ? snapshot.processes.find((p) => p.pid === process.pid) : null;
-	if (!owner) throw new Error('wf serve: cannot establish cleanup owner; process inventory unavailable');
-	if (existsSync(lock)) throw new Error('wf serve: another or interrupted start/stop owns serve.lock; inspect its creator before recovery');
-	const fd = openSync(lock, 'wx');
-	const bytes = JSON.stringify({ token: randomUUID(), processes: [owner] });
-	try { writeFileSync(fd, bytes); } finally { closeSync(fd); }
-	return () => { if (existsSync(lock) && readFileSync(lock, 'utf8') === bytes) unlinkSync(lock); };
+	const lock = acquireProcessLock(join(worktree, '.wf', 'serve.lock'));
+	if (lock.kind === 'refused') throw new Error(lock.why);
+	return lock.release;
 }
 
 // The pid `wf serve` recorded for this worktree, or null.
@@ -111,9 +106,10 @@ export async function stopWorktreeServers(worktree: string, expectedToken?: stri
 	try {
 		if (!existsSync(pidFile(worktree)) && !existsSync(join(worktree, '.wf', 'serve-owner.json'))) return { kind: 'absent' };
 		release = reserveServerOwnership(worktree);
-		const pid = servePid(worktree);
+		let pid = servePid(worktree);
 		const record = join(worktree, '.wf', 'serve-owner.json');
-		if (pid === null) return existsSync(pidFile(worktree)) || existsSync(record) ? { kind: 'refused', why: 'wf serve: invalid or partial ownership record; inspect .wf/serve-owner.json' } : { kind: 'absent' };
+		const pidBytes = existsSync(pidFile(worktree)) ? readFileSync(pidFile(worktree), 'utf8') : null;
+		if (pid === null && pidBytes !== null) return { kind: 'refused', why: 'wf serve: invalid serve.pid; ownership retained' };
 		const snapshot = seams.processes.snapshot();
 		if (snapshot.kind === 'unknown') return { kind: 'refused', why: 'wf serve: process inventory unavailable; ownership retained' };
 		const original = existsSync(record) ? readFileSync(record, 'utf8') : null;
@@ -125,9 +121,14 @@ export async function stopWorktreeServers(worktree: string, expectedToken?: stri
 			token = raw.token;
 			if (expectedToken !== undefined && token !== expectedToken) return { kind: 'refused', why: 'wf serve: stop handle belongs to an older run; replacement retained' };
 			owners = parseProcessIdentities(raw.processes);
-			if (!owners?.length || owners[0].pid !== pid) return { kind: 'refused', why: 'wf serve: ownership record does not match serve.pid; retained for recovery' };
+			if (!owners?.length || pid !== null && owners[0].pid !== pid) return { kind: 'refused', why: 'wf serve: ownership record does not match serve.pid; retained for recovery' };
+			// Release can end between its two unlinks. Only a saved releasing identity can
+			// complete that operation without serve.pid; running/partial starts remain refused.
+			if (pid === null && (!('state' in raw) || raw.state !== 'releasing')) return { kind: 'refused', why: 'wf serve: partial startup ownership requires inspection; retained for recovery' };
+			pid ??= owners[0].pid;
 			if (!snapshot.processes.some((p) => p.pid === pid) && (!('state' in raw) || raw.state !== 'releasing')) return { kind: 'refused', why: 'wf serve: owner disappeared before release; possible orphan descendants require inspection' };
 		} else {
+			if (pid === null) return { kind: 'absent' };
 			if (expectedToken !== undefined) return { kind: 'refused', why: 'wf serve: stop handle ownership is missing; retained for recovery' };
 			// Legacy adoption is deliberately narrow: a missing root cannot authorize its orphans.
 			if (serverProcessOwner(worktree, pid) !== 'owned') return { kind: 'refused', why: `wf serve: PID ${pid} is not a verified foreground server in this worktree; ownership retained` };
@@ -137,7 +138,8 @@ export async function stopWorktreeServers(worktree: string, expectedToken?: stri
 		}
 		if (owners.some((owner) => snapshot.processes.some((p) => p.pid === owner.pid && p.born !== owner.born))) return { kind: 'refused', why: 'wf serve: reused PID; ownership retained and no process stopped' };
 		owners = ownedProcessTree(owners, snapshot.processes);
-		if (servePid(worktree) !== pid || (existsSync(record) ? readFileSync(record, 'utf8') : null) !== original) return { kind: 'refused', why: 'wf serve: ownership changed during stop; retry' };
+		const pidUnchanged = () => (existsSync(pidFile(worktree)) ? readFileSync(pidFile(worktree), 'utf8') : null) === pidBytes;
+		if (!pidUnchanged() || (existsSync(record) ? readFileSync(record, 'utf8') : null) !== original) return { kind: 'refused', why: 'wf serve: ownership changed during stop; retry' };
 		const releasing = JSON.stringify({ token, state: 'releasing', processes: owners });
 		writeFileSync(record, releasing);
 		if (!seams.processes.kill(owners)) return { kind: 'refused', why: 'wf serve: could not stop owned processes; ownership retained for retry' };
@@ -145,14 +147,14 @@ export async function stopWorktreeServers(worktree: string, expectedToken?: stri
 		const urls = Object.values(directUrls(basePortForBranch(branch))).flatMap((value) => { const url = new URL(value); if (url.hostname !== 'localhost') return [url]; const ipv4 = new URL(value); ipv4.hostname = '127.0.0.1'; const ipv6 = new URL(value); ipv6.hostname = '[::1]'; return [ipv4, ipv6]; });
 		const until = Date.now() + 3000;
 		while (true) {
-			if (servePid(worktree) !== pid || readFileSync(record, 'utf8') !== releasing) return { kind: 'refused', why: 'wf serve: ownership changed during shutdown; replacement retained' };
+			if (!pidUnchanged() || readFileSync(record, 'utf8') !== releasing) return { kind: 'refused', why: 'wf serve: ownership changed during shutdown; replacement retained' };
 			const remaining = seams.processes.snapshot();
 			if (remaining.kind === 'unknown') return { kind: 'refused', why: 'wf serve: shutdown probe unavailable; ownership retained' };
 			if (!owners.some((owner) => remaining.processes.some((p) => p.pid === owner.pid && p.born === owner.born || p.parent === owner.pid && Date.parse(p.born) >= Date.parse(owner.born))) && (await Promise.all(urls.map(serverAddressAlive))).every((probe) => probe === 'absent')) break;
 			if (Date.now() >= until) return { kind: 'refused', why: 'wf serve: descendant or endpoint shutdown not confirmed; ownership retained for retry' };
 			await new Promise((resolve) => setTimeout(resolve, 100));
 		}
-		unlinkSync(pidFile(worktree));
+		if (pidBytes !== null) unlinkSync(pidFile(worktree));
 		unlinkSync(record);
 		return { kind: 'stopped', pid };
 	} catch {
@@ -178,7 +180,8 @@ export function startServers(worktree: string) {
 		writeFileSync(pidFile(worktree), String(child.pid));
 		const snapshot = seams.processes.snapshot();
 		const root = snapshot.kind === 'known' ? snapshot.processes.find((p) => p.pid === child.pid) : null;
-		if (root) writeFileSync(join(worktree, '.wf', 'serve-owner.json'), JSON.stringify({ token: randomUUID(), state: 'running', processes: [root] }));
+		if (!root) throw new Error('wf serve: startup ownership was not established; launch reference retained and no stack authorized');
+		writeFileSync(join(worktree, '.wf', 'serve-owner.json'), JSON.stringify({ token: randomUUID(), state: 'running', processes: [root] }));
 		return child.pid;
 	} finally { release(); }
 }
