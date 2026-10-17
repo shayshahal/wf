@@ -18,6 +18,7 @@ import { listWorktrees, mainCheckout, basePortForBranch } from '../../src/worktr
 import { homedir } from 'node:os';
 import { delimiter } from 'node:path';
 import { installShim, linkVerifySkill, unlinkCompetingSkills, verifyStackEnv, writeReproConfig } from './round.ts';
+export { waitForVerificationReady } from './readiness.ts';
 
 // This folder's name: skills, agents and prompts reach its notes as {{project}} (ROUND.md, prompts/<phase>.md).
 export const name: string = 'jewelryx';

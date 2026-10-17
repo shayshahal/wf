@@ -46,7 +46,7 @@ import { runCheckProcess } from './check-process.ts';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync } from 'node:fs';
 import { basename, join } from 'node:path';
-import { baseBranch, baselineRunnerEnv, checks, isTestInput, redBaseEvidence, reproFailure, roundReproRuntimeInputs, runnerEnv, suites, verificationStackEnv } from '../project.ts';
+import { baseBranch, baselineRunnerEnv, checks, isTestInput, redBaseEvidence, reproFailure, roundReproRuntimeInputs, runnerEnv, suites, verificationStackEnv, waitForVerificationReady } from '../project.ts';
 import { caseFiles, verificationCases } from '../round/agreement.ts';
 import { sliceContext } from '../round/build-units.ts';
 import { agreementPath } from '../round/agreement.ts';
@@ -461,16 +461,17 @@ export function reproVerdict(runs: ReproRun[], folder: string | null): { result:
 // Starts the stack and waits for it, or exits red naming its logs: the next command would fail
 // against no app, and say less. `stack` is the seam runBrief already has: a selfcheck passes a
 // stand-in so the repro's own spawn and env can be measured without a browser or a database.
-async function stackOrExit(toplevel: string, stack: typeof ensureServers) {
+async function stackOrExit(toplevel: string, stack: typeof ensureServers, env: Record<string, string>, ready: typeof waitForVerificationReady) {
 	try {
 		console.error(await stack(toplevel, { wait: true }));
+		await ready(toplevel, env);
 	} catch (e) {
 		console.error(`FAILED: ${(e as Error).message}`);
 		process.exit(1);
 	}
 }
 
-export async function runRepro({ stack = ensureServers }: { stack?: typeof ensureServers } = {}) {
+export async function runRepro({ stack = ensureServers, ready = waitForVerificationReady }: { stack?: typeof ensureServers; ready?: typeof waitForVerificationReady } = {}) {
 	const toplevel = toplevelOf();
 	const state = readState(toplevel);
 	const { folder } = roundOf(state, toplevel);
@@ -480,11 +481,11 @@ export async function runRepro({ stack = ensureServers }: { stack?: typeof ensur
 		console.error(`check --repro: ${research.split(/[\\/]/).pop()} ## Repro has no \`command:\` line yet: write it first`);
 		process.exit(1);
 	}
-	await stackOrExit(toplevel, stack);
+	const env = { ...runnerEnv(process.env), ...verificationStackEnv(toplevel) };
+	await stackOrExit(toplevel, stack, env, ready);
 	const [cmd, ...args] = tokenize(repro);
 	const start = contentOf(toplevel, folder);
 	const runs: ReproRun[] = [];
-	const env = { ...runnerEnv(process.env), ...verificationStackEnv(toplevel) };
 	for (let i = 1; i <= REPRO_RUNS; i++) {
 		const run = await runCheckProcess(cmd, shellArgv(args), { worktree: toplevel, cwd: toplevel, shell: process.platform === 'win32', env, maxBuffer: RUN_MAX_BUFFER });
 		const output = `${run.stdout ?? ''}${run.stderr ?? ''}`;
@@ -643,10 +644,11 @@ export async function runCheck(argv: string[] = [], shared: SharedTaskCache = ne
 			logRun('red', redCause(missing));
 			failRow(batch);
 		}
-		if (task.stack && !served) {
-			served = true;
+		if (task.stack) {
 			try {
-				await ensureServers(toplevel, { wait: true });
+				if (!served) await ensureServers(toplevel, { wait: true });
+				served = true;
+				await waitForVerificationReady(toplevel, { ...runnerEnv(process.env), ...task.env });
 			} catch (e) {
 				const dead = { label: 'stack', exit: null, missing: (e as Error).message };
 				console.error(`COULD NOT RUN: ${dead.missing}`);
@@ -795,6 +797,7 @@ export async function runCheck(argv: string[] = [], shared: SharedTaskCache = ne
 				try {
 					scratch = await startBaselineScratch({ toplevel, branch: scratchBranch, ref: redBaseRef, probeFiles, log: join(toplevel, '.wf', 'logs', 'baseline-redbase.log') });
 					await ensureServers(scratch.path, { wait: true });
+					await waitForVerificationReady(scratch.path, effectiveEnv);
 					evidenceRoot = scratch.path;
 					// The scratch gets the BASELINE root's stack env, never the live ports or database, and
 					// exactly the object the proof bound above.

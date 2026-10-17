@@ -444,7 +444,7 @@ async function runReproEnv(): Promise<Record<string, string> | null> {
     git(['commit', '-qm', 'base']);
     process.chdir(repo);
     process.env.WF_ENV_OUT = seen;
-    await runRepro({ stack: async () => 'wf serve: stand-in (no server started)' });
+    await runRepro({ stack: async () => 'wf serve: stand-in (no server started)', ready: async () => {} });
     return existsSync(seen) ? JSON.parse(readFileSync(seen, 'utf8')) as Record<string, string> : null;
   } finally {
     delete process.env.WF_ENV_OUT;
