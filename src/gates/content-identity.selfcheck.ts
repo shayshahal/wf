@@ -396,7 +396,10 @@ const approve = async (repo: string, branch: string) => {
 	writeFileSync(join(repo, '.wf', 'state.json'), `${JSON.stringify({ wf_version: 2, round: '106', id: '106', folder, base: 'main', step: 'build', class: 'A' }, null, 2)}\n`);
 	const before = worktreeContentSha(repo, folder, null, 'row');
 	await withStack(branch, async () => {
-		const res = await runCli(repo, ['check']);
+		// The HTTP fixture also stands in for shared auth's dependencies (#146); this arm
+		// measures mutation of checked bytes, not application startup or authentication.
+		const url = `http://localhost:${basePortForBranch(branch)}`;
+		const res = await runCli(repo, ['check'], { B2B_URL: url, ADMIN_URL: url, API_URL: `${url}/api/v1` });
 		check('a mutating check refuses', res.status === 1 && res.out.includes('the check rewrote files'), res.out);
 	});
 	const after = worktreeContentSha(repo, folder, null, 'row');

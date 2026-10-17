@@ -126,6 +126,13 @@ holds everything wf knows about it, and `index.ts` there is the only file the re
 - names, ports and URLs of its apps; which changed files are pages
 - `setup` (the pre-start steps), `serve`, `teardown`
 - `checks`: the commands `wf check` runs for a diff
+- `waitForVerificationReady`: execution readiness for app-driven checks, separate from status's
+  reachability probe. JewelryX's verification and repro runners share buyer/seller/admin auth setup,
+  so they wait for successful GET responses from the storefront and admin roots and the API's
+  `/openapi.json`, using the URLs passed to the runner. This also gates isolated baseline runs.
+  Missing URLs, connection failures and HTTP errors refuse measurement and identify the dependency
+  and dev log; they do not establish a product defect. Checks without a running-app dependency
+  do not start or probe the stack. Readiness does not certify login, scenario data or test outcomes.
 - its round folder, base branch, round branches, people, contract-paths file, tracker note
 - `guidance`: the folder of its notes for agents, in its own repo. A note whose frontmatter has
   `globs:` (Amp's AGENTS.md form, from the repo root) is put in the build and assessment briefs when
