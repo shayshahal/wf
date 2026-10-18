@@ -32,7 +32,7 @@ try {
 	const focused = run('src/alpha.selfcheck.ts');
 	assert.equal(focused.status, 0, focused.stderr);
 	assert.deepEqual(focused.calls, ['alpha', 'eslint', 'tsc']);
-	assert.match(focused.stdout, /focused.*full delivery gate not run/);
+	assert.match(focused.stdout, /focused.*full suite not run/);
 	assert.match(focused.stdout, /selfcheck: PASS src\/alpha\.selfcheck\.ts \(\d+\.\d+s\)/);
 	assert.match(focused.stdout, /3 selfchecks green \(focused;/);
 	console.log('  ok   focused entry runs only selected checks plus both static tools, with timings and an explicit limited claim');
@@ -65,7 +65,7 @@ try {
 	assert.match(red.stdout, /1 of 4 selfchecks red/);
 	assert.match(red.stderr, /FAIL env\/bravo\.selfcheck\.ts/);
 	assert.equal(run('src/alpha.selfcheck.ts').status, 0);
-	console.log('  ok   no-argument delivery gate still runs everything and propagates red independently of focused selection');
+	console.log('  ok   no-argument manual suite still runs everything and propagates red independently of focused selection');
 
 	put('node_modules/typescript/bin/tsc', program('tsc', 5));
 	const typeRed = run('src/alpha.selfcheck.ts');

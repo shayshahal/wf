@@ -5,9 +5,9 @@ wf is Shay's agent workflow (README.md). This file is for changing wf itself.
 ## A push to `main` is live
 
 The installed copy (`~/.local/share/wf`) updates itself on the next `wf` command after `main`
-moves. There is no staging and no CI. So, before every push:
+moves. There is no staging and no CI. The full selfcheck suite is manual, not a pre-push gate.
+Before publishing, report which checks ran and any known failures:
 
-- `node src/selfcheck.ts`, all green (the pre-push hook runs it too, once `core.hooksPath` is set)
 - for a change to worktree creation, the hooks or a project's `setup`/`serve`/`teardown`: one real
   cycle from the editing clone, through Shay's entry: `node env/wf.mjs hook install` (points
   worktrunk at this clone), `node env/wf.mjs new bench/<x>`, check the stack answers,
@@ -18,10 +18,9 @@ moves. There is no staging and no CI. So, before every push:
 ## Development feedback
 
 Use `node src/selfcheck.ts <relative.selfcheck.ts>...` during edit loops: selected checks plus tsc
-and eslint. Its focused result is not delivery proof. The pre-push hook runs the complete gate;
-use that final run rather than immediately duplicating a manual full run on unchanged code.
-When the gate fails, isolate the failing check and capture diagnostic evidence before another
-full run. A later green alone does not explain an intermittent failure.
+and eslint. Label this evidence focused, not a complete-suite result. Run the full suite manually
+when useful; publication does not require it. When a check fails, isolate it and capture diagnostic
+evidence before another full run. A later green alone does not explain an intermittent failure.
 
 ## Core and projects
 

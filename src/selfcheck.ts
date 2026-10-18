@@ -1,10 +1,9 @@
 #!/usr/bin/env node
 // selfcheck.ts — node src/selfcheck.ts: every *.selfcheck.ts in wf and its projects, tsc over all of
 // wf, and eslint (lint-kit's error-handling set, eslint.config.js), in parallel. Explicit relative
-// selfcheck paths select a focused development run; no arguments keeps the complete delivery gate.
-// Print each completed check's time; on red retain the failing files' output and exit 1. The pre-push hook
-// runs it (.githooks/pre-push): a push to main is live on the next wf command, with no CI in between
-// (AGENTS.md). Run from the editing clone: review.selfcheck.ts needs a git checkout, and tsc needs
+// selfcheck paths select a focused development run; no arguments runs the complete suite manually.
+// Print each completed check's time; on red retain the failing files' output and exit 1.
+// Run from the editing clone: review.selfcheck.ts needs a git checkout, and tsc needs
 // `npm ci` (wf runs on Node alone; its dev dependencies are only for this check).
 import { spawn } from 'node:child_process';
 import { existsSync, readdirSync } from 'node:fs';
@@ -22,11 +21,11 @@ const labels = new Set(files.map((file) => relative(root, file).replace(/\\/g, '
 const requested = [...new Set(process.argv.slice(2).map((arg) => arg.replace(/\\/g, '/').replace(/^\.\//, '')))];
 const unknown = requested.filter((label) => !labels.has(label));
 if (unknown.length) {
-	console.error(`selfcheck: unknown selfcheck path: ${unknown.join(', ')}. Use existing paths relative to the wf root; no arguments runs the full delivery gate.`);
+	console.error(`selfcheck: unknown selfcheck path: ${unknown.join(', ')}. Use existing paths relative to the wf root; no arguments runs the complete suite.`);
 	process.exit(2);
 }
 const selected = requested.length ? requested.map((label) => join(root, label)) : files;
-if (requested.length) console.log(`selfcheck: focused (${selected.length} of ${files.length} files); full delivery gate not run.`);
+if (requested.length) console.log(`selfcheck: focused (${selected.length} of ${files.length} files); full suite not run.`);
 
 // Git runs a hook with GIT_DIR set, absolute in a linked worktree, and a check's temp repo then works
 // on this one (2026-10-06, a push from a worktree: git-worktree.selfcheck.ts's `git init` set the
