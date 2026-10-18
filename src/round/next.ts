@@ -195,7 +195,7 @@ export function nextAction(s: Snapshot, purpose: 'dispatch' | 'brief' = 'dispatc
 			if (s.reproEmpty) return dispatch('agree', `\`## Repro\` names a command but ${s.folder ?? '<round>'}/repro/ has no spec file yet — write it`);
 			// 2026-10-18 JX-1374: a spec that crashed in its own setup (createVariant 422) was red the same
 			// way each run, and `wf next` kept saying "run wf check --repro" with no agent to fix it.
-			if (s.reproOutside) return dispatch('agree', `again: the repro never measured the defect — ${s.reproOutside} — fix the repro or write it under \`Could not find\``);
+			if (s.reproOutside) return dispatch('agree', `the repro never measured the defect — ${s.reproOutside} — fix the repro or write it under \`Could not find\``);
 			if (step !== 'agree') effects.push({ step: ['agree', '--waiting-on', 'user'] });
 			return act(`check: run \`${wf} check --repro\` (it says whether the ticket reproduces), then \`${wf} next\`. Go on: \`${wf} step build\` and set the started status; stop: \`WF_FORCE_REAP=1 ${wf} reap ${s.branch}\``);
 		}

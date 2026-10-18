@@ -72,7 +72,7 @@ check('a check round with ## Repro: run wf check --repro and wait on the user', 
 const emptyRepro = base({ check: true, reproEmpty: true, files: { agreement: TICKET + '\n## Repro\ncommand: yarn repro\n', assessment: null, review: null, blocked: null } });
 check('a check round with ## Repro but an empty repro/: dispatch agree to write the spec', say(emptyRepro).startsWith('dispatch agree') && say(emptyRepro).includes('repro/'), say(emptyRepro));
 const outside = base({ check: true, reproOutside: 'run 1 red at api.ts:502', files: { agreement: TICKET + '\n## Repro\ncommand: yarn repro\n', assessment: null, review: null, blocked: null } });
-check('a check round whose unchanged repro was recorded "not the defect": dispatch agree with the failure', say(outside).startsWith('dispatch agree') && say(outside).includes('again: the repro never measured the defect — run 1 red at api.ts:502'), say(outside));
+check('a check round whose unchanged repro was recorded "not the defect": dispatch agree with the failure', say(outside).startsWith('dispatch agree') && say(outside).includes('(again: the repro never measured the defect — run 1 red at api.ts:502') && !say(outside).includes('again: again:'), say(outside));
 
 // ── consequential (B/C): one agreement, one T1
 check('B/C with no agreement: dispatch agree with the gap', say(base({ klass: 'B' })).startsWith('dispatch agree') && say(base({ klass: 'B' })).includes('no AGREEMENT.md'), say(base({ klass: 'B' })));
