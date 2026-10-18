@@ -21,7 +21,8 @@ import { agreementClass, agreementGap, agreementPath, agreementSha, revisionSha,
 import { contractPaths as contractPathsFile } from '../project.ts';
 import { classFromFiles } from '../gates/classify.ts';
 import { anticipatedPaths, TICKET_FILE } from './agreement.ts';
-import { changedFiles } from '../gates/check.ts';
+import { changedFiles, reproInputsSha } from '../gates/check.ts';
+import { parseChecksLog } from '../gates/checks-log.ts';
 import { lastField, readVerdict } from '../gates/review-format.ts';
 import { seams } from '../seams.ts';
 import { modelFor } from '../models.ts';
@@ -57,6 +58,8 @@ export type Snapshot = {
 	check: boolean;
 	// A check round's <round>/repro/ holds no file: `## Repro` names a command with nothing to run.
 	reproEmpty?: boolean;
+	// The last `wf check --repro` said "not the defect" and neither the repro nor the agreement changed since: its recorded say.
+	reproOutside?: string | null;
 	questions: Question[];
 	answered: Question[];
 	files: Record<'agreement' | 'assessment' | 'review' | 'blocked', string | null>;
@@ -190,6 +193,9 @@ export function nextAction(s: Snapshot, purpose: 'dispatch' | 'brief' = 'dispatc
 			// 2026-10-18 JX-1374: `## Repro` had a command but repro/ was empty, so `wf check --repro` said
 			// "No tests found" three times and `wf next` sent the round to it again, forever.
 			if (s.reproEmpty) return dispatch('agree', `\`## Repro\` names a command but ${s.folder ?? '<round>'}/repro/ has no spec file yet — write it`);
+			// 2026-10-18 JX-1374: a spec that crashed in its own setup (createVariant 422) was red the same
+			// way each run, and `wf next` kept saying "run wf check --repro" with no agent to fix it.
+			if (s.reproOutside) return dispatch('agree', `again: the repro never measured the defect — ${s.reproOutside} — fix the repro or write it under \`Could not find\``);
 			if (step !== 'agree') effects.push({ step: ['agree', '--waiting-on', 'user'] });
 			return act(`check: run \`${wf} check --repro\` (it says whether the ticket reproduces), then \`${wf} next\`. Go on: \`${wf} step build\` and set the started status; stop: \`WF_FORCE_REAP=1 ${wf} reap ${s.branch}\``);
 		}
@@ -408,6 +414,13 @@ export function nextAction(s: Snapshot, purpose: 'dispatch' | 'brief' = 'dispatc
 
 const read = (file: string) => (existsSync(file) ? readFileSync(file, 'utf8') : null);
 
+function reproOutsideOf(toplevel: string, folder: string | null, agreementFile: string): string | null {
+	const log = read(join(toplevel, '.wf', 'checks.log'));
+	const last = log ? parseChecksLog(log).repro.at(-1) : undefined;
+	if (last?.result !== 'outside' || !last.inputs || last.inputs !== reproInputsSha(toplevel, folder, agreementFile)) return null;
+	return last.say ?? 'run red outside the defect';
+}
+
 export function snapshotOf(toplevel: string): Snapshot {
 	const state = readState(toplevel) ?? {};
 	const dir = join(toplevel, state.folder ?? '');
@@ -440,6 +453,7 @@ export function snapshotOf(toplevel: string): Snapshot {
 		step: state.step ?? null,
 		klass: state.class ?? null,
 		check: state.check ?? false,
+		reproOutside: state.check ? reproOutsideOf(toplevel, state.folder ?? null, agreementPath(toplevel, state.class ?? null, state.folder)) : null,
 		reproEmpty: !!state.check && !!state.folder && !(existsSync(join(dir, 'repro')) && readdirSync(join(dir, 'repro')).length),
 		questions: state.questions ?? [],
 		answered: state.answered ?? [],
