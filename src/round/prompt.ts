@@ -42,6 +42,10 @@ export function reviewRepairText(text: string): string | null {
 	return text.replace(/\r\n/g, '\n').split(/^## \d{4}-\d{2}-\d{2}[ \t]*$/m).at(-1)?.trim() || null;
 }
 
+// Pure: the brief lines for decisions recorded in state before the agreement existed.
+export const preAgreementDecisions = (decisions: { text: string }[] = [], before = '') =>
+	decisions.length ? `${before ? '\n\n' : ''}Decided before this agreement existed — write each into ## Decisions:\n${decisions.map((d) => `- ${d.text}`).join('\n')}` : '';
+
 export const PHASES = ['agree', 'build', 'assess'];
 export const USAGE = 'agree | build | assess';
 
@@ -104,6 +108,8 @@ export function composePrompt(argv: string[]) {
 		const overruled = overruledAsks(state?.answered);
 		const revisions = openRevisions(state?.revisions, revisionSha(toplevel, klass, folder));
 		vars.revisions = [...overruled.map((q) => `- q${q.n}: ${q.text}${q.default ? ` (default: ${q.default})` : ''} → ${q.answer}`), ...revisions.map((r) => `- ${r.text}`)].join('\n');
+		// Decided before any agreement existed (wf decide at classify): agree writes them into ## Decisions.
+		if (!agreementText) vars.revisions += preAgreementDecisions(state?.decisions, vars.revisions);
 	}
 	// build: the verification cases and, after a `repair` assessment, its findings.
 	let agreementRulings = '';
