@@ -1,5 +1,18 @@
 # Direction: consolidate wf
 
+## Approved ownership reduction — 2026-10-18
+
+Shay approved a sharper cut than the original consolidation: wf owns isolated workspaces and
+resources, durable decisions, approval identity and safe resumable delivery. Agents own verification
+choices and ordinary repairs; an independent final reviewer judges whether the evidence is sufficient.
+Remove assessment-prose routing, repair-proof bureaucracy, mandatory per-case baseline replay and
+executable unit bookkeeping. This deliberately gives up automated engineering-policy enforcement,
+not mechanical safety. The [reduction plan](docs/plans/2026-10-18-smaller-ownership.md) records the
+trade, concrete deletions, sequence and verification. It supersedes conflicting target details below;
+implementation and deployment are tracked separately there.
+
+## Original consolidation direction
+
 Recorded 2026-10-09; reconciled with HumanLayer's August 2026–present resources the same day. The consolidation goal is agreed; session, reviewer, and artifact counts below are proposed defaults to evaluate, not research-established rules. This is not the implemented workflow or a migration plan. README.md and the round skill still describe current behavior.
 
 ## Purpose

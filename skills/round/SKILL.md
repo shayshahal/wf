@@ -109,11 +109,12 @@ Within the agreement, helpers, files, local corrections, added tests and naming 
 agent's own. T2 layout corrections repair the existing agreed behavior in build; the brief carries
 the active review file's latest corrections and screenshot references. They do not, by themselves, renew T1. A genuinely new scope or behavior — a new user-visible surface, a changed contract
 path, a different persistence choice, or dropping an agreed item — is a renewed agreement: the
-build writes `BLOCKED.md` with a `Question:` line, or the assessment records a `material:` line, and
-the round goes back to `agree` for a new T1. A known agreement mismatch is recorded as `surviving:`
-in the assessment's `## Agreement`: clear within-agreement fixes use `repair`; a scope decision uses
-`blocked` and the recorded question. Accepting that exception uses `wf decide --revise --q <n>` to
-renew the agreement, not a chat-only answer or a plain `accept`. The assessment's own fixable findings return to the
+build writes `BLOCKED.md` with a `Question:` line, or the reviewer explicitly chooses `blocked` and
+explains the decision needed. Record a scope change with `wf decide --revise --q <n>` to renew the
+agreement and T1. The reviewer judges whether evidence is sufficient and chooses `clean`, `repair`
+or `blocked`; wf routes that explicit outcome, not phrases inside the report. Builders answer
+findings through corrected work and evidence that the reviewer reads, without special repair-response
+or question-specific proof documents. The assessment's own fixable findings return to the
 build autonomously, at most twice per unit or final integration; after that, or on a genuine blocker,
 `wf next` raises one contextual question rather than one per finding. Every dispatch is a **fresh** agent: never resume
 or message a finished round agent, and never read its session file to "see what happened". If a

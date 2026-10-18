@@ -26,8 +26,7 @@ import { stepHistory } from './friction.ts';
 import { changedFiles, isRoundPaperwork } from '../gates/check.ts';
 import { initializeSlices, parseBuildUnits, sliceContext } from './build-units.ts';
 import { verificationCases } from './agreement.ts';
-import { assessmentContentSha, verificationFixRulings, verificationProofGap } from './assessment-rulings.ts';
-import { repairResponseGap } from './repair-findings.ts';
+import { assessmentContentSha } from './agreement.ts';
 import { deliveredCommandGap } from './delivered-round.ts';
 import { shouldStopRoundServers } from './round-servers.ts';
 import { stopWorktreeServers } from '../worktrees/serve.ts';
@@ -45,7 +44,7 @@ function proofHandoffGap(toplevel: string, state: State): string | null {
 }
 
 /** All build handoff gates, shared by direct step and next's recovery before it mutates state. */
-export function assessmentHandoffGap(toplevel: string, state: State, phase: 'assess' | 'review'): string | null {
+export function assessmentHandoffGap(toplevel: string, state: State): string | null {
 	const agreement = agreementPath(toplevel, state.class ?? null, state.folder);
 	const context = sliceContext(existsSync(agreement) ? readFileSync(agreement, 'utf8') : '', state.slices);
 	if (context.kind === 'invalid') return context.why;
@@ -59,16 +58,7 @@ export function assessmentHandoffGap(toplevel: string, state: State, phase: 'ass
 	if (gap) return checkGapLine(gap);
 	const proof = proofHandoffGap(toplevel, state);
 	if (proof) return proof;
-	if (phase !== 'assess' || !state.folder) return null;
-	const file = join(toplevel, state.folder, context.kind === 'unit' ? context.assessmentFile : 'ASSESSMENT.md');
-	const assessment = existsSync(file) ? readFileSync(file, 'utf8') : null;
-	const repair = repairResponseGap(assessment, existsSync(agreement) ? readFileSync(agreement, 'utf8') : '', evidence.content);
-	if (repair) return repair;
-	const suite = suitesGap(evidence);
-	if (suite && verificationFixRulings(assessment, context, state.answered ?? [], suite).length) return `verification repair: ${suite} — the ruling is to fix it; run wf check --suites or write BLOCKED.md, a selected-case green alone is not the repair`;
-	const rulings = verificationFixRulings(assessment, context, state.answered ?? []);
-	const head = execFileSync('git', ['-C', toplevel, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
-	return verificationProofGap(toplevel, { folder: state.folder, rulings, head, content: evidence.content });
+	return null;
 }
 
 export const STEPS = ['classify', 'agree', 'build', 'assess', 'review', 'pr', 'merged', 'held'];
@@ -136,15 +126,6 @@ export function checkGapLine(gap: NonNullable<ReturnType<typeof checkGap>>): str
 	return gap.kind === 'harness'
 		? `${gap.say} — fix that and run \`wf check\` green, or write BLOCKED.md with a Question: naming it and stop; do not hand off or retry blind`
 		: `${gap.say} — run \`wf check\` and fix what it says; \`wf step\` hands off only a green of the implementation as it is`;
-}
-
-// Pure: the whole-suites gap of this implementation, or null: the last `wf check --suites` line of
-// exactly these bytes is not green. A suites line of other bytes measured something else and is ignored.
-export function suitesGap({ log, content }: ChecksEvidence): string | null {
-	const last = parseChecksLog(log).suites.filter((l) => l.content !== undefined && l.content === content).at(-1);
-	if (!last || last.result === 'green') return null;
-	const red = (last.tasks ?? []).filter((t) => t.exit !== 0).map((t) => t.label).filter(Boolean);
-	return `suites ${last.result ?? 'not green'} at this implementation${red.length ? `: ${red.join(', ')}` : ''}`;
 }
 
 // The shell: the evidence of the round at `toplevel`, as wf check would have recorded it.
@@ -260,7 +241,7 @@ export async function runStep(argv: string[], { quiet = false, buildReason, resu
 			// The handoff past the build needs a wf check green of the implementation as it is: a build
 			// that skipped `wf check`, or whose check could not run, does not reach the assessment or T2.
 			if (step === 'assess' || step === 'review') {
-				const gap = assessmentHandoffGap(toplevel, { ...current, class: klass }, step);
+				const gap = assessmentHandoffGap(toplevel, { ...current, class: klass });
 				if (gap) throw new StepGateError(gap);
 			}
 			if (reviewPolicy) {

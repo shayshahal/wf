@@ -106,7 +106,7 @@ rmSync(dir, { recursive: true, force: true });
 			check(`${phase}: visual claims require the relevant rendered state, not attribute/class proxies`, prompt.includes('rendered evidence of clipping') && prompt.includes('configured filter bounds') && prompt.includes('relevant certificate row') && prompt.includes('aria-invalid'));
 			const count = (prompt.match(/keep the existing button/g) ?? []).length;
 			check(`the decision reaches the ${phase} prompt exactly once`, count === 1, `count=${count}`);
-			if (phase === 'assess') check('the assessor receives the proof setup/result consistency obligation and autonomous repair route', prompt.includes('read its setup → run → reset in order') && prompt.includes('quote\nboth the setup and result') && prompt.includes('use `Verdict: repair`') && prompt.includes('A consistent setup → run → reset\nrecord remains usable evidence'));
+			if (phase === 'assess') check('the assessor judges evidence plainly and leaves fixable work to the builder', prompt.includes("Judge the builder's chosen verification and repair approach on its evidence") && prompt.includes('fixable work\nwithin the agreement returns to the builder') && !prompt.includes('Repair responses') && !prompt.includes('R1:'));
 		}
 		// #137: a contradictory proof is a fixable reading/recording gap, not a first-pass
 		// human product ruling. This checks routing after the assessor names the contradiction;

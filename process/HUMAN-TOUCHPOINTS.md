@@ -53,8 +53,8 @@ JX-275, 2026-10-12).
 - `wf step build` on a B/C round refuses unless `AGREEMENT-REVIEW.md` approves the current
   agreed-material sha. A re-agreement is a re-T1; a chat question is not a T1, and a chat verdict
   is one only once `AGREEMENT-REVIEW.md` records it.
-- `wf deliver` refuses unless `ASSESSMENT.md` is a complete final assessment (a `Verdict:` line and a
-  measured `## Intent`), and the implementation still matches the final approval. With `## Units`
+- `wf deliver` refuses unless `ASSESSMENT.md` records an explicit reviewer verdict and assessed
+  implementation, and the implementation still matches the final approval. With `## Units`
   it also refuses until every unit is done, each checkpoint approved, and both ASSESSMENT.md and
   REVIEW.md judge `scope: integration`.
 - `wf review --done` refuses when the reviewed base (header, and what Plannotator
@@ -69,31 +69,21 @@ rewarded for passing tests, never penalised for a lazy cast or a try/catch aroun
 (HumanLayer, *Why Software Factories Fail*.)
 
 **Assessments, inside the build.** After a single build there is one independent read-only
-assessment (`ASSESSMENT.md`). With `## Units`, each unit gets one scoped to it
-(`ASSESSMENT-unit-<n>.md`, `scope: unit:<n>`), and after the last unit one integration assessment
-judges the whole round (`ASSESSMENT.md`, `scope: integration`). A within-agreement finding or a
-symptom returns to the build autonomously, at most twice per unit or final integration; after that, or on a
-genuine blocker, `wf next` raises ONE contextual question, never one per finding. An unmet intent or a
-still-reproducing symptom blocks T2 until the round is fixed, explicitly accepted, or held — never
-silently passed
-through (#75, #113).
+assessment (`ASSESSMENT.md`). With the currently retained `## Units` route, each unit gets one scoped
+to it, followed by a whole-round integration assessment. Unit execution is scheduled for removal in
+the [ownership reduction](../docs/plans/2026-10-18-smaller-ownership.md).
 
-**Fix rulings on open verification.** A `clean` assessment can still leave an INCONCLUSIVE,
-NOT VERIFIED or NOT MEASURED line. When the person chooses to fix it, the build brief carries the
-open lines and their exact ruling, even after a rebase or a check-freshness dispatch. These rulings
-stay with the assessment in `answered[]`, not in the agreement's decisions; unit assessments work
-the same way. The independent assessment receives the ruling and proof references too (#126,
-JX-275, 2026-10-12).
+The reviewer explicitly chooses `clean`, `repair` or `blocked` and explains the evidence and gaps.
+`repair` returns ordinary findings to the builder, bounded to avoid an unattended loop; `blocked`
+raises one contextual decision. The reviewer owns deciding whether a gap requires more work or a
+person's decision. wf reads the explicit outcome and implementation identity, not engineering
+judgment inferred from phrases in the report. A material scope change still uses `wf decide --revise`
+to renew the agreement and T1.
 
-Only this repair needs `<round folder>/proof/verification-q<n>.md`, with the question's exact
-`source:`, the current `head:` and implementation `content-sha:` (from `.wf/checks.log`), and a
-`## Measurement` naming the actual check, observed result and referenced proof. Commit the
-implementation before recording it. `wf step assess` refuses absent, stale or unmeasured records;
-`wf check` green alone cannot finish a live-check repair. If the check cannot run, the builder writes
-BLOCKED.md instead. The record is a measurement claim, not an automatic truth check: the independent
-assessor reads its proof and judges whether it closes the ruling. A suite-only fix instead needs a
-current whole-suite green, without another measurement document. Explicit accepts and resolved gaps
-are not replayed as repairs. Older saved questions remain readable without a state migration.
+The builder and reviewer read previous findings, recorded decisions and actual evidence directly.
+Repairs require neither a special response grammar nor question-specific proof documents. The
+independent reviewer judges whether a correction and its evidence resolve the findings; a specially
+formatted document is not proof of correctness.
 
 **Unit checkpoints.** A round with `## Units` stops after each unit whose `review after` names a
 label, before the next unit starts. `wf review` shows the chunk built since the last checkpoint and

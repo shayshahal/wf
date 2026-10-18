@@ -1,13 +1,13 @@
 // route.selfcheck.ts — node route.selfcheck.ts → exit 0 when green.
 // The smaller route through the real CLI in temp git repos (#110-#113): the ordinary (class A)
 // ticket-as-agreement, the consequential (B/C) agreement + T1, an unchanged agreement progress
-// edit that must not renew T1, a material change that must, the ordinary/helper scope fence, the
-// bounded repair and the unmet-intent T2 refusal, and the version guard.
+// edit that must not renew T1, the ordinary/helper scope fence, the bounded repair and the blocked
+// verdict's one durable ruling, and the version guard.
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { assessmentContentSha } from './assessment-rulings.ts';
+import { assessmentContentSha } from './agreement.ts';
 import { readState } from './state.ts';
 import { agreementSha, revisionSha } from './agreement.ts';
 import { worktreeContentSha } from '../gates/content-identity.ts';
@@ -26,6 +26,7 @@ Class: B
 - Choice: extract DetailsLayout (rejected: absolute-position).
 - Verification: the existing tests pass, plus the sidebar region renders.
 - T2 walk: open: /catalog as buyer
+- **Not asked for.** none — the ticket names every change
 ## Verification
 | # | case | files | check |
 |---|---|---|---|
@@ -115,7 +116,7 @@ const approve = (dir: string, klass: 'B', agreement: string) => {
 	rmSync(dir, { recursive: true, force: true });
 }
 
-// ── the assessment: a repair returns to build, bounded; an unmet intent blocks T2 with one ruling
+// ── the assessment: a repair returns to build, bounded; a blocked verdict asks one durable ruling
 {
 	const { dir } = repo('fix/routeR', 'A', null);
 	const assess = (v: string, intent: string) => `# r — assessment\nVerdict: ${v}\nhead: ${execFileSync('git', ['-C', dir, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()}\n## Intent\n${intent}\n${v === 'repair' ? '\n## Repairs\n- R1: scroll position | action: fix the scroll restoration and drive the modal regression case\n' : ''}`;
@@ -133,11 +134,11 @@ const approve = (dir: string, klass: 'B', agreement: string) => {
 	const bounded = cli(dir, 'next');
 	check('assessment: two unsuccessful repairs escalate once, not a third build', bounded.out.includes('2 autonomous repairs') && state(dir).step === 'assess', bounded.out);
 	check('assessment: the escalation is one recorded question', (state(dir).questions ?? []).length === 1);
-	// A blocked assessment (unmet intent) asks one fix-or-accept ruling and does not open T2.
+	// A blocked verdict asks one durable ruling that carries the whole assessment and does not open T2.
 	setStep('assess');
 	writeFileSync(join(dir, 'bug-reports/r/ASSESSMENT.md'), assess('blocked', '- "x": not met: the modal still jumps'));
 	const blocked = cli(dir, 'next');
-	check('assessment: unmet intent asks one fix-or-accept ruling, never T2', blocked.out.includes('fix or accept:') && state(dir).step === 'assess' && (state(dir).questions ?? []).length === 1, blocked.out);
+	check('assessment: a blocked verdict asks one durable ruling, never T2', blocked.out.includes('the reviewer explicitly blocked the round.') && blocked.out.includes('## Intent') && state(dir).step === 'assess' && (state(dir).questions ?? []).length === 1, blocked.out);
 	rmSync(dir, { recursive: true, force: true });
 }
 

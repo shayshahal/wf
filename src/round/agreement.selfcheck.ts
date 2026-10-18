@@ -6,7 +6,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { anticipatedPaths } from './agreement.ts';
-import { agreementClass, agreementFile, agreementGap, agreementPath, agreementSha, revisionSha, assessmentGap, assessmentHead, assessmentMaterial, assessmentOpenGaps, assessmentSurviving, assessmentVerdict, ASSESSMENT_FILE, caseFiles, consequential, intentGap, notAskedFor, notAskedForGap, section, verificationCases } from './agreement.ts';
+import { agreementClass, agreementFile, agreementGap, agreementPath, agreementSha, revisionSha, assessmentGap, assessmentHead, assessmentContentSha, assessmentRulingSource, isAssessmentRulingSource, assessmentVerdict, ASSESSMENT_FILE, caseFiles, consequential, notAskedFor, notAskedForGap, section, verificationCases } from './agreement.ts';
 
 let failures = 0;
 const check = (name: string, cond: boolean, detail = '') =>
@@ -85,51 +85,23 @@ ${patch.intent ?? '- "x": met: a.ts:1 · before: red · after: green'}
 ## Agreement
 ${patch.agreement ?? (patch.material ? `material: ${patch.material}` : 'none')}
 ${patch.design ? `## Design\n${patch.design}\n` : ''}`;
-check('the assessment verdict is read', assessmentVerdict(assess()) === 'clean' && assessmentVerdict(assess({ verdict: 'repair' })) === 'repair' && assessmentVerdict(assess({ verdict: 'blocked' })) === 'blocked');
-check('the assessment head is read', assessmentHead(assess({ head: 'H1' })) === 'H1');
-check('a material line under ## Agreement is read', assessmentMaterial(assess({ material: 'the API shape moved' })) === 'the API shape moved' && assessmentMaterial(assess()) === null);
-check('a clean assessment with a measured intent has no gap', assessmentGap(assess()) === null);
-check('no ASSESSMENT.md is a gap naming it', assessmentGap(null) === `no ${ASSESSMENT_FILE}`);
-check('a VERDICT-less assessment is a gap', (assessmentGap(assess().replace(/^Verdict:.*\n/m, '')) ?? '').includes('Verdict'));
-check('an intent line with no verdict is a gap', (assessmentGap(assess({ intent: '- "x": looks fine' })) ?? '').includes('has no verdict'));
-check('a met line without before/after is a gap', (assessmentGap(assess({ intent: '- "x": met: a.ts:1' })) ?? '').includes('before'));
-check('NOT MEASURED and left out: are verdicts', intentGap('## Intent\n- "x": NOT MEASURED\n- "y": left out: moved to a new ticket\n') === null);
-check('an empty left out: is a gap', (intentGap('## Intent\n- "y": left out:\n') ?? '').includes('no reason'));
-
-// #130: a known intent/agreement mismatch (JX-810/1377: add_tracking_number still called
-// _announce_delivery_delay, the buyer signal the agreement removed). It is recorded as a durable
-// `surviving:` line, not an advisory `## Design` note; a clean verdict cannot carry it, and a
-// blocked one names the unmet line so the person's ruling carries it.
-const mismatch = assess({ agreement: 'surviving: add_tracking_number still calls _announce_delivery_delay', design: '- advisory: order_service.py:2637 could reuse the window helper' });
-check('a surviving: line is read from ## Agreement', assessmentSurviving(mismatch).join() === 'add_tracking_number still calls _announce_delivery_delay' && assessmentSurviving(assess()).length === 0);
-check('a surviving agreed effect cannot stay a clean advisory Design item', (assessmentGap(mismatch) ?? '').includes('surviving'));
-check('an empty surviving marker cannot claim a clean pass', (assessmentGap(assess({ agreement: '  surviving:  ' })) ?? '').includes('empty'));
-check('a bullet surviving marker is also a known mismatch', (assessmentGap(assess({ agreement: '- surviving: the alternate call still fires' })) ?? '').includes('surviving'));
-check('an empty bullet surviving marker is refused', (assessmentGap(assess({ agreement: '- surviving: ' })) ?? '').includes('empty'));
-check('a blocked mismatch in Design is not an unmet Intent line', (assessmentGap(assess({ verdict: 'blocked', agreement: 'surviving: the effect still fires', design: '- not met: an unrelated finding' })) ?? '').includes('## Intent'));
-check('the same mismatch as a repair routes to the build autonomously', assessmentGap(assess({ verdict: 'repair', agreement: 'surviving: add_tracking_number still calls _announce_delivery_delay' })) === null);
-check('a blocked mismatch must name the unmet line, not leave the ruling without it', (assessmentGap(assess({ verdict: 'blocked', agreement: 'surviving: add_tracking_number still calls _announce_delivery_delay' })) ?? '').includes('surviving'));
-check('a blocked mismatch naming its not met: line is a durable ruling, not a gap', assessmentGap(assess({ verdict: 'blocked', intent: '- "x": not met: the buyer signal still fires', agreement: 'surviving: add_tracking_number still calls _announce_delivery_delay' })) === null);
-check('ordinary advisory design notes gain no approval', assessmentGap(assess({ design: '- advisory: order_service.py:2637 the helper could move' })) === null);
-
-const live = (l: string) => `${assess()}## Live
-${l}
-`;
-check('INCONCLUSIVE / NOT VERIFIED / NOT MEASURED lines of Intent, Live and Behavior are open gaps', assessmentOpenGaps(live('- Intent 1: INCONCLUSIVE — mobile/LTR not driven')).join() === 'Intent 1: INCONCLUSIVE — mobile/LTR not driven' && assessmentOpenGaps(assess({ intent: '- "x": NOT MEASURED — app down' })).length === 1 && assessmentOpenGaps(`${assess()}## Behavior and evidence
-NOT VERIFIED: LTR
-`).length === 1);
-check('a fully verified assessment has no open gap, and prose outside those sections is not read', assessmentOpenGaps(live('- Intent 1: VERIFIED — drove it')).length === 0 && assessmentOpenGaps(`${assess()}## Design
-INCONCLUSIVE naming
-`).length === 0);
-for (const status of ['VERIFIED', 'met:', 'left out: authorized exclusion']) {
-	for (const history of ['INCONCLUSIVE', 'NOT VERIFIED', 'NOT MEASURED']) {
-		check(`present ${status} ignores historical ${history}`, assessmentOpenGaps(live(`- Intent 1: ${status} — earlier assessment had this ${history}`)).length === 0);
+check('a complete header needs no prose grammar', assessmentGap('Verdict: clean\nhead: H1\n') === null);
+check('no assessment is a gap', assessmentGap(null) === `no ${ASSESSMENT_FILE}`);
+check('missing verdict is a gap', assessmentGap('head: H1\n') !== null);
+check('unknown verdict is a gap', assessmentGap('Verdict: maybe\nhead: H1\n') !== null);
+check('missing head is a gap', assessmentGap('Verdict: clean\n') !== null);
+// The ruling owns the judgment: only the explicit verdict and measured head are machine-read. Prose
+// above a verdict — an unmet intent, a surviving agreed effect, a material note, an unmeasured case —
+// no longer changes the gate; the verdict the reviewer wrote does.
+for (const verdict of ['clean', 'repair', 'blocked']) {
+	for (const prose of ['## Intent\n- looks fine', '## Intent\n- not met: still broken', '## Agreement\nsurviving: alternate path\nmaterial: scope changed', '## Live\nNOT MEASURED — unavailable']) {
+		check(`${verdict} does not interpret ${prose}`, assessmentGap(`Verdict: ${verdict}\nhead: H1\n${prose}\n`) === null);
 	}
 }
-check('quoted intent text is not its status', assessmentOpenGaps(assess({ intent: '- "previously NOT MEASURED": met: before: red · after: green' })).length === 0);
-check('a leading verified status wins over a later colon and historical status', assessmentOpenGaps(live('- VERIFIED — earlier status: NOT MEASURED')).length === 0);
-check('bold current status still reports a gap', assessmentOpenGaps(live('- Intent 1: **NOT MEASURED** — earlier VERIFIED was wrong')).length === 1);
-check('no assessment has no open gaps', assessmentOpenGaps(null).length === 0);
+check('assessment content identity normalizes checkout newlines', assessmentContentSha(assess()) === assessmentContentSha(assess().replace(/\n/g, '\r\n')));
+check('assessment content identity changes with prose', assessmentContentSha(assess()) !== assessmentContentSha(assess() + 'new judgment\n'));
+check('assessment ruling source is recognized', isAssessmentRulingSource(assessmentRulingSource(assess(), { kind: 'single' })));
+check('unrelated source is not an assessment ruling', !isAssessmentRulingSource('BLOCKED.md'));
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');
 process.exit(failures ? 1 : 0);

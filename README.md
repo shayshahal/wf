@@ -36,13 +36,14 @@ round commits (for JewelryX, `bug-reports/<round>/`).
     get one fresh assessment rather than guessing from file timestamps. Build dispatch reasons survive in
     state, served briefs and `wf status --inspect`. A cleared handoff gap re-evaluates the existing
     assessment for freshness and T2 instead of requiring an empty rebuild;
-    repair assessments name each obligation and executable action in `## Repairs`. An owned
-    capability blocker follows harness recovery without spending a product repair. Before handing
-    back, the build answers every finding in the working document's `## Repair responses`, bound
-    to the assessment and current implementation; the independent assessor judges those answers;
     `step`, `ask`/`decide` (`decide --revise` sends a round back to `agree` for a new T1),
     `inbox` (posts user questions through the env's optional transport and saves replies; `decide`
-    records the ruling), `status`, `notes`, and `handoff-hook.ts` (`wf handoff`, the Claude Code hooks)
+    records the ruling), `status`, `notes`, and `handoff-hook.ts` (`wf handoff`, the Claude Code hooks).
+    Builders and assessors receive the prior assessment and recorded question answers plainly; the
+    builder chooses verification and repairs and the independent assessor judges the evidence, with
+    no prescribed repair-response records or verification-ruling receipts. `clean` goes to T2,
+    `repair` returns to build within a bounded budget, and `blocked` (or exhausted repairs) records
+    one contextual user question. wf does not derive those outcomes from assessment prose.
   - `src/gates/`: what a round has to pass. `classify`, T1 (`agree.ts`) and T2 (`review.ts`,
     both written through `review-format.ts`), `wf check` (`check.ts`; `--repro`, the three runs of
     a repro case; `--suites`, the whole suites the round's diff reaches; and, on a verification

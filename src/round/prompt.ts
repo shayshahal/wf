@@ -15,13 +15,11 @@ import { anchorToolPaths } from '../plugin/anchor.ts';
 import { seams } from '../seams.ts';
 import { readVerdict } from '../gates/review-format.ts';
 import { basePortForBranch } from '../worktrees/worktree.ts';
-import { agreementFile, agreementPath, revisionSha, assessmentOpenGaps, assessmentSurviving, assessmentVerdict, ASSESSMENT_FILE, caseFiles, consequential, section, TICKET_FILE, verificationCases } from './agreement.ts';
+import { agreementFile, agreementPath, revisionSha, ASSESSMENT_FILE, caseFiles, consequential, section, TICKET_FILE, verificationCases } from './agreement.ts';
 import { openQuestionGate, openRevisions, overruledAsks } from './ask.ts';
 import { guidanceSection, notesFor, readNotes } from './guidance.ts';
 import { readState, resolveRoundBase, roundOf, toplevelOf } from './state.ts';
 import { sliceContext } from './build-units.ts';
-import { assessmentContentSha, assessmentRulingSource, verificationFixRulings, verificationGapsHash, verificationProofFile } from './assessment-rulings.ts';
-import { checksEvidence, suitesGap } from './step.ts';
 
 export function renderPrompt(template: string, vars: Record<string, unknown>) {
 	return template.replace(/\{\{(\w+)\}\}/g, (m, key: string) => (key in vars ? String(vars[key]) : m));
@@ -61,7 +59,7 @@ export function agreedMaterial(text: string, klass: string | null): string {
 }
 
 // The `{{…}}` a prompt template substitutes; the project's direct URLs add one per app.
-type PromptVars = { round: string; folder: string | null; base: string; intent?: string | null; agreement?: string; cases?: string; assessment?: string; revisions?: string; verificationRepairs: string; [app: string]: unknown };
+type PromptVars = { round: string; folder: string | null; base: string; intent?: string | null; agreement?: string; cases?: string; assessment?: string; revisions?: string; answers: string; [app: string]: unknown };
 
 export function composePrompt(argv: string[]) {
 	const phase = argv[0];
@@ -81,7 +79,7 @@ export function composePrompt(argv: string[]) {
 	// Owner feedback (`## Decisions`, wf decide) reaches the build and the assessment through
 	// `agreedMaterial` in the `{{agreement}}` of both templates — one projection, so the text is not
 	// duplicated (#114 closure, F2).
-	const vars: PromptVars = { round: id, folder, base: state?.base ?? `origin/${baseBranch}`, intent, agreement: agreedMaterial(agreementText, klass), file: agreementFile(klass), assessment: '', review: '', verificationRepairs: '', scope: 'Whole agreement (single-task route).', assessmentFile: ASSESSMENT_FILE, assessmentBase: state?.base ?? `origin/${baseBranch}` };
+	const vars: PromptVars = { round: id, folder, base: state?.base ?? `origin/${baseBranch}`, intent, agreement: agreedMaterial(agreementText, klass), file: agreementFile(klass), assessment: '', review: '', answers: '', scope: 'Whole agreement (single-task route).', assessmentFile: ASSESSMENT_FILE, assessmentBase: state?.base ?? `origin/${baseBranch}` };
 	const context = sliceContext(agreementText, state?.slices);
 	if (phase !== 'agree' && (context.kind === 'invalid' || context.kind === 'pending')) throw new Error(`${phase}: ${context.kind === 'invalid' ? context.why : 'start the declared units with wf next first'}`);
 	const assessmentFile = context.kind === 'unit' ? context.assessmentFile : ASSESSMENT_FILE;
@@ -112,7 +110,6 @@ export function composePrompt(argv: string[]) {
 		if (!agreementText) vars.revisions += preAgreementDecisions(state?.decisions, vars.revisions);
 	}
 	// build: the verification cases and, after a `repair` assessment, its findings.
-	let agreementRulings = '';
 	let files: string[] = [];
 	if (phase === 'build' || phase === 'assess') {
 		const allCases = verificationCases(agreementText);
@@ -126,32 +123,20 @@ export function composePrompt(argv: string[]) {
 	}
 	if ((phase === 'build' || phase === 'assess') && folder && existsSync(join(toplevel, folder, assessmentFile))) {
 		const a = readFileSync(join(toplevel, folder, assessmentFile), 'utf8');
-		const surviving = assessmentSurviving(a);
-		if (phase === 'build' && surviving.length) {
-			const source = `${assessmentRulingSource(a, context)}#surviving:${verificationGapsHash(surviving)}`;
-			const rulings = (state?.answered ?? []).filter((q) => q.source === source || q.source === `${source}#material`);
-			if (rulings.length) agreementRulings = `\n\n## Agreement mismatch rulings\n\n${rulings.map((q) => `q${q.n}: ${q.text}\nThe person's ruling, verbatim:\n${q.answer ?? '(no answer recorded)'}`).join('\n\n')}`;
-		}
-		const liveGaps = assessmentOpenGaps(a);
-		const suiteGap = suitesGap(checksEvidence(toplevel, state));
-		const open = [...liveGaps, ...(suiteGap ? [suiteGap] : [])];
-		const rulings = verificationFixRulings(a, context, state?.answered ?? [], suiteGap);
-		if (phase === 'build' && (context.kind !== 'single' || /^Verdict:[ \t]*(repair|blocked)\b/m.test(a) || rulings.length)) vars.assessment = `## Findings from the last assessment\n\n${a.trim()}`;
-		if (phase === 'build' && assessmentVerdict(a) === 'repair') vars.assessment += `\n\nBefore handing off, answer every repair finding in ## Repair responses in ${folder}/${vars.file} (outside agreed material). Record source: ${assessmentContentSha(a)} and content-sha: <current wf check content>. Each finding needs - R1: done: <what ran/changed> | evidence: <measurement/reference>, or - R1: impossible: <why> | owner: <owner> | next: <recovery>. Do not edit the assessment. A selected-case green alone does not answer a finding.`;
-		if (rulings.length) {
-			const repairs = rulings.map((q) => {
-				const proof = liveGaps.length ? [
-					`Proof record: \`${verificationProofFile(folder, q)}\``,
-					`Before handoff, the builder writes this record with \`source: ${q.source}\`, \`head: <git rev-parse HEAD>\`, \`content-sha: <latest wf check content>\`, and \`## Measurement\` naming the check actually driven, its observed result and evidence references (including the proof the ruling requests).`,
-					'Commit the implementation first; the receipt keeps the head measured as provenance. Committing its paperwork afterwards does not invalidate it: source and implementation content bind the proof. Product/test changes require fresh measurement. Do not edit the assessment to claim closure. If it cannot be measured, write BLOCKED.md instead.',
-					'The independent assessor reads this record and its referenced proof, judges whether it answers the ruling, and keeps any unresolved check visibly open.',
-				].join('\n\n') : 'Rerun the affected suites and record their current green in .wf/checks.log, or write BLOCKED.md if they cannot run. The independent assessor judges that evidence against this ruling; a case green is not a whole-suite green.';
-				return [`### q${q.n}`, `Open verification:\n${open.map((gap) => `- ${gap}`).join('\n')}`, `Question: ${q.text}`, `The person's ruling, verbatim:\n${q.answer ?? '(no answer recorded)'}`, proof].join('\n\n');
-			});
-			vars.verificationRepairs = `## Verification repair rulings\n\nThese fix rulings bind this repair even if the agreement says no live check is needed. A green wf check alone does not close them.\n\n${repairs.join('\n\n')}`;
-		}
-		const responses = section(agreementText, 'Repair responses');
-		if (phase === 'assess' && assessmentVerdict(a) === 'repair' && responses) vars.verificationRepairs += `\n\n## Builder's repair responses\n\n${responses.trim()}\n\nJudge each response against the prior assessment's finding and actual evidence; impossible is not closure or approval.\n\n## Prior assessment\n\n${a.trim()}`;
+		vars.assessment = `## Prior assessment
+
+${a.trim()}`;
+	}
+	if (phase === 'build' || phase === 'assess') {
+		vars.answers = (state?.answered ?? []).map((q) => `### q${q.n}
+
+${q.text}
+
+The person's answer, verbatim:
+${q.answer ?? '(no answer recorded)'}`).join('\n\n');
+		if (vars.answers) vars.answers = `## Recorded question answers
+
+${vars.answers}`;
 	}
 	if (phase === 'build' && existsSync(join(toplevel, folder!, reviewFile))) {
 		const repair = reviewRepairText(readFileSync(join(toplevel, folder!, reviewFile), 'utf8'));
@@ -163,10 +148,10 @@ export function composePrompt(argv: string[]) {
 	if (phase === 'assess') vars.agreementFile = vars.file;
 	const wf = `node ${seams.entry.replace(/\\/g, '/')}`;
 	// #126/#130: anchor template instructions before inserting people's verbatim rulings.
-	// The agreement mismatch block is appended after anchoring for the same reason.
-	const text = template.split('{{verificationRepairs}}')
+	// Recorded answers are inserted after anchoring for the same reason.
+	const text = template.split('{{answers}}')
 		.map((part) => anchorToolPaths(renderPrompt(part, vars).replace(/`wf /g, `\`${wf} `), WF_HOME, projectName))
-		.join(vars.verificationRepairs) + guidanceSection(notesFor(readNotes(toplevel, guidance), files)) + agreementRulings;
+		.join(vars.answers) + guidanceSection(notesFor(readNotes(toplevel, guidance), files));
 	return { text, toplevel, state, folder, phase, assessmentFile, n: null, key: phase };
 }
 

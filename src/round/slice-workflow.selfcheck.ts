@@ -157,13 +157,13 @@ check('unit 2 must name its scope unit:2', say(unit2(g2, assessment({ head: 'h2'
 check('unit 2 must judge its diff from its own start head', say(unit2(g2, assessment({ head: 'h2', scope: 'unit:2', base: 'h0' }))).startsWith('dispatch assess') && say(unit2(g2, assessment({ head: 'h2', scope: 'unit:2', base: 'h0' }))).includes("must judge this unit's diff from base: h1"), say(unit2(g2, assessment({ head: 'h2', scope: 'unit:2', base: 'h0' }))));
 check('an assessment of an earlier HEAD does not hand off the unit', say(unit2(g2, assessment({ head: 'h1', scope: 'unit:2', base: 'h1' }))).startsWith('dispatch assess') && say(unit2(g2, assessment({ head: 'h1', scope: 'unit:2', base: 'h1' }))).includes('HEAD is h2'), say(unit2(g2, assessment({ head: 'h1', scope: 'unit:2', base: 'h1' }))));
 
-// ── deferral: a unit may defer an intent line to a later unit; the integration may not defer any
+// ── deferral prose is reviewer judgment; unit scope and completion mechanics stay explicit.
 const deferOnly = unit1(g1, assessment({ head: 'h1', scope: 'unit:1', base: 'h0', intent: '- "y": deferred: unit 2' }));
-check('a unit assessment whose every intent line is deferred has no current measurement', say(deferOnly).startsWith('dispatch assess') && say(deferOnly).includes('every line was deferred'), say(deferOnly));
+check('a clean unit verdict advances without interpreting deferred-only prose', say(deferOnly).startsWith('advance: unit 1 assessed'), say(deferOnly));
 const deferLater = unit1(g1, assessment({ head: 'h1', scope: 'unit:1', base: 'h0', intent: '- "x": met: src/one.ts:1 · before: red · after: green\n- "y": deferred: unit 2' }));
 check('a unit may defer a later unit\'s intent and still advance', say(deferLater).startsWith('advance: unit 1 assessed'), say(deferLater));
 const deferSelf = unit2(g2, assessment({ head: 'h2', scope: 'unit:2', base: 'h1', intent: '- "x": met: src/two.ts:1 · before: red · after: green\n- "y": deferred: unit 2' }));
-check('a unit may not defer to itself (only later units are future)', say(deferSelf).startsWith('dispatch assess'), say(deferSelf));
+check('a clean checkpoint verdict reaches T2 without interpreting self-deferral prose', say(deferSelf).startsWith('review: T2 chunk'), say(deferSelf));
 const deferNext = unit2(g2, assessment({ head: 'h2', scope: 'unit:2', base: 'h1', intent: '- "x": met: src/two.ts:1 · before: red · after: green\n- "y": deferred: unit 3' }));
 check('a unit may defer the next unit', say(deferNext).startsWith('review: T2 chunk'), say(deferNext));
 
@@ -179,7 +179,7 @@ check('the integration needs every case green, not the ones that happen to be', 
 const caseGreenRounded = evIntegration([caseGreen(1, CHECK1, 'tree:w1', 'unit:1'), caseGreen(2, CHECK2, 'tree:w1', 'integration'), caseGreen(3, CHECK3, 'tree:w1', 'integration'), suitesGreen('tree:w1')], ALL_CASES);
 check('a case green of a unit scope does not count for the integration', steps(integrationSnap(caseGreenRounded)).join() === 'build', say(integrationSnap(caseGreenRounded)));
 const deferFinal = integrationSnap(gInt, assessment({ head: 'h3', scope: 'integration', intent: '- "x": met: src/one.ts:1 · before: red · after: green\n- "y": deferred: unit 1' }));
-check('the final integration may not defer a unit, only a unit assessment may', say(deferFinal).startsWith('dispatch assess'), say(deferFinal));
+check('a clean integration verdict reaches T2 without interpreting deferral prose', say(deferFinal).startsWith('review: T2 final delivery'), say(deferFinal));
 
 // ── a unit is never delivery; only the integration is
 check('wf next at a unit\'s pr waits on the units and integration', say(snap({ step: 'pr', slices: p1 })) === 'wait user: unit approval is not delivery approval — finish the units and integration');

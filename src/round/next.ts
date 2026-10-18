@@ -17,7 +17,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { refuseCaller } from '../refusal.ts';
 import { addQuestion, blockedQuestion, openRevisions } from './ask.ts';
-import { agreementClass, agreementGap, agreementPath, agreementSha, revisionSha, AGREEMENT_FILE, AGREEMENT_REVIEW_FILE, ASSESSMENT_FILE, assessmentGap, assessmentHead, assessmentMaterial, assessmentOpenGaps, assessmentSurviving, assessmentVerdict, caseFiles, consequential, hasT2Walk, notAskedForGap, REVIEW_FILE, verificationCases } from './agreement.ts';
+import { agreementClass, agreementGap, agreementPath, agreementSha, revisionSha, AGREEMENT_FILE, AGREEMENT_REVIEW_FILE, ASSESSMENT_FILE, assessmentGap, assessmentHead, assessmentVerdict, caseFiles, consequential, hasT2Walk, notAskedForGap, REVIEW_FILE, verificationCases } from './agreement.ts';
 import { contractPaths as contractPathsFile } from '../project.ts';
 import { classFromFiles } from '../gates/classify.ts';
 import { anticipatedPaths, TICKET_FILE } from './agreement.ts';
@@ -32,10 +32,9 @@ import type { Question, RoundClass, State } from './state.ts';
 import { advanceSlice, sliceContext } from './build-units.ts';
 import type { SliceProgress } from './build-units.ts';
 import { stepHistory } from './friction.ts';
-import { assessmentHandoffGap, checkGap, checkGapLine, checksEvidence, higherClass, runStep, suitesGap } from './step.ts';
+import { assessmentHandoffGap, checkGap, checkGapLine, checksEvidence, higherClass, runStep } from './step.ts';
 import type { ChecksEvidence } from './step.ts';
-import { assessmentContentSha, assessmentRulingSource, verificationGapsHash } from './assessment-rulings.ts';
-import { parseRepairFindings } from './repair-findings.ts';
+import { assessmentContentSha, assessmentRulingSource } from './agreement.ts';
 import { mergedImplementationGap } from './delivered-round.ts';
 import { shouldStopRoundServers } from './round-servers.ts';
 import { stopWorktreeServers } from '../worktrees/serve.ts';
@@ -83,13 +82,12 @@ export type Snapshot = {
 	assessmentChangedSinceHandoff?: boolean;
 	assessmentBaselineMissing?: boolean;
 	assessmentHandoffGap?: string | null;
-	returnedFromAssess?: boolean;
 	buildReason?: State['build_reason'];
 	/** A merged round cannot post/reap on the old delivery while carrying new product work. */
 	mergedGap?: MergedImplementationGap | null;
 };
 export type Effect =
-	| { step?: string[]; ask?: { to: string; text: string; dflt: string | null; source: string; verification_gaps?: string[] }; repair?: true; blockedAnswered?: number; buildReason?: State['build_reason']; resumeAssessment?: true; advance?: { unit: number; head: string } };
+	| { step?: string[]; ask?: { to: string; text: string; dflt: string | null; source: string }; repair?: true; blockedAnswered?: number; buildReason?: State['build_reason']; resumeAssessment?: true; advance?: { unit: number; head: string } };
 
 // Pure: the ids of the tracker note's `## <id>` sections not yet marked ` (posted)`.
 export function unpostedSections(note: string | null): string[] {
@@ -243,15 +241,6 @@ export function nextAction(s: Snapshot, purpose: 'dispatch' | 'brief' = 'dispatc
 		// redispatch changes: stop and say what, once, instead of looping the build (JX-1239).
 		const trouble = s.checks ? checkGap(s.checks) : null;
 		if (trouble?.kind === 'harness') return act(`wait user: harness — ${checkGapLine(trouble)}. Once fixed, run \`${wf} check\`, then \`${wf} next\``);
-		// JX-154, 2026-10-13: the old next consumed a pre-handoff verdict and its fix ruling,
-		// bouncing assess straight back to build. Recover that recorded bounce, not a normal repair.
-		const source = assessmentRulingSource(s.files.assessment, context);
-		const fix = s.answered.some((q) => (q.source === source || q.source?.startsWith(`${source}#`)) && !/^\s*accept\b/i.test(q.answer ?? ''));
-		if (!trouble && s.files.assessment && s.assessmentChangedSinceHandoff === false && s.returnedFromAssess && fix) {
-			if (s.assessmentHandoffGap) return dispatch('build', s.assessmentHandoffGap, 'handoff');
-			effects.push({ step: ['assess'] });
-			return dispatch('assess', 'the completed build still needs a fresh assessment of the new evidence, even at the same HEAD');
-		}
 		if (s.buildReason?.kind === 'handoff') {
 			if (s.assessmentHandoffGap) return dispatch('build', s.assessmentHandoffGap, 'handoff');
 			// JX-1392 (#151): re-evaluate the current assessment, not an empty repair or a new baseline.
@@ -260,9 +249,8 @@ export function nextAction(s: Snapshot, purpose: 'dispatch' | 'brief' = 'dispatc
 		} else return dispatch('build');
 	}
 
-	// assess: one independent final assessment by default (#113). A within-agreement finding repairs
-	// autonomously, bounded; unmet intent blocks T2 until fixed, accepted or held; a material change
-	// is one contextual escalation.
+	// The independent reviewer's explicit outcome owns sufficiency, not words in its evidence.
+	// Repairs are bounded; blocked outcomes and exhausted repairs need a durable user ruling.
 	if (step === 'assess') {
 		// The assessment judges an implementation wf check measured: a hand-off without a green of these
 		// bytes (a direct `wf step assess` is refused too, step.ts) goes back, never on to the assessor.
@@ -284,8 +272,7 @@ export function nextAction(s: Snapshot, purpose: 'dispatch' | 'brief' = 'dispatc
 			}
 			return dispatch('assess', s.files.assessment ? 'the assessment has not changed since handoff; judge the new evidence even at the same HEAD' : `write ${assessmentFile} for this handoff`);
 		}
-		const future = context.kind === 'unit' ? context.plan.units.filter((u) => u.n > context.unit.n).map((u) => u.n) : [];
-		const gap = assessmentGap(s.files.assessment, future);
+		const gap = assessmentGap(s.files.assessment);
 		if (gap) return dispatch('assess', gap);
 		if (context.kind === 'single' && /^unit:/i.test(lastField(s.files.assessment ?? '', 'scope') ?? '')) return dispatch('assess', 'a single-task assessment cannot claim a unit scope');
 		if (context.kind === 'unit' || context.kind === 'integration') {
@@ -297,98 +284,25 @@ export function nextAction(s: Snapshot, purpose: 'dispatch' | 'brief' = 'dispatc
 		if (measured !== s.head) return dispatch('assess', `ASSESSMENT.md is of ${measured?.slice(0, 10) ?? 'no head'}…, HEAD is ${s.head.slice(0, 10)}…`);
 		const assessmentSource = assessmentRulingSource(s.files.assessment, context);
 		const verdict = assessmentVerdict(s.files.assessment);
-		const material = assessmentMaterial(s.files.assessment);
-		const surviving = assessmentSurviving(s.files.assessment);
-		const findingSource = surviving.length ? `${assessmentSource}#surviving:${verificationGapsHash(surviving)}` : assessmentSource;
-		const choices = surviving.length
-			? `say how to fix it within the agreement, or use \`${wf} decide --revise --q <n> "<the renewed behavior>"\` to accept an exception with a renewed agreement`
-			: 'answer `accept` to carry it into T2, or say how to fix it';
-		if (material) {
-			// One contextual escalation, recorded so it cannot repeat. A material change is outside the
-			// agreement, so only an explicit `accept` (the literal word, case-insensitive) carries it into
-			// T2; any other answer returns to the build, where `wf decide --revise` renews the agreement
-			// (#111.4). The question offers only the paths the code takes (N-5): accept, or --revise.
-			const source = `${findingSource}#material`;
-			const ruling = (s.answered ?? []).findLast((q) => q.source === source);
-			if (!ruling || (surviving.length && /^\s*accept\b/i.test(ruling.answer ?? ''))) {
-				const q = surviving.length
-					? `the assessment found a material change outside the agreement: ${material} · surviving: ${surviving.join(' · ')} — ${choices}`
-					: `the assessment found a material change outside the agreement: ${material}. Answer \`accept\` to carry it into T2, or \`${wf} decide --revise "<the renewed behavior>"\` to renew the agreement (then a fresh T1)`;
-				effects.push({ ask: { to: 'user', text: q, dflt: null, source } });
-				return act(`wait user: ${q}`);
-			}
-			if (!/^\s*accept\b/i.test(ruling.answer ?? '')) {
-				effects.push({ step: ['build'] });
-				return dispatch('build', 'the assessment found a material change outside the agreement and the ruling is not `accept` — bring the work within the agreement, or `wf decide --revise` to renew it');
-			}
-			// Accepted explicitly: T2 reads the acceptance beside the assessment, never in silence.
-		}
-		if (verdict === 'blocked') {
-			// Unmet intent or a still-reproducing symptom: never silently passed to T2 (#113.4, #75).
-			// One recorded fix-or-accept ruling, not a question per finding.
-			const source = findingSource;
-			const ruling = (s.answered ?? []).findLast((q) => q.source === source);
-			if (!ruling || (surviving.length && /^\s*accept\b/i.test(ruling.answer ?? ''))) {
-				const unmet = (s.files.assessment ?? '').replace(/\r\n/g, '\n').split('\n').filter((l) => /(not met:|differs:|still reproduces:)/i.test(l)).map((l) => l.trim().replace(/^-\s*"[^"]*":\s*/, '')).join(' · ');
-				const q = `fix or ${surviving.length ? 'revise' : 'accept'}: ${unmet || 'ASSESSMENT.md is blocked'}${surviving.length ? ` · surviving: ${surviving.join(' · ')}` : ''} — ${choices}`;
-				effects.push({ ask: { to: 'user', text: q, dflt: null, source } });
-				return act(`wait user: ${q}`);
-			}
-			if (!/^\s*accept\b/i.test(ruling.answer ?? '')) {
-				effects.push({ step: ['build'] });
-				return dispatch('build', 'the assessment is blocked and the ruling is to fix it');
-			}
-			// Accepted explicitly: T2 reads the acceptance beside the assessment, never in silence.
-		}
-		if (verdict === 'repair') {
-			const parsed = parseRepairFindings(s.files.assessment);
-			if (parsed.kind === 'invalid') return dispatch('assess', parsed.why);
-			const blockers = parsed.findings.filter((finding) => finding.kind === 'blocker');
-			if (blockers.length) {
-				const recovery = blockers.map((finding) => `${finding.id} (${finding.obligation}): ${finding.blocker}; owner: ${finding.owner}; next: ${finding.next}`).join(' · ');
-				// Put the continuing work at build so harness recovery's next cannot redispatch the same
-				// blocked report forever. Its normal handoff records answers and requests fresh assessment.
-				effects.push({ step: ['build'], buildReason: { kind: 'work', text: `execution recovery (no product repair charged): ${recovery}` } });
-				return act(`wait user: harness — ${recovery} — after recovery, run \`${wf} next\` to resume the build and answer every finding before fresh assessment; no product repair charged`);
-			}
-			const attempts = s.repairs ?? 0;
-			if (attempts >= MAX_REPAIRS) {
-				// The bounded repair ran out: one contextual escalation, recorded so it cannot repeat. An
-				// answer that is not `accept` is a ruling to fix (build); `accept` carries into T2.
-				const source = findingSource;
-				const ruling = (s.answered ?? []).findLast((q) => q.source === source);
-				if (!ruling || (surviving.length && /^\s*accept\b/i.test(ruling.answer ?? ''))) {
-					const q = `${MAX_REPAIRS} autonomous repairs did not clear ASSESSMENT.md: read its findings and rule${surviving.length ? ` · surviving: ${surviving.join(' · ')}` : ''} — ${choices} (\`${wf} decide --revise …\` renews the agreement)`;
-					effects.push({ ask: { to: 'user', text: q, dflt: null, source } });
-					return act(`wait user: ${q}`);
-				}
-				if (!/^\s*accept\b/i.test(ruling.answer ?? '')) {
-					effects.push({ step: ['build'] });
-					return dispatch('build', 'the ruling is to fix the assessment, not accept it');
-				}
-				// Accepted: fall through to T2 with the acceptance beside the assessment.
-			} else {
-				effects.push({ repair: true, step: ['build'] });
-				return dispatch('build', `repair ${attempts + 1} of ${MAX_REPAIRS} for ASSESSMENT.md's findings`);
-			}
-		}
-		// A clean verdict does not pass a verification gap the assessment states (INCONCLUSIVE, NOT
-		// VERIFIED, NOT MEASURED) or a suite that is red at these bytes: one fix-or-accept ruling, tied
-		// to this assessment's head and these very lines. "The file is untouched" is not a ruling.
-		const redSuites = s.checks ? suitesGap(s.checks) : null;
-		const open = verdict === 'clean' ? [...assessmentOpenGaps(s.files.assessment), ...(redSuites ? [redSuites] : [])] : [];
-		if (open.length) {
-			const source = `${assessmentSource}#open:${verificationGapsHash(open)}`;
-			const ruling = (s.answered ?? []).findLast((q) => q.source === source);
+		if (verdict === 'blocked' || (verdict === 'repair' && (s.repairs ?? 0) >= MAX_REPAIRS)) {
+			const source = `${assessmentSource}#report:${assessmentContentSha(s.files.assessment)}`;
+			const ruling = s.answered.findLast((q) => q.source === source);
 			if (!ruling) {
-				const q = `the assessment is clean but leaves verification open: ${open.join(' · ')} — answer \`accept\` to carry it into T2, or say how to fix it (a broken harness or a stale recipe is fixed first, a test is not weakened)`;
-				effects.push({ ask: { to: 'user', text: q, dflt: null, source, verification_gaps: open } });
-				return act(`wait user: ${q}`);
+				const reason = verdict === 'blocked' ? 'the reviewer explicitly blocked the round' : `${MAX_REPAIRS} autonomous repairs did not clear the review`;
+				const text = `${reason}. Read ${assessmentFile} and rule: answer \`accept\` to carry this outcome into T2, give repair direction, or use \`${wf} decide --revise <renewed behavior>\` to renew the agreement.
+
+${s.files.assessment}`;
+				effects.push({ ask: { to: 'user', text, dflt: null, source } });
+				return act(`wait user: ${text}`);
 			}
 			if (!/^\s*accept\b/i.test(ruling.answer ?? '')) {
 				effects.push({ step: ['build'] });
-				return dispatch('build', `close the verification: ${open.join(' · ')} — the person's ruling: ${ruling.answer ?? ''}`);
+				return dispatch('build', `the person's assessment ruling: ${ruling.answer ?? ''}`);
 			}
+		} else if (verdict === 'repair') {
+			const attempts = s.repairs ?? 0;
+			effects.push({ repair: true, step: ['build'] });
+			return dispatch('build', `repair ${attempts + 1} of ${MAX_REPAIRS} for ${assessmentFile}'s findings`);
 		}
 		// #138: assessment can add captures after build handoff. Return them to the owner before
 		// offering T2 (or accepting --done), not only when step review later refuses to open it.
@@ -467,8 +381,7 @@ export function snapshotOf(toplevel: string): Snapshot {
 		slices: state.slices,
 		assessmentChangedSinceHandoff,
 		assessmentBaselineMissing,
-		assessmentHandoffGap: assessmentHandoffGap(toplevel, state, 'assess'),
-		returnedFromAssess: state.history?.at(-2)?.step === 'assess' && state.history?.at(-1)?.step === 'build',
+		assessmentHandoffGap: assessmentHandoffGap(toplevel, state),
 		head: git('rev-parse', 'HEAD'),
 		files: {
 			// The agreement is AGREEMENT.md when the working session wrote one (it decided the work is

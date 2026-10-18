@@ -18,6 +18,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { agreementCaseGap } from '../project.ts';
+import type { SliceContext } from './build-units.ts';
 import type { RoundClass } from './state.ts';
 
 export const AGREEMENT_FILE = 'AGREEMENT.md';
@@ -178,27 +179,6 @@ export function agreementGap(text: string | null | undefined, klass: RoundClass 
 	return agreementCaseGap({ branch, rows: cases.map((c) => ({ n: c.n, message: c.message, files: caseFiles(c) })) });
 }
 
-// Pure: null when every `## Intent` line of an assessment is one verdict and every `met:` has a
-// measurement on each side; else the first line that is not. A claim is measured before and after,
-// or visibly NOT MEASURED, never met from the code alone (#109's intent discipline).
-export function intentGap(text: string | null | undefined, deferredUnits: readonly number[] = []): string | null {
-	const body = section(text, 'Intent');
-	const lines = (body ?? '').split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('<!--'));
-	if (!lines.length) return `${ASSESSMENT_FILE} has no \`## Intent\` lines`;
-	let current = false;
-	for (const l of lines) {
-		const deferred = /\bdeferred:\s*unit\s+(\d+)\s*$/i.exec(l);
-		if (deferred && deferredUnits.includes(Number(deferred[1]))) continue;
-		current = true;
-		const notMet = /\bnot met:/.test(l);
-		const met = !notMet && /\bmet:/.test(l);
-		if (!met && !notMet && !/\bNOT MEASURED\b/.test(l) && !/\bleft out:/.test(l)) return `${ASSESSMENT_FILE} ## Intent: "${l.slice(0, 80)}" has no verdict (met | NOT MEASURED | not met | left out)`;
-		if (/\bleft out:\s*$/.test(l)) return `${ASSESSMENT_FILE} ## Intent: "${l.slice(0, 80)}" is left out with no reason`;
-		if (met && !(/\bbefore:/.test(l) && /\bafter:/.test(l))) return `${ASSESSMENT_FILE} ## Intent: "${l.slice(0, 80)}" is met without a before: and an after: measurement — or it is NOT MEASURED`;
-	}
-	return current ? null : `${ASSESSMENT_FILE} has no current-scope Intent measurement — every line was deferred`;
-}
-
 // Pure: ASSESSMENT.md's `Verdict:` line — clean | repair | blocked — or null.
 export function assessmentVerdict(text: string | null | undefined): string | null {
 	return /^Verdict:[ \t]*(clean|repair|blocked)\b/m.exec((text ?? '').replace(/\r\n/g, '\n'))?.[1] ?? null;
@@ -210,55 +190,26 @@ export const assessmentHead = (text: string | null | undefined): string | null =
 	return m ? m[1] : null;
 };
 
-// Pure: a `material: <what changed>` line in ASSESSMENT.md's `## Agreement` section, or null. A
-// genuine new behavior is a renewed agreement, not an autonomous repair (#111.4).
-export function assessmentMaterial(text: string | null | undefined): string | null {
-	const body = section(text, 'Agreement') ?? '';
-	return /^material:[ \t]*(.+)$/m.exec(body)?.[1].trim() || null;
-}
-
-/** Known agreement mismatches in report order; surviving agreed effects need repair or a durable ruling. */
-export function assessmentSurviving(text: string | null | undefined): string[] {
-	const body = section(text, 'Agreement') ?? '';
-	return body
-		.split('\n')
-		.map((l) => /^(?:-[ \t]+)?surviving:[ \t]*(.+)$/i.exec(l.trim())?.[1].trim())
-		.filter((l): l is string => Boolean(l));
-}
-
-// Pure: null when ASSESSMENT.md is an assessment a T2 can read, else why not. The `head:` is what
-// binds it to the tree it judged, so a missing one is refused; a `clean` verdict may not carry an
-// unmet item (`not met:`/`differs:`/`still reproduces:`) — that is a blocked round wearing a clean
-// label (#113.4). A `clean` verdict may not carry a `surviving:` agreed effect either: a known
-// intent/agreement mismatch is repaired or durably ruled on, never an advisory `## Design` note
-// (#130). A `blocked` one names the mismatch on an intent line so the durable ruling carries it.
-export function assessmentGap(text: string | null | undefined, deferredUnits: readonly number[] = []): string | null {
+/** Only explicit reviewer outcome and measured head are machine-checked; evidence is reviewer judgment. */
+export function assessmentGap(text: string | null | undefined): string | null {
 	if (text == null) return `no ${ASSESSMENT_FILE}`;
-	const verdict = assessmentVerdict(text);
-	if (!verdict) return `${ASSESSMENT_FILE} has no \`Verdict: clean | repair | blocked\` line`;
+	if (!assessmentVerdict(text)) return `${ASSESSMENT_FILE} has no \`Verdict: clean | repair | blocked\` line`;
 	if (!assessmentHead(text)) return `${ASSESSMENT_FILE} has no \`head: <commit>\` line — the assessment names the tree it judged`;
-	if (verdict === 'clean' && /(not met:|differs:|still reproduces:)/i.test(text)) return `${ASSESSMENT_FILE} says clean but states an unmet item — a clean assessment cannot carry \`not met:\``;
-	if ((section(text, 'Agreement') ?? '').split('\n').some((line) => /^(?:-[ \t]+)?surviving:[ \t]*$/i.test(line.trim()))) return `${ASSESSMENT_FILE} has an empty \`surviving:\` item — name the agreed effect still in place`;
-	const surviving = assessmentSurviving(text);
-	if (verdict === 'clean' && surviving.length) return `${ASSESSMENT_FILE} says clean but an agreed removal or exclusion still takes effect (\`surviving:\`) — a surviving effect the agreement removes is not a \`## Design\` note: fix it with \`Verdict: repair\`, or record it for a ruling with \`Verdict: blocked\``;
-	if (surviving.length && verdict === 'blocked' && !/(not met:|differs:|still reproduces:)/i.test(section(text, 'Intent') ?? '') && !assessmentMaterial(text)) return `${ASSESSMENT_FILE} is blocked by a surviving agreed effect but names no \`not met:\` ## Intent line or \`material:\` change — the person's ruling must carry the mismatch`;
-	return intentGap(text, deferredUnits);
+	return null;
 }
 
-// Pure: the verification gaps an assessment states about itself — a line in `## Intent`, `## Live` or
-// `## Behavior and evidence` marked INCONCLUSIVE, NOT VERIFIED or NOT MEASURED. A `clean` verdict does
-// not carry them silently: wf next asks the user to fix or accept them (an explicit ruling tied to this
-// assessment's head and these lines). 2026-10-12 JX-1239: an assessment said clean with its mobile/LTR
-// lines INCONCLUSIVE, and T2 opened as though they had been checked.
-export function assessmentOpenGaps(text: string | null | undefined): string[] {
-	const marker = /^(INCONCLUSIVE|NOT VERIFIED|NOT MEASURED|VERIFIED|met|not met|left out|deferred)\b/i;
-	return ['Intent', 'Live', 'Behavior and evidence']
-		.flatMap((name) => (section(text, name) ?? '').split('\n'))
-		.map((l) => l.trim().replace(/^[-*]\s*/, ''))
-		.filter((line) => {
-			// JX-1392 (#151): read the present status, never quoted history in its evidence.
-			const plain = line.replace(/\*\*/g, '');
-			const status = marker.exec(plain) ?? marker.exec(plain.replace(/^(?:"[^"]*"|[^:]+):\s*/, ''));
-			return /^(INCONCLUSIVE|NOT VERIFIED|NOT MEASURED)$/i.test(status?.[1] ?? '');
-		});
+/** Assessment answers stay outside the agreement's approved material. */
+export function isAssessmentRulingSource(source: string | undefined): boolean {
+	return /^ASSESSMENT(?:-unit-[1-9]\d*)?\.md(?:#|$)/.test(source ?? '');
+}
+
+/** Bind a durable reviewer question to its assessed head and unit scope, not the checkout. */
+export function assessmentRulingSource(text: string | null, context: SliceContext): string {
+	const file = context.kind === 'unit' ? context.assessmentFile : ASSESSMENT_FILE;
+	return `${file}#${assessmentHead(text) ?? 'unknown'}${context.kind === 'unit' ? `#plan:${context.plan.sha}#base:${context.base}` : context.kind === 'integration' ? `#plan:${context.plan.sha}` : ''}`;
+}
+
+/** Content identity ignores checkout newline conversion, never filesystem timestamps. */
+export function assessmentContentSha(text: string | null): string | null {
+	return text === null ? null : createHash('sha256').update(text.replace(/\r\n/g, '\n')).digest('hex');
 }

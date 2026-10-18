@@ -12,7 +12,6 @@ import { join } from 'node:path';
 import { baseBranch, roundsDir } from '../project.ts';
 import { sliceProgressGap } from './build-units.ts';
 import type { SliceProgress } from './build-units.ts';
-import { verificationQuestionGap } from './assessment-rulings.ts';
 import { deliveryReceiptGap } from './delivered-round.ts';
 import type { DeliveryReceipt } from './delivered-round.ts';
 
@@ -22,8 +21,6 @@ export type QuestionReply = { ref: string; text: string; sequence: number };
 // A question `wf ask` opened; `wf decide` moves it to `answered` with its answer (ask.ts).
 export type Question = {
 	n: number; to: string; text: string; default?: string; source?: string; asked: string; answer?: string | null; answered?: string;
-	/** Exact verification lines this fix-or-accept ruling answers; absent on pre-#126 questions. */
-	verification_gaps?: string[];
 	// Save the exact envelope before sending: a retry after a wf update must reuse the old template.
 	inbox_message?: { key: string; subject: string; body: string };
 	// The transport reference survives a session restart; a received reply is not yet a round ruling.
@@ -195,13 +192,6 @@ export function readState(toplevel: string): State | null {
 	if ('slices' in parsed) {
 		const gap = sliceProgressGap(parsed.slices);
 		if (gap) throw new CorruptStateError(file, gap);
-	}
-	for (const field of ['questions', 'answered']) {
-		const questions = Reflect.get(parsed, field);
-		if (Array.isArray(questions)) for (const question of questions) {
-			const gap = verificationQuestionGap(question);
-			if (gap) throw new CorruptStateError(file, `${field}: ${gap}`);
-		}
 	}
 	return parsed as State;
 }

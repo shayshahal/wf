@@ -1,15 +1,14 @@
 // next.selfcheck.ts — node next.selfcheck.ts → exit 0 when green.
 // Pure arms: wf next's action for the smaller route (#110-#113) — ordinary (class A), consequential
-// (B/C) with T1, build, one final assessment with bounded repair, unmet-intent T2 refusal and
-// material-change escalation. A real CLI arm builds a temp git repo and drives wf step/next through
-// the ordinary and complex examples (the command path, not only the pure snapshot).
+// (B/C) with T1, build, one final assessment with bounded repair, the explicit blocked/capped ruling
+// and the class A T2 walk. A reviewer's verdict and measured head are the only machine-read claims.
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { nextAction, unpostedSections } from './next.ts';
 import type { Snapshot } from './next.ts';
-import { checkGap, suitesGap } from './step.ts';
+import { checkGap } from './step.ts';
 import { readState, legacyStateGap } from './state.ts';
 import { WF_ROOT } from '../paths.ts';
 import { worktreeContentSha } from '../gates/content-identity.ts';
@@ -112,30 +111,29 @@ const TICKET_OPEN = `${TICKET}\n## Notes\n- **T2 walk.** open: b2b /catalog as b
 check('class A with an open: walk reaches T2 (with or without setup lines)', say(cleanA(TICKET_OPEN)).startsWith('review: T2'), say(cleanA(TICKET_OPEN)));
 check('class A at review with no T2 walk refuses too, dispatching the build', say(base({ step: 'review', files: { agreement: TICKET, assessment: ASSESS(), review: null, blocked: null } })).startsWith('dispatch build') && steps(base({ step: 'review', files: { agreement: TICKET, assessment: ASSESS(), review: null, blocked: null } })).join() === 'build', say(base({ step: 'review' })));
 check('a B/C agreement still uses agreementGap, not the class A walk gate (unchanged)', say(base({ klass: 'B', step: 'assess', files: { agreement: AGREEMENT, assessment: ASSESS(), review: null, blocked: null }, t1: { sha: 's1', reviewed: 's1', verdict: 'approved' } })).startsWith('review: T2'));
-check('an intent line without a verdict is not a clean assessment', say(base({ step: 'assess', files: { agreement: null, assessment: ASSESS({ intent: '- "x": looks fine' }), review: null, blocked: null } })).startsWith('dispatch assess') && say(base({ step: 'assess', files: { agreement: null, assessment: ASSESS({ intent: '- "x": looks fine' }), review: null, blocked: null } })).includes('has no verdict'), say(base({ step: 'assess' })));
+check('a clean verdict ignores prose: only verdict and head are read', say(base({ step: 'assess', files: { agreement: TICKET_WALK, assessment: ASSESS({ intent: '- "x": looks fine' }), review: null, blocked: null } })).startsWith('review: T2'));
 
 // repair: back to build, bounded
 const repair = base({ step: 'assess', repairs: 0, files: { agreement: null, assessment: ASSESS({ verdict: 'repair' }), review: null, blocked: null } });
 check('a repair assessment returns to build, counted', repairs(repair) === 1 && steps(repair).join() === 'build' && say(repair).includes('repair 1 of 2'), say(repair));
 const vague = { ...repair, files: { ...repair.files, assessment: ASSESS({ verdict: 'repair', intent: '- "x": NOT MEASURED — no seeded role lacks permission' }).split('## Repairs')[0] } };
-check('JX-1393: an unexecutable finding returns to assess without a product repair or a human vote', say(vague).startsWith('dispatch assess') && repairs(vague) === 0 && asks(vague).length === 0);
+check('a repair needs no finding grammar: it returns to build, counted', say(vague).startsWith('dispatch build') && repairs(vague) === 1 && asks(vague).length === 0, say(vague));
 const owned = { ...repair, files: { ...repair.files, assessment: `${vague.files.assessment}\n## Repairs\n- R1: Intent x | blocker: request-failure tool unavailable | owner: environment maintainer | next: restore browser routing and rerun the unavailable-rate case\n` } };
-check('an owned capability gap uses harness recovery without consuming a repair or creating an accept/fix question', say(owned).startsWith('wait user: harness —') && say(owned).includes('environment maintainer') && repairs(owned) === 0 && asks(owned).length === 0);
+check('repair prose of a capability gap does not stop the build on the harness', say(owned).startsWith('dispatch build') && repairs(owned) === 1 && asks(owned).length === 0, say(owned));
 const spent = base({ step: 'assess', repairs: 2, files: { agreement: TICKET_WALK, assessment: ASSESS({ verdict: 'repair' }), review: null, blocked: null } });
 check('two unsuccessful repairs: one contextual escalation, not another build', repairs(spent) === 0 && steps(spent).length === 0 && asks(spent).length === 1 && asks(spent)[0].source.startsWith('ASSESSMENT.md#') && asks(spent)[0].text.includes('answer `accept`'), say(spent));
 
-// blocked: unmet intent / still-reproducing symptom cannot pass to T2 silently
+// blocked: an explicit blocked verdict asks one durable ruling and cannot pass to T2 silently
 const blocked = base({ step: 'assess', files: { agreement: TICKET_WALK, assessment: ASSESS({ verdict: 'blocked', intent: '- "x": not met: the modal still jumps' }), review: null, blocked: null } });
-check('a blocked assessment asks one fix-or-accept ruling, not T2', asks(blocked).length === 1 && asks(blocked)[0].text.startsWith('fix or accept:') && !say(blocked).startsWith('review: T2'), say(blocked));
+check('a blocked verdict asks one durable ruling, not T2', asks(blocked).length === 1 && asks(blocked)[0].text.startsWith('the reviewer explicitly blocked the round.') && !say(blocked).startsWith('review: T2'), say(blocked));
 const accepted = { ...blocked, answered: [{ n: 1, to: 'user', text: 'fix or accept: x', source: asks(blocked)[0].source, answer: 'accept: it is a separate ticket', asked: 't', answered: 't' }] };
 check('an explicit accept goes to T2 with the ruling recorded', say(accepted).startsWith('review: T2'), say(accepted));
 const toFix = { ...blocked, answered: [{ n: 1, to: 'user', text: 'fix or accept: x', source: asks(blocked)[0].source, answer: 'fix it', asked: 't', answered: 't' }] };
 check('a fix ruling returns to build, not an endless question', steps(toFix).join() === 'build' && asks(toFix).length === 0, say(toFix));
 
-// material change: one renewed-agreement escalation
+// material: prose under ## Agreement does not route; the verdict owns the gate
 const material = base({ step: 'assess', files: { agreement: TICKET_WALK, assessment: ASSESS({ material: 'the round also changes the API shape' }), review: null, blocked: null } });
-check('a material change is one renewed-agreement escalation, not a repair', asks(material).length === 1 && asks(material)[0].text.includes('Answer `accept`') && asks(material)[0].text.includes('--revise') && repairs(material) === 0, say(material));
-check('N-5: the material question offers only accept and --revise, not hold/end', !/hold\/end|hold or end/i.test(asks(material)[0].text), asks(material)[0].text);
+check('clean material prose does not create an escalation', say(material).startsWith('review: T2') && asks(material).length === 0, say(material));
 
 // ── T2 / delivery
 check('an open question holds the round before anything else', say(base({ step: 'assess', questions: [{ n: 3, to: 'einat', text: 'which label?', asked: 't' }] })) === 'wait einat: q3 which label?');
@@ -182,26 +180,23 @@ const answeredBlocked = { ...blockedBuild, files: { ...blockedBuild.files, block
 check('an answered BLOCKED.md resumes the build once', say(answeredBlocked).startsWith('dispatch build') && say(answeredBlocked).includes('answered'), say(answeredBlocked));
 check('the same answer does not resume a second time', say({ ...answeredBlocked, blockedAnswered: 1 }) === 'wait user: blocked — which label?');
 
-// ── the assessment must name the HEAD it judged, and a clean verdict cannot carry an unmet item
+// ── the assessment must name the HEAD it judged; the verdict, not its prose, owns the call
 check('an assessment with no head: line is refused', say(base({ step: 'assess', files: { agreement: null, assessment: '# r\nVerdict: clean\n## Intent\n- "x": met: a:1 · before: b · after: c\n', review: null, blocked: null } })).startsWith('dispatch assess') && say(base({ step: 'assess', files: { agreement: null, assessment: '# r\nVerdict: clean\n## Intent\n- "x": met: a:1 · before: b · after: c\n', review: null, blocked: null } })).includes('head:'));
-const cleanNotMet = base({ step: 'assess', files: { agreement: null, assessment: ASSESS({ verdict: 'clean', intent: '- "x": not met: the modal still jumps' }), review: null, blocked: null } });
-check('a clean assessment that states an unmet item is refused', say(cleanNotMet).startsWith('dispatch assess') && say(cleanNotMet).includes('says clean but states an unmet item'), say(cleanNotMet));
+const cleanNotMet = base({ step: 'assess', files: { agreement: TICKET_WALK, assessment: ASSESS({ verdict: 'clean', intent: '- "x": not met: the modal still jumps' }), review: null, blocked: null } });
+check('a clean verdict owns the call despite unmet prose, and reaches T2', say(cleanNotMet).startsWith('review: T2') && asks(cleanNotMet).length === 0, say(cleanNotMet));
 
-// ── the material and repair-cap escalations are recorded, so the same question cannot repeat, and a
-// material change needs an EXPLICIT accept to reach T2 (R-2): hold/end/no/looks fine/fix do not
-const materialAnswered = { ...material, answered: [{ n: 1, to: 'user', text: 'the assessment found a material change', source: asks(material)[0].source, answer: 'accept: ship it', asked: 't', answered: 't' }] };
-check('an explicit accept of a material change opens T2', asks(materialAnswered).length === 0 && say(materialAnswered).startsWith('review: T2'), say(materialAnswered));
-for (const answer of ['hold the round until n', 'end it, drop this round', 'no', 'looks fine, carry on', 'fix: tighten the API']) {
-	const ruled = { ...material, answered: [{ n: 1, to: 'user', text: 'the assessment found a material change', source: asks(material)[0].source, answer, asked: 't', answered: 't' }] };
-	check(`R-2: a material answer "${answer}" does not open T2 (it returns to build)`, asks(ruled).length === 0 && !say(ruled).startsWith('review: T2') && steps(ruled).join() === 'build', say(ruled));
-}
-check('R-6: the fix-or-accept question names the unmet finding and the literal accept', asks(blocked)[0].text.includes('not met: the modal still jumps') && asks(blocked)[0].text.includes('answer `accept`'), asks(blocked)[0].text);
+// ── a capped repair records one explicit ruling: an accept opens T2, anything else builds, and the
+// same question cannot repeat
+check('a bounded-repair ruling question carries the reason and the whole assessment', asks(spent)[0].text.includes('2 autonomous repairs did not clear the review') && asks(spent)[0].text.includes('## Repairs') && asks(spent)[0].text.includes('answer `accept`') && asks(spent)[0].source.startsWith('ASSESSMENT.md#'), asks(spent)[0].text);
 const spentAnswered = { ...spent, answered: [{ n: 1, to: 'user', text: 'x', source: asks(spent)[0].source, answer: 'accept: it is a separate ticket', asked: 't', answered: 't' }] };
-check('an answered repair-cap escalation does not repeat', asks(spentAnswered).length === 0 && say(spentAnswered).startsWith('review: T2'), say(spentAnswered));
+check('an answered repair-cap ruling does not repeat and reaches T2', asks(spentAnswered).length === 0 && say(spentAnswered).startsWith('review: T2'), say(spentAnswered));
+const spentToFix = { ...spent, answered: [{ n: 1, to: 'user', text: 'x', source: asks(spent)[0].source, answer: 'fix: tighten the API', asked: 't', answered: 't' }] };
+check('a repair-cap fix ruling returns to build', steps(spentToFix).join() === 'build' && asks(spentToFix).length === 0, say(spentToFix));
+check('R-6: the blocked question carries the whole assessment, including the unmet finding', asks(blocked)[0].text.includes('not met: the modal still jumps') && asks(blocked)[0].text.includes('answer `accept`'), asks(blocked)[0].text);
 
 // ── verification handoff (JX-1239): a build cannot hand off to assess without a wf-recorded green of
-// this implementation; harness trouble stops with a named cause; a clean assessment cannot silently
-// pass a stated verification gap or a red suite
+// this implementation; harness trouble stops with a named cause. A clean reviewer verdict then passes
+// the boundary, whatever its prose says; the mechanical check identity is what gates.
 const line = (o: object) => JSON.stringify({ ts: 't', row: null, rowCheck: null, tasks: [], ...o });
 const GREEN = (content?: string) => line({ result: 'green', ...(content ? { content } : {}) });
 const ENV_RED = (content?: string) => line({ tasks: [{ label: 'stack', exit: null, missing: 'the stack would not answer' }], result: 'red', cause: 'environment', ...(content ? { content } : {}) });
@@ -225,23 +220,13 @@ check('an environment red of older bytes is not a stop: the build changed since 
 check('a build with a code red is dispatched again (product trouble, not harness)', say(base({ step: 'build', checks: ev([CODE_RED('tree:w1')]) })).startsWith('dispatch build'));
 check('a first build dispatch with an empty log is not a harness stop', say(base({ step: 'build', checks: ev([]) })).startsWith('dispatch build'));
 
+// A reviewer's clean verdict is not re-judged from prose: unmeasured Live lines and red suites at
+// these bytes reach T2. The mechanical checkGap still gates the handoff (no green of these bytes →
+// build), never a fix-or-accept vote about whether the reviewer's evidence is good enough.
 const inconclusive = base({ step: 'assess', checks: ev([GREEN('tree:w1')]), files: filesWith(cleanLive) });
-check('a clean assessment with an INCONCLUSIVE item asks one fix-or-accept, not T2', asks(inconclusive).length === 1 && asks(inconclusive)[0].text.includes('INCONCLUSIVE — mobile/LTR') && asks(inconclusive)[0].text.includes('answer `accept`') && !say(inconclusive).startsWith('review: T2'), say(inconclusive));
-const gapSource = asks(inconclusive)[0]?.source ?? 'none';
-const ruled = (answer: string, src = gapSource, snap = inconclusive) => ({ ...snap, answered: [{ n: 1, to: 'user', text: 'x', source: src, answer, asked: 't', answered: 't' }] });
-check('an explicit accept of the gap opens T2', asks(ruled('accept: separate ticket')).length === 0 && say(ruled('accept: separate ticket')).startsWith('review: T2'), say(ruled('accept')));
-check('a fix ruling returns to build', steps(ruled('fix the mobile case')).join() === 'build' && say(ruled('fix the mobile case')).startsWith('dispatch build'), say(ruled('fix')));
-const latestAcceptance = { ...inconclusive, answered: [...ruled('fix the mobile case').answered, { ...ruled('accept: defer it').answered[0], n: 2 }] };
-check('the latest explicit ruling on the same verification source wins', say(latestAcceptance).startsWith('review: T2'), say(latestAcceptance));
-const otherGap = { ...inconclusive, files: filesWith(ASSESS() + '\n## Live\n- Intent 1: NOT VERIFIED — LTR header overlaps — proof/none\n') };
-check('an accept for another gap on the same HEAD does not carry over', asks(ruled('accept', gapSource, otherGap)).length === 1 && !say(ruled('accept', gapSource, otherGap)).startsWith('review: T2'), say(ruled('accept', gapSource, otherGap)));
-check('NOT MEASURED in a clean Intent is a stated gap too', asks({ ...inconclusive, files: filesWith(ASSESS({ intent: '- "x": NOT MEASURED — the app did not start' })) }).length === 1);
-check('a clean assessment with every line verified goes to T2 with no ask', asks(base({ step: 'assess', checks: ev([GREEN('tree:w1')]), files: filesWith(ASSESS() + '\n## Live\n- Intent 1: VERIFIED — drove it — proof/a.png\n') })).length === 0);
+check('a clean verdict with an unmeasured Live line reaches T2', say(inconclusive).startsWith('review: T2') && asks(inconclusive).length === 0, say(inconclusive));
 const redSuite = base({ step: 'assess', checks: ev([GREEN('tree:w1'), SUITES('red', 'tree:w1', ['unit', 'e2e'])]), files: filesWith(ASSESS() + '\n## Behavior and evidence\nthe 3 red cases are in a file this round never touched, so unrelated\n') });
-check('a red suite at these bytes is not waived by prose ("file untouched, unrelated"): one fix-or-accept ask', asks(redSuite).length === 1 && asks(redSuite)[0].text.includes('suites red') && asks(redSuite)[0].text.includes('unit, e2e') && !say(redSuite).startsWith('review: T2'), say(redSuite));
-check('a user accept of the red suites opens T2', say(ruled('accept: red on base too', asks(redSuite)[0]?.source ?? 'none', redSuite)).startsWith('review: T2'));
-check('a red suites line of other bytes is not this implementation\'s gap', asks({ ...redSuite, checks: ev([GREEN('tree:w1'), SUITES('red', 'tree:w0')]) }).length === 0);
-check('a green suites line is no gap', asks({ ...redSuite, checks: ev([GREEN('tree:w1'), SUITES('green', 'tree:w1')]) }).length === 0);
+check('a clean verdict with red suites at these bytes reaches T2', say(redSuite).startsWith('review: T2') && asks(redSuite).length === 0, say(redSuite));
 
 // #127, JX-275: review and the assess policy must agree after HEAD/check evidence moves.
 for (const [name, snapshot] of [
@@ -250,7 +235,6 @@ for (const [name, snapshot] of [
 	['code red', base({ step: 'assess', checks: ev([CODE_RED('tree:w1')]), files: filesWith(ASSESS()) })],
 	['missing assessment', base({ step: 'assess', checks: ev([GREEN('tree:w1')]) })],
 	['harness failure', harness],
-	['open verification', inconclusive],
 ] satisfies [string, Snapshot][]) {
 	const assessed = nextAction(snapshot);
 	const reviewed = nextAction({ ...snapshot, step: 'review' });
@@ -318,7 +302,6 @@ check('checkGap: a later green of the same bytes outweighs an earlier environmen
 check('checkGap: a later unavailable check supersedes an older green even without a content identity', checkGap(ev([GREEN('tree:w1'), line({ result: 'unavailable' })]))?.kind === 'harness');
 check('checkGap: a truncated log line is skipped, not fatal', checkGap({ log: `${GREEN('tree:w1')}
 {"ts":"t","re`, content: 'tree:w1' }) === null);
-check('suitesGap names the red suites of these bytes only', suitesGap(ev([SUITES('red', 'tree:w1', ['a', 'b'])])) === 'suites red at this implementation: a, b' && suitesGap(ev([SUITES('red', 'tree:w0')])) === null && suitesGap(ev([SUITES('red', 'tree:w1'), SUITES('green', 'tree:w1')])) === null);
 
 // ── real CLI: the handoff boundary is enforced on a direct `wf step`, not only through wf next
 {
@@ -349,13 +332,8 @@ check('suitesGap names the red suites of these bytes only', suitesGap(ev([SUITES
 	const ok = cli(repo, 'step', 'assess');
 	check('CLI: a green of this implementation hands off, and a paperwork-only commit after it does not regress it', ok.code === 0 && readState(repo)?.step === 'assess', ok.out);
 	writeFileSync(join(repo, 'bug-reports/r/ASSESSMENT.md'), ASSESS({ head: git(repo, 'rev-parse', 'HEAD').trim() }) + '\n## Live\n- INCONCLUSIVE — mobile path not driven\n');
-	const openReview = cli(repo, 'step', 'review');
-	check('CLI: direct review cannot bypass an unresolved assessment gap', openReview.code === 2 && openReview.out.includes('INCONCLUSIVE') && readState(repo)?.step === 'assess', openReview.out);
-	const question = cli(repo, 'next');
-	check('CLI: next records the verification gap as one contextual question', question.out.includes('INCONCLUSIVE') && readState(repo)?.questions?.length === 1, question.out);
-	const acceptedReview = cli(repo, 'decide', 'accept: mobile verification deferred');
-	const review = cli(repo, 'step', 'review');
-	check('CLI: direct review obeys the recorded explicit acceptance', acceptedReview.code === 0 && review.code === 0 && readState(repo)?.step === 'review', acceptedReview.out + review.out);
+	const cleanReview = cli(repo, 'step', 'review');
+	check('CLI: a clean verdict passes the review boundary regardless of unmeasured prose', cleanReview.code === 0 && readState(repo)?.step === 'review', cleanReview.out);
 	writeFileSync(join(repo, 'a.txt'), 'c\n');
 	git(repo, 'commit', '-q', '-am', 'product after the check');
 	const after = cli(repo, 'step', 'review');

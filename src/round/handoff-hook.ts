@@ -49,7 +49,7 @@ export function stopGap(state: State | null, files: { agreement: string | null; 
 			const scope = context.kind === 'unit' ? `unit:${context.unit.n}` : 'integration';
 			if (lastField(files.assessment, 'scope') !== scope) return `${file} must name scope: ${scope}`;
 		}
-		return assessmentGap(files.assessment, context.kind === 'unit' ? context.plan.units.filter((u) => u.n > context.unit.n).map((u) => u.n) : []);
+		return assessmentGap(files.assessment);
 	}
 	return null;
 }

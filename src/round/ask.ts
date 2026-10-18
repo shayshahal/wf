@@ -15,15 +15,15 @@ import { people } from '../project.ts';
 import { revisionSha } from './agreement.ts';
 import { readState, roundFile, toplevelOf, writeState } from './state.ts';
 import type { Question, State } from './state.ts';
-import { isAssessmentRulingSource } from './assessment-rulings.ts';
+import { isAssessmentRulingSource } from './agreement.ts';
 
 const PEOPLE = ['user', ...people];
 
 // Pure: the state with one more open question. The round now waits on the oldest open question's person.
-export function addQuestion(state: State, { to, text, dflt = null, source = null, verification_gaps }: { to: string; text: string; dflt?: string | null; source?: string | null; verification_gaps?: string[] }, now = new Date().toISOString()): State & { questions: Question[] } {
+export function addQuestion(state: State, { to, text, dflt = null, source = null }: { to: string; text: string; dflt?: string | null; source?: string | null }, now = new Date().toISOString()): State & { questions: Question[] } {
 	const questions: Question[] = [...(state.questions ?? [])];
 	const n = Math.max(state.last_question ?? 0, ...questions.map((q) => q.n)) + 1;
-	questions.push({ n, to, text, ...(dflt ? { default: dflt } : {}), ...(source ? { source } : {}), ...(verification_gaps ? { verification_gaps: [...verification_gaps] } : {}), asked: now });
+	questions.push({ n, to, text, ...(dflt ? { default: dflt } : {}), ...(source ? { source } : {}), asked: now });
 	return { ...state, questions, last_question: n, waiting_on: questions[0].to, since: now };
 }
 
@@ -184,10 +184,6 @@ export async function runDecide(argv: string[]): Promise<void> {
 	const decided = { question: null as Question | null };
 	try {
 		writeState(toplevel, (current) => {
-			const source = current.questions?.find((q) => q.n === target)?.source;
-			// #130: accepting a surviving agreed effect changes behavior. Keep the question open
-			// until that acceptance explicitly renews the agreement, not just the old assessment.
-			if (isAssessmentRulingSource(source) && /#surviving:[a-f0-9]{8}(?:#material)?$/.test(source ?? '') && /^\s*accept\b/i.test(answer) && !a.revise) throw new Error('accepting this agreement exception needs --revise; record the renewed behavior with wf decide --revise --q <n> "<the renewed behavior>"');
 			const result = closeQuestion(current, target, undefined, answer);
 			decided.question = result.question;
 			const said = revisionText(result.question, answer);
