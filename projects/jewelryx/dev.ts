@@ -8,6 +8,7 @@ import { createWriteStream, mkdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { PassThrough } from 'node:stream';
+import type { VerificationProfile } from './readiness.ts';
 import type { Origins, Port, Wrap } from './index.ts';
 
 const asIs: Wrap = ({ command }) => ({ command, env: {} });
@@ -15,7 +16,8 @@ export type DevCommand = { name: string; command: string; env: Record<string, st
 
 // Pure: the three commands and their environments. `origins` ({ b2b, admin, api }) are the browser
 // origins when the machine names them; `wrap({ role, port, command })` → { command, env }.
-export function devCommands(basePort: Port, { origins = null, wrap = asIs }: { origins?: Origins | null; wrap?: Wrap } = {}): DevCommand[] {
+/** Build server commands; API-only verification wraps and starts only the backend. */
+export function devCommands(basePort: Port, { origins = null, wrap = asIs, profile = 'shared-auth' }: { origins?: Origins | null; wrap?: Wrap; profile?: VerificationProfile } = {}): DevCommand[] {
 	if (!/^1\d{4}$/.test(String(basePort))) throw new Error('Worktree base port must be from 10000 to 19999');
 	const b2bPort = Number(basePort);
 	const backendPort = b2bPort + 10_000;
@@ -34,8 +36,10 @@ export function devCommands(basePort: Port, { origins = null, wrap = asIs }: { o
 		const w = wrap({ role, port, command });
 		return { name, command: w.command, env: { ...env, ...w.env } };
 	};
+	const backend = server('backend', 'api', backendPort, 'pnpm dev:backend', { DEV_BACKEND_PORT: String(backendPort), CORS_ORIGINS: `${b2bOrigin},${adminOrigin}`, B2B_PUBLIC_URL: `${b2bOrigin}/b2b` });
+	if (profile === 'api') return [backend];
 	return [
-		server('backend', 'api', backendPort, 'pnpm dev:backend', { DEV_BACKEND_PORT: String(backendPort), CORS_ORIGINS: `${b2bOrigin},${adminOrigin}`, B2B_PUBLIC_URL: `${b2bOrigin}/b2b` }),
+		backend,
 		// No `--` before the flags: pnpm forwards it verbatim to vite, which treats it as
 		// end-of-options and ignores --port, silently falling back to 5173/3002.
 		server('b2b', 'b2b', b2bPort, `pnpm dev:frontend --port ${b2bPort} --strictPort`, { ...vite, INTERNAL_API_URL: internalBackendUrl, PUBLIC_API_URL: '/api', ORIGIN: b2bOrigin }),
@@ -44,14 +48,15 @@ export function devCommands(basePort: Port, { origins = null, wrap = asIs }: { o
 }
 
 // concurrently comes from the worktree's own node_modules (the project's devDependency): wf has none.
-export async function runDev({ worktree, basePort, origins, wrap }: { worktree: string; basePort: Port; origins?: Origins; wrap?: Wrap }): Promise<void> {
+/** Run and log selected servers using the worktree-owned concurrently installation. */
+export async function runDev({ worktree, basePort, origins, wrap, profile }: { worktree: string; basePort: Port; origins?: Origins; wrap?: Wrap; profile?: VerificationProfile }): Promise<void> {
 	const concurrently = createRequire(join(worktree, 'package.json'))('concurrently') as (commands: DevCommand[], options: object) => { result: Promise<unknown> };
 	const logPath = join(worktree, '.wf', 'logs', 'dev.log');
 	mkdirSync(dirname(logPath), { recursive: true });
 	const outputStream = new PassThrough();
 	outputStream.pipe(process.stdout);
 	outputStream.pipe(createWriteStream(logPath, { flags: 'a' }));
-	const { result } = concurrently(devCommands(basePort, { origins, wrap }), {
+	const { result } = concurrently(devCommands(basePort, { origins, wrap, profile }), {
 		prefix: 'name',
 		prefixColors: ['yellow', 'blue', 'cyan'],
 		killOthersOn: ['failure'],

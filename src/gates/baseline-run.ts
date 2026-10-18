@@ -27,10 +27,11 @@
 // ref it did not make. `remove()` deletes only the branch and worktree this run created.
 import { execFileSync, spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { closeSync, copyFileSync, existsSync, lstatSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync, writeSync } from 'node:fs';
+import { appendFileSync, closeSync, copyFileSync, existsSync, lstatSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync, writeSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { createWorktree, listWorktrees, removalPlan, resolveWorktree, slugForBranch } from '../worktrees/worktree.ts';
 import { runRemovalStep } from '../worktrees/removal.ts';
+import { stopWorktreeServers } from '../worktrees/serve.ts';
 
 /** A scratch and its teardown: `remove()` returns the failure lines (empty when everything released). */
 export type BaselineScratch = { path: string; branch: string; slug: string; remove: () => Promise<string[]> };
@@ -56,7 +57,7 @@ export function scratchBranchFor(toplevel: string): string {
 
 /** The failure line a step did not confirm; `ok` true is silent. Never throws. Always releases the
  * lock, on every path (a clean teardown, a throwing removalPlan, a repeated `remove()`). */
-async function removeScratch({ toplevel, branch, path, slug, lock }: { toplevel: string; branch: string; path: string | null; slug: string; lock: ScratchLock }): Promise<string[]> {
+async function removeScratch({ toplevel, branch, path, slug, lock, log }: { toplevel: string; branch: string; path: string | null; slug: string; lock: ScratchLock; log: string }): Promise<string[]> {
 	const failures: string[] = [];
 	const recovery = join(commonGitDir(toplevel), `wf-baseline-${slug}.recovery.json`);
 	try {
@@ -65,9 +66,18 @@ async function removeScratch({ toplevel, branch, path, slug, lock }: { toplevel:
 			try { worktree = resolveWorktree(branch, listWorktrees(toplevel)).path; } catch { /* createWorktree never made one: nothing on disk to remove */ }
 		}
 		if (worktree) {
-			writeFileSync(recovery, JSON.stringify({ branch, path: worktree, token: lock.token }));
+			// #146: deletion used to erase readiness diagnostics. Save before any destructive plan step;
+			// a failed save must leave the original checkout and branch available for recovery.
 			try {
-				for (const step of await removalPlan({ branch, path: worktree, slug, pid: process.pid })) {
+				writeFileSync(recovery, JSON.stringify({ branch, path: worktree, token: lock.token }));
+				retainScratchLogs(worktree, log);
+			} catch (e) {
+				failures.push(`baseline diagnostic retention failed into ${log}; scratch retained at ${worktree}: ${e instanceof Error ? e.message : String(e)}`);
+				const stopped = await stopWorktreeServers(worktree);
+				if (stopped.kind === 'refused') failures.push(`baseline scratch server release failed: ${stopped.why}`);
+			}
+			try {
+				for (const step of failures.length ? [] : await removalPlan({ branch, path: worktree, slug, pid: process.pid })) {
 					const outcome = await runRemovalStep(step);
 					if (!outcome.ok) { failures.push(outcome.say); break; }
 					console.error(`baseline scratch: ${outcome.say}`);
@@ -92,6 +102,18 @@ async function removeScratch({ toplevel, branch, path, slug, lock }: { toplevel:
 	if (!failures.length) rmSync(recovery, { force: true });
 	else if (existsSync(recovery)) failures.push(`scratch recovery path retained in ${recovery}`);
 	return failures;
+}
+
+// Keep source boundaries and setup output in the caller's surviving log, not another archive.
+function retainScratchLogs(worktree: string, log: string): void {
+	for (const source of ['dev.log', 'serve.log']) {
+		let bytes: Buffer;
+		try { bytes = readFileSync(join(worktree, '.wf', 'logs', source)); } catch (e) {
+			if (e instanceof Error && 'code' in e && e.code === 'ENOENT') continue;
+			throw e; // The teardown boundary reports the failed retention and keeps the original.
+		}
+		appendFileSync(log, Buffer.concat([Buffer.from(`\n--- baseline scratch .wf/logs/${source} ---\n`), bytes, Buffer.from(`\n--- end baseline scratch .wf/logs/${source} ---\n`)]));
+	}
 }
 
 /** The common git dir, shared by every worktree of the repository: the scratch lock lives there. */
@@ -217,7 +239,7 @@ export async function startBaselineScratch({ toplevel, branch, ref, probeFiles, 
 			// createWorktree runs the project's setup: it may fail after part of it (a worktree, a database),
 			// before it returns a path. Tear down whatever this run made, then rethrow. removeScratch frees
 			// the lock; the finally below repeats it harmlessly.
-			const failures = await removeScratch({ toplevel, branch, path, slug, lock });
+			const failures = await removeScratch({ toplevel, branch, path, slug, lock, log });
 			for (const failure of failures) console.error(`baseline scratch: cleanup could not confirm: ${failure}`);
 			throw e;
 		}
@@ -229,7 +251,7 @@ export async function startBaselineScratch({ toplevel, branch, ref, probeFiles, 
 		// must not drive that run's worktree, stack or database through `git branch -D`/the removal plan
 		// (#133 review).
 		let cleanup: Promise<string[]> | null = null;
-		const remove = () => (cleanup ??= removeScratch({ toplevel, branch, path, slug, lock }));
+		const remove = () => (cleanup ??= removeScratch({ toplevel, branch, path, slug, lock, log }));
 		return { path, branch, slug, remove };
 	} finally {
 		// The handle's remove() owns the lock after hand-off; before it, release here. Idempotent and

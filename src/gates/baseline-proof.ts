@@ -35,6 +35,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { RunEvidence } from './check.ts';
+import type { VerificationRequirements } from '../project.ts';
 
 /** The assertion one red-base row names: its test path, named test id, intended line and `refactor:`. */
 export type BaselineTarget = { file: string; id: string | null; line: number | null; refactor: boolean };
@@ -65,13 +66,13 @@ const hash = (text: string) => `sha256:${createHash('sha256').update(text).diges
  */
 export function baselineProofKey({ base, task, target, probe, environment, isolated }: {
 	base: string;
-	task: { cmd: string; args: readonly string[]; cwd: string };
+	task: { cmd: string; args: readonly string[]; cwd: string; requirements?: VerificationRequirements };
 	target: BaselineTarget;
 	probe: string;
 	environment: string;
 	isolated: boolean;
 }): string {
-	return hash(JSON.stringify({ base, cmd: task.cmd, args: task.args, cwd: task.cwd, target, probe, environment, isolated }));
+	return hash(JSON.stringify({ base, cmd: task.cmd, args: task.args, cwd: task.cwd, target, probe, environment, isolated, ...(task.requirements ? { requirements: task.requirements } : {}) }));
 }
 
 /** The identity of the environment a task is handed, so a proof cannot outlive it: `wf check` passes

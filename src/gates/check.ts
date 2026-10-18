@@ -46,13 +46,15 @@ import { runCheckProcess } from './check-process.ts';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync } from 'node:fs';
 import { basename, join } from 'node:path';
-import { baseBranch, baselineRunnerEnv, checks, isTestInput, redBaseEvidence, reproFailure, roundReproRuntimeInputs, runnerEnv, suites, verificationStackEnv, waitForVerificationReady } from '../project.ts';
+import { baseBranch, baselineRunnerEnv, checks, isTestInput, parseReproRequirements, redBaseEvidence, reproFailure, roundReproRuntimeInputs, runnerEnv, suites, verificationStackEnv, waitForVerificationReady } from '../project.ts';
 import { caseFiles, verificationCases } from '../round/agreement.ts';
 import { sliceContext } from '../round/build-units.ts';
 import { agreementPath } from '../round/agreement.ts';
 import type { VerificationCase } from '../round/agreement.ts';
 import { readState, resolveRoundBase, roundOf, toplevelOf } from '../round/state.ts';
-import { ensureServers } from '../worktrees/serve.ts';
+import { acquireVerificationServers, ensureServers } from '../worktrees/serve.ts';
+import type { VerificationServers } from '../worktrees/serve.ts';
+import type { VerificationRequirements } from '../project.ts';
 import { worktreeContentSha } from './content-identity.ts';
 import { checkOutputTail, checkRunLine, parseChecksLog, suitesLine } from './checks-log.ts';
 import type { CheckRun, RedCause } from './checks-log.ts';
@@ -71,8 +73,8 @@ process.noDeprecation = true;
 // `stack`: the command drives the running app, so the worktree's stack is started (and answering)
 // before it runs: nothing serves a worktree from its creation (2026-10-04, serve.ts).
 export type CheckTask =
-	| { label: string; cmd: string; args: string[]; cwd: string; env?: Record<string, string>; expectRed?: boolean; stack?: boolean; redBase?: boolean; missing?: never }
-	| { label: string; missing: string; cmd?: never; args?: never; cwd?: never; env?: never; expectRed?: never; stack?: never; redBase?: never };
+	| { label: string; cmd: string; args: string[]; cwd: string; env?: Record<string, string>; expectRed?: boolean; stack?: boolean; requirements?: VerificationRequirements; redBase?: boolean; missing?: never }
+	| { label: string; missing: string; cmd?: never; args?: never; cwd?: never; env?: never; expectRed?: never; stack?: never; requirements?: never; redBase?: never };
 // What one proof-run's own output shows (#109): the project's evidence policy (projects/<name>/
 // index.ts) reads a runner's report and returns one of these. Core reads the verdict and records it:
 // only `behavioral-failure` proves a red-base row, only `passed` proves a behavior-preserving refactor,
@@ -101,7 +103,7 @@ export type SharedTaskCache = Map<string, SharedTaskResult>;
 // (#140 acceptance). A repro (`expectRed`) or a `stack` task drives other state and a task with no
 // runnable command or no readable tree is not reusable: null.
 export function taskRunKey(task: CheckTask, content: string | undefined): string | null {
-	if (!task.cmd || task.missing || task.redBase || task.expectRed || task.stack || content === undefined) return null;
+	if (!task.cmd || task.missing || task.redBase || task.expectRed || task.stack || task.requirements || content === undefined) return null;
 	return JSON.stringify([task.cmd, task.args, task.cwd, Object.entries(task.env ?? {}).sort(), content]);
 }
 
@@ -297,7 +299,7 @@ export function manualCheck(cell: string | null | undefined): string | null {
 // Pure: the commands to run, in order. `projectTasks(target)` is the project's commands for the diff
 // plus the row's `target` (its test path, named test id and intended line, and `refactor:` — or null);
 // `repro` is the agreement's command line (or null).
-export function buildTasks({ row, projectTasks, repro, reproOnly = false, reproEnv }: { row: { check?: string } | null | undefined; projectTasks: (target: CheckTarget | null) => CheckTask[]; repro: string | null; reproOnly?: boolean; reproEnv?: Record<string, string> }): CheckTask[] {
+export function buildTasks({ row, projectTasks, repro, reproOnly = false, reproEnv, reproRequirements }: { row: { check?: string } | null | undefined; projectTasks: (target: CheckTarget | null) => CheckTask[]; repro: string | null; reproOnly?: boolean; reproEnv?: Record<string, string>; reproRequirements?: VerificationRequirements }): CheckTask[] {
 	// The command is the first `code span` when there is one — a cell may add a note after it
 	// (TJEW-700 row 6: "`vitest run …ts` (fixture carries …)" took `number)` as the path). A cell that
 	// starts with — (or -) is fence only, whatever note follows it (TJEW-682 rows 1 and 5 carried a
@@ -315,7 +317,7 @@ export function buildTasks({ row, projectTasks, repro, reproOnly = false, reproE
 	// The agreement's repro reproduces the defect in the running app (prompts/agree.md). The project's
 	// stack env rides it too: a repro that imports the project's support helpers reads the round's
 	// seed actors there, the same identities the repro config logs in, not the helpers' own defaults.
-	return [...tasks, { label: repro, cmd, args, cwd: '.', stack: true, ...(reproEnv ? { env: reproEnv } : {}), ...(reproOnly ? { expectRed: true } : {}) }];
+	return [...tasks, { label: repro, cmd, args, cwd: '.', stack: reproRequirements?.kind !== 'none', ...(reproRequirements ? { requirements: reproRequirements } : {}), ...(reproEnv ? { env: reproEnv } : {}), ...(reproOnly ? { expectRed: true } : {}) }];
 }
 
 // Pure: whether every file of a plan row is in the round's repro folder (a row that fixes the repro
@@ -458,42 +460,38 @@ export function reproVerdict(runs: ReproRun[], folder: string | null): { result:
 	return { result: 'stable', say: `red ${runs.length} times, each at: ${signatures[0]}` };
 }
 
-// Starts the stack and waits for it, or exits red naming its logs: the next command would fail
-// against no app, and say less. `stack` is the seam runBrief already has: a selfcheck passes a
-// stand-in so the repro's own spawn and env can be measured without a browser or a database.
-async function stackOrExit(toplevel: string, stack: typeof ensureServers, env: Record<string, string>, ready: typeof waitForVerificationReady) {
-	try {
-		console.error(await stack(toplevel, { wait: true }));
-		await ready(toplevel, env);
-	} catch (e) {
-		console.error(`FAILED: ${(e as Error).message}`);
-		process.exit(1);
-	}
-}
-
+/** Measure the recorded repro only after its declared dependencies are admitted and owned cleanup is confirmed. */
 export async function runRepro({ stack = ensureServers, ready = waitForVerificationReady }: { stack?: typeof ensureServers; ready?: typeof waitForVerificationReady } = {}) {
 	const toplevel = toplevelOf();
 	const state = readState(toplevel);
 	const { folder } = roundOf(state, toplevel);
 	const research = agreementPath(toplevel, state?.class ?? null, folder);
-	const repro = existsSync(research) ? reproCommand(readFileSync(research, 'utf8')) : null;
+	const description = existsSync(research) ? readFileSync(research, 'utf8') : '';
+	const repro = reproCommand(description);
 	if (!repro) {
 		console.error(`check --repro: ${research.split(/[\\/]/).pop()} ## Repro has no \`command:\` line yet: write it first`);
 		process.exit(1);
 	}
+	const requirements = parseReproRequirements(description, repro);
+	if (requirements.kind === 'invalid') { console.error(`FAILED: ${requirements.why}`); process.exitCode = 1; return; }
 	const env = { ...runnerEnv(process.env), ...verificationStackEnv(toplevel) };
-	await stackOrExit(toplevel, stack, env, ready);
+	const lease = await acquireVerificationServers(toplevel, env, requirements.requirements, { stack, ready });
+	if (lease.kind === 'refused') { console.error(`FAILED: ${lease.why}`); process.exitCode = 1; return; }
 	const [cmd, ...args] = tokenize(repro);
 	const start = contentOf(toplevel, folder);
 	const runs: ReproRun[] = [];
-	for (let i = 1; i <= REPRO_RUNS; i++) {
-		const run = await runCheckProcess(cmd, shellArgv(args), { worktree: toplevel, cwd: toplevel, shell: process.platform === 'win32', env, maxBuffer: RUN_MAX_BUFFER });
-		const output = `${run.stdout ?? ''}${run.stderr ?? ''}`;
-		// A red counts only if it is a framework assertion inside the repro's own files: a crash, a
-		// generic Error, or a runner wf cannot read never measured the defect (#109 review).
-		runs.push({ exit: run.status, output, measurement: failedInRepro(output, folder) && reproFailure({ cmd, args, output }).asserted });
-		console.log(`run ${i}: ${run.status === 0 ? 'green' : `red at ${failureSignature(output)}`}`);
-	}
+	let cleanup: string | null = null;
+	try {
+		for (let i = 1; i <= REPRO_RUNS; i++) {
+			const run = await runCheckProcess(cmd, shellArgv(args), { worktree: toplevel, cwd: toplevel, shell: process.platform === 'win32', env, maxBuffer: RUN_MAX_BUFFER, signal: lease.signal });
+			if (lease.signal?.aborted) break;
+			const output = `${run.stdout ?? ''}${run.stderr ?? ''}`;
+			// Only a framework assertion inside the repro can prove a defect, never setup or release failure.
+			runs.push({ exit: run.status, output, measurement: failedInRepro(output, folder) && reproFailure({ cmd, args, output }).asserted });
+			console.log(`run ${i}: ${run.status === 0 ? 'green' : `red at ${failureSignature(output)}`}`);
+		}
+	} finally { cleanup = await lease.release(); }
+	if (cleanup || lease.signal?.aborted) { console.error(`FAILED: ${cleanup ?? 'verification cancelled'}`); process.exitCode = 1; return; }
 	const verdict = reproVerdict(runs, folder);
 	mkdirSync(join(toplevel, '.wf'), { recursive: true });
 	const tasks = runs.map((r) => ({ label: repro, exit: r.exit, output: r.output.split('\n').slice(-15).join('\n').trimEnd() }));
@@ -619,8 +617,18 @@ export async function runCheck(argv: string[] = [], shared: SharedTaskCache = ne
 	const repro = existsSync(agreementFile) ? reproCommand(readFileSync(agreementFile, 'utf8')) : null;
 	const reproOnly = row ? isReproOnly(caseFiles(row), folder) : false;
 	const target = checkCellTarget(row?.check);
-	let served = false;
-	const tasks = buildTasks({ row, projectTasks: (t) => checks({ toplevel, changed, target: t }), repro, reproOnly, reproEnv: verificationStackEnv(toplevel) });
+	let reproRequirements: VerificationRequirements | undefined;
+	if (repro && (checkCellCommand(row?.check) === 'repro' || reproOnly)) {
+		const parsed = parseReproRequirements(agreement, repro);
+		if (parsed.kind === 'invalid') {
+			ran.push({ label: 'verification requirements', exit: null, missing: parsed.why });
+			console.error(`COULD NOT RUN: ${parsed.why}`);
+			logRun('red', 'environment');
+			failRow(batch);
+		}
+		reproRequirements = parsed.requirements;
+	}
+	const tasks = buildTasks({ row, projectTasks: (t) => checks({ toplevel, changed, target: t }), repro, reproOnly, reproEnv: verificationStackEnv(toplevel), reproRequirements });
 	// Nothing to run is not a green: a case-less or fence-only run with a product file changed and no
 	// project check would log a pass that measured nothing (#109). `changed` is the same list the fence
 	// uses (committed vs base, worktree, index, untracked), so a committed-only or reverse-index (index
@@ -644,13 +652,11 @@ export async function runCheck(argv: string[] = [], shared: SharedTaskCache = ne
 			logRun('red', redCause(missing));
 			failRow(batch);
 		}
-		if (task.stack) {
-			try {
-				if (!served) await ensureServers(toplevel, { wait: true });
-				served = true;
-				await waitForVerificationReady(toplevel, { ...runnerEnv(process.env), ...task.env });
-			} catch (e) {
-				const dead = { label: 'stack', exit: null, missing: (e as Error).message };
+		let lease: VerificationServers = { kind: 'acquired', release: async () => null };
+		if (task.stack || task.requirements) {
+			lease = await acquireVerificationServers(toplevel, { ...runnerEnv(process.env), ...task.env }, task.requirements);
+			if (lease.kind === 'refused') {
+				const dead = { label: 'stack', exit: null, missing: lease.why };
 				console.error(`COULD NOT RUN: ${dead.missing}`);
 				ran.push(dead);
 				logRun('red', redCause(dead));
@@ -666,7 +672,14 @@ export async function runCheck(argv: string[] = [], shared: SharedTaskCache = ne
 		let run: { status: number | null; stdout?: string | null; stderr?: string | null };
 		if (reused) run = { status: reused.status, stdout: reused.output, stderr: '' };
 		else {
-			run = await runCheckProcess(task.cmd!, shellArgv(task.args!), { worktree: toplevel, cwd: join(toplevel, task.cwd!), env: { ...runnerEnv(process.env), ...task.env }, shell: process.platform === 'win32', maxBuffer: RUN_MAX_BUFFER });
+			let cleanup: string | null = null;
+			try {
+				run = await runCheckProcess(task.cmd!, shellArgv(task.args!), { worktree: toplevel, cwd: join(toplevel, task.cwd!), env: { ...runnerEnv(process.env), ...task.env }, shell: process.platform === 'win32', maxBuffer: RUN_MAX_BUFFER, signal: lease.signal });
+			} finally {
+				cleanup = await lease.release();
+				if (cleanup) console.error(`COULD NOT RUN: temporary server release unconfirmed: ${cleanup}`);
+			}
+			if (cleanup || lease.signal?.aborted) run = { status: null, stdout: run.stdout, stderr: `${run.stderr ?? ''}\n${cleanup ? `temporary server release unconfirmed: ${cleanup}` : 'verification cancelled'}` };
 			if (key) {
 				const after = contentOf(toplevel, folder);
 				if (after === content) shared.set(key, { status: run.status, output: `${run.stdout ?? ''}${run.stderr ?? ''}` });
@@ -768,7 +781,7 @@ export async function runCheck(argv: string[] = [], shared: SharedTaskCache = ne
 		const environment = environmentDigest(effectiveEnv);
 		const identity: BaselineIdentity = {
 			base: redBaseRef,
-			key: baselineProofKey({ base: redBaseRef, task: redTask as { cmd: string; args: string[]; cwd: string; env?: Record<string, string> }, target: target!, probe, environment, isolated }),
+			key: baselineProofKey({ base: redBaseRef, task: redTask as { cmd: string; args: string[]; cwd: string; env?: Record<string, string>; requirements?: VerificationRequirements }, target: target!, probe, environment, isolated }),
 			current: redBaseContent ?? '',
 			command: redTask.cmd!,
 			argv: redTask.args!,
@@ -791,24 +804,31 @@ export async function runCheck(argv: string[] = [], shared: SharedTaskCache = ne
 			// restoration (JX-1069). The live worktree, its index and its stack are never touched.
 			let run: { status: number | null; stdout?: string | null; stderr?: string | null; error?: Error } | Error;
 			let evidenceRoot = toplevel;
+			const baselineLog = join(toplevel, '.wf', 'logs', 'baseline-redbase.log');
 			if (isolated) {
 				let scratch: BaselineScratch | null = null;
+				let lease: VerificationServers | null = null;
 				let teardownFailures: string[] = [];
 				try {
-					scratch = await startBaselineScratch({ toplevel, branch: scratchBranch, ref: redBaseRef, probeFiles, log: join(toplevel, '.wf', 'logs', 'baseline-redbase.log') });
-					await ensureServers(scratch.path, { wait: true });
-					await waitForVerificationReady(scratch.path, effectiveEnv);
+					scratch = await startBaselineScratch({ toplevel, branch: scratchBranch, ref: redBaseRef, probeFiles, log: baselineLog });
+					lease = await acquireVerificationServers(scratch.path, effectiveEnv, redTask.requirements);
+					if (lease.kind === 'refused') throw new Error(lease.why);
 					evidenceRoot = scratch.path;
 					// The scratch gets the BASELINE root's stack env, never the live ports or database, and
 					// exactly the object the proof bound above.
-					run = await runCheckProcess(redTask.cmd!, shellArgv(redTask.args!), { worktree: scratch.path, cwd: join(scratch.path, redTask.cwd!), env: effectiveEnv, shell: process.platform === 'win32', maxBuffer: RUN_MAX_BUFFER });
+					run = await runCheckProcess(redTask.cmd!, shellArgv(redTask.args!), { worktree: scratch.path, cwd: join(scratch.path, redTask.cwd!), env: effectiveEnv, shell: process.platform === 'win32', maxBuffer: RUN_MAX_BUFFER, signal: lease.signal });
 				} catch (e) {
 					run = e as Error;
 				} finally {
 					// The scratch owns a worktree, a stack and a database: it goes in a finally, whatever the run
 					// did. `remove()` returns what it could not confirm released, so a leaked stack/DB/worktree
 					// refuses a green below instead of being silently called gone.
-					if (scratch) teardownFailures = await scratch.remove();
+					if (lease?.kind === 'acquired') {
+						const failure = await lease.release();
+						if (failure) teardownFailures.push(failure);
+					}
+					if (lease?.kind === 'acquired' && lease.signal?.aborted) teardownFailures.push('verification cancelled');
+					if (scratch) teardownFailures.push(...await scratch.remove());
 				}
 				if (teardownFailures.length) {
 					const leaked = { label, exit: null, missing: `the baseline scratch environment was not released: ${teardownFailures.join('; ')}` };
@@ -829,7 +849,7 @@ export async function runCheck(argv: string[] = [], shared: SharedTaskCache = ne
 				})();
 			}
 			if (run instanceof Error) {
-				const dead = { label, exit: null, missing: run.message };
+				const dead = { label, exit: null, missing: `${run.message}${isolated && existsSync(baselineLog) ? `\nBaseline setup/server diagnostics: ${baselineLog}` : ''}` };
 				console.error(`COULD NOT RUN: ${dead.missing}`);
 				ran.push(dead);
 				logRun('red', 'environment');
