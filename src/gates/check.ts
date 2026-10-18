@@ -47,7 +47,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync } from 'node:fs';
 import { basename, join } from 'node:path';
-import { baseBranch, baselineRunnerEnv, checks, isTestInput, parseReproRequirements, redBaseEvidence, reproFailure, roundReproRuntimeInputs, runnerEnv, suites, verificationStackEnv, waitForVerificationReady } from '../project.ts';
+import { baseBranch, baselineRunnerEnv, checks, isTestInput, parseReproRequirements, redBaseEvidence, reproFailure, reseedForRepro, roundReproRuntimeInputs, runnerEnv, suites, verificationStackEnv, waitForVerificationReady } from '../project.ts';
 import { caseFiles, verificationCases } from '../round/agreement.ts';
 import { sliceContext } from '../round/build-units.ts';
 import { agreementPath } from '../round/agreement.ts';
@@ -478,7 +478,7 @@ export function reproVerdict(runs: ReproRun[], folder: string | null): { result:
 }
 
 /** Measure the recorded repro only after its declared dependencies are admitted and owned cleanup is confirmed. */
-export async function runRepro({ stack = ensureServers, ready = waitForVerificationReady }: { stack?: typeof ensureServers; ready?: typeof waitForVerificationReady } = {}) {
+export async function runRepro({ stack = ensureServers, ready = waitForVerificationReady, reseed = reseedForRepro }: { stack?: typeof ensureServers; ready?: typeof waitForVerificationReady; reseed?: typeof reseedForRepro } = {}) {
 	const toplevel = toplevelOf();
 	const state = readState(toplevel);
 	const { folder } = roundOf(state, toplevel);
@@ -500,6 +500,8 @@ export async function runRepro({ stack = ensureServers, ready = waitForVerificat
 	let cleanup: string | null = null;
 	try {
 		for (let i = 1; i <= REPRO_RUNS; i++) {
+			// Every run starts from the seeded fixtures, so a repro can rely on them (JX-1399).
+			await reseed(toplevel);
 			const run = await runCheckProcess(cmd, shellArgv(args), { worktree: toplevel, cwd: toplevel, shell: process.platform === 'win32', env, maxBuffer: RUN_MAX_BUFFER, signal: lease.signal });
 			if (lease.signal?.aborted) break;
 			const output = `${run.stdout ?? ''}${run.stderr ?? ''}`;
