@@ -112,8 +112,8 @@ Baseline: `bbb1656` (`origin/main` when the reduction worktree was created). Tra
 
 Before-change safety check: `src/gates/content-identity.selfcheck.ts` passes from an isolated archive of `bbb1656`. It exercises stale/unbound approval refusal, uncommitted product at review, mutating checks and push hooks, sibling path identity and the existing checkpoint safety path. Re-run its retained invariants against the replacement; deleted unit scheduling assertions need replacement checkpoint coverage, not preservation of the scheduler.
 
-Implementation complete in this worktree, uncommitted at the time of writing. Three cuts landed
-together, so no state or caller still depends on a deleted protocol.
+Published 2026-10-18 as `a97e323..0394b59` on `main` (plugin 0.3.0), so the installed copy is this
+code. Three cuts landed together, so no state or caller still depends on a deleted protocol.
 
 **Cut 1 — assessment prose and repair responses.** Automated routing no longer reads `NOT MEASURED`,
 `surviving:`, `material:`, `deferred:` or quoted intent lines; the reviewer states `Verdict: clean |
@@ -150,13 +150,14 @@ uncommitted product at review, a mutated tree during a check, push hooks, unowne
 interrupted delivery, protected-file refusal) and new checkpoint coverage: approve → build,
 changes-requested → build, copied checkpoint verdict into `REVIEW.md` → final refuses.
 
-Not yet done, by design: no deployment, no Version bump in `.claude-plugin/plugin.json`, no
-active-round cutover, and no measured comparison against the JX-437/JX-1399 timings. Validation
-still owed before deployment: one real lifecycle cycle (a small bug and a larger change with one
-correction, measured), and finishing any round still on version 2.
+Not yet done: no measured comparison against the JX-437/JX-1399 timings, and no real lifecycle
+cycle through the reduced path. `legacyStateGap` accepts a version-2 round that holds no unit
+progress, so the push did not strand JX-1069, which was mid-T2; a version-2 round still carrying
+`slices` must finish on the wf that made it.
 
 One unrelated flake was seen once under full-suite load and not reproduced standalone:
 `env/adapters/plannotator-inbox.selfcheck.ts`'s 300 ms no-answer arm.
 
-No publication or active-round cutover is authorized by this local implementation record. Validate
-the replacement and finish incompatible active rounds before deployment.
+Publication note: the push was made on Shay's instruction, with the state guard relaxed so the one
+in-flight round kept working. A round still carrying executable-unit progress remains refused and
+finishes on the wf that made it.
