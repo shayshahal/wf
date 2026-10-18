@@ -10,7 +10,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { trackerNote } from '../project.ts';
-import { disposeCorrection } from '../round/corrections.ts';
+import { captureCorrection, disposeCorrection } from '../round/corrections.ts';
+import { WF_ROOT } from '../paths.ts';
 import { approvalIdentity, headContentSha, trackerNotePath } from './content-identity.ts';
 
 const ROOT = mkdtempSync(join(tmpdir(), 'wf-deliver-recovery-'));
@@ -73,6 +74,7 @@ const correct = (cwd, event) => {
   if (result.kind === 'refused') throw new Error(result.reason);
 };
 const gh = (args, cwd) => {
+  if (mode === 'no-remote') throw new Error('receipt recovery attempted a remote request');
   if (mode === 'fail') return { status: 1, stdout: '', stderr: 'error connecting to api.github.com' };
   if (mode === 'garbage') return { status: 0, stdout: 'not json', stderr: '' };
   if (mode === 'junk-list') return { status: 0, stdout: '[{}]', stderr: '' };
@@ -516,6 +518,37 @@ for (const [mode, why] of [['fail', 'a gh failure'], ['garbage', 'a gh answer th
 	check('an old merged PR beside a fresh open one is refused, not selected', r.code !== 0 && readState(f).step === 'pr', `${r.code}: ${r.out}`);
 	check("…the refusal says the branch's PRs cannot be told apart", /cannot be told/i.test(r.out), r.out.trim());
 	check('…nothing was pushed, created, edited, merged or noted', !remoteBranches(f.work).includes(BRANCH) && readRemote(f).create === 2 && readRemote(f).edit === 0 && readRemote(f).merge === 1 && !readState(f).note, JSON.stringify(readRemote(f)));
+}
+
+// #150: replay the crash boundary after a real receipt write but before the final step write.
+// One case admits during merge; the other admits only after the receipt exists. Recovery must be
+// local-only: a failing remote adapter proves it cannot accidentally authorize another merge.
+for (const timing of ['during-merge', 'after-receipt']) {
+	const f = makeRepo(`receipt-interrupted-${timing}`);
+	setRemote(f, empty());
+	const initial = attempt(f, timing === 'during-merge' ? 'correct-during-merge' : 'ok');
+	check(`${timing}: real delivery established the receipt prerequisite`, initial.code === 0 && !!readState(f).delivery, initial.out);
+	// Preserve the receipt/note produced by actual delivery, replaying just the incomplete step.
+	setState(f, { step: 'pr', history: [], merge_attempt: null });
+	if (timing === 'after-receipt') {
+		const admitted = captureCorrection(f.work, { kind: 'human', author: 'Shay', source: 'test:after-confirmed-receipt', relay: 'test receiving agent', text: 'Keep this late instruction verbatim.', scope: 'a fresh follow-up', reason: 'Explicit correction after confirmed delivery' });
+		check('late admission after receipt stays durable without reopening build', admitted.kind === 'recorded' && readState(f).step === 'pr', JSON.stringify(admitted));
+	}
+	const receipt = JSON.stringify(readState(f).delivery);
+	const instructions = JSON.stringify(readState(f).corrections);
+	const review = readFileSync(join(f.work, FOLDER, 'REVIEW.md'), 'utf8');
+	const note = readFileSync(join(f.work, NOTE), 'utf8');
+	const remote = readFileSync(f.remote, 'utf8');
+	const next = () => spawnSync(process.execPath, [join(WF_ROOT, 'wf.mjs'), 'next'], { cwd: f.work, env: ENV, encoding: 'utf8' });
+	check(`${timing}: incomplete local step calls for receipt reconciliation`, next().stdout.startsWith('deliver:'));
+	const recovered = attempt(f, 'no-remote');
+	check(`${timing}: receipt recovery completes despite pending correction and unavailable remote`, recovered.code === 0 && readState(f).step === 'merged' && !readState(f).merge_attempt, recovered.out);
+	check(`${timing}: receipt, original approval, note and pending instruction remain exact`, JSON.stringify(readState(f).delivery) === receipt && JSON.stringify(readState(f).corrections) === instructions && readFileSync(join(f.work, FOLDER, 'REVIEW.md'), 'utf8') === review && readFileSync(join(f.work, NOTE), 'utf8') === note);
+	check(`${timing}: recovery makes no remote request or branch recreation`, readFileSync(f.remote, 'utf8') === remote && !remoteBranches(f.work).includes(BRANCH));
+	const followup = next();
+	check(`${timing}: next directs the untouched instruction into a fresh round`, followup.status === 0 && followup.stdout.startsWith('follow-up:') && followup.stdout.includes('Keep this late instruction verbatim.'), followup.stdout + followup.stderr);
+	const repeat = attempt(f, 'no-remote');
+	check(`${timing}: repeated delivery remains completed, not a new merge`, repeat.code === 2 && readState(f).step === 'merged' && JSON.stringify(readState(f).delivery) === receipt && JSON.stringify(readState(f).corrections) === instructions && readFileSync(f.remote, 'utf8') === remote, repeat.out);
 }
 
 // #150: real dispatcher and state lock, with incoming events delivered at the remote seam.

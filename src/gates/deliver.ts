@@ -533,6 +533,11 @@ async function finishDelivery({ toplevel, state, folder, ids, url, head, because
 	const contentSha = commitContentSha(toplevel, head, folder, rel, 'row');
 	writeState(toplevel, () => ({ note: kept, delivery: { url, head, contentSha }, merge_attempt: null }));
 	console.log(`${url} ${because}; tracker note: ${kept}`);
+	await completeDeliveryStep(toplevel);
+}
+
+// The receipt is already durable: completing local bookkeeping cannot authorize another merge.
+async function completeDeliveryStep(toplevel: string) {
 	await runStep(['merged']);
 	if (outstandingCorrections(readState(toplevel)).length) console.error('wf deliver: merged with retained corrections; a fresh follow-up is required, not reopening this approval.');
 	const released = await stopWorktreeServers(toplevel);
@@ -571,8 +576,15 @@ async function runLockedDelivery(toplevel: string) {
 		}
 		state = writeState(toplevel, unmergedAttemptPatch);
 	}
+	// A crash after the confirmed receipt but before the separate step write leaves no attempt.
+	// Recover that local-only boundary before pending-instruction/new-merge approval gates (#150).
+	if (state?.delivery && state.step !== 'merged') {
+		console.log(`${state.delivery.url} confirmed by the retained receipt; completing local delivery bookkeeping`);
+		await completeDeliveryStep(toplevel);
+		return;
+	}
 	// The step is the delivery's last write; once it is `merged` there is nothing left to finish. A
-	// retry that never reached it is recovered above, from what the remote shows.
+	// retry that never reached it is recovered above, from the receipt or remote attempt.
 	if (state?.step === 'merged') {
 		const released = await stopWorktreeServers(toplevel);
 		if (released.kind === 'refused') { console.error(released.why); process.exitCode = 1; return; }
