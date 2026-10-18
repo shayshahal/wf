@@ -57,7 +57,7 @@ export function correctionStateGap(value: unknown): string | null {
 	const ids = new Set<string>();
 	const replacements = new Map<string, string>();
 	for (const item of value) {
-		if (!isRecord(item) || (item.kind !== 'human' && item.kind !== 'system') || !nonempty(item.author) || !nonempty(item.source) || !nonempty(item.text) || !nonempty(item.scope) || !nonempty(item.reason) || !(item.relay === null || nonempty(item.relay)) || !timestamp(item.at) || item.id !== correctionId(item.source)) return 'invalid correction source or identity';
+		if (!isRecord(item) || (item.kind !== 'human' && item.kind !== 'system') || !nonempty(item.author) || !nonempty(item.source) || !nonempty(item.text) || !nonempty(item.scope) || !nonempty(item.reason) || !(item.relay === null || nonempty(item.relay)) || !timestamp(item.at) || !nonempty(item.id) || item.id !== correctionId(item.source)) return 'invalid correction source or identity';
 		if (sources.has(item.source) || ids.has(item.id)) return 'duplicate correction identity';
 		sources.add(item.source); ids.add(item.id);
 		const o = item.outcome;
