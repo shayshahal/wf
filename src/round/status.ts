@@ -357,9 +357,9 @@ function t2Line(t2: T2Fact | null): string {
   return ' · T2 approved (freshness UNKNOWN)';
 }
 
-// Pure: the evidence line. The last case and the last whole-suite run are named apart (a build ends
-// with `wf check --suites`), and the case carries its binding: current, stale, or unknown when the
-// line recorded no identity or git cannot recompute it.
+// Pure: the evidence line. Historical `.wf/checks.log` lines are displayed as recorded: the last case
+// run and, from an older wf, the last whole-suite run. The case carries its binding: current, stale, or
+// unknown when the line recorded no identity or git cannot recompute it.
 function evidenceLine(e: RoundInspect['evidence']): string {
   const parts: string[] = [];
   if (e.case) parts.push(`case row ${e.case.row ?? '?'} ${e.case.result}${e.case.content ? ` · ${e.case.content}` : ''} · ${e.binding === 'current' ? 'current' : e.binding === 'stale' ? 'STALE (source changed since this run)' : 'UNKNOWN (no verifiable identity)'}`);

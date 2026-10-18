@@ -50,16 +50,12 @@ export type State = {
 	session?: { harness: string; id: string; transcript: string | null; step: string | null; at: string };
 	entry?: string;
 	check?: boolean;
-	// Autonomous repairs of the current build scope, bounded by MAX_REPAIRS; unit advancement resets
-	// the counter so one early unit does not exhaust every later unit's repair budget.
+	// Autonomous repairs of the current build, bounded by MAX_REPAIRS.
 	repairs?: number;
 	// The report present at the last assess handoff; an unchanged report is not a new judgment.
 	assessment_baseline?: { file: string; sha: string | null };
 	/** Why the current build was dispatched; handoff gaps can clear without another build. */
 	build_reason?: { kind: 'work' | 'handoff'; text: string } | null;
-	// The step a round-worker was sent back for by `wf handoff check` (handoff-hook.ts): one hand-back
-	// per step, so a hook loop cannot burn the agent.
-	handoff_sent_back?: string;
 	questions?: Question[];
 	answered?: Question[];
 	// Answers that say the agreement must change (`wf decide --revise`, ask.ts): each carries the

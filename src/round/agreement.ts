@@ -4,8 +4,7 @@
 //
 //   Class A (ordinary): TICKET.md is the agreement. It is the sole human working document and the
 //     agreement (#110), so no AGREEMENT.md is written; a `## Repro` and a `## Verification` section
-//     may be added to TICKET.md by the working session, and `wf check --case` can name a case the
-//     ticket does not carry.
+//     may be added to TICKET.md by the working session.
 //   Class B/C (consequential): AGREEMENT.md, with `## Observed` (facts, each sourced `path:line` or
 //     a command), `## Agreed` (behavior, exclusions, the consequential choice with one rejected
 //     alternative, the verification promise) and `## Verification` (the cases `wf check` proves).

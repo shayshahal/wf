@@ -258,7 +258,7 @@ const planText = '# plan\n\n## Commits\n\n| 1 | do it | a.ts | x |\n';
 	const hook = await spawnKid('hook', d, '', JSON.stringify({ hook_event_name: 'SubagentStop', agent_type: 'wf:round-worker' })).done;
 	const st = readStateFile(d);
 	check('R-5: the handoff hook blocks a version-less state instead of writing it', hook.out.includes('"decision":"block"') && /older wf/.test(hook.out), hook.out.slice(0, 200));
-	check('R-5: the blocked hook left the legacy state unmutated', st.handoff_sent_back === undefined, JSON.stringify(st));
+	check('R-5: the blocked hook left the legacy state unmutated', st.step === 'build' && st.wf_version === undefined, JSON.stringify(st));
 	rmSync(d, { recursive: true, force: true });
 }
 
