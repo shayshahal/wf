@@ -1,12 +1,10 @@
 # wf
 
-Shay's agent workflow: a ticket becomes a merged PR through one working agreement (TICKET.md for
-an ordinary round, AGREEMENT.md for a consequential one), a build that checks and steers,
-deterministic checks (`wf check`), one final independent assessment, and two human gates (T1 on the
-agreement for consequential work, T2 on the diff, both in plannotator). A large task's agreement
-cuts the build into units, each assessed on its own, with the review checkpoints it names before
-the final integration assessment and T2 (`process/AGREEMENT-TEMPLATE.md`). Runs in pi and in
-Claude Code, on Windows.
+Shay's agent workflow: agree → build and verify → independent final assessment → human T2 →
+deliver. Consequential work gets T1 before building; large work can agree human checkpoints.
+Agents own implementation steps, delegation, verification choices and ordinary repairs. wf owns
+isolated workspaces/resources, durable decisions, review identity and safe resumable delivery.
+Runs in pi and Claude Code, on Windows. See `process/AGREEMENT-TEMPLATE.md`.
 
 It lives outside every project's repo on purpose. A project's repo keeps only the round memory each
 round commits (for JewelryX, `bug-reports/<round>/`).
@@ -28,7 +26,7 @@ round commits (for JewelryX, `bug-reports/<round>/`).
   - `src/round/`: a round's state and its loop. `state.ts` is `.wf/state.json` (versioned; an
     old-route round is refused before mutation); `next.ts` is `wf next`, the round's next action
     from its state and files (the orchestrator's whole loop); `agreement.ts` is the working
-    agreement (which file it is, the agreed-material sha T1 binds, the verification cases);
+    agreement (which file it is and the agreed-material sha T1 binds);
     `brief.ts` + `prompt.ts` are `wf brief <phase>`, what a phase agent runs first. Each build-to-assess
     handoff records the previous assessment's content identity: a fresh report is needed even if only
     the evidence changed and HEAD stayed the same. Each report records `assessed-at`; touching an old
@@ -44,19 +42,17 @@ round commits (for JewelryX, `bug-reports/<round>/`).
     no prescribed repair-response records or verification-ruling receipts. `clean` goes to T2,
     `repair` returns to build within a bounded budget, and `blocked` (or exhausted repairs) records
     one contextual user question. wf does not derive those outcomes from assessment prose.
-  - `src/gates/`: what a round has to pass. `classify`, T1 (`agree.ts`) and T2 (`review.ts`,
-    both written through `review-format.ts`), `wf check` (`check.ts`; `--repro`, the three runs of
-    a repro case; `--suites`, the whole suites the round's diff reaches; and, on a verification
-    case, the case's own test with the fix reverted — red-base (a unit's starting commit, the round's
-    base during final integration, HEAD on the single-task route); `--case` names one),
-    and `wf deliver`. `checks-log.ts` owns measurement encoding, parsing and case/repro/suite
-    classification; step, status and friction read that one protocol instead of their own schemas.
+  - `src/gates/`: `classify`, T1 (`agree.ts`), final T2 and optional checkpoints (`review.ts`),
+    review/approval identity (`review-format.ts`, `content-identity.ts`) and safe resumable delivery.
+    `wf check` is an optional project affected-check runner, not handoff authorization. Agents run
+    normal project commands through their harness; final review judges the evidence. Supervised
+    execution and isolated baseline helpers retain resource ownership without assertion/proof policy.
   - `src/worktrees/`: `worktree.ts` is the one interface to worktrees: list, ports and slugs
     (`ports.ts`), create (`wf new`), remove (`wf reap`). Where no env plugs its own in,
     `git-worktree.ts` makes them in `<repo>/.claude/worktrees/`. No worktree is served from its
     creation: `wf serve` (`serve.ts`) runs the stack in the background (pid and logs in the
-    worktree's `.wf/`), started by the phases that use it (`wf brief assess`, `wf check`
-    before the repro or a test that drives the app, `wf review`). `wf next`/`wf step` release
+    worktree's `.wf/`), started by the phases that use it (`wf brief assess`, `wf review`, or a
+    person running `wf serve` for the repro or a live check). `wf next`/`wf step` release
     idle stacks at classify, agreement, held, approved or merged boundaries and non-review human waits;
     build, assessment, CI waits and T2 review keep theirs. `wf serve --stop` closes only the recorded server
     tree, without reaping the checkout or database; use it after a helper checkout's live work.
@@ -97,8 +93,8 @@ The kit alone, as a Claude Code plugin: this repo is its marketplace (`.claude-p
   - the skills `wf:round`, `wf:design-session` and `wf:show-me`;
   - the agents `wf:round-worker`, `wf:codebase-locator`, `wf:codebase-analyzer` and `wf:harness-fixer` (generated
     from `agents/` by `node plugin.ts`);
-  - two hooks: a phase agent is sent back once while its handoff is missing (`wf handoff
-    check`), and no fork is started inside a round (`wf handoff no-fork`).
+  - one session-recording hook (`wf handoff record`); worker completion and delegation belong
+    to the harness, not semantic handoff or no-fork gates.
 - **Needs:** git, gh, node ≥ 22.18 (wf is TypeScript, which Node runs as is from 22.18), the project's own tools (JewelryX: pnpm, uv), and one MongoDB
   (`MONGO_URL`, default `mongodb://127.0.0.1:27017`; JewelryX: unset and down, wf brings up the repo's
   own with Docker). The project's `.env` files sit in the
@@ -130,18 +126,16 @@ holds everything wf knows about it, and `index.ts` there is the only file the re
 - `waitForVerificationReady`: execution readiness for app-driven checks, separate from status's
   reachability probe. JewelryX's verification and repro runners share buyer/seller/admin auth setup,
   so they wait for successful GET responses from the storefront and admin roots and the API's
-  `/openapi.json`, using the URLs passed to the runner. This also gates isolated baseline runs.
-  Missing URLs, connection failures and HTTP errors refuse measurement and identify the dependency
-  and dev log; they do not establish a product defect. Checks without a running-app dependency
-  do not start or probe the stack. Custom repros can declare narrower requirements beside their
-  existing `command:` line (`projects/jewelryx/ROUND.md`). Newly acquired narrow servers are temporary;
-  borrowed stacks are not stopped. Baseline cleanup retains server diagnostics in the surviving
+  `/openapi.json`, using the URLs passed to the runner. The same helpers are available to isolated
+  baseline work. Missing URLs, connection failures and HTTP errors identify the dependency and dev
+  log; they do not establish a product defect. Checks without a running-app dependency do not start
+  or probe the stack. Newly acquired narrow servers are temporary; borrowed stacks are not stopped. Baseline cleanup retains server diagnostics in the surviving
   `.wf/logs/baseline-redbase.log`; failed retention preserves the scratch for recovery.
   Readiness does not certify login, scenario data or test outcomes.
 - its round folder, base branch, round branches, people, contract-paths file, tracker note
 - `guidance`: the folder of its notes for agents, in its own repo. A note whose frontmatter has
   `globs:` (Amp's AGENTS.md form, from the repo root) is put in the build and assessment briefs when
-  a verification case file or actual changed file matches (`src/round/guidance.ts`); the rest are
+  an actual changed file matches (`src/round/guidance.ts`); the rest are
   named by the phase prompts
 - `commands`: wf subcommands only this project has (JewelryX: `seed`, `show`)
 

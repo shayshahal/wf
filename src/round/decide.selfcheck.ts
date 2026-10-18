@@ -21,7 +21,7 @@ git('checkout', '-q', '-b', 'fix/decide');
 mkdirSync(join(dir, 'bug-reports/r'), { recursive: true });
 writeFileSync(join(dir, 'bug-reports/r/TICKET.md'), '# r — ticket\n## Intent\n- "x": y\n');
 mkdirSync(join(dir, '.wf'), { recursive: true });
-writeFileSync(join(dir, '.wf/state.json'), `${JSON.stringify({ wf_version: 2, round: 'r', id: 'r', folder: 'bug-reports/r', base: 'main', step: 'classify', class: 'B' }, null, 2)}\n`);
+writeFileSync(join(dir, '.wf/state.json'), `${JSON.stringify({ wf_version: 3, round: 'r', id: 'r', folder: 'bug-reports/r', base: 'main', step: 'classify', class: 'B' }, null, 2)}\n`);
 function cli(...args: string[]) {
 	try { return { out: execFileSync(process.execPath, [join(WF_ROOT, 'wf.mjs'), ...args], { cwd: dir, encoding: 'utf8' }), code: 0 }; } catch (e) {
 		const err = e as { stdout?: string; stderr?: string; status?: number };

@@ -45,7 +45,7 @@ function makeRepo(name: string) {
 	mkdirSync(join(repo, '.wf')); mkdirSync(join(repo, folder));
 	// Dispatch persists the build reason through step build (#151), which needs a working document.
 	writeFileSync(join(repo, folder, 'TICKET.md'), '# stack fixture\n## Intent\n- preserve the running stack during active work\n');
-	writeFileSync(join(repo, '.wf/state.json'), JSON.stringify({ wf_version: 2, round: 'fix/stack', id: 'X-1', folder, base: 'main', class: 'A', step: 'agree' }));
+	writeFileSync(join(repo, '.wf/state.json'), JSON.stringify({ wf_version: 3, round: 'fix/stack', id: 'X-1', folder, base: 'main', class: 'A', step: 'agree' }));
 	return repo;
 }
 const cli = (repo: string, ...args: string[]) => {
@@ -148,7 +148,7 @@ try {
 	const bytes = readFileSync(pidFile(idle), 'utf8');
 	const forged = cli(idle, 'serve', '--stop');
 	check('a copied/recycled PID cannot stop another worktree or erase its authority', forged.code !== 0 && (await Promise.all(independent.map((listener) => answers(listener.port)))).every(Boolean) && readFileSync(pidFile(idle), 'utf8') === bytes, forged.out);
-	writeFileSync(statePath, JSON.stringify({ wf_version: 2, round: 'fix/stack', id: 'X-1', folder, base: 'main', class: 'B', step: 'agree' }));
+	writeFileSync(statePath, JSON.stringify({ wf_version: 3, round: 'fix/stack', id: 'X-1', folder, base: 'main', class: 'B', step: 'agree' }));
 	const staleNext = cli(idle, 'next');
 	check('an unowned stale PID warns without refusing agreement dispatch', staleNext.code === 0 && staleNext.out.startsWith('dispatch agree') && staleNext.out.includes('not a verified foreground server') && readFileSync(pidFile(idle), 'utf8') === bytes && independent.every((listener) => stillRunning(listener.pid)), staleNext.out);
 	const staleHeld = cli(idle, 'step', 'held');

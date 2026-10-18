@@ -6,7 +6,7 @@
 // Class B/C: the page renders `## Observed` + `## Agreed` — the agreed material whose sha T1 binds.
 // Class A: the ticket's `## Intent`. Each block of the page carries its agreement line, so a comment
 // folds onto the line it was made on. The sha in AGREEMENT-REVIEW.md is over the agreed material
-// (agreement.ts), never the mutable `## Verification`/`## Units` working detail.
+// (agreement.ts), never the mutable `## Verification` working detail.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { refuseCaller } from '../refusal.ts';

@@ -96,9 +96,9 @@ export function lookAtLines(urls: string | null, files: string[], pageFor: (file
 // (content-identity.ts): deliver pushes HEAD, so both must match. `assessment` is the one final
 // assessment's summary, not the former per-rule standards reports. SPEC has no producer in the
 // replacement and must not remain another rendered document contract (#111/#113 audit, 2026-10-10).
-// `scope` names what a planned round's review judges — `unit:<n>` for a checkpoint chunk, `integration`
-// for the final review — and binds the verdict written under it (reviewScopeBinding). `chunk` is the
-// checkpoint's own lines: its label and the units it covers. Both are absent on a single-build round.
+// `scope` names what a review judges — `checkpoint` for a person-chosen checkpoint review;
+// the final review is unscoped — and binds the verdict written under it (reviewScopeBinding). The
+// `chunk` field is retained for older headers and is no longer written.
 export type ReviewHeader = { round: string; klass?: string; base?: string | null; agreementSha?: string | null; contentSha?: string | null; headSha?: string | null; scope?: string | null; chunk?: string[]; date?: string; urls?: string | null; files?: string[]; beforeAfter?: string | null; assessment?: string[]; manual?: string[] };
 export function renderHeader({ round, klass = '—', base = null, agreementSha = null, contentSha = null, headSha = null, scope = null, chunk = [], date = today(), urls = null, files = [], beforeAfter = null, assessment = [], manual = [] }: ReviewHeader) {
   return [
@@ -395,18 +395,17 @@ export function approvalBinding(text: string): { verdict: string | null; content
   return found ? { verdict: found.verdict, contentSha: found.field('content-sha'), headSha: found.field('head-sha') } : { verdict: null, contentSha: null, headSha: null };
 }
 
-// Pure: approvalBinding plus the `scope:` of the same section. A planned round's chunk approval
-// (`unit:<n>`, REVIEW-unit-<n>.md) and its final one (`integration`, REVIEW.md) are bound to their scope
-// in the verdict's own section, so neither can stand for the other, and a REVIEW.md section written
-// before the round was planned (no scope) cannot stand for the integration review.
+// Pure: approvalBinding plus the `scope:` of the same section. A checkpoint's approval (`checkpoint`,
+// CHECKPOINT-REVIEW.md) and the final one (unscoped, REVIEW.md) are bound to their scope in the
+// verdict's own section, so a checkpoint cannot stand for the final review.
 export function reviewScopeBinding(text: string): { verdict: string | null; contentSha: string | null; headSha: string | null; scope: string | null } {
   return { ...approvalBinding(text), scope: verdictSection(text)?.field('scope') ?? null };
 }
 
-// Pure: approvalContentGap for a planned round's review, which must also be of `scope`.
+// Pure: approvalContentGap for a checkpoint review, which must also be of `scope`.
 export function scopedApprovalGap(reviewText: string, current: ContentIdentity, scope: string): string | null {
   const bound = reviewScopeBinding(reviewText).scope;
-  if (bound !== scope) return `the verdict's section is ${bound ? `scoped ${bound}` : 'unscoped'}, not ${scope} — an approval of one review (a checkpoint chunk, or the whole round) cannot stand for another; re-run \`wf review <round>\` and set the verdict under its header`;
+  if (bound !== scope) return `the verdict's section is ${bound ? `scoped ${bound}` : 'unscoped'}, not ${scope} — an approval of one review (a checkpoint, or the whole round) cannot stand for another; re-run \`wf review <round>\` and set the verdict under its header`;
   return approvalContentGap(reviewText, current);
 }
 

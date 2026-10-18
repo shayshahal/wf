@@ -2,9 +2,7 @@
 // Fixture JSONL lines (one review with a range, one annotate with a blockId-only
 // comment) → folded lines + verdict mapping; resolveWorktree throws helpfully.
 import assert from 'node:assert/strict';
-import { chunkProofPairs, reviewFiles, reviewTarget } from './review.ts';
-import { initializeSlices, parseBuildUnits } from '../round/build-units.ts';
-import type { BuildPlan, SliceProgress } from '../round/build-units.ts';
+import { reviewFiles, reviewTarget } from './review.ts';
 import { beforeAfterPage, captionFor, proofPairs } from './review-format.ts';
 import { commentLine, foldFeedbackLine, lastField, pageLine, agreementBody, agreementPage, renderHeader, renderSkeleton, readVerdict, roundArtifacts } from './review-format.ts';
 import { appendDecision, STEPS, t1Gap } from '../round/step.ts';
@@ -113,8 +111,6 @@ const validation = '## Live\nVERIFIED \u2014 the row counts down 23:59:58 \u2014
 check('a before caption is its RESEARCH.md line without the name', captionFor('before-1.png', [research, validation]) === 'admin on /admin/listings: the pending row, no countdown', captionFor('before-1.png', [research, validation]));
 check('an after caption is its Live line without the name', captionFor('after-1.png', [research, validation]) === 'VERIFIED \u2014 the row counts down 23:59:58', captionFor('after-1.png', [research, validation]));
 check('a picture no file names has no caption', captionFor('after-2.png', [research, validation]) === '');
-check('a chunk picture page includes all its unit evidence but no future or earlier reviewed pictures', chunkProofPairs(['before-1.png', 'after-1.png', 'before-2.png', 'after-2.png', 'before-3.png'], ['proof/after-1.png — first unit', 'proof/after-2.png — current unit']).map((p) => 'n' in p ? p.n : p.label).join(',') === '1,2');
-check('no chunk picture references means no whole-round picture dump', chunkProofPairs(['before-1.png', 'after-1.png'], ['met: no pictures for this unit']).length === 0);
 const page = beforeAfterPage({ round: 'TJEW-1', pairs, captions: { 'before-1.png': 'a <b>' }, src: '../bug-reports/TJEW-1/proof' });
 check('the page shows each side from the proof folder, escaped, and says when a side is missing', page.includes('src="../bug-reports/TJEW-1/proof/before-1.png"') && page.includes('a &lt;b&gt;') && page.includes('class="none"'), page);
 // #138: a class A round's live proof is after-only (no agreement baseline), named, and must reach T2's page.
@@ -178,23 +174,16 @@ check('no round folder, no artifacts', roundArtifacts(pjoin(artDir, 'gone'), fro
 rmSync(artDir, { recursive: true });
 rmSync(from, { recursive: true });
 
-// A planned round routes T2 to the right review: a unit with a checkpoint is a chunk since the previous
-// checkpoint; the integration and a single-build round are the whole round. A unit with no checkpoint
-// label, a plan not yet started, and progress that does not fit the agreement are refused (review.ts).
-const unitsText = '# r\nClass: A\n## Intent\n- "x": y\n\n## Verification\n\n| # | case | files | check |\n|---|---|---|---|\n| 1 | one | a.ts | \u2014 |\n| 2 | two | b.ts | \u2014 |\n\n## Units\n\n| # | unit | cases | depends on | review after |\n|---|---|---|---|---|\n| 1 | the schema | 1 | \u2014 | the API shape |\n| 2 | the API | 2 | 1 | \u2014 |\n';
-const unitsPlan = parseBuildUnits(unitsText) as BuildPlan;
-const unitsStart = initializeSlices(unitsPlan, 'h0');
-const unitTarget = reviewTarget(unitsText, unitsStart, 'main');
-check('an active unit with a checkpoint reviews its chunk, not the whole round', unitTarget.kind === 'unit' && unitTarget.reviewFile === 'REVIEW-unit-1.md' && unitTarget.assessmentFile === 'ASSESSMENT-unit-1.md' && unitTarget.base === 'h0' && unitTarget.expectedBase === 'h0' && unitTarget.scope === 'unit:1', JSON.stringify(unitTarget));
-check('the chunk header names the checkpoint label and the unit\u2019s cases', unitTarget.kind === 'unit' && unitTarget.chunk.join('\n').includes('chunk: unit 1 \u2014 the API shape') && unitTarget.chunk.join('\n').includes('cases: 1'), JSON.stringify(unitTarget));
-check('a unit with no checkpoint label has nothing to review', reviewTarget(unitsText.replace('| the API shape |', '| \u2014 |'), unitsStart, 'main').kind === 'refuse');
-check('a planned round not yet started is refused', reviewTarget(unitsText, undefined, 'main').kind === 'refuse');
-const unitsDone: SliceProgress = { planSha: unitsPlan.sha, unit: null, base: 'h2', reviewBase: 'h1', completed: [{ n: 1, head: 'h1', reviewed: true }, { n: 2, head: 'h2', reviewed: false }] };
-const integTarget = reviewTarget(unitsText, unitsDone, 'main');
-check('every unit done reviews the integration whole round from the round base', integTarget.kind === 'integration' && integTarget.reviewFile === 'REVIEW.md' && integTarget.assessmentFile === 'ASSESSMENT.md' && integTarget.base === 'main' && integTarget.scope === 'integration', JSON.stringify(integTarget));
-const singleTarget = reviewTarget('# r\nClass: A\n## Intent\n- "x": y\n', undefined, 'main');
-check('a single-build round reviews REVIEW.md from the round base with no scope', singleTarget.kind === 'single' && singleTarget.reviewFile === 'REVIEW.md' && singleTarget.scope === null && singleTarget.expectedBase === 'main', JSON.stringify(singleTarget));
-check('progress against another plan is refused, not reviewed', reviewTarget(unitsText.replace('the API | 2', 'the endpoint | 2'), unitsStart, 'main').kind === 'refuse');
+// A round routes its reviews: the final review covers the round base and carries the final assessment;
+// a checkpoint covers its own named range (or the round base) and is bound `scope: checkpoint`
+// (review.ts). A checkpoint approval is never the final one; deliver refuses a scoped REVIEW.md.
+const finalTarget = reviewTarget('main', false);
+check('the final review covers the round base, unscoped', finalTarget.kind === 'final' && finalTarget.reviewFile === 'REVIEW.md' && finalTarget.base === 'main' && finalTarget.expectedBase === 'main' && finalTarget.scope === null, JSON.stringify(finalTarget));
+check('the final review carries the assessment', finalTarget.assessmentFiles.join(',') === 'ASSESSMENT.md');
+const cpDefault = reviewTarget('main', true);
+check('a checkpoint defaults to the round base and is scoped checkpoint', cpDefault.kind === 'checkpoint' && cpDefault.reviewFile === 'CHECKPOINT-REVIEW.md' && cpDefault.base === 'main' && cpDefault.scope === 'checkpoint' && cpDefault.assessmentFiles.length === 0, JSON.stringify(cpDefault));
+const cpBounded = reviewTarget('main', true, 'h1');
+check('a checkpoint takes its own --base as the reviewed range', cpBounded.kind === 'checkpoint' && cpBounded.base === 'h1' && cpBounded.expectedBase === 'h1', JSON.stringify(cpBounded));
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');
 process.exit(failures ? 1 : 0);

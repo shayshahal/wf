@@ -157,7 +157,7 @@ function makeRepo(name: string, opts: { base?: string; dropOriginDev?: boolean }
 	writeFileSync(join(work, FOLDER, 'TICKET.md'), TICKET);
 	writeFileSync(join(work, FOLDER, 'ASSESSMENT.md'), `head: ${must(['rev-parse', 'HEAD'], work)}\n${ASSESSMENT}`);
 	mkdirSync(join(work, '.wf'), { recursive: true });
-	const state = { wf_version: 2, round: BRANCH, class: 'A', id: 'BJEW-1', ids: ['BJEW-1'], folder: FOLDER, base, step: 'pr', made_by: 'kit' };
+	const state = { wf_version: 3, round: BRANCH, class: 'A', id: 'BJEW-1', ids: ['BJEW-1'], folder: FOLDER, base, step: 'pr', made_by: 'kit' };
 	writeFileSync(join(work, '.wf', 'state.json'), JSON.stringify(state, null, 2) + '\n');
 	// The approval REVIEW.md must record (#106): the worktree and HEAD identities as they are at T2, so
 	// deliver's approval recheck runs against a real binding rather than refusing an unbound verdict.

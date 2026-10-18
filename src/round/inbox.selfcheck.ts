@@ -36,7 +36,7 @@ const t = '2026-10-12T06:00:00.000Z';
 const question: Question = { n: 1, to: 'user', text: 'May this behavior change?', asked: t };
 const posted = { ref: 'm1', url: 'http://localhost/#thread=m1' };
 const reply = { ref: 'r1', text: 'Keep the agreed behavior.', sequence: 1 };
-const pending: State = { wf_version: 2, round: 'r', base: 'main', class: 'A', step: 'build', folder: 'round', last_question: 1, questions: [{ ...question, inbox: posted }] };
+const pending: State = { wf_version: 3, round: 'r', base: 'main', class: 'A', step: 'build', folder: 'round', last_question: 1, questions: [{ ...question, inbox: posted }] };
 const cli = (dir: string, ...args: string[]) => spawnSync(process.execPath, [join(WF_ROOT, 'wf.mjs'), ...args], { cwd: dir, encoding: 'utf8' });
 function repo(name: string, state: State = pending) {
 	const dir = join(root, name);

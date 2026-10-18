@@ -2,76 +2,10 @@
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
-import { baselineProofKey, reusableBaseline } from '../../src/gates/baseline-proof.ts';
 import { devCommands } from './dev.ts';
-import { parseReproRequirements, parseVerificationProfile, verificationEndpoints, waitForVerificationReady } from './readiness.ts';
-import type { VerificationProfile, VerificationRequirements } from './readiness.ts';
+import { parseVerificationProfile, verificationEndpoints, waitForVerificationReady } from './readiness.ts';
+import type { VerificationProfile } from './readiness.ts';
 
-const shared: VerificationRequirements = { kind: 'stack', profile: 'shared-auth', temporary: false };
-const apiOnly: VerificationRequirements = { kind: 'stack', profile: 'api', temporary: true };
-const requirements = new Map<string | undefined, VerificationRequirements>([[undefined, shared], ['none', { kind: 'none' }], ['api', apiOnly], ['shared-auth', shared]]);
-const description = (services?: string) => `# fixture\n## Repro\ncommand: node custom.mjs\n${services === undefined ? '' : `services: ${services}\n`}## Other\nservices: invalid-outside-repro\n`;
-const known = [
-	'pnpm --dir verification exec playwright test',
-	'pnpm --dir=verification exec playwright test',
-	'pnpm -C verification exec playwright test -c playwright.config.ts',
-	'pnpm exec playwright test --config=verification/playwright.config.ts',
-	'pnpm exec playwright test --config verification',
-	'pnpm exec playwright test -cverification/',
-	'pnpm exec playwright test -c verification/../verification',
-	'pnpm --dir verification exec playwright test --config .',
-	'pnpm -Cverification exec playwright test -c ./',
-	'node verification/node_modules/@playwright/test/cli.js test -c verification',
-	'verification/node_modules/.bin/playwright.cmd test --config verification',
-	'pnpm exec playwright test -c ../bug-reports/X-1/repro/',
-	'pnpm --dir verification/tests exec playwright test -c ../playwright.config.ts',
-	'pnpm --dir verification/tests exec playwright test --config=../',
-	'pnpm --dir bug-reports/X-1/repro/tests exec playwright test -c ../',
-	'pnpm --dir docs/agents/verify-jewelryx/tests exec playwright test -c ../repro.config.ts',
-	'pnpm -C C:\\repo\\verification\\tests exec playwright test -c ..\\playwright.config.ts',
-	'pnpm --dir verification exec playwright test -c ../docs/agents/verify-jewelryx/repro.config.ts',
-	'pnpm exec playwright test --config "docs/agents/verify-jewelryx/repro.config.ts"',
-	'pnpm exec playwright test -c ../bug-reports/X-1/repro/playwright.config.ts',
-	'pnpm exec playwright test -c "C:\\work\\docs\\agents\\verify-jewelryx\\repro.config.ts"',
-	'control-jewelryx auth buyer',
-	'node docs/agents/verify-jewelryx/control-jewelryx.mjs auth admin',
-	'control-jewelryx api listOrders',
-	'control-jewelryx login buyer',
-	'control-jewelryx open b2b / as buyer',
-	'control-jewelryx doctor',
-	'control-jewelryx reset',
-];
-const custom = ['node custom.mjs', 'pnpm exec playwright test -c custom.config.ts', 'pnpm --dir verification exec playwright test -c api.config.ts', 'control-jewelryx api --find fixture', 'pnpm --dir verification exec playwright test -c ../custom.config.ts'];
-for (const [declaration, expected] of requirements) {
-	for (const command of [...custom, ...known]) {
-		const result = parseReproRequirements(description(declaration), command);
-		if (known.includes(command) && (declaration === 'none' || declaration === 'api')) {
-			assert.equal(result.kind, 'invalid', `${command}: ${declaration}`);
-			if (result.kind === 'invalid') assert.match(result.why, /conflicts.*shared-auth/);
-		} else assert.deepEqual(result, { kind: 'parsed', requirements: expected }, command);
-	}
-	assert.deepEqual(parseReproRequirements(description(declaration).replace(/\n/g, '\r\n'), custom[0]), { kind: 'parsed', requirements: expected });
-	for (const second of requirements.keys()) {
-		if (second !== undefined && declaration !== undefined) {
-			assert.equal(parseReproRequirements(description(declaration).replace('## Other', `services: ${second}\n## Other`), custom[0]).kind, 'invalid');
-		}
-	}
-}
-const proof = { base: 'baseline', task: { cmd: 'node', args: ['runner.mjs'], cwd: '.' }, target: { file: 'test.mjs', id: 'named assertion', line: 1, refactor: false }, probe: 'probe', environment: 'environment', isolated: true };
-const requirementKeys = [...requirements.values()].map((requirement) => baselineProofKey({ ...proof, task: { ...proof.task, requirements: requirement } }));
-assert.equal(new Set(requirementKeys).size, 3, 'closed dependency modes have distinct proof keys; shared default and explicit shared are equivalent');
-const previousKey = requirementKeys[0];
-const identity = { base: proof.base, command: proof.task.cmd, argv: proof.task.args, key: previousKey, current: 'current', target: proof.target, probe: proof.probe, environment: proof.environment, isolated: true };
-assert.equal(reusableBaseline([{ baseline: identity, evidence: { verdict: 'passed', say: 'named assertion passed' }, exit: 0 }], { key: requirementKeys[1], current: 'current', want: 'passed' }), null, 'a changed dependency contract cannot reuse the prior before proof');
-assert.equal(baselineProofKey(proof), baselineProofKey({ ...proof, task: { ...proof.task, requirements: undefined } }), 'legacy implicit keys remain stable');
-for (const invalid of ['', 'API', 'none extra', 'api # comment', 'null', 'none|api', '`api`']) {
-	assert.equal(parseReproRequirements(description(invalid), custom[0]).kind, 'invalid', invalid);
-}
-for (const malformed of [' services: api', 'Services: api', 'services = api', 'services api']) {
-	assert.equal(parseReproRequirements(`## Repro\n${malformed}\n`, custom[0]).kind, 'invalid');
-}
-assert.deepEqual(parseReproRequirements('## Other\nservices: none\n', custom[0]), { kind: 'parsed', requirements: shared });
-assert.equal(parseReproRequirements('## Repro\nservices: api\n## Other\ntext\n## Repro\nservices: none\n', custom[0]).kind, 'invalid');
 for (const raw of [undefined, 'shared-auth', 'api', null, '', 'API', ' api', 0, false, {}, [], ['api']]) {
 	const parsed = parseVerificationProfile(raw);
 	if (raw === undefined || raw === 'shared-auth' || raw === 'api') {

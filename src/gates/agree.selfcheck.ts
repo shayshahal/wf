@@ -15,7 +15,7 @@ try {
 	const folder = 'bug-reports/r';
 	mkdirSync(join(repo, folder), { recursive: true });
 	mkdirSync(join(repo, '.wf'), { recursive: true });
-	const state = JSON.stringify({ wf_version: 2, round: 'fix/r', base: 'main', class: 'B', step: 'agree', folder });
+	const state = JSON.stringify({ wf_version: 3, round: 'fix/r', base: 'main', class: 'B', step: 'agree', folder });
 	writeFileSync(join(repo, '.wf/state.json'), state);
 	const agreement = '# r\n## Observed\n- measured at a.txt:1\n## Agreed\n- Behavior: the requested change\nUNASKED\nWALK\n## Verification\n| # | case | files | check |\n|---|---|---|---|\n| 1 | behavior | a.txt | manual: check behavior |\n';
 	for (const walk of ['', '- T2 walk:', '- **T2 walk.**', '- T2 walk: open:']) {

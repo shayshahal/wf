@@ -100,7 +100,7 @@ for (const verdict of ['clean', 'repair', 'blocked']) {
 }
 check('assessment content identity normalizes checkout newlines', assessmentContentSha(assess()) === assessmentContentSha(assess().replace(/\n/g, '\r\n')));
 check('assessment content identity changes with prose', assessmentContentSha(assess()) !== assessmentContentSha(assess() + 'new judgment\n'));
-check('assessment ruling source is recognized', isAssessmentRulingSource(assessmentRulingSource(assess(), { kind: 'single' })));
+check('assessment ruling source is recognized', isAssessmentRulingSource(assessmentRulingSource(assess())));
 check('unrelated source is not an assessment ruling', !isAssessmentRulingSource('BLOCKED.md'));
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');

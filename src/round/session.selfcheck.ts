@@ -28,7 +28,7 @@ check('a host that names no session records nothing', hookSession({}) === null);
 check('isRoundWorker sees only the round worker', isRoundWorker({ agent_type: 'wf:round-worker' }) && !isRoundWorker({ agent_type: 'wf:codebase-locator' }) && !isRoundWorker({}));
 
 // The change-only rule: a re-read brief in the same session is not a new fact.
-const base = { wf_version: 2, step: 'build' } as State;
+const base = { wf_version: 3, step: 'build' } as State;
 const ref = { harness: 'pi', id: 'abc', transcript: 'C:/s/abc.jsonl' };
 check('a first session is a change', sessionChanged(base, ref, 'build'));
 check('the same session at the same step is not a change', !sessionChanged(withSession(base, ref, 'build'), ref, 'build'));

@@ -6,14 +6,13 @@ import { strandedTestDatabases, worktreeDatabase } from './db.ts';
 import { devCommands } from './dev.ts';
 import { includedFiles, sanitizeEnv } from './env.ts';
 import { agreementGap } from '../../src/round/agreement.ts';
-import { checks, directUrls, pageOf, agreementCaseGap, baselineRunnerEnv, baselineStackEnv, isTestInput, runnerEnv, setup, stackUrls, teardown, trackerNote, verificationStackEnv } from './index.ts';
+import { protectedFilesGap, directUrls, pageOf, agreementCaseGap, baselineRunnerEnv, baselineStackEnv, runnerEnv, setup, stackUrls, teardown, trackerNote, verificationStackEnv } from './index.ts';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { WF_ROOT } from '../../src/paths.ts';
 import { basePortForBranch } from '../../src/worktrees/worktree.ts';
-import { environmentDigest } from '../../src/gates/baseline-proof.ts';
 import { installShim, SHIM_CMD, SHIM_SH, REPRO_CONFIG, REPRO_GLOBAL_SETUP, reproConfig, verifyStackEnv, VERIFY_SKILL, writeReproConfig } from './round.ts';
 
 let failures = 0;
@@ -56,15 +55,6 @@ const live = directUrls(12345);
 const isolated = baselineRunnerEnv({ ambient, taskEnv: { B2B_URL: live.b2b, ADMIN_URL: live.admin, API_URL: live.api, STACK_LOG: '/live/.wf/logs/dev.log', B2B_OWNER_EMAIL: 'live@x', VERIFY_CUSTOM: 'keep' }, branch: 'fix/r' });
 const baseline = baselineStackEnv('fix/r');
 check('the isolated effective env replaces only the live resource keys, keeps other test config, has no live URL/DB/path', isolated.B2B_URL === baseline.B2B_URL && isolated.API_URL === baseline.API_URL && isolated.B2B_OWNER_EMAIL === baseline.B2B_OWNER_EMAIL && isolated.B2B_OWNER_EMAIL !== 'live@x' && isolated.STACK_LOG === undefined && isolated.MONGO_URL === undefined && isolated.VERIFY_CUSTOM === 'keep' && isolated.OTHER === 'x' && isolated.PATH === '/bin:/usr/bin', JSON.stringify(isolated));
-check('isTestInput names tests, specs, fixtures and verification/, not the implementation', isTestInput('packages/backend/tests/test_bug.py') && isTestInput('packages/backend/tests/support/db.py') && isTestInput('verification/specs/login.spec.ts') && isTestInput('verification/tests/support/login.ts') && isTestInput('packages/frontend/b2b/src/x.spec.ts') && !isTestInput('packages/backend/app/pricing.py') && !isTestInput('packages/frontend/b2b/src/routes/x/+page.svelte'));
-// The proof environment digest: a fresh assessment session's PWD/PI_*/_/SHLVL bookkeeping must not
-// change it, so reuse survives; a changed CI/TZ/tool path must, so the proof is re-measured.
-const envA = { PATH: '/bin', PWD: '/a', PI_SESSION: 's1', _: '/bin/node', SHLVL: '2', CI: '1', TZ: 'UTC' } as NodeJS.ProcessEnv;
-const envB = { PATH: '/bin', PWD: '/b', PI_SESSION: 's2', _: '/other/node', SHLVL: '9', CI: '1', TZ: 'UTC' } as NodeJS.ProcessEnv;
-const envC = { ...envB, CI: '0' };
-const envD = { ...envB, PATH: '/other/bin' };
-check('the proof environment ignores host bookkeeping but binds CI and a tool path', environmentDigest(runnerEnv(envA)) === environmentDigest(runnerEnv(envB)) && environmentDigest(runnerEnv(envA)) !== environmentDigest(runnerEnv(envC)) && environmentDigest(runnerEnv(envA)) !== environmentDigest(runnerEnv(envD)));
-
 // ── pages a reviewer should open
 check('a b2b page, route groups dropped', JSON.stringify(pageOf('packages/frontend/b2b/src/routes/(auth)/login/+page.svelte')) === '{"app":"b2b","path":"b2b/login"}', JSON.stringify(pageOf('packages/frontend/b2b/src/routes/(auth)/login/+page.svelte')));
 check('an admin root layout is the app root', JSON.stringify(pageOf('packages/frontend/admin/src/routes/+layout.ts')) === '{"app":"admin","path":"admin"}');
@@ -119,7 +109,7 @@ check('the repro files never use import.meta (they sit outside verification/)', 
 // commonjs package cannot load). A round that reuses them needs the project-owned config.
 check('the legacy fallback config is self-contained by design: it bans the project helpers (import only @playwright/test and node:*)', /import only @playwright\/test and node:\*/.test(bare) && !/verification\/tests\/support/.test(bare), bare);
 const agree = readFileSync(join(WF_ROOT, 'projects', 'jewelryx', 'prompts', 'agree.md'), 'utf8');
-check('the agree prompt reuses the project support helpers only where the checkout\'s runner supports them, and keeps the self-contained fallback', agree.includes('verification/tests/support/') && agree.includes('reuse them') && agree.includes('testing.md') && agree.includes('self-contained'), agree);
+check('the agree prompt defers runner support to project testing notes and the checkout config', agree.includes('testing.md') && agree.includes('per-round Playwright config') && agree.includes('runtime support'), agree);
 // The first-run baseline save must run alone: `control-jewelryx auth` saves the whole database when
 // none exists yet, and three concurrent saves raced in db_snapshot.py's glob/unlink (a FileNotFoundError
 // on a *.bson). The remaining roles still log in together once the manifest exists (#133 review).
@@ -140,11 +130,6 @@ const stackTree = mkdtempSync(join(tmpdir(), 'wf-checks-'));
 writeFileSync(join(stackTree, '.verify-stack.env'), verifyStackEnv(direct, 'dev.log'));
 const vEnv = verificationStackEnv(stackTree);
 check('the verification/repro env carries the round\'s seed actors and the stack URLs', vEnv.B2B_OWNER_EMAIL === 'buyer@seed.jewelryx' && vEnv.B2B_OWNER_PASSWORD === 'seed1234' && vEnv.B2B_SUPPLIER_EMAIL === 'seller@seed.jewelryx' && vEnv.B2B_URL === direct.b2b && vEnv.API_URL === direct.api, JSON.stringify(vEnv));
-const [spec] = checks({ toplevel: stackTree, changed: [], target: { refactor: false, file: 'verification/specs/login-relogin.spec.ts', id: null, line: null } }).filter((t) => t.stack);
-check('a verification spec runs as the seeded owner and supplier, who are in the round database (not verification-owner@)', spec?.env?.B2B_OWNER_EMAIL === 'buyer@seed.jewelryx' && spec.env.B2B_OWNER_PASSWORD === 'seed1234' && spec.env.B2B_SUPPLIER_EMAIL === 'seller@seed.jewelryx' && spec.env.B2B_SUPPLIER_PASSWORD === 'seed1234', JSON.stringify(spec?.env));
-check('and still against the round stack', spec?.env?.B2B_URL === direct.b2b && spec.env.API_URL === direct.api, JSON.stringify(spec?.env));
-rmSync(stackTree, { recursive: true, force: true });
-
 // ── the oracle guard, where wf meets it: the plan's hand-off, and a row's check on a real branch
 const agreementWith = (files: string) => ['# r — agreement', 'Class: B', '## Observed', '- x — `a.ts:1`', '## Agreed', 'Behavior.', '- T2 walk: none — checked by the contract test', '## Verification', '| # | case | files | check |', '|---|---|---|---|', `| 1 | test(verification): x | ${files} | verification/tests/x.spec.ts |`].join('\n');
 check('agreement: a fix/ case with a verification/ file is refused (the oracle guard)', agreementGap(agreementWith('verification/tests/x.spec.ts'), 'B', 'fix/bjew-617-x')?.includes('oracle-guard') === true);
@@ -154,7 +139,7 @@ check('agreementCaseGap is what the agreement gap asks', agreementCaseGap({ bran
 {
   const repo = mkdtempSync(join(tmpdir(), 'wf-oracle-'));
   const git = (...args: string[]) => execFileSync('git', ['-C', repo, '-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
-  const guard = () => checks({ toplevel: repo, changed: [], target: null }).find((t) => t.label === 'oracle-guard')?.missing;
+  const guard = () => protectedFilesGap(repo) ?? undefined;
   git('init', '-q', '-b', 'dev');
   mkdirSync(join(repo, 'verification'));
   writeFileSync(join(repo, 'verification', 'a.spec.ts'), 'a\n');
@@ -165,8 +150,12 @@ check('agreementCaseGap is what the agreement gap asks', agreementCaseGap({ bran
   check('row check: a fix/ branch with a clean tree is not refused', guard() === undefined);
   writeFileSync(join(repo, 'verification', 'a.spec.ts'), 'b\n');
   check('row check: BJEW-617 row 1, the edit uncommitted (where lefthook pre-push cannot see it), is refused naming the file', guard()?.includes('verification/a.spec.ts') === true, String(guard()));
+  git('add', 'verification/a.spec.ts');
+  writeFileSync(join(repo, 'verification/a.spec.ts'), 'a\n');
+  check('protected oracle: staged edit is refused even with baseline worktree bytes', guard()?.includes('verification/a.spec.ts') === true);
+  writeFileSync(join(repo, 'verification/a.spec.ts'), 'b\n');
   git('commit', '-q', '-am', 'row 1');
-  check('row check: and committed, as row 2 met it', guard()?.includes('verification/a.spec.ts') === true);
+  check('protected oracle: committed edits remain refused', guard()?.includes('verification/a.spec.ts') === true);
   git('checkout', '-q', 'dev', '--', 'verification/a.spec.ts');
   check('row check: the revert row, the tree back at the base, is not refused', guard() === undefined, String(guard()));
   writeFileSync(join(repo, 'verification', 'new.spec.ts'), 'n\n');

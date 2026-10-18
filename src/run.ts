@@ -118,10 +118,8 @@ export async function run(argv: string[], pieces: Partial<Seams> = {}) {
 		const { runPrompt } = await import('./round/prompt.ts');
 		runPrompt(rest);
 	} else if (cmd === 'check') {
-		const { runCheck, runRepro, runSuites } = await import('./gates/check.ts');
-		if (rest.includes('--repro')) await runRepro();
-		else if (rest.includes('--suites')) await runSuites();
-		else await runCheck(rest);
+		const { runCheck } = await import('./gates/check.ts');
+		await runCheck(rest);
 	} else if (cmd === 'models') {
 		const { runModels } = await import('./models.ts');
 		runModels(seams.models, seams.resolveModel);

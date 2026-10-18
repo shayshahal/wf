@@ -93,7 +93,7 @@ assert.deepEqual(setupLinesOf('- **T2 walk.** open: b2b / as buyer\n\n## Facts\n
 		const folder = 'bug-reports/T-1';
 		mkdirSync(join(repo, '.wf'), { recursive: true });
 		mkdirSync(join(repo, folder), { recursive: true });
-		writeFileSync(join(repo, '.wf', 'state.json'), JSON.stringify({ wf_version: 2, round: 't-1', class: 'B', step: 'build', folder }));
+		writeFileSync(join(repo, '.wf', 'state.json'), JSON.stringify({ wf_version: 3, round: 't-1', class: 'B', step: 'build', folder }));
 		const run = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'wf.mjs');
 		writeFileSync(join(repo, folder, 'AGREEMENT.md'), agreement);
 		const out = execFileSync(process.execPath, [run, 'show'], { cwd: repo, encoding: 'utf8', env: { ...process.env, CLAUDECODE: '1' } });
@@ -113,7 +113,7 @@ assert.deepEqual(setupLinesOf('- **T2 walk.** open: b2b / as buyer\n\n## Facts\n
 		// same facts in Class A's TICKET.md, must all leave the actual walk usable.
 		const facts = '- setup: an ordinary fact\n- **Behavior.** a wrapped fact\n  open: the drawer holds a stale count\n- **T2 walk.**\n  open: b2b /catalog as buyer\n- setup: a later ordinary fact\n';
 		for (const klass of ['A', 'B']) {
-			writeFileSync(join(repo, '.wf', 'state.json'), JSON.stringify({ wf_version: 2, round: 't-1', class: klass, step: 'build', folder }));
+			writeFileSync(join(repo, '.wf', 'state.json'), JSON.stringify({ wf_version: 3, round: 't-1', class: klass, step: 'build', folder }));
 			writeFileSync(join(repo, folder, klass === 'A' ? 'TICKET.md' : 'AGREEMENT.md'), `${klass === 'A' ? '## Intent' : '## Agreed'}\n\n${facts}`);
 			const shown = execFileSync(process.execPath, [run, 'show'], { cwd: repo, encoding: 'utf8', env: { ...process.env, CLAUDECODE: '1' } });
 			assert.match(shown, /\/b2b\/catalog/);
@@ -121,7 +121,7 @@ assert.deepEqual(setupLinesOf('- **T2 walk.** open: b2b / as buyer\n\n## Facts\n
 		}
 		// #139: the round's own explicit none is printed, and nothing opens; with no walk at all the
 		// refusal names the round's file rather than "the agreement" on a class A ticket.
-		writeFileSync(join(repo, '.wf', 'state.json'), JSON.stringify({ wf_version: 2, round: 't-1', class: 'A', step: 'assess', folder }));
+		writeFileSync(join(repo, '.wf', 'state.json'), JSON.stringify({ wf_version: 3, round: 't-1', class: 'A', step: 'assess', folder }));
 		writeFileSync(join(repo, folder, 'TICKET.md'), '# t\n## Intent\n- x\n\n- **T2 walk.** none — nothing visible to walk\n');
 		const noneOut = execFileSync(process.execPath, [run, 'show'], { cwd: repo, encoding: 'utf8', env: { ...process.env, CLAUDECODE: '1' } });
 		assert.match(noneOut, /none — nothing visible to walk/);
@@ -163,7 +163,7 @@ console.log('HTTP 200');
 		const calls = JSON.parse(readFileSync(join(repo, 'control-calls.json'), 'utf8'));
 		assert.equal(calls.length, 2);
 		assert.deepEqual(calls[0], ['api', 'makeScenario', '{"body":{"label":"variants"}}', '--as', 'seller']);
-		writeFileSync(join(repo, '.wf', 'state.json'), JSON.stringify({ wf_version: 2, round: 't-1', class: 'B', step: 'build', folder }));
+		writeFileSync(join(repo, '.wf', 'state.json'), JSON.stringify({ wf_version: 3, round: 't-1', class: 'B', step: 'build', folder }));
 		// A genuine malformed `setup:` inside the walk still fails, with the actionable message: the
 		// scoping must not swallow real walk setups (only facts outside `## Agreed`).
 		writeFileSync(join(repo, folder, 'AGREEMENT.md'), agreement.replace('- **T2 walk.** open: `b2b /catalog as buyer mobile`\n', '- **T2 walk.** open: `b2b /catalog as buyer mobile`\n  setup: curl -X POST http://x\n'));

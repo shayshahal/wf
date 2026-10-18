@@ -1,63 +1,38 @@
 # {{round}} — the working agreement
 
-Record what will change, what is excluded, the consequential choice, and how the result will be
-checked. Keep it small enough that a fresh agent can implement and assess the work without
-reconstructing the conversation.
-
-Write `{{folder}}/{{file}}` — the one document the builds and the assessments work from.
-There is no separate research file, plan file or spec, and nothing here is a completeness checklist.
+Write `{{folder}}/{{file}}`: what will change, what is excluded, the consequential choice and
+how the result will be checked. Keep it small enough for a fresh builder and reviewer.
 
 ## The requester's words (verbatim)
 
 {{intent}}
 
-## What to write
+## What to record
 
-- `## Observed` — the facts a build needs, each with its source (`path:line`, or the command that
-  measured it). A fact and a proposal never share a line.
-- `## Agreed` — what will change and what will not: the behavior, the exclusions, the one
-  consequential choice with a rejected alternative, and the verification promise.
-  Its `**Not asked for.**` bullet lists every behavior, screen, text or contract change that no
-  source asked for (the requester's words above, the spec they cite, a ruling of the person's),
-  each with why it is needed; or `none — <why>`. An item that rides inside another bullet goes
-  unseen at T1.
-- `## Verification` — one table row per case:
+- `## Observed`: relevant facts, each with its source (`path:line` or the command that measured it).
+- `## Agreed`: behavior, exclusions, the consequential choice with its rejected alternative, and
+  the verification promise. List additions that no source requested under `**Not asked for.**`,
+  with their reason; or `none — <why>`.
+- `## Verification`: one table row per case, `| # | case | files | check |`. The `check` cell names
+  the command or assertion that would show the behavior, or `manual: <what a person looks at>` where
+  only a person can judge it. The `files` cell lists what the case touches (the project refuses a
+  fix/ case that names a protected verification file). The rows are the round's verification plan a
+  builder and reviewer work from; they are not a completion gate, a per-case baseline requirement or
+  an exhaustive file fence, and the builder may refine a command or add affected checks as it learns.
+- For large work, agree human checkpoints and what each shows under `## Agreed`. Leave worker
+  sessions, task breakdown and ordinary implementation choices to the builder. Use a representative
+  visual chunk before propagating a new pattern.
+- Record the `**T2 walk.**` bullet with the project's `open:` / `setup:` recipe, or
+  `none — <why>`. The builder may refine the recipe without changing the agreed behavior.
 
-  | # | case | files | check |
-  |---|---|---|---|
-  | 1 | fix(x): what the case proves | path/one.ts | path/one.spec.ts::<test id>@<line> |
+For a check-only round, run the repro using normal project commands before handing back. Start the
+round stack with `wf serve --wait` if needed; restore disposable fixtures with project tools between
+runs. Choose enough runs for the hypothesis, distinguish the symptom from setup failure and record
+the command, result and limitations under `## Repro`. A stack that cannot start is a named capability
+gap, not a successful reproduction. Ask for the decision to build or stop; do not begin a fix.
 
-  A defect case uses `path::<test id>@<line>`: the named assertion fails on the claimed behavior
-  without the change and the selected test passes with it. A preservation case uses `refactor: path::<test id>`:
-  unchanged behavior passes on both sides, even in a round that also fixes a defect. Separate these
-  cases from checks of a newly introduced representation. A `manual: <what to look at>` cell names
-  evidence the test cannot measure; `repro` runs the repro, and `—` is fence only.
-  `files` is the area this case may touch and protects: a preservation case includes the changed
-  implementation it checks, not only its test, so `wf check` can measure the baseline. When only
-  the test changed and the product tree is unchanged, `refactor:` still records a baseline pass;
-  that coverage is preservation, not defect proof.
-- `## Units` — only when the work is too large for one build; a task one build can carry has none.
-  One row per unit, numbered in build order:
-
-  | # | unit | cases | depends on | review after |
-  |---|---|---|---|---|
-  | 1 | what this unit builds | 1, 2 | — | the label the person's checkpoint shows, or — |
-
-  `cases` assigns every `## Verification` `#` to exactly one unit; `depends on` names earlier units
-  or `—`. Size each unit for one fresh builder to make its cases green, and plan the person's
-  review chunks separately, each ending at a `review after` label; name them under `## Agreed` as
-  **Review chunks.** For visual work, put a representative chunk (one screen or component in the
-  new pattern) early, with a checkpoint, before the units that propagate it. The rules and how the
-  units run: `{{wf}}/process/AGREEMENT-TEMPLATE.md`.
-- `## Repro` — for a class A check round (`wf new --check`): `command: <the command that reproduces
-  the ticket>`.
-
-For borrowed examples and external references, say what each contributes: required behavior, an
-existing convention, or optional inspiration. Borrowing an example does not adopt its entire structure.
-
-A mock, a contract sketch or a call-stack view is worth drawing only when it resolves this task's
-expensive uncertainty; it is not a universal artifact. For a consequential controls/layout change,
-show the proposed screen beside the current capture at the affected widths/directions before T1
-(`{{wf}}/process/SHOW-ME.md`).
+Borrowed examples are evidence of required behavior, an existing convention or optional inspiration:
+say which. Draw a screen/contract/code-shape view when it resolves consequential uncertainty
+(`{{wf}}/process/SHOW-ME.md`), not as a universal artifact.
 
 {{revisions}}

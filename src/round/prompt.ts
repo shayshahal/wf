@@ -15,14 +15,28 @@ import { anchorToolPaths } from '../plugin/anchor.ts';
 import { seams } from '../seams.ts';
 import { readVerdict } from '../gates/review-format.ts';
 import { basePortForBranch } from '../worktrees/worktree.ts';
-import { agreementFile, agreementPath, revisionSha, ASSESSMENT_FILE, caseFiles, consequential, section, TICKET_FILE, verificationCases } from './agreement.ts';
+import { agreementFile, agreementPath, revisionSha, ASSESSMENT_FILE, caseFiles, CHECKPOINT_REVIEW_FILE, consequential, REVIEW_FILE, section, TICKET_FILE, verificationCases } from './agreement.ts';
 import { openQuestionGate, openRevisions, overruledAsks } from './ask.ts';
 import { guidanceSection, notesFor, readNotes } from './guidance.ts';
 import { readState, resolveRoundBase, roundOf, toplevelOf } from './state.ts';
-import { sliceContext } from './build-units.ts';
 
 export function renderPrompt(template: string, vars: Record<string, unknown>) {
 	return template.replace(/\{\{(\w+)\}\}/g, (m, key: string) => (key in vars ? String(vars[key]) : m));
+}
+
+// The latest `changes-requested` section across the final REVIEW.md and any checkpoint review, so a
+// build that follows either sees its corrections. `dated` reads the append-only `## <date>` headers.
+function latestReviewRepair(folderDir: string): string | null {
+	const dated = (text: string) => [...text.matchAll(/^## (\d{4}-\d{2}-\d{2})/gm)].map((m) => m[1]).at(-1) ?? '';
+	let best: { at: string; text: string | null } = { at: '', text: null };
+	for (const name of [REVIEW_FILE, CHECKPOINT_REVIEW_FILE]) {
+		const file = join(folderDir, name);
+		if (!existsSync(file)) continue;
+		const text = readFileSync(file, 'utf8');
+		const repair = reviewRepairText(text);
+		if (repair && dated(text) >= best.at) best = { at: dated(text), text: repair };
+	}
+	return best.text;
 }
 
 const templatesDir = join(WF_ROOT, 'prompts');
@@ -59,7 +73,7 @@ export function agreedMaterial(text: string, klass: string | null): string {
 }
 
 // The `{{…}}` a prompt template substitutes; the project's direct URLs add one per app.
-type PromptVars = { round: string; folder: string | null; base: string; intent?: string | null; agreement?: string; cases?: string; assessment?: string; revisions?: string; answers: string; [app: string]: unknown };
+type PromptVars = { round: string; folder: string | null; base: string; intent?: string | null; agreement?: string; assessment?: string; revisions?: string; answers: string; [app: string]: unknown };
 
 export function composePrompt(argv: string[]) {
 	const phase = argv[0];
@@ -79,22 +93,8 @@ export function composePrompt(argv: string[]) {
 	// Owner feedback (`## Decisions`, wf decide) reaches the build and the assessment through
 	// `agreedMaterial` in the `{{agreement}}` of both templates — one projection, so the text is not
 	// duplicated (#114 closure, F2).
-	const vars: PromptVars = { round: id, folder, base: state?.base ?? `origin/${baseBranch}`, intent, agreement: agreedMaterial(agreementText, klass), file: agreementFile(klass), assessment: '', review: '', answers: '', scope: 'Whole agreement (single-task route).', assessmentFile: ASSESSMENT_FILE, assessmentBase: state?.base ?? `origin/${baseBranch}` };
-	const context = sliceContext(agreementText, state?.slices);
-	if (phase !== 'agree' && (context.kind === 'invalid' || context.kind === 'pending')) throw new Error(`${phase}: ${context.kind === 'invalid' ? context.why : 'start the declared units with wf next first'}`);
-	const assessmentFile = context.kind === 'unit' ? context.assessmentFile : ASSESSMENT_FILE;
-	const reviewFile = context.kind === 'unit' ? context.reviewFile : 'REVIEW.md';
-	vars.assessmentFile = assessmentFile;
-	if (context.kind === 'unit') {
-		vars.assessmentBase = context.base;
-		vars.scope = `## Current build unit\n\nscope: unit:${context.unit.n}\nbase: ${context.base}\n\n${context.reviewRepair ? `Repair the reviewed chunk (units ${context.reviewUnits.map((u) => u.n).join(', ')}); own verification cases ${context.cases.join(', ')} until this checkpoint is reapproved.` : `${context.unit.title}. Own only verification cases ${context.cases.join(', ')}.`} Read the whole agreement for context; later units remain future work, not unmet intent. Implement and assess this scoped work and its affected integration, then hand off and end. Write scope: unit:${context.unit.n} and base: ${context.base} into ${assessmentFile}.\n\n## Whole execution plan\n\n${section(agreementText, 'Units')?.trim() ?? ''}`;
-	} else if (context.kind === 'integration') {
-		vars.scope = '## Final integration\n\nscope: integration\n\nThe build units and their checkpoint reviews are complete. Rerun every verification case and wf check --suites on the current implementation. Assess the whole agreement and cross-unit behavior, using the unit assessments and review records as history, not as proof of unchanged integration. Write scope: integration into ASSESSMENT.md. Any repair stays within the whole agreement; final T2 is the only approval that permits delivery.';
-	}
-	if (context.kind === 'unit' || context.kind === 'integration') {
-		const receipts = (state?.slices?.completed ?? []).map((done) => `- unit ${done.n} at ${done.head}: ${folder}/ASSESSMENT-unit-${done.n}.md${done.reviewed ? `; ${folder}/REVIEW-unit-${done.n}.md (chunk approved, not merge)` : ''}`);
-		if (receipts.length) vars.scope += `\n\n## Earlier unit evidence and feedback\n\n${receipts.join('\n')}\n\nRead these where the current change touches earlier behavior. Preserve the agreed corrections; a recorded approval is history, not proof of unchanged behavior.`;
-	}
+	const vars: PromptVars = { round: id, folder, base: state?.base ?? `origin/${baseBranch}`, intent, agreement: agreedMaterial(agreementText, klass), file: agreementFile(klass), assessment: '', review: '', answers: '', assessmentFile: ASSESSMENT_FILE, assessmentBase: state?.base ?? `origin/${baseBranch}` };
+	const assessmentFile = ASSESSMENT_FILE;
 	// The project's direct URLs, {{<app>}}: Node on Windows cannot resolve *.localhost.
 	try {
 		const base = basePortForBranch(execFileSync('git', ['-C', toplevel, 'rev-parse', '--abbrev-ref', 'HEAD'], { encoding: 'utf8' }).trim());
@@ -112,9 +112,7 @@ export function composePrompt(argv: string[]) {
 	// build: the verification cases and, after a `repair` assessment, its findings.
 	let files: string[] = [];
 	if (phase === 'build' || phase === 'assess') {
-		const allCases = verificationCases(agreementText);
-		const cases = context.kind === 'unit' ? allCases.filter((c) => context.cases.includes(c.n)) : allCases;
-		vars.cases = cases.length ? cases.map((c) => c.line).join('\n') : '(none: class A — name the case with `wf check --case "<path>::<test id>@<line>"`)';
+		const cases = verificationCases(agreementText);
 		// 2026-10-10: case-only matching left ordinary rounds and newly discovered helpers without
 		// guidance. Share the check gate's full diff (including committed and index-only work).
 		const { ref, base } = resolveRoundBase(toplevel, state);
@@ -138,8 +136,8 @@ ${q.answer ?? '(no answer recorded)'}`).join('\n\n');
 
 ${vars.answers}`;
 	}
-	if (phase === 'build' && existsSync(join(toplevel, folder!, reviewFile))) {
-		const repair = reviewRepairText(readFileSync(join(toplevel, folder!, reviewFile), 'utf8'));
+	if (phase === 'build' && folder) {
+		const repair = latestReviewRepair(join(toplevel, folder));
 		if (repair) vars.review = `## Corrections from the latest T2 review\n\n${repair}`;
 	}
 	// The project's notes for this phase: what its repo, apps and tests look like.

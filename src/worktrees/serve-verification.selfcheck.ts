@@ -8,7 +8,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { acquireVerificationServers, hiddenHop, stopWorktreeServers } from './serve.ts';
 import { basePortForBranch } from './worktree.ts';
-import { directUrls, parseReproRequirements } from '../project.ts';
+import { directUrls } from '../project.ts';
+import type { VerificationRequirements } from '../project.ts';
 import { plug, seams } from '../seams.ts';
 
 const root = mkdtempSync(join(tmpdir(), 'wf-serve-verification-'));
@@ -25,8 +26,7 @@ const listen = (server: typeof api, port: number) => new Promise<void>((done, re
 const close = (server: typeof api) => new Promise<void>((done, reject) => { if (!server.listening) return done(); server.closeAllConnections(); server.close((error) => error ? reject(error) : done()); });
 const status = async (url: string) => { try { const response = await fetch(url, { signal: AbortSignal.timeout(1000) }); await response.body?.cancel(); return response.status; } catch { return null; } };
 const until = async (predicate: () => boolean | Promise<boolean>) => { const end = Date.now() + 30_000; while (!await predicate()) { assert(Date.now() < end, 'fixture startup deadline'); await new Promise((done) => setTimeout(done, 30)); } };
-const selected = parseReproRequirements('## Repro\nservices: api\n', 'node custom.mjs');
-assert.equal(selected.kind, 'parsed');
+const requirements: VerificationRequirements = { kind: 'stack', profile: 'api', temporary: true };
 let ownedBytes: string | undefined;
 try {
 	const git = (...args: string[]) => execFileSync('git', args, { cwd: root, stdio: 'pipe', env: Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_'))) });
@@ -42,13 +42,13 @@ try {
 	assert.equal(none.kind, 'acquired'); assert.equal(await none.release(), null); assert(!existsSync(record));
 	await listen(frontend, port);
 	await listen(api, port + 10_000);
-	const borrowed = await acquireVerificationServers(root, { API_URL: urls.api }, selected.requirements);
+	const borrowed = await acquireVerificationServers(root, { API_URL: urls.api }, requirements);
 	assert.equal(borrowed.kind, 'acquired'); assert(!existsSync(record));
 	assert.equal(await borrowed.release(), null); assert.equal(await status(urls.api), 200);
 	await close(api);
 
 	writeFileSync(flag, 'ready');
-	const owned = await acquireVerificationServers(root, { API_URL: urls.api }, selected.requirements);
+	const owned = await acquireVerificationServers(root, { API_URL: urls.api }, requirements);
 	assert.equal(owned.kind, 'acquired');
 	ownedBytes = readFileSync(record, 'utf8');
 	assert.equal(JSON.parse(ownedBytes).verificationProfile, 'api');
@@ -67,14 +67,14 @@ try {
 	assert.equal(readFileSync(record, 'utf8'), 'replacement receipt'); rmSync(record); ownedBytes = undefined;
 
 	// Failure after acquisition releases only this run's process before returning refusal.
-	const refused = await acquireVerificationServers(root, { API_URL: urls.api }, selected.requirements, { ready: async () => { throw Error('fixture readiness refusal'); } });
+	const refused = await acquireVerificationServers(root, { API_URL: urls.api }, requirements, { ready: async () => { throw Error('fixture readiness refusal'); } });
 	assert.equal(refused.kind, 'refused'); assert.match(refused.why, /fixture readiness refusal/);
 	assert(!existsSync(record)); assert.equal(await status(urls.api), null);
 
 	// Cancellation while the actual HTTP readiness loop retries must unwind acquisition.
 	rmSync(flag); rmSync(started, { force: true });
 	const beforeSignals = process.listenerCount('SIGTERM');
-	const pending = acquireVerificationServers(root, { API_URL: urls.api }, selected.requirements);
+	const pending = acquireVerificationServers(root, { API_URL: urls.api }, requirements);
 	await until(async () => existsSync(started) && await status(urls.api) === 503);
 	process.emit('SIGTERM');
 	const cancelled = await pending;
@@ -84,7 +84,7 @@ try {
 	assert.equal(await status(`http://127.0.0.1:${port}`), 200);
 
 	writeFileSync(record, 'unknown authority');
-	const unknown = await acquireVerificationServers(root, { API_URL: urls.api }, selected.requirements);
+	const unknown = await acquireVerificationServers(root, { API_URL: urls.api }, requirements);
 	assert.equal(unknown.kind, 'refused'); assert.equal(readFileSync(record, 'utf8'), 'unknown authority'); rmSync(record);
 	console.log('  ok   narrow leases borrow safely, launch only the selected profile, refuse malformed authority, release on failure/cancel, and preserve unrelated endpoints');
 } finally {

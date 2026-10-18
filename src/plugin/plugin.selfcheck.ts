@@ -4,9 +4,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { WF_ROOT } from '../paths.ts';
-import { forkGap, stopGap } from '../round/handoff-hook.ts';
 import { claudeAgent, pluginFiles } from './plugin.ts';
-import type { State } from '../round/state.ts';
 
 let failures = 0;
 const check = (name: string, cond: unknown, detail = '') =>
@@ -34,11 +32,11 @@ check('plugin.json names every agent', pluginFiles().every(([path]) => manifest.
 check('its hooks file exists and calls this repo\'s wf.mjs', readFileSync(join(root, manifest.hooks), 'utf8').includes('${CLAUDE_PLUGIN_ROOT}/wf.mjs'));
 // A matcher of letters and hyphens only is an exact match, and a plugin's agent type is
 // <plugin>:<name>: `round-worker` never fired (measured 2026-09-27, Claude Code 2.1.280).
-const stop = JSON.parse(readFileSync(join(root, manifest.hooks), 'utf8')).hooks.SubagentStop[0];
-check('SubagentStop matches the plugin-scoped agent type, anchored', stop.matcher === `^${manifest.name}:round-worker$`, stop.matcher);
-// In auto mode the report goes through SubagentHandback, before SubagentStop (BJEW-562, 2026-09-27).
-const handback = JSON.parse(readFileSync(join(root, manifest.hooks), 'utf8')).hooks.PreToolUse.find((h: { matcher: string; hooks: { args: string[] }[] }) => h.matcher === 'SubagentHandback');
-check('a hand-back is checked too, before it reaches the orchestrator', handback?.hooks[0].args.slice(1).join(' ') === 'handoff check');
+const stopHook = JSON.parse(readFileSync(join(root, manifest.hooks), 'utf8')).hooks.SubagentStop[0];
+check('SubagentStop matches the plugin-scoped agent type, anchored', stopHook.matcher === `^${manifest.name}:round-worker$`, stopHook.matcher);
+// The hook now records the worker's session; the semantic handback judge and the no-fork policy are gone.
+check('SubagentStop records the worker session', stopHook.hooks[0].args.slice(1).join(' ') === 'handoff record');
+check('no PreToolUse hook remains (the handback/no-fork policy is gone)', JSON.parse(readFileSync(join(root, manifest.hooks), 'utf8')).hooks.PreToolUse === undefined);
 const skills = ['round', 'design-session'].map((s) => readFileSync(join(root, 'skills', s, 'SKILL.md'), 'utf8'));
 check('the skills name wf\'s files as ${CLAUDE_PLUGIN_ROOT}, no {{wf}} or {{project}} left', skills.every((t) => !t.includes('{{wf}}') && !t.includes('{{project}}')));
 // The public skills are installed at `~/.local/share/wf/skills/<dir>`, and PI's `settings.json`
@@ -55,25 +53,12 @@ for (const e of readdirSync(join(root, 'skills'), { withFileTypes: true }).filte
 const texts = ['skills', 'prompts', 'process', 'agents', 'projects'].flatMap((d) => readdirSync(join(root, d), { recursive: true, encoding: 'utf8' })
 	.filter((f) => f.endsWith('.md')).map((f) => ({ file: `${d}/${f.replace(/\\/g, '/')}`, text: readFileSync(join(root, d, f), 'utf8') })));
 const dispatched = texts.flatMap(({ text }) => [...text.matchAll(/agent: "([\w-]+)"|subagent_type: "wf:([\w-]+)"/g)].map((m) => m[1] ?? m[2]));
-check('wf\'s texts dispatch only wf\'s own agents', dispatched.length > 0 && dispatched.every((a) => existsSync(join(root, 'agents', `${a}.md`))), dispatched.join());
+check('wf\'s texts dispatch only wf\'s own agents, and the round skill dispatches one', dispatched.length > 0 && dispatched.every((a) => existsSync(join(root, 'agents', `${a}.md`))), `dispatched ${dispatched.length}: ${dispatched.join()}`);
 // pi's general agents (scout, planner, worker, reviewer): a text that names one sends an agent to it.
 const general = texts.filter(({ text }) => /\bscout\b|`(planner|worker|reviewer)`/i.test(text)).map(({ file }) => file);
 check('wf\'s texts name none of pi\'s general agents', general.length === 0, general.join());
 
-// ── the hooks: the round-worker is sent back once per step while its phase owes a handoff
-const st = (patch: Partial<State>): State => ({ step: 'agree', class: 'A', folder: 'bug-reports/r', ...patch });
-const noFiles = { agreement: null, assessment: null, blocked: false, commits: false };
-check('an agree worker ending with no TICKET.md is sent back', (stopGap(st({}), noFiles) ?? '').includes('TICKET.md'));
-check('agree with ## Intent is allowed', stopGap(st({}), { ...noFiles, agreement: '# t\n## Intent\n- x\n' }) === null);
-check('a B/C agree with a complete agreement is allowed', stopGap(st({ class: 'B' }), { ...noFiles, agreement: '## Observed\n- x\n\n## Agreed\n- y\n- T2 walk: none — checked by the test\n\n## Verification\n| # | case | files | check |\n|---|---|---|---|\n| 1 | a | a.ts | a.ts::a@1 |\n' }) === null);
-check('a B/C agree missing ## Agreed is sent back', (stopGap(st({ class: 'B' }), { ...noFiles, agreement: '## Observed\n- x\n' }) ?? '').includes('## Agreed'));
-check('a build worker ending with no commit is sent back to finish', (stopGap(st({ step: 'build' }), noFiles) ?? '').includes('wf step assess'));
-check('a build worker with a commit, or BLOCKED.md, is allowed', stopGap(st({ step: 'build' }), { ...noFiles, commits: true }) === null && stopGap(st({ step: 'build' }), { ...noFiles, blocked: true }) === null);
-check('an assess worker with no ASSESSMENT.md is sent back', (stopGap(st({ step: 'assess' }), { ...noFiles, commits: true }) ?? '').includes('ASSESSMENT.md'));
-check('an assess worker with no verdict is sent back', (stopGap(st({ step: 'assess' }), { ...noFiles, assessment: '## Intent\n- x\n', commits: true }) ?? '').includes('Verdict'));
-check('an assess worker with a valid assessment is allowed', stopGap(st({ step: 'assess' }), { ...noFiles, assessment: 'Verdict: clean\nhead: h\n## Intent\n- "x": met: a.ts:1 · before: r · after: g\n', commits: true }) === null);
-check('one hand-back per visit: the marker stops a loop', stopGap(st({ step: 'agree', since: 't1', handoff_sent_back: 'agree@t1' }), noFiles) === null);
-check('a build that returns after a repair is sent back again (a new visit)', (stopGap(st({ step: 'build', since: 't2', handoff_sent_back: 'build@t1' }), noFiles) ?? '').includes('wf step assess'));
-check('a fork is refused, any other agent is not', forkGap({ tool_input: { subagent_type: 'fork' } })?.startsWith('no forks') && forkGap({ tool_input: { subagent_type: 'wf:round-worker' } }) === null);
+// ── the hooks no longer judge a handoff (agent-owned sessions); the session rule is covered by
+// handoff-hook.selfcheck.ts.
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');
 process.exit(failures ? 1 : 0);

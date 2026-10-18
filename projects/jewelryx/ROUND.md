@@ -83,15 +83,6 @@ before *Start*.
 - Rounds branch off `dev` and their PRs target `dev`. `dev` is checked out in the repo's root.
 - Merging to `dev` and deploying: Shay only.
 
-## Verification dependencies
-
-A custom `## Repro` command can put `services: api` beside `command:` when it needs only the API,
-or `services: none` when it needs no app endpoints. Omitted means `services: shared-auth`: wait for
-storefront, admin and API. Known shared-auth runners/configurations and helpers that may refresh a
-browser login retain that requirement; a narrower declaration conflicts rather than bypassing it.
-Only declare narrower needs after checking the command's setup. A check releases an API server it
-started, never a borrowed stack. This is optional metadata in the existing description, not a new document.
-
 ## T2
 
 - Before `wf review`, run `wf show` from the worktree. It returns in seconds, leaving a browser window

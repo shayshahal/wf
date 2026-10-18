@@ -1,6 +1,6 @@
 // #146 (2026-10-17): a reachable storefront did not mean the shared buyer/seller/admin
 // authentication setup could run. Check its dependencies before admitting a measurement.
-import { join, posix } from 'node:path';
+import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 
 /** Verification profile selects project-owned endpoint and startup dependencies. */
@@ -17,46 +17,6 @@ export function parseVerificationProfile(raw: unknown): { kind: 'parsed'; profil
 	if (raw === undefined || raw === 'shared-auth') return { kind: 'parsed', profile: 'shared-auth' };
 	if (raw === 'api') return { kind: 'parsed', profile: 'api' };
 	return { kind: 'invalid', why: 'verification requirements: expected shared-auth or api' };
-}
-
-// Facts from round.ts's reproConfig/REPRO_GLOBAL_SETUP and checks.ts's verification cwd.
-// A generated fallback path cannot prove withAuth was disabled: retain shared auth there,
-// rather than guessing from arbitrary commands or custom configuration names.
-function knownSharedAuthCommand(command: string): boolean {
-	const tokens = [...command.matchAll(/"([^"]*)"|'([^']*)'|(\S+)/g)].map((m) => (m[1] ?? m[2] ?? m[3]).replace(/\\/g, '/'));
-	// control-jewelryx's API calls can refresh a missing/expired login through its browser auth,
-	// unlike `api --find`, which only reads SDK source. A warm cookie is not a narrower contract.
-	if (tokens.some((token, i) => /(?:^|\/)control-jewelryx(?:\.mjs|\.cmd)?$/.test(token)
-		&& (['auth', 'login', 'open', 'doctor', 'reset'].includes(tokens[i + 1]) || tokens[i + 1] === 'api' && tokens[i + 2] !== '--find'))) return true;
-	const playwright = tokens.some((token) => /(?:^|\/)(?:playwright(?:\.cmd|\.js)?|(?:@playwright\/test|playwright)\/cli\.js)$/.test(token));
-	if (!playwright || !tokens.includes('test')) return false;
-	const canonical = (path: string) => posix.normalize(path).replace(/\/$/, '');
-	const configs = tokens.flatMap((token, i) => token === '-c' || token === '--config' ? [tokens[i + 1] ?? ''] : token.startsWith('--config=') ? [token.slice(9)] : token.startsWith('-c=') ? [token.slice(3)] : token.startsWith('-c') && token.length > 2 ? [token.slice(2)] : []).map(canonical);
-	const directories = tokens.flatMap((token, i) => token === '--dir' || token === '-C' ? [tokens[i + 1] ?? ''] : token.startsWith('--dir=') ? [token.slice(6)] : token.startsWith('-C') && token.length > 2 ? [token.slice(2)] : []).map(canonical);
-	// Playwright accepts a directory and resolves relative config paths from the selected cwd.
-	// Compare the combined path: verification/tests + ../playwright.config.ts is shared auth too.
-	return (directories.length ? directories : ['.']).some((cwd) => (configs.length ? configs : ['.']).some((config) => {
-		const path = canonical(posix.isAbsolute(config) || /^[a-z]:\//i.test(config) ? config : posix.join(cwd, config));
-		return /(?:^|\/)docs\/agents\/verify-jewelryx(?:\/repro\.config\.ts)?$/.test(path)
-			|| /(?:^|\/)bug-reports\/[^/]+\/repro(?:\/playwright\.config\.ts)?$/.test(path)
-			|| /(?:^|\/)verification(?:\/playwright\.config\.[cm]?[jt]s)?$/.test(path);
-	}));
-}
-
-/** Read optional services only in ## Repro; unknown commands default to shared auth, never inferred dependencies. */
-export function parseReproRequirements(description: string, command: string): { kind: 'parsed'; requirements: VerificationRequirements } | { kind: 'invalid'; why: string } {
-	const sections = [...description.replace(/\r\n/g, '\n').matchAll(/^## Repro[ \t]*\n([\s\S]*?)(?=^## |(?![\s\S]))/gm)];
-	const declarations = sections.flatMap((section) => section[1].split('\n').filter((line) => /^[ \t]*services\b/i.test(line)));
-	if (declarations.length > 1) return { kind: 'invalid', why: 'verification requirements: duplicate services declarations in ## Repro' };
-	const declaration = declarations[0];
-	const match = declaration === undefined ? null : /^services:[ \t]*(none|api|shared-auth)[ \t]*$/.exec(declaration);
-	if (declaration !== undefined && !match) return { kind: 'invalid', why: 'verification requirements: expected services: none|api|shared-auth in ## Repro' };
-	const services = match?.[1] ?? 'shared-auth';
-	if (services !== 'shared-auth' && knownSharedAuthCommand(command)) return { kind: 'invalid', why: 'verification requirements: services declaration conflicts with known shared-auth runner/configuration' };
-	if (services === 'none') return { kind: 'parsed', requirements: { kind: 'none' } };
-	return { kind: 'parsed', requirements: services === 'api'
-		? { kind: 'stack', profile: 'api', temporary: true }
-		: { kind: 'stack', profile: 'shared-auth', temporary: false } };
 }
 
 /** A named HTTP dependency; readiness probes never use credentials. */

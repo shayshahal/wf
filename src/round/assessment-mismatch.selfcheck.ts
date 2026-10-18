@@ -57,7 +57,7 @@ try {
 	mkdirSync(join(dir, folder), { recursive: true });
 	writeFileSync(file('TICKET.md'), '# r\n## Intent\n- "remove the effect"\n');
 	writeFileSync(file('AGREEMENT.md'), AGREEMENT);
-	writeState(dir, () => ({ wf_version: 2, round: 'fix/r', id: 'r', folder, base: 'main', class: 'B', step: 'assess' }));
+	writeState(dir, () => ({ wf_version: 3, round: 'fix/r', id: 'r', folder, base: 'main', class: 'B', step: 'assess' }));
 	writeFileSync(file('AGREEMENT-REVIEW.md'), `agreement-sha: ${agreementSha(dir, 'B', folder)}\nverdict: approved\n`);
 	mkdirSync(join(dir, '.wf'), { recursive: true });
 	writeFileSync(join(dir, '.wf/checks.log'), JSON.stringify({ row: null, result: 'green', content: worktreeContentSha(dir, folder, null, 'row'), tasks: [] }) + '\n');

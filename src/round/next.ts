@@ -2,11 +2,12 @@
 // next.ts — wf next: the one thing to do now in this round, from its state and its files. The route
 // is the smaller workflow (#110, #111, #112, #113):
 //
-//   wf new → agree (T1 for B/C) → build ↔ assess (per unit, named chunks reviewed) → T2 → deliver
+//   wf new → agree (T1 for B/C) → build ↔ assess → T2 → deliver
 //
 // The old research/plan/design/replan handoffs, the per-commit dispatch with its row tokens and
-// commit-subject matching, and the validate/critique/as-built/per-rule standards pipeline are gone.
-// Small tasks have one build; large plans hand off bounded units, never commits. `wf next` prints
+// commit-subject matching, the validate/critique/as-built/per-rule standards pipeline, and the
+// executable-unit runtime are gone. A large change may take human-agreed checkpoints (`wf review
+// --checkpoint`), but wf schedules none of them: the agent owns when one happens. `wf next` prints
 // one of:
 //   dispatch <phase> (model: <m>): <the line to send a fresh round-worker, on that model>
 //   wait <person>: <what they owe>        tell them, verbatim; their answer → wf decide, then wf next
@@ -21,19 +22,15 @@ import { agreementClass, agreementGap, agreementPath, agreementSha, revisionSha,
 import { contractPaths as contractPathsFile } from '../project.ts';
 import { classFromFiles } from '../gates/classify.ts';
 import { anticipatedPaths, TICKET_FILE } from './agreement.ts';
-import { changedFiles, reproInputsSha } from '../gates/check.ts';
-import { parseChecksLog } from '../gates/checks-log.ts';
+import { changedFiles } from '../gates/check.ts';
 import { lastField, readVerdict } from '../gates/review-format.ts';
 import { seams } from '../seams.ts';
 import { modelFor } from '../models.ts';
 import type { Models } from '../models.ts';
 import { readState, resolveRoundBase, toplevelOf, writeState } from './state.ts';
 import type { Question, RoundClass, State } from './state.ts';
-import { advanceSlice, sliceContext } from './build-units.ts';
-import type { SliceProgress } from './build-units.ts';
 import { stepHistory } from './friction.ts';
-import { assessmentHandoffGap, checkGap, checkGapLine, checksEvidence, higherClass, runStep } from './step.ts';
-import type { ChecksEvidence } from './step.ts';
+import { assessmentHandoffGap, higherClass, runStep } from './step.ts';
 import { assessmentContentSha, assessmentRulingSource } from './agreement.ts';
 import { mergedImplementationGap } from './delivered-round.ts';
 import { shouldStopRoundServers } from './round-servers.ts';
@@ -55,10 +52,6 @@ export type Snapshot = {
 	step: string | null;
 	klass: RoundClass | null;
 	check: boolean;
-	// A check round's <round>/repro/ holds no file: `## Repro` names a command with nothing to run.
-	reproEmpty?: boolean;
-	// The last `wf check --repro` said "not the defect" and neither the repro nor the agreement changed since: its recorded say.
-	reproOutside?: string | null;
 	questions: Question[];
 	answered: Question[];
 	files: Record<'agreement' | 'assessment' | 'review' | 'blocked', string | null>;
@@ -74,10 +67,6 @@ export type Snapshot = {
 	revisions?: { text: string; at: string; sha?: string | null }[];
 	blockedAnswered?: number;
 	repairs?: number;
-	slices?: SliceProgress;
-	// .wf/checks.log and the implementation's identity now (step.ts checksEvidence). Absent in a pure arm
-	// that tests nothing about checks; snapshotOf always provides it.
-	checks?: ChecksEvidence;
 	// Content identity captured at handoff, not mutable filesystem timestamps.
 	assessmentChangedSinceHandoff?: boolean;
 	assessmentBaselineMissing?: boolean;
@@ -87,7 +76,7 @@ export type Snapshot = {
 	mergedGap?: MergedImplementationGap | null;
 };
 export type Effect =
-	| { step?: string[]; ask?: { to: string; text: string; dflt: string | null; source: string }; repair?: true; blockedAnswered?: number; buildReason?: State['build_reason']; resumeAssessment?: true; advance?: { unit: number; head: string } };
+	| { step?: string[]; ask?: { to: string; text: string; dflt: string | null; source: string }; repair?: true; blockedAnswered?: number; buildReason?: State['build_reason']; resumeAssessment?: true };
 
 // Pure: the ids of the tracker note's `## <id>` sections not yet marked ` (posted)`.
 export function unpostedSections(note: string | null): string[] {
@@ -99,7 +88,6 @@ export function nextAction(s: Snapshot, purpose: 'dispatch' | 'brief' = 'dispatc
 	const effects: Effect[] = [];
 	const act = (say: string) => ({ say, effects });
 	const wf = `node ${s.entry}`;
-	const context = sliceContext(s.files.agreement, s.slices);
 	// The line a fresh round-worker gets: it runs wf brief itself, so its brief is wf's own text.
 	const dispatch = (phase: string, again: string | null = null, kind: 'work' | 'handoff' = 'work') => {
 		if (phase === 'build') {
@@ -111,7 +99,7 @@ export function nextAction(s: Snapshot, purpose: 'dispatch' | 'brief' = 'dispatc
 		}
 		if (phase === 'assess' && s.step === 'review') effects.push({ step: ['assess'] });
 		const model = s.models ? ` (model: ${modelFor(phase, s.models)})` : '';
-		return act(`dispatch ${phase}${model}: run \`${wf} brief ${phase}\` in this worktree and do exactly what it prints${context.kind === 'unit' ? ` (scope: unit:${context.unit.n} — ${context.unit.title})` : context.kind === 'integration' ? ' (scope: integration)' : ''}${again ? ` (again: ${again})` : ''}`);
+		return act(`dispatch ${phase}${model}: run \`${wf} brief ${phase}\` in this worktree and do exactly what it prints${again ? ` (again: ${again})` : ''}`);
 	};
 	const open = s.questions ?? [];
 
@@ -126,8 +114,6 @@ export function nextAction(s: Snapshot, purpose: 'dispatch' | 'brief' = 'dispatc
 		if (s.mergedGap) return act(`wait user: ${s.mergedGap.reason}`);
 		return act(`done: \`${wf} reap ${s.branch}\``);
 	}
-	if (s.step === 'pr' && context.kind !== 'single' && context.kind !== 'integration') return act('wait user: unit approval is not delivery approval — finish the units and integration');
-	// T2 is local, before anything leaves the machine; the approval is the merge.
 	if (s.step === 'pr') return act(`deliver: T2 approved — \`${wf} deliver\` (push, PR, merge, the tracker note), then \`${wf} next\``);
 
 	// The class is measured from what the round actually does — a declared `Class:` line, a verification
@@ -159,8 +145,7 @@ export function nextAction(s: Snapshot, purpose: 'dispatch' | 'brief' = 'dispatc
 		return dispatch('agree', `the person asked the agreement to change: ${pending.map((r) => r.text).join(' · ')}${note}`);
 	}
 
-	if (context.kind === 'invalid' && !s.slices) return dispatch('agree', context.why);
-	// T1 binds the agreement's agreed material sha. A progress edit to `## Verification`/`## Units`
+	// T1 binds the agreement's agreed material sha. A progress edit to `## Verification`
 	// does not change the sha; a change to `## Observed`/`## Agreed` (or `## Intent`) does.
 	const t1Approved = s.t1.sha !== null && s.t1.reviewed === s.t1.sha && s.t1.verdict === 'approved';
 	// T1 stays live after the build starts: a build or progress edit that changes the agreed material
@@ -172,10 +157,8 @@ export function nextAction(s: Snapshot, purpose: 'dispatch' | 'brief' = 'dispatc
 			return act(`wait user: T1 on AGREEMENT.md (${why}) — \`${wf} agree ${s.branch}\``);
 		}
 	}
-	if (context.kind === 'invalid') return act(`wait user: units — ${context.why}`);
-	const assessmentFile = context.kind === 'unit' ? context.assessmentFile : ASSESSMENT_FILE;
-	const label = context.kind === 'unit' ? `chunk — ${context.unit.reviewAfter ?? context.unit.title} (approval continues the build, not delivery)` : context.kind === 'integration' ? 'final delivery — integration verified; approval permits merge' : '';
-	const t2 = `review: T2${label ? ` ${label}` : ''} — see the fix first (the diff, the agreement and ${assessmentFile} beside it), then \`${wf} review ${s.branch}\`; once it has a verdict, \`${wf} review ${s.branch} --done\``;
+	const assessmentFile = ASSESSMENT_FILE;
+	const t2 = `review: T2 — see the fix first (the diff, the agreement and ${assessmentFile} beside it), then \`${wf} review ${s.branch}\`; once it has a verdict, \`${wf} review ${s.branch} --done\``;
 	// JX-275, 2026-10-12 (#127): a rebase at review looped between next's T2 line and step's
 	// stale-assessment refusal. Review uses the assess policy too, before dismissal or T2.
 	// Direct step review already evaluates this same branch; keep one owner for its gates.
@@ -183,19 +166,12 @@ export function nextAction(s: Snapshot, purpose: 'dispatch' | 'brief' = 'dispatc
 
 	// agree → build (T1 for B/C), and the check round's "does it reproduce"
 	if (!step || step === 'classify' || step === 'agree') {
-		// A check round (wf new --check) answers one question: does the ticket reproduce? The working
-		// session writes `## Repro` into the agreement (TICKET.md for class A), then `wf check --repro`
-		// measures it; a green repro is the finding and the user decides whether to go on.
+		// A check round (wf new --check) answers one question: does the ticket reproduce? The agree
+		// worker writes `## Repro` into the agreement and runs the project's own repro directly; wf does
+		// not interpret the result. Once `## Repro` is there, the person decides whether to go on.
 		if (s.check) {
-			if (!/^## Repro[ \t]*$/m.test((s.files.agreement ?? '').replace(/\r\n/g, '\n'))) return dispatch('agree', `no \`## Repro\` in ${consequential(s.klass) ? 'AGREEMENT.md' : 'TICKET.md'} yet`);
-			// 2026-10-18 JX-1374: `## Repro` had a command but repro/ was empty, so `wf check --repro` said
-			// "No tests found" three times and `wf next` sent the round to it again, forever.
-			if (s.reproEmpty) return dispatch('agree', `\`## Repro\` names a command but ${s.folder ?? '<round>'}/repro/ has no spec file yet — write it`);
-			// 2026-10-18 JX-1374: a spec that crashed in its own setup (createVariant 422) was red the same
-			// way each run, and `wf next` kept saying "run wf check --repro" with no agent to fix it.
-			if (s.reproOutside) return dispatch('agree', `the repro never measured the defect — ${s.reproOutside} — fix the repro or write it under \`Could not find\``);
-			if (step !== 'agree') effects.push({ step: ['agree', '--waiting-on', 'user'] });
-			return act(`check: run \`${wf} check --repro\` (it says whether the ticket reproduces), then \`${wf} next\`. Go on: \`${wf} step build\` and set the started status; stop: \`WF_FORCE_REAP=1 ${wf} reap ${s.branch}\``);
+			if (!/^## Repro[ \t]*$/m.test((s.files.agreement ?? '').replace(/\r\n/g, '\n'))) return dispatch('agree', `no \`## Repro\` in ${consequential(s.klass) ? 'AGREEMENT.md' : 'TICKET.md'} yet — write it and run the project's repro, recording its real output`);
+			return act(`wait user: the repro result is in the agreement — the person decides. Go on: \`${wf} step build\` and set the started status; stop: \`WF_FORCE_REAP=1 ${wf} reap ${s.branch}\``);
 		}
 		if (consequential(s.klass)) {
 			const gap = agreementGap(s.files.agreement, s.klass, s.branch);
@@ -219,10 +195,6 @@ export function nextAction(s: Snapshot, purpose: 'dispatch' | 'brief' = 'dispatc
 
 	// build: one phase, resumed in place, ended by the build worker running `wf step assess`.
 	if (step === 'build') {
-		if (context.kind === 'pending') {
-			effects.push({ step: ['build'] });
-			return dispatch('build', 'start the first bounded unit');
-		}
 		if (s.files.blocked) {
 			const q = blockedQuestion(s.files.blocked);
 			if (!q) return act(`wait user: BLOCKED.md has no Question: line — read it`);
@@ -237,10 +209,6 @@ export function nextAction(s: Snapshot, purpose: 'dispatch' | 'brief' = 'dispatc
 			}
 			return act(`wait user: blocked — ${q}`);
 		}
-		// A build that ended with its check unable to run (not red on the code) is a harness trouble no
-		// redispatch changes: stop and say what, once, instead of looping the build (JX-1239).
-		const trouble = s.checks ? checkGap(s.checks) : null;
-		if (trouble?.kind === 'harness') return act(`wait user: harness — ${checkGapLine(trouble)}. Once fixed, run \`${wf} check\`, then \`${wf} next\``);
 		if (s.buildReason?.kind === 'handoff') {
 			if (s.assessmentHandoffGap) return dispatch('build', s.assessmentHandoffGap, 'handoff');
 			// JX-1392 (#151): re-evaluate the current assessment, not an empty repair or a new baseline.
@@ -252,14 +220,6 @@ export function nextAction(s: Snapshot, purpose: 'dispatch' | 'brief' = 'dispatc
 	// The independent reviewer's explicit outcome owns sufficiency, not words in its evidence.
 	// Repairs are bounded; blocked outcomes and exhausted repairs need a durable user ruling.
 	if (step === 'assess') {
-		// The assessment judges an implementation wf check measured: a hand-off without a green of these
-		// bytes (a direct `wf step assess` is refused too, step.ts) goes back, never on to the assessor.
-		const unchecked = s.checks ? checkGap(s.checks) : null;
-		if (unchecked?.kind === 'harness') return act(`wait user: harness — ${checkGapLine(unchecked)}. Once fixed, run \`${wf} check\`, then \`${wf} next\``);
-		if (unchecked) {
-			effects.push({ step: ['build'] });
-			return dispatch('build', checkGapLine(unchecked), 'handoff');
-		}
 		if (s.assessmentChangedSinceHandoff === false) {
 			if (s.assessmentBaselineMissing) {
 				if (s.assessmentHandoffGap) {
@@ -274,15 +234,9 @@ export function nextAction(s: Snapshot, purpose: 'dispatch' | 'brief' = 'dispatc
 		}
 		const gap = assessmentGap(s.files.assessment);
 		if (gap) return dispatch('assess', gap);
-		if (context.kind === 'single' && /^unit:/i.test(lastField(s.files.assessment ?? '', 'scope') ?? '')) return dispatch('assess', 'a single-task assessment cannot claim a unit scope');
-		if (context.kind === 'unit' || context.kind === 'integration') {
-			const expected = context.kind === 'unit' ? `unit:${context.unit.n}` : 'integration';
-			if (lastField(s.files.assessment ?? '', 'scope') !== expected) return dispatch('assess', `${assessmentFile} must name scope: ${expected}; another slice's verdict cannot hand off this one`);
-			if (context.kind === 'unit' && lastField(s.files.assessment ?? '', 'base') !== context.base) return dispatch('assess', `${assessmentFile} must judge this unit's diff from base: ${context.base}`);
-		}
 		const measured = assessmentHead(s.files.assessment);
 		if (measured !== s.head) return dispatch('assess', `ASSESSMENT.md is of ${measured?.slice(0, 10) ?? 'no head'}…, HEAD is ${s.head.slice(0, 10)}…`);
-		const assessmentSource = assessmentRulingSource(s.files.assessment, context);
+		const assessmentSource = assessmentRulingSource(s.files.assessment);
 		const verdict = assessmentVerdict(s.files.assessment);
 		if (verdict === 'blocked' || (verdict === 'repair' && (s.repairs ?? 0) >= MAX_REPAIRS)) {
 			const source = `${assessmentSource}#report:${assessmentContentSha(s.files.assessment)}`;
@@ -311,14 +265,10 @@ ${s.files.assessment}`;
 			return dispatch('build', s.assessmentHandoffGap, 'handoff');
 		}
 		if (s.step === 'review' && readVerdict(s.files.review ?? '') === 'dismissed') return act(`wait user: T2 was closed without a verdict — \`${wf} review ${s.branch}\` again when they are ready`);
-		if (context.kind === 'unit' && !context.unit.reviewAfter) {
-			effects.push({ advance: { unit: context.unit.n, head: s.head } });
-			return act(`advance: unit ${context.unit.n} assessed — the next bounded unit gets a fresh builder`);
-		}
 		// Class A's agreement is TICKET.md, so agreementGap never asked it for a T2 walk. `wf show` needs
 		// one to open the round's page, and a round with nothing visible must say so. The build records it
-		// (it knows the page it drove); enforced only at final T2, never on a unit checkpoint (#139 JX-1068).
-		if (!consequential(s.klass) && context.kind !== 'unit' && !hasT2Walk(s.files.agreement)) {
+		// (it knows the page it drove); enforced only at final T2 (#139 JX-1068).
+		if (!consequential(s.klass) && !hasT2Walk(s.files.agreement)) {
 			effects.push({ step: ['build'] });
 			return dispatch('build', 'TICKET.md needs a T2 walk before T2: a `- **T2 walk.**` bullet with the `open:` line `wf show` follows and any `setup:` lines the scenario needs, or `none — <why no walk is needed>`');
 		}
@@ -330,13 +280,6 @@ ${s.files.assessment}`;
 // ── the shell ────────────────────────────────────────────────────────────────
 
 const read = (file: string) => (existsSync(file) ? readFileSync(file, 'utf8') : null);
-
-function reproOutsideOf(toplevel: string, folder: string | null, agreementFile: string): string | null {
-	const log = read(join(toplevel, '.wf', 'checks.log'));
-	const last = log ? parseChecksLog(log).repro.at(-1) : undefined;
-	if (last?.result !== 'outside' || !last.inputs || last.inputs !== reproInputsSha(toplevel, folder, agreementFile)) return null;
-	return last.say ?? 'run red outside the defect';
-}
 
 export function snapshotOf(toplevel: string): Snapshot {
 	const state = readState(toplevel) ?? {};
@@ -352,8 +295,7 @@ export function snapshotOf(toplevel: string): Snapshot {
 	}
 	const agreementReview = read(join(dir, AGREEMENT_REVIEW_FILE)) ?? '';
 	const agreementText = read(join(dir, AGREEMENT_FILE)) ?? read(agreementPath(toplevel, state.class ?? null, state.folder));
-	const context = sliceContext(agreementText, state.slices);
-	const assessmentFile = context.kind === 'unit' ? context.assessmentFile : ASSESSMENT_FILE;
+	const assessmentFile = ASSESSMENT_FILE;
 	const assessment = read(join(dir, assessmentFile));
 	const baseline = state.assessment_baseline?.file === assessmentFile ? state.assessment_baseline : null;
 	const assessmentBaselineMissing = !baseline && !!state.history?.some((visit) => visit.step === 'assess');
@@ -370,15 +312,12 @@ export function snapshotOf(toplevel: string): Snapshot {
 		step: state.step ?? null,
 		klass: state.class ?? null,
 		check: state.check ?? false,
-		reproOutside: state.check ? reproOutsideOf(toplevel, state.folder ?? null, agreementPath(toplevel, state.class ?? null, state.folder)) : null,
-		reproEmpty: !!state.check && !!state.folder && !(existsSync(join(dir, 'repro')) && readdirSync(join(dir, 'repro')).length),
 		questions: state.questions ?? [],
 		answered: state.answered ?? [],
 		revisions: state.revisions ?? [],
 		blockedAnswered: state.blocked_answered ?? 0,
 		buildReason: state.build_reason,
 		repairs: state.repairs ?? 0,
-		slices: state.slices,
 		assessmentChangedSinceHandoff,
 		assessmentBaselineMissing,
 		assessmentHandoffGap: assessmentHandoffGap(toplevel, state),
@@ -389,7 +328,7 @@ export function snapshotOf(toplevel: string): Snapshot {
 			// declared `Class:` and the case files before the stored class catches up (#111.4).
 			agreement: agreementText,
 			assessment,
-			review: read(join(dir, context.kind === 'unit' ? context.reviewFile : REVIEW_FILE)),
+			review: read(join(dir, REVIEW_FILE)),
 			blocked: read(join(dir, 'BLOCKED.md')),
 		},
 		t1: { sha: agreementSha(toplevel, state.class ?? null, state.folder ?? null), revisionSha: revisionSha(toplevel, state.class ?? null, state.folder ?? null), reviewed: lastField(agreementReview, 'agreement-sha'), verdict: readVerdict(agreementReview) },
@@ -399,7 +338,6 @@ export function snapshotOf(toplevel: string): Snapshot {
 		folder: state.folder ?? null,
 		filesChanged,
 		pathsAnticipated: anticipatedPaths(read(join(dir, TICKET_FILE))),
-		checks: checksEvidence(toplevel, state),
 		mergedGap: mergedImplementationGap(toplevel, state),
 	};
 }
@@ -414,24 +352,13 @@ export async function runNext() {
 	let { say, effects } = nextAction(snapshotOf(toplevel));
 	for (const e of effects) {
 		if (e.step) await runStep(e.step, { quiet: true, buildReason: e.buildReason, resumeAssessment: e.resumeAssessment });
-		if (e.advance) {
-			const receipt = e.advance;
-			writeState(toplevel, (current) => {
-				// A retried or concurrent next that already completed these bytes is a no-op.
-				if (current.slices?.completed.some((done) => done.n === receipt.unit && done.head === receipt.head)) return {};
-				const now = snapshotOf(toplevel);
-				const context = sliceContext(now.files.agreement, current.slices);
-				if (context.kind !== 'unit' || !current.slices || context.unit.n !== receipt.unit || now.head !== receipt.head || context.unit.reviewAfter || !nextAction(now).effects.some((effect) => effect.advance)) throw new Error('wf next: unit completion changed before advancement — run wf next again');
-				const since = new Date().toISOString();
-				return { slices: advanceSlice(context, current.slices, now.head, { reviewed: false }), repairs: 0, step: 'build', since, waiting_on: null, history: stepHistory(current.history, 'build', since) };
-			});
-		}
-		// Repairs are bounded per build scope; completing a unit resets the next unit's budget.
+		// A repair stays within the agreement and is bounded per build; the independent reviewer's
+		// explicit outcome owns sufficiency.
 		if (e.repair) writeState(toplevel, (s) => ({ repairs: (s.repairs ?? 0) + 1 }));
 		if (e.blockedAnswered !== undefined) writeState(toplevel, () => ({ blocked_answered: e.blockedAnswered }));
 		if (e.ask) writeState(toplevel, (state) => addQuestion(state, e.ask!));
 	}
-	if (effects.some((e) => e.ask || e.advance)) ({ say } = nextAction(snapshotOf(toplevel)));
+	if (effects.some((e) => e.ask)) ({ say } = nextAction(snapshotOf(toplevel)));
 	const current = readState(toplevel);
 	if (shouldStopRoundServers({ step: current?.step, waitingOn: current?.waiting_on, say })) {
 		const stopped = await stopWorktreeServers(toplevel);

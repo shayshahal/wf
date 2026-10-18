@@ -18,13 +18,14 @@ import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { agreementCaseGap } from '../project.ts';
-import type { SliceContext } from './build-units.ts';
 import type { RoundClass } from './state.ts';
 
 export const AGREEMENT_FILE = 'AGREEMENT.md';
 export const AGREEMENT_REVIEW_FILE = 'AGREEMENT-REVIEW.md';
 export const ASSESSMENT_FILE = 'ASSESSMENT.md';
 export const REVIEW_FILE = 'REVIEW.md';
+/** A human-agreed checkpoint review, appended to a round that may have several; never the final. */
+export const CHECKPOINT_REVIEW_FILE = 'CHECKPOINT-REVIEW.md';
 export const TICKET_FILE = 'TICKET.md';
 
 // Consequential work: class B (a contract path) or C (a design whose approach T1 decides).
@@ -136,7 +137,7 @@ export function agreementClass(text: string | null | undefined): RoundClass | nu
 }
 
 // Pure: sha256 of the agreement's *agreed material* — the bytes T1 approves. It binds `## Observed`
-// and `## Agreed`, never the mutable working detail (`## Verification` cases, `## Units`, a `## Files`
+// and `## Agreed`, never the mutable working detail (`## Verification` cases, a `## Files`
 // hint): adding a helper to a case, or refreshing progress, must not invalidate unchanged direction
 // (#111.5). A genuinely new behavior changes `## Agreed` and so the sha. Null when the file is absent.
 export function agreementSha(toplevel: string, klass: RoundClass | null | undefined, folder: string | null | undefined): string | null {
@@ -200,13 +201,12 @@ export function assessmentGap(text: string | null | undefined): string | null {
 
 /** Assessment answers stay outside the agreement's approved material. */
 export function isAssessmentRulingSource(source: string | undefined): boolean {
-	return /^ASSESSMENT(?:-unit-[1-9]\d*)?\.md(?:#|$)/.test(source ?? '');
+	return /^ASSESSMENT\.md(?:#|$)/.test(source ?? '');
 }
 
-/** Bind a durable reviewer question to its assessed head and unit scope, not the checkout. */
-export function assessmentRulingSource(text: string | null, context: SliceContext): string {
-	const file = context.kind === 'unit' ? context.assessmentFile : ASSESSMENT_FILE;
-	return `${file}#${assessmentHead(text) ?? 'unknown'}${context.kind === 'unit' ? `#plan:${context.plan.sha}#base:${context.base}` : context.kind === 'integration' ? `#plan:${context.plan.sha}` : ''}`;
+/** Bind a durable reviewer question to its assessed head, not the checkout. */
+export function assessmentRulingSource(text: string | null): string {
+	return `${ASSESSMENT_FILE}#${assessmentHead(text) ?? 'unknown'}`;
 }
 
 /** Content identity ignores checkout newline conversion, never filesystem timestamps. */

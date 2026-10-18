@@ -46,7 +46,7 @@ function newRepo() {
 	mkdirSync(join(repo, folder), { recursive: true });
 	mkdirSync(join(repo, '.wf'), { recursive: true });
 	writeFileSync(join(repo, folder, 'TICKET.md'), '# r\n## Intent\n- "x": y\n\n## Notes\n- **T2 walk.** none — this fixture has no live application\n');
-	writeFileSync(join(repo, '.wf/state.json'), JSON.stringify({ wf_version: 2, folder, round: 'r', id: 'r', base: 'main', class: 'A', step: 'build' }));
+	writeFileSync(join(repo, '.wf/state.json'), JSON.stringify({ wf_version: 3, folder, round: 'r', id: 'r', base: 'main', class: 'A', step: 'build' }));
 	appendFileSync(join(repo, '.wf/checks.log'), `${JSON.stringify({ result: 'green', content: worktreeContentSha(repo, folder, null, 'row') })}\n`);
 	return { repo, proof: join(repo, folder, 'proof') };
 }

@@ -18,9 +18,9 @@ const WF = process.env.WF_ROOT ?? join(here, '..', '..');
 const load = (rel) => import(pathToFileURL(join(WF, rel)).href);
 
 const { agreementPage, renderSkeleton, roundArtifacts } = await load('src/gates/review-format.ts');
-const { agreedSection, agreedOffset } = await load('src/gates/agree.ts');
 const { verificationCases } = await load('src/round/agreement.ts');
 const { manualCheck } = await load('src/gates/check.ts');
+const { agreedSection, agreedOffset } = await load('src/gates/agree.ts');
 
 const demo = process.argv[2] ? process.argv[2] : here;
 const round = 'DEMO-1';

@@ -1,21 +1,15 @@
-// handoff-hook.ts — wf handoff <check | no-fork>: the Claude Code plugin's hooks (claude/hooks.json),
-// fed the hook's JSON on stdin.
-//   check    a wf:round-worker handing back (PreToolUse on SubagentHandback) or stopping
-//            (SubagentStop): sends it back, once per step, while the phase its round is at still owes
-//            its handoff. The old per-brief token is gone (#112): the round's step is the phase, and
-//            the handoff is the agreement file (agree), `wf step assess` (build) or ASSESSMENT.md
-//            (assess). pi has no such hook; wf next catches it there one step later.
-//   no-fork  PreToolUse on Agent: in a round, a fork is refused.
+// handoff-hook.ts — wf handoff <record | check>: the Claude Code plugin's hooks (claude/hooks.json),
+// fed the hook's JSON on stdin. `record` (SubagentStop) records the worker's session reference;
+// `check` is kept for an older install. wf no longer judges a handoff: the agent owns its sessions and
+// when a phase ends (approved agent-owned harness/session management). What remains is the session
+// recorder and the mechanical state guard — a corrupt or old-runtime state blocks rather than being
+// written past. The no-fork policy is gone (the parent updates the hook install docs).
 // Outside a round both allow everything.
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { agreementGap, agreementPath, ASSESSMENT_FILE, assessmentGap, consequential, notAskedForGap, section } from './agreement.ts';
-import { CorruptStateError, legacyStateGap, readState, writeState } from './state.ts';
-import { hookSession, isRoundWorker, recordSession } from './session.ts';
-import type { State } from './state.ts';
-import { sliceContext } from './build-units.ts';
-import { lastField } from '../gates/review-format.ts';
+import { CorruptStateError, legacyStateGap, readState } from './state.ts';
+import { hookSession, recordSession } from './session.ts';
 
 // Everything the hook contract hands us that wf reads. When the hook fires inside a subagent the event
 // carries `agent_id`/`agent_type`, and SubagentStop adds `agent_transcript_path` (Claude Code 2.1.280,
@@ -23,41 +17,6 @@ import { lastField } from '../gates/review-format.ts';
 // session's on such a hook (the binary's base hook input, `Ul`), so session.ts reads the agent pair for
 // the worker and never the main pair. The metadata travels with the hook, wf keeps only the reference.
 type HookInput = { cwd?: string; session_id?: string; transcript_path?: string; stop_hook_active?: boolean; agent_id?: string; agent_type?: string; agent_transcript_path?: string; hook_event_name?: string; tool_input?: { subagent_type?: string } };
-
-// Pure: null when the round-worker may end, else what its phase still owes. Keyed on the round's step,
-// which is the phase it is at; the sent-back marker holds it to one hand-back per *visit* to the step
-// (`step@since`), so a build that returns after a repair is sent back again (#112).
-export function stopGap(state: State | null, files: { agreement: string | null; assessment: string | null; blocked: boolean; commits: boolean }): string | null {
-	if (!state || state.handoff_sent_back === `${state.step ?? ''}@${state.since ?? ''}`) return null;
-	const klass = state.class ?? null;
-	if (state.step === 'agree') {
-		if (!files.agreement) return `write ${consequential(klass) ? 'AGREEMENT.md' : 'TICKET.md'} (its sections) before you end`;
-		if (consequential(klass)) return agreementGap(files.agreement, klass, null) ?? notAskedForGap(files.agreement);
-		if (!section(files.agreement, 'Intent')) return 'TICKET.md has no `## Intent` — the requester\'s words, verbatim';
-		return null;
-	}
-	if (state.step === 'build') {
-		if (files.blocked || files.commits) return null;
-		return 'the build has no commit yet: when the agreement\'s verification cases pass, commit and run `wf step assess`, or write BLOCKED.md';
-	}
-	if (state.step === 'assess') {
-		const context = sliceContext(files.agreement, state.slices);
-		if (context.kind === 'invalid') return context.why;
-		const file = context.kind === 'unit' ? context.assessmentFile : ASSESSMENT_FILE;
-		if (!files.assessment) return `write ${file} (with its Verdict: and head: lines) before you end`;
-		if (context.kind === 'unit' || context.kind === 'integration') {
-			const scope = context.kind === 'unit' ? `unit:${context.unit.n}` : 'integration';
-			if (lastField(files.assessment, 'scope') !== scope) return `${file} must name scope: ${scope}`;
-		}
-		return assessmentGap(files.assessment);
-	}
-	return null;
-}
-
-// Pure: why an Agent call is refused, or null.
-export function forkGap(input: HookInput | null | undefined): string | null {
-	return input?.tool_input?.subagent_type === 'fork' ? 'no forks in a round: a fork carries this whole conversation. Dispatch a fresh wf:round-worker with the line `wf next` printed (round skill, Dispatch in this harness).' : null;
-}
 
 async function stdinJson(): Promise<HookInput> {
 	let text = '';
@@ -71,10 +30,16 @@ function roundAt(cwd: string): string | null {
 		return existsSync(join(toplevel, '.wf', 'state.json')) && readState(toplevel)?.folder ? toplevel : null;
 	} catch (e) {
 		// A state file that is not the round's is the round's, not "no round here": rethrow so the hook
-		// can block instead of letting a worker end or fork past its gate (issue #107).
+		// can block instead of letting a worker end past a state it cannot read (issue #107).
 		if (e instanceof CorruptStateError) throw e;
 		return null;
 	}
+}
+
+function deny(input: HookInput, reason: string): void {
+	process.stdout.write(JSON.stringify(input.hook_event_name === 'PreToolUse'
+		? { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } }
+		: { decision: 'block', reason }));
 }
 
 export async function runHandoff(argv: string[]): Promise<void> {
@@ -84,55 +49,23 @@ export async function runHandoff(argv: string[]): Promise<void> {
 		toplevel = roundAt(input.cwd ?? process.cwd());
 	} catch (e) {
 		if (!(e instanceof CorruptStateError)) throw e;
-		const reason = `wf handoff: ${e.message}`;
-		process.stdout.write(JSON.stringify(input.hook_event_name === 'PreToolUse'
-			? { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } }
-			: { decision: 'block', reason }));
+		deny(input, `wf handoff: ${e.message}`);
 		return;
 	}
 	if (!toplevel) return;
 	// The Claude phase worker, as a fact beside the step: a resumed session (or the person) can find it
 	// again. Only the round-worker's own hook names the worker (session.ts, hookSession); the
-	// orchestrator's Agent PreToolUse (no-fork) and another subagent's handback carry no worker id, and
-	// recording them overwrote the worker's own reference (#114). A host without the fields records
-	// nothing, never a guess.
+	// orchestrator's Agent PreToolUse and another subagent's handback carry no worker id, and recording
+	// them overwrote the worker's own reference (#114). A host without the fields records nothing,
+	// never a guess.
 	recordSession(toplevel, hookSession(input), readState(toplevel)?.step ?? null);
-	if (argv[0] === 'check') {
-		// Once per step: a second hand-back or stop goes through, and wf next redispatches (a hook loop
-		// would burn the agent).
-		if (input.stop_hook_active || !isRoundWorker(input)) return;
+	if (argv[0] === 'check' || argv[0] === 'record') {
 		const state = readState(toplevel);
 		if (!state) return;
-		// A state from the old runtime is refused before the hook writes anything (finish-before-release,
-		// #110): the handoff hook is the one producer that runs outside the dispatcher's guard.
+		// A state from the old runtime — or carrying executable-unit progress — is refused before the
+		// hook lets the worker end (finish-before-release, #110).
 		const legacy = legacyStateGap(state);
-		if (legacy) {
-			const reason = `wf handoff: ${legacy}`;
-			process.stdout.write(JSON.stringify(input.hook_event_name === 'PreToolUse'
-				? { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } }
-				: { decision: 'block', reason }));
-			return;
-		}
-		const folder = state.folder ?? null;
-		const agreementFile = agreementPath(toplevel, state.class ?? null, folder);
-		const read = (name: string) => (folder && existsSync(join(toplevel, folder, name)) ? readFileSync(join(toplevel, folder, name), 'utf8') : null);
-		const commits = (() => { try { return execFileSync('git', ['-C', toplevel, 'log', '--format=%H', `${state.base ?? 'HEAD~1'}..HEAD`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim().length > 0; } catch { return false; } })();
-		const agreement = existsSync(agreementFile) ? readFileSync(agreementFile, 'utf8') : null;
-		const context = sliceContext(agreement, state.slices);
-		const gap = stopGap(state, {
-			agreement,
-			assessment: read(context.kind === 'unit' ? context.assessmentFile : ASSESSMENT_FILE),
-			blocked: existsSync(join(toplevel, folder ?? '', 'BLOCKED.md')),
-			commits,
-		});
-		if (!gap) return;
-		writeState(toplevel, (current) => ({ handoff_sent_back: `${current.step ?? ''}@${current.since ?? ''}` }));
-		const out = input.hook_event_name === 'PreToolUse'
-			? { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: `not yet: ${gap}` } }
-			: { decision: 'block', reason: gap };
-		process.stdout.write(JSON.stringify(out));
-	} else if (argv[0] === 'no-fork') {
-		const gap = forkGap(input);
-		if (gap) process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: gap } }));
+		if (legacy) deny(input, `wf handoff: ${legacy}`);
 	}
+	// `record` (and any other command) allows: the semantic handoff judge and the no-fork policy are gone.
 }

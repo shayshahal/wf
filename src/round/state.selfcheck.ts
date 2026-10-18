@@ -10,7 +10,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSyn
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { CorruptStateError, readState, roundFile, stateFile, stateLockIsStale, writeState } from './state.ts';
+import { CorruptStateError, legacyStateGap, readState, roundFile, stateFile, stateLockIsStale, writeState } from './state.ts';
 import type { State, StateUpdater } from './state.ts';
 
 // Child mode: this file spawned as the writer the parent races or kills.
@@ -68,6 +68,16 @@ check('a JSON array is corrupt state as well', throws(() => readState(bad)) inst
 writeFileSync(stateFile(bad), good);
 check('a restored file reads again', readState(bad)?.revisions?.[0]?.text === 'a');
 rmSync(bad, { recursive: true, force: true });
+
+// A version-2 state, or any state still carrying executable-unit progress (`slices`), is refused:
+// the unit runtime is gone and the field is never silently ignored (finish-before-release, #110).
+const sliced = tempDir();
+writeState(sliced, () => ({}));
+writeFileSync(stateFile(sliced), JSON.stringify({ wf_version: 2, round: 'r', step: 'build' }));
+check('a version-2 round is refused, not reinterpreted', (legacyStateGap(readState(sliced)) ?? '').includes('version 2'));
+writeFileSync(stateFile(sliced), JSON.stringify({ wf_version: 3, round: 'r', step: 'build', slices: { planSha: 'x' } }));
+check('a state carrying removed executable-unit progress is corrupt, not silently ignored', throws(() => readState(sliced)) instanceof CorruptStateError);
+rmSync(sliced, { recursive: true, force: true });
 
 // A malformed recovery marker cannot silently turn a real repair into a cleared handoff.
 {

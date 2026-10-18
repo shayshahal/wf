@@ -14,13 +14,13 @@ import { ensureServers } from '../worktrees/serve.ts';
 import { readState, toplevelOf } from './state.ts';
 
 // The phases that drive the app in a browser: their brief starts the stack and waits for it. The
-// build runs `wf check`, which starts what it needs; the assessment may look at the app itself.
+// build chooses its own checks; the assessment may look at the app itself.
 export const USES_STACK = new Set(['assess']);
 
 // Pure: the handoff a phase's brief ends with. No token is minted: the build's handoff is the step
 // transition `wf step assess`, the assessment's the ASSESSMENT.md it writes.
 export function handoffText(phase: string, folder: string | null, klass: string | null, assessmentFile = 'ASSESSMENT.md'): string {
-	if (phase === 'build') return `\n## Handoff\n\nWhen the verification cases in this brief pass (\`wf check\`), commit, then run \`wf step assess\`: it refuses unless \`wf check\` recorded a green of the implementation as it now stands. If \`wf check\` cannot run (stack, git, a missing runner), do not retry blind: write \`${folder}/BLOCKED.md\` with a \`Question:\` naming what could not run. Write it too if you cannot proceed.\n`;
+	if (phase === 'build') return `\n## Handoff\n\nWhen the agreement's behavior is implemented and you have run the checks that matter for this change, commit, then run \`wf step assess\`. If a check cannot run (stack, git, a missing runner), do not retry blind: write \`${folder}/BLOCKED.md\` with a \`Question:\` naming what could not run. Write it too if you cannot proceed.\n`;
 	if (phase === 'assess') return `\n## Handoff\n\nWrite \`${folder}/${assessmentFile}\` whole, with its \`Verdict:\` line and \`head:\` line; then \`wf next\`.\n`;
 	return `\n## Handoff\n\nWrite \`${folder}/${agreementFile(klass as 'A' | 'B' | 'C')}\` (class ${klass}: ${consequential(klass as 'A' | 'B' | 'C') ? 'the agreement with `## Observed`, `## Agreed` and `## Verification`' : 'the ticket, with `## Repro` for a check round'}); then \`wf next\`.\n`;
 }

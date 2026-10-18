@@ -34,11 +34,11 @@ for (const klass of ['A', 'B']) {
     writeFileSync(join(dir, folder, 'proof/before-1.png'), png);
     writeFileSync(join(dir, folder, 'proof/after-1.png'), png);
     if (klass === 'B') writeFileSync(join(dir, folder, 'AGREEMENT-REVIEW.md'), `agreement-sha: ${agreementSha(dir, klass, folder)}\nverdict: approved\n`);
-    writeFileSync(join(dir, '.wf/state.json'), JSON.stringify({ wf_version: 2, made_by: 'kit', round: 'fix/caption', id: 'caption', folder, base: 'main', class: klass, step: 'assess' }));
+    writeFileSync(join(dir, '.wf/state.json'), JSON.stringify({ wf_version: 3, made_by: 'kit', round: 'fix/caption', id: 'caption', folder, base: 'main', class: klass, step: 'assess' }));
     writeFileSync(join(dir, '.wf/checks.log'), `${JSON.stringify({ row: null, result: 'green', content: worktreeContentSha(dir, folder, null, 'row'), tasks: [] })}\n`);
     const hook = `${dir}-skip-fixture-services.mjs`;
     writeFileSync(hook, `import { registerHooks } from 'node:module';\nregisterHooks({ load(url, context, nextLoad) {\n const loaded = nextLoad(url, context);\n if (url !== ${JSON.stringify(serveUrl)}) return loaded;\n const source = typeof loaded.source === 'string' ? loaded.source : Buffer.from(loaded.source).toString('utf8');\n const marker = 'export async function ensureServers(worktree: string, { wait = false, timeoutMs = 180_000 }: { wait?: boolean; timeoutMs?: number } = {}): Promise<string> {';\n if (!source.includes(marker)) throw Error('review caption CLI: service fixture boundary not found');\n return { ...loaded, source: source.replace(marker, marker + '\\n return "review caption CLI: services intentionally stubbed";') };\n}});\n`);
-    const result = spawnSync(process.execPath, ['--import', pathToFileURL(hook).href, join(root, 'wf.mjs'), 'review', 'fix/caption', '--base', 'main'], { cwd: dir, encoding: 'utf8', env: { ...process.env, CLAUDECODE: '1' }, timeout: 20000 });
+    const result = spawnSync(process.execPath, ['--import', pathToFileURL(hook).href, join(root, 'wf.mjs'), 'review', 'fix/caption'], { cwd: dir, encoding: 'utf8', env: { ...process.env, CLAUDECODE: '1' }, timeout: 20000 });
     assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
     assert.match(result.stdout, /services intentionally stubbed/);
     const html = readFileSync(join(dir, '.wf/before-after.html'), 'utf8');

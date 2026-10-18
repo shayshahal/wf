@@ -16,7 +16,7 @@ const check = (name: string, cond: boolean, detail = '') => {
 
 // ── pure: the handoff note and the dispatch guard
 check('a build brief ends with the step transition, not a token', handoffText('build', 'bug-reports/r', 'A').includes('wf step assess') && !handoffText('build', 'bug-reports/r', 'A').includes('<!-- brief:'), handoffText('build', 'bug-reports/r', 'A'));
-check('a build brief says wf step assess needs a wf check green and names BLOCKED.md for a check that cannot run', handoffText('build', 'bug-reports/r', 'A').includes('recorded a green') && handoffText('build', 'bug-reports/r', 'A').includes('BLOCKED.md') && handoffText('build', 'bug-reports/r', 'A').includes('do not retry blind'));
+check('a build brief names BLOCKED.md for a check that cannot run and says not to retry blind', handoffText('build', 'bug-reports/r', 'A').includes('checks that matter') && handoffText('build', 'bug-reports/r', 'A').includes('BLOCKED.md') && handoffText('build', 'bug-reports/r', 'A').includes('do not retry blind'));
 check('an assess brief ends by naming ASSESSMENT.md', handoffText('assess', 'bug-reports/r', 'A').includes('ASSESSMENT.md'));
 check('a class A agree brief names TICKET.md', handoffText('agree', 'bug-reports/r', 'A').includes('TICKET.md'));
 check('a class B agree brief names AGREEMENT.md', handoffText('agree', 'bug-reports/r', 'B').includes('AGREEMENT.md'));
@@ -31,7 +31,7 @@ git('commit', '-q', '--allow-empty', '-m', 'base');
 mkdirSync(join(dir, '.wf'));
 mkdirSync(join(dir, 'bug-reports', 'r'), { recursive: true });
 writeFileSync(join(dir, 'bug-reports', 'r', 'TICKET.md'), '# X-1\n\n## Intent\n\n- the modal keeps its scroll position — Shay\n');
-writeFileSync(join(dir, '.wf', 'state.json'), JSON.stringify({ wf_version: 2, round: 'fix/r', id: 'X-1', folder: 'bug-reports/r', step: 'build', class: 'A', base: 'HEAD' }));
+writeFileSync(join(dir, '.wf', 'state.json'), JSON.stringify({ wf_version: 3, round: 'fix/r', id: 'X-1', folder: 'bug-reports/r', step: 'build', class: 'A', base: 'HEAD' }));
 
 const cwd = process.cwd();
 const write = process.stdout.write;

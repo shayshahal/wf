@@ -6,9 +6,8 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { createConnection } from 'node:net';
 import { join } from 'node:path';
-import { checkTasks, oracleEdits, parseStackEnv, oracleCaseGap, PRODUCT_BRANCH, roundReproRuntimeInputs, seedActorsEnv, realPkgFor, suitesTouched } from './checks.ts';
-import type { Suite } from './checks.ts';
-import type { CheckTarget, CheckTask } from '../../src/gates/check.ts';
+import { checkTasks, oracleEdits, parseStackEnv, oracleCaseGap, PRODUCT_BRANCH, seedActorsEnv, realPkgFor } from './checks.ts';
+import type { CheckTask } from '../../src/gates/check.ts';
 import { unpairedProofImages } from '../../src/gates/review-format.ts';
 import { dropDatabase, dropStrandedTestDatabases, worktreeDatabase } from './db.ts';
 import { seams } from '../../src/seams.ts';
@@ -19,14 +18,13 @@ import { homedir } from 'node:os';
 import { delimiter } from 'node:path';
 import { installShim, linkVerifySkill, unlinkCompetingSkills, verifyStackEnv, writeReproConfig } from './round.ts';
 import type { VerificationProfile, VerificationRequirements } from './readiness.ts';
-export { parseReproRequirements, parseVerificationProfile, probeVerificationEndpoint, verificationEndpoints, waitForVerificationReady } from './readiness.ts';
+export { parseVerificationProfile, probeVerificationEndpoint, verificationEndpoints, waitForVerificationReady } from './readiness.ts';
 export type { VerificationProfile, VerificationRequirements } from './readiness.ts';
 
 /** Existing app checks retain shared authentication admission unless the project declares narrower needs. */
 export const defaultVerificationRequirements: VerificationRequirements = { kind: 'stack', profile: 'shared-auth', temporary: false };
 
-// Put the worktree's fixtures back to their fixed values (the seed, not a reset) before each
-// `wf check --repro` run: a repro that spends a one-off fixture (JX-1399: MKT-0002, stock 1) could
+// Put the worktree's fixtures back to their fixed values (the seed, not a reset): a repro that spends a one-off fixture (JX-1399: MKT-0002, stock 1) could
 // never reach its assertion on the second run, nor after an earlier hand run.
 export async function reseedForRepro(toplevel: string): Promise<void> {
 	// A checkout without the seeder has no fixtures to restore (the readiness selfchecks run in a stub repo).
@@ -266,19 +264,25 @@ export function agreementCaseGap({ branch, rows }: { branch: string | null; rows
 // The base as the guard reads it: origin/<base> when there is one, else the local branch.
 function oracleTouched(toplevel: string): string[] {
 	const git = (args: string[]) => spawnSync('git', ['-C', toplevel, ...args], { encoding: 'utf8', windowsHide: true });
-	const branch = git(['branch', '--show-current']).stdout.trim();
+	const branchResult = git(['branch', '--show-current']);
+	if (branchResult.status !== 0) throw new Error('protected files: cannot read the current branch');
+	const branch = branchResult.stdout.trim();
 	if (!PRODUCT_BRANCH.test(branch)) return [];
 	const base = git(['rev-parse', '--verify', '--quiet', `origin/${baseBranch}`]).status === 0 ? `origin/${baseBranch}` : baseBranch;
-	const mergeBase = git(['merge-base', base, 'HEAD']).stdout.trim();
-	if (!mergeBase) return [];
-	const lines = (r: { stdout: string }) => r.stdout.split('\n').map((l) => l.trim()).filter(Boolean);
+	const resolved = git(['merge-base', base, 'HEAD']);
+	const mergeBase = resolved.stdout.trim();
+	if (resolved.status !== 0 || !mergeBase) throw new Error('protected files: cannot resolve the project base');
+	const lines = (r: { status: number | null; stdout: string; stderr: string }) => {
+		if (r.status !== 0) throw new Error(`protected files: git could not read the diff: ${r.stderr.trim()}`);
+		return r.stdout.split('\n').map((l) => l.trim()).filter(Boolean);
+	};
 	const paths = ['--', 'verification/', 'JewelryX-Tools/'];
-	return oracleEdits([...new Set([...lines(git(['diff', '--name-only', mergeBase, ...paths])), ...lines(git(['ls-files', '--others', '--exclude-standard', ...paths]))])]).sort();
+	return oracleEdits([...new Set([...lines(git(['diff', '--name-only', mergeBase, ...paths])), ...lines(git(['diff', '--name-only', '--cached', mergeBase, ...paths])), ...lines(git(['ls-files', '--others', '--exclude-standard', ...paths]))])]).sort();
 }
 
 // The env a verification or repro run gets: the round's seed actors (the project's support helpers
 // read these, and they are the identities the repro config logs in) plus .verify-stack.env's URLs.
-// `wf check` passes it to a verification/ spec and to the agreement's repro, so a repro that imports
+// A project verification tool can pass it to its runner, so a repro that imports
 // verification/tests/support reads the round's own users, not the helpers' by-hand defaults
 // (verification-owner@), which the round database does not have (BJEW-617, 2026-10-06).
 export function verificationStackEnv(toplevel: string): Record<string, string> {
@@ -286,13 +290,7 @@ export function verificationStackEnv(toplevel: string): Record<string, string> {
 	return { ...seedActorsEnv(logins), ...(existsSync(stackFile) ? parseStackEnv(readFileSync(stackFile, 'utf8')) : {}) };
 }
 
-// The environment a runner is HANDED: the ambient environment minus the keys that belong to the
-// process that STARTED wf, not to the proof. Core hashes and passes exactly this object
-// (baseline-proof.ts/#133 review). Everything else stays — the OS/tool lookups and config (PATH, HOME,
-// package-manager settings) and any project/CI/test flag — so no useful arbitrary flag is stripped
-// and a changed flag is bound on BOTH proof sides. Only the session/host bookkeeping (PWD, `PI_*`, a
-// session id, `_`, SHLVL, the terminal) is dropped, so a fresh assessment session reuses a proof while
-// the runner never sees the fields the proof ignores.
+// The runner environment drops session bookkeeping, not project flags or OS/tool configuration.
 export const harnessEnvKeys: string[] = ['PWD', 'OLDPWD', '_', 'SHLVL', 'CLAUDECODE', 'TERM', 'TERM_PROGRAM', 'TERM_PROGRAM_VERSION', 'SESSIONNAME'];
 export const harnessEnvPrefixes: string[] = ['PI_', 'WT_'];
 export function runnerEnv(ambient: NodeJS.ProcessEnv): Record<string, string> {
@@ -323,10 +321,9 @@ export function baselineStackEnv(branch: string): Record<string, string> {
 }
 
 /**
- * The ONE effective env a red-base task is handed in an isolated baseline worktree. It starts from the
+ * The environment for an optional isolated baseline experiment. It starts from the
  * curated runner env, drops the base's owned live resource keys, keeps the task's own non-resource
  * overrides, and adds the baseline branch's own stack env. Nothing from a live port/database survives.
- * Core hashes and passes exactly the returned object, so the bound env cannot differ from the run's.
  */
 export function baselineRunnerEnv({ ambient, taskEnv, branch }: { ambient: NodeJS.ProcessEnv; taskEnv?: Record<string, string>; branch: string }): Record<string, string> {
 	const owned = new Set(stackEnvOwnedKeys());
@@ -335,57 +332,20 @@ export function baselineRunnerEnv({ ambient, taskEnv, branch }: { ambient: NodeJ
 	return { ...base, ...preserved, ...baselineStackEnv(branch) };
 }
 
-// Whether a changed file is a red-base *input* (the case's own test or a helper/fixture/config it
-// loads) rather than the implementation the row measures. An isolated baseline copies the inputs into
-// the scratch, so a helper the round added is present on the before side instead of reading as a
-// product red (#133 review). The project owns the convention, as it owns the runner and its layout.
-export function isTestInput(file: string): boolean {
-	const f = file.replace(/\\/g, '/');
-	return f.startsWith('verification/') || /(^|\/)tests?\//.test(f) || /(^|\/)test_[^/]+\.py$/.test(f) || /\.(test|spec)\.[cm]?[jt]s$/.test(f);
+/** Optional affected checks; command selection does not certify agreement cases. */
+export function checks({ toplevel, changed }: { toplevel: string; changed: string[] }): CheckTask[] {
+	return checkTasks({ changed, pkgFor: realPkgFor(toplevel), pushHook: existsSync(join(toplevel, 'lefthook.yml')), onDisk: (f) => existsSync(join(toplevel, f)) });
 }
 
-// wf check's commands for the changed files, plus the row's check cell `target` (its test path, the
-// named test id and intended assertion line, and whether it is a `refactor:`) or null. Each is
-// { label, cmd, args, cwd } (cwd repo-relative), or { label, missing } when the cell is not runnable.
-export function checks({ toplevel, changed, target }: { toplevel: string; changed: string[]; target: CheckTarget | null }): CheckTask[] {
-	return checkTasks({ toplevel, changed, target, pkgFor: realPkgFor(toplevel), pushHook: existsSync(join(toplevel, 'lefthook.yml')), onDisk: (f) => existsSync(join(toplevel, f)), stackEnv: verificationStackEnv(toplevel), oracleTouched: oracleTouched(toplevel) });
+/** Protected oracle edits are refused independently of commands or case tables. */
+export function protectedFilesGap(toplevel: string): string | null {
+	try {
+		const touched = oracleTouched(toplevel);
+		return touched.length ? `protected oracle files differ from the base: ${touched.join(', ')}; coverage belongs on a verification branch` : null;
+	} catch (error) {
+		return `protected files: could not inspect the project diff: ${error instanceof Error ? error.message : String(error)}`;
+	}
 }
-
-// The runtime config a named round-repro spec needs in the isolated scratch (checks.ts): the config
-// the route will run with, and its global setup/tsconfig. Core copies these as probe inputs even when
-// the case declared only its spec, so the before side can run at all.
-export { roundReproRuntimeInputs };
-
-// What one red-base run's own output proves (#109, evidence.ts): core's check.ts reads this instead
-// of the exit code, with the check cell's target (`path::test id@<line>`), and greens a row only on
-// `behavioral-failure` (or `passed` for a `refactor:` row). `reproFailure` is core's repro half: the
-// project decides whether a repro's failure is a framework assertion wf can read.
-export { redBaseEvidence, reproFailure } from './evidence.ts';
-export type { RunnerEvidence } from './evidence.ts';
-
-// `wf check --suites`: before validate, on each committed HEAD, the whole suite of each package the
-// round's diff reaches (checks.ts suitesTouched); each suite its steps in order, the suites side by
-// side. Only the reached ones: BJEW-461 (2026-10-06) changed only the admin and ran all three twice,
-// 193 s and 214 s, and both runs came back red on backend pytest, which it never touched; validate
-// then had a red suite to report from a package outside the round. wf check runs only the tests a commit changed and PR checks leave
-// the suites to the qa gate, after the merge, which billing kept from starting 2026-09-16 to 10-05:
-// SvelteKit 3 (04bb5a70a) broke two backend cells on dev, found the next day. The backend on 8
-// workers, pytest-xdist added for the run only (not in uv.lock): 2m22s against 10m12s serial, 3,201
-// green; each worker its own database (tests/support/database.py). The two variables are CI's
-// (ci.yml): a worktree's .env has only the first. vitest after check:prep, as CI: a fresh worktree
-// has no compiled paraglide, and 33 of admin's 73 test files failed to load without it.
-const vitest = (app: string, pkg: string): CheckTask[] => [
-	{ label: `${app} check:prep`, cmd: 'pnpm', args: ['--filter', pkg, 'run', 'check:prep'], cwd: '.' },
-	{ label: `${app} vitest`, cmd: 'pnpm', args: ['--filter', pkg, 'exec', 'vitest', 'run'], cwd: '.' },
-];
-const SUITES: Record<Suite, CheckTask[]> = {
-	backend: [{ label: 'backend pytest', cmd: 'uv', args: ['run', '--frozen', '--with', 'pytest-xdist', 'pytest', '-q', '-p', 'no:cacheprovider', '-n', '8'], cwd: 'packages/backend',
-		env: { JWT_SECRET_KEY: 'ci-test-only-not-a-real-secret', B2B_PUBLIC_URL: 'https://storefront.example.test/b2b' } }],
-	admin: vitest('admin', 'jewelryx-admin-dashboard'),
-	b2b: vitest('b2b', 'jewelryx-frontend'),
-};
-/** The whole suites the round's changed files reach: each sequence stops at its first red step; sequences run side by side. */
-export const suites = (changed: string[]): CheckTask[][] => suitesTouched(changed).map((s) => SUITES[s]);
 
 // ── proof naming ─────────────────────────────────────────────────────────────
 

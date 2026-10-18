@@ -12,13 +12,13 @@ setup, then `wf step classify`. A raw `git worktree add` skips the setup. `--id 
 refuses to cut the worktree when a round folder or a commit already names the id — read
 that first. Choose `--class A|B|C` from the ticket and scope before creation (required except for
 `--check`): an agreement-first round has no code to measure, and `wf step classify` only ever upgrades (A→B→C), never downgrades. The class that binds
-is measured again from the agreement's verification-case files (`wf next`).
+is measured again from declared scope and changed files (`wf next`).
 
 Ports: one hashed port P per branch, from the branch name (`ports.ts`, 10000–19999); the project
 spreads its apps from there. No worktree is served from its creation (Shay, 2026-10-04: a stack per
 worktree was too much). `wf serve [--wait]` starts the project's `serve` in the background, and the
 phases that drive the app run it themselves: `wf brief assess`,
-`wf check` before the repro or a task marked `stack`, and `wf review`. `wf next` and `wf step`
+`wf check` for an affected task marked `stack`, and `wf review`. `wf next` and `wf step`
 release idle stacks at classify, agreement, held, approved and merged boundaries, and at non-review
 human waits. Active build, assessment, CI waits and T2 review retain theirs; the next app-driving
 phase starts the stack again. `wf serve --stop` stops a helper checkout's recorded server tree without
@@ -57,14 +57,12 @@ state file) are removable. `wf reap` stops the tree's processes first, runs the 
 while the worktree exists, then removes it and runs the same teardown again (each step tolerates
 "already gone").
 
-Pipeline cutover follows the agreed finish-before-release policy: finish active legacy rounds on
-that installed runtime before installing the replacement. There is no state converter or second
-pipeline. Planned-commit rows, their completion tokens and their decided-skip obligations (#74)
-are retired with that protocol, not imported into version 2. The replacement uses one build phase
-for a small task; a large agreement's structured `## Units` creates bounded build/assessment slices
-and named review checkpoints. An existing prose units note stays on the single-task route; no
-active round is silently reinterpreted. These slices are not obsolete `implement N` commit rows.
-Verification cases remain working detail, not commit-completion obligations.
+Pipeline cutover follows the agreed finish-before-release policy: finish active rounds on their
+installed runtime before installing the replacement. There is no state converter or second pipeline.
+Old state is refused before mutation, not silently reinterpreted. The replacement uses build and
+verification, one independent final assessment and final T2. Agents own steps and worker sessions.
+Optional human-agreed checkpoints use `wf review --checkpoint`; approval resumes build and never
+permits delivery. Verification plans remain working guidance, not executable case/unit state.
 
 One round is one PR to the base branch: CI runs on it, T2 approves it, and it merges with
 `gh pr merge <n> --merge` (a merge commit, not a squash). The round folder merges with it and stays: it is the round's memory.

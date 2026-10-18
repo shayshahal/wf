@@ -75,13 +75,13 @@ const tempStems = (notePath: string | null): { stem: string; kind: WriterKind }[
 ];
 const producerTemp = (file: string, notePath: string | null): boolean => tempStems(notePath).some(({ stem, kind }) => writerTemp(file, stem, kind));
 
-// A planned round's checkpoint review records (`REVIEW-unit-<n>.md`, build-units.ts) are review
-// paperwork like REVIEW.md: the person writes the chunk's verdict into one after its header bound the
-// identity, so binding it would make every checkpoint approval stale the moment it was written.
-// Matched by exact shape directly in the round folder, so a lookalike elsewhere stays bound.
-const unitReviewRecord = (file: string, folder: string | null): boolean => {
+// A round's checkpoint review (`CHECKPOINT-REVIEW.md`) is review paperwork like REVIEW.md: the person
+// writes a chunk's verdict into it after its header bound the identity, so binding it would make the
+// checkpoint stale the moment it was written. Matched by exact name directly in the round folder, so a
+// lookalike elsewhere stays bound.
+const checkpointReviewRecord = (file: string, folder: string | null): boolean => {
 	const f = folder?.replace(/\\/g, '/');
-	return !!f && file.startsWith(`${f}/`) && /^REVIEW-unit-\d+\.md$/.test(file.slice(f.length + 1));
+	return !!f && file === `${f}/CHECKPOINT-REVIEW.md`;
 };
 
 // The identity of the content a scope covers, for a check line and for the review header.
@@ -116,7 +116,7 @@ const pathIn = (file: string, excluded: string[], notePath: string | null) => {
 // The same owner predicate and exact list drive the identity's literal pathspecs, so the predicate
 // and the tree hash cannot drift — an unowned file is never hidden.
 export function approvalPaperworkExcluded(file: string, folder: string | null, notePath: string | null = null): boolean {
-	return pathIn(file, approvalExclusions(folder, notePath, 'approval'), notePath) || unitReviewRecord(file.replace(/\\/g, '/'), folder);
+	return pathIn(file, approvalExclusions(folder, notePath, 'approval'), notePath) || checkpointReviewRecord(file.replace(/\\/g, '/'), folder);
 }
 
 // git runs with GIT_DIR set in a hook (absolute in a linked worktree), and a `-C toplevel` command
@@ -159,7 +159,7 @@ const dropExcluded = (toplevel: string, env: NodeJS.ProcessEnv, excluded: string
 const dropProducerTemps = (toplevel: string, env: NodeJS.ProcessEnv, notePath: string | null, folder: string | null) => {
 	const owned = execFileSync('git', ['-C', toplevel, 'ls-files', '-z'], { env, encoding: 'utf8' })
 		.split('\0')
-		.filter((file) => file && (producerTemp(file, notePath) || unitReviewRecord(file, folder)))
+		.filter((file) => file && (producerTemp(file, notePath) || checkpointReviewRecord(file, folder)))
 		.map((file) => `:(literal)${file}`);
 	if (owned.length) execFileSync('git', ['-C', toplevel, 'rm', '-r', '-q', '--cached', '--ignore-unmatch', '--', ...owned], { env });
 };

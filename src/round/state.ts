@@ -10,8 +10,6 @@ import { randomUUID } from 'node:crypto';
 import { linkSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { baseBranch, roundsDir } from '../project.ts';
-import { sliceProgressGap } from './build-units.ts';
-import type { SliceProgress } from './build-units.ts';
 import { deliveryReceiptGap } from './delivered-round.ts';
 import type { DeliveryReceipt } from './delivered-round.ts';
 
@@ -59,8 +57,6 @@ export type State = {
 	assessment_baseline?: { file: string; sha: string | null };
 	/** Why the current build was dispatched; handoff gaps can clear without another build. */
 	build_reason?: { kind: 'work' | 'handoff'; text: string } | null;
-	/** Executable units and review receipts; absent on the single-task route. */
-	slices?: SliceProgress;
 	// The step a round-worker was sent back for by `wf handoff check` (handoff-hook.ts): one hand-back
 	// per step, so a hook loop cannot burn the agent.
 	handoff_sent_back?: string;
@@ -111,7 +107,9 @@ export function resolveRoundBase(toplevel: string, state: State | null): { ref: 
 // command mutates it (finish-before-release, #110): the new route cannot read the old fields, and a
 // silent reinterpretation would corrupt a half-finished round. A genuine read-only inspection may
 // still report it; every mutating command refuses (run.ts).
-export const WF_STATE_VERSION = 2;
+// 3 (2026-10-18) removed the executable-unit runtime (build-units.ts, state.slices): a version-2
+// round may be mid-unit and has no meaning here, so it finishes on the wf that made it.
+export const WF_STATE_VERSION = 3;
 // The steps the smaller route removed (#111/#112/#113). A round parked at one is an old round: it must
 // finish on the installed wf that made it, and this wf refuses to reinterpret it.
 const OLD_ROUTE_STEPS = ['research', 'plan', 'design', 'implement'];
@@ -179,7 +177,7 @@ export function readState(toplevel: string): State | null {
 	if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) throw new CorruptStateError(file, 'it is not a JSON object');
 	if ('assessment_baseline' in parsed) {
 		const baseline = parsed.assessment_baseline;
-		if (baseline === null || typeof baseline !== 'object' || !('file' in baseline) || typeof baseline.file !== 'string' || !/^ASSESSMENT(?:-unit-[1-9]\d*)?\.md$/.test(baseline.file) || !('sha' in baseline) || (baseline.sha !== null && (typeof baseline.sha !== 'string' || !/^[a-f0-9]{64}$/.test(baseline.sha)))) throw new CorruptStateError(file, 'invalid assessment_baseline');
+		if (baseline === null || typeof baseline !== 'object' || !('file' in baseline) || typeof baseline.file !== 'string' || baseline.file !== 'ASSESSMENT.md' || !('sha' in baseline) || (baseline.sha !== null && (typeof baseline.sha !== 'string' || !/^[a-f0-9]{64}$/.test(baseline.sha)))) throw new CorruptStateError(file, 'invalid assessment_baseline');
 	}
 	if ('build_reason' in parsed && parsed.build_reason !== null) {
 		const reason = parsed.build_reason;
@@ -189,10 +187,10 @@ export function readState(toplevel: string): State | null {
 		const gap = deliveryReceiptGap(parsed.delivery);
 		if (gap) throw new CorruptStateError(file, gap);
 	}
-	if ('slices' in parsed) {
-		const gap = sliceProgressGap(parsed.slices);
-		if (gap) throw new CorruptStateError(file, gap);
-	}
+	// A state that still carries executable-unit progress is an old (version 2) round: the runtime is
+	// gone and the field is not silently ignored. `legacyStateGap`/this guard make the round finish on
+	// the installed wf that made it (finish-before-release, #110).
+	if ('slices' in parsed) throw new CorruptStateError(file, 'it carries executable-unit progress (slices) from the removed unit runtime — finish that round on the installed wf that made it, then start a new round');
 	return parsed as State;
 }
 

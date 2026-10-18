@@ -14,18 +14,13 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { refuseCaller } from '../refusal.ts';
 import { CLASSIFY } from '../paths.ts';
-import { agreementGap, agreementPath, agreementSha, AGREEMENT_REVIEW_FILE, consequential } from './agreement.ts';
+import { agreementGap, agreementPath, agreementSha, AGREEMENT_REVIEW_FILE, ASSESSMENT_FILE, consequential } from './agreement.ts';
 import { lastField, readVerdict } from '../gates/review-format.ts';
 import { people, proofNamingGap } from '../project.ts';
-import { roundFile, roundOf, readState, writeState, WF_STATE_VERSION } from './state.ts';
-import { worktreeContentSha } from '../gates/content-identity.ts';
-import { parseChecksLog } from '../gates/checks-log.ts';
-import type { CheckLogEntry } from '../gates/checks-log.ts';
+import { roundFile, readState, writeState, WF_STATE_VERSION } from './state.ts';
 import type { RoundClass, State } from './state.ts';
 import { stepHistory } from './friction.ts';
 import { changedFiles, isRoundPaperwork } from '../gates/check.ts';
-import { initializeSlices, parseBuildUnits, sliceContext } from './build-units.ts';
-import { verificationCases } from './agreement.ts';
 import { assessmentContentSha } from './agreement.ts';
 import { deliveredCommandGap } from './delivered-round.ts';
 import { shouldStopRoundServers } from './round-servers.ts';
@@ -45,17 +40,10 @@ function proofHandoffGap(toplevel: string, state: State): string | null {
 
 /** All build handoff gates, shared by direct step and next's recovery before it mutates state. */
 export function assessmentHandoffGap(toplevel: string, state: State): string | null {
-	const agreement = agreementPath(toplevel, state.class ?? null, state.folder);
-	const context = sliceContext(existsSync(agreement) ? readFileSync(agreement, 'utf8') : '', state.slices);
-	if (context.kind === 'invalid') return context.why;
-	if (context.kind === 'pending') return 'start the declared units with wf next before handing off';
-	if (context.kind === 'unit' || context.kind === 'integration') {
-		const dirty = changedFiles(toplevel).filter((f) => !isRoundPaperwork(f, state.folder ?? null));
-		if (dirty.length) return `commit the scoped implementation before handoff: ${dirty.join(', ')}`;
-	}
-	const evidence = checksEvidence(toplevel, state);
-	const gap = checkGap(evidence);
-	if (gap) return checkGapLine(gap);
+	const dirty = changedFiles(toplevel).filter((f) => !isRoundPaperwork(f, state.folder ?? null));
+	if (dirty.length) return `commit the implementation before handoff: ${dirty.join(', ')}`;
+	// The handoff itself is mechanical: a committed tree and named proof. The project's protected-oracle
+	// rule is enforced at delivery (deliver.ts), where it reads the base the shipping branch carries.
 	const proof = proofHandoffGap(toplevel, state);
 	if (proof) return proof;
 	return null;
@@ -80,69 +68,6 @@ export function t1Gap(toplevel: string, state: State | null): string | null {
 	const verdict = readVerdict(text);
 	if (verdict !== 'approved') return `${AGREEMENT_REVIEW_FILE} verdict is ${verdict ?? 'pending'}`;
 	return null;
-}
-// The wf check evidence a step boundary and wf next read: .wf/checks.log (check.ts) and the row-scope
-// identity of the implementation now (content-identity.ts). `content: null` is git unable to compute
-// the tree now.
-export type ChecksEvidence = { log: string; content: string | null; scope?: string; cases?: { n: number; check: string }[]; requireSuites?: boolean };
-// Pure: null when checks.log holds a wf check green of exactly the implementation as it is now — the
-// identity check.ts records on every run (row scope: product and tests, not the round folder or .wf,
-// so a paperwork-only commit leaves it in force). Else `harness` when the check cannot run at all
-// (git cannot compute the tree, or the last run of these bytes was an environment red / an unreadable
-// tree): rerunning the build changes nothing, a person or the build's BLOCKED.md must name it. Else
-// `check`: no run, other bytes or a code red — the build runs `wf check`. 2026-10-12 JX-1239: a build ran
-// `wf step assess` on a round whose tree computation was broken, with no wf-recorded pass, and a clean
-// assessment then reached T2.
-export function checkGap({ log, content, scope, cases, requireSuites }: ChecksEvidence): { kind: 'harness' | 'check'; say: string } | null {
-	if (content === null) return { kind: 'harness', say: "git cannot compute the implementation's tree, so wf check cannot name what it measures" };
-	const parsed = parseChecksLog(log);
-	const runs = parsed.cases;
-	const mine = runs.filter((l) => l.content === content).at(-1);
-	const last = runs.at(-1);
-	const trouble = (l: CheckLogEntry | undefined) => l !== undefined && (l.result === 'unavailable' || (l.result === 'red' && l.cause === 'environment')) && (l.content === content || l.content === undefined);
-	if (trouble(last)) {
-		const why = (last!.tasks ?? []).map((t) => t.missing).find(Boolean) ?? (last!.result === 'unavailable' ? 'git could not read the tree before and after the run' : 'a task could not run');
-		return { kind: 'harness', say: `the last wf check could not run (${why})` };
-	}
-	if (cases) {
-		for (const c of cases) {
-			const run = runs.filter((l) => l.content === content && l.scope === scope && l.row === c.n && l.rowCheck === c.check).at(-1);
-			if (run?.result !== 'green') return { kind: 'check', say: `${scope}: verification case ${c.n} has no current green — run wf check for all assigned cases` };
-		}
-		if (requireSuites) {
-			const suite = parsed.suites.filter((l) => l.content === content).at(-1);
-			if (suite?.result !== 'green') return { kind: 'check', say: 'integration needs a current green of wf check --suites' };
-		}
-		return null;
-	}
-	if (mine?.result === 'green') return null;
-	if (!runs.length) return { kind: 'check', say: 'no wf check has run in this round' };
-	if (mine) return { kind: 'check', say: `the last wf check of this implementation is ${mine.result ?? 'not green'}` };
-	return { kind: 'check', say: 'the implementation changed since the last wf check' };
-}
-
-// Pure: the one-line reason a `wf check` green of this implementation is missing, with what to do.
-export function checkGapLine(gap: NonNullable<ReturnType<typeof checkGap>>): string {
-	return gap.kind === 'harness'
-		? `${gap.say} — fix that and run \`wf check\` green, or write BLOCKED.md with a Question: naming it and stop; do not hand off or retry blind`
-		: `${gap.say} — run \`wf check\` and fix what it says; \`wf step\` hands off only a green of the implementation as it is`;
-}
-
-// The shell: the evidence of the round at `toplevel`, as wf check would have recorded it.
-export function checksEvidence(toplevel: string, state: State | null): ChecksEvidence {
-	let log = '';
-	try { log = readFileSync(join(toplevel, '.wf', 'checks.log'), 'utf8'); } catch { /* no wf check has run here: an empty log says so */ }
-	let content: string | null = null;
-	try { content = worktreeContentSha(toplevel, roundOf(state, toplevel).folder, null, 'row'); } catch { /* git cannot compute the tree: null is the harness gap */ }
-	const file = agreementPath(toplevel, state?.class ?? null, state?.folder);
-	const text = existsSync(file) ? readFileSync(file, 'utf8') : '';
-	const context = sliceContext(text, state?.slices);
-	if (context.kind === 'unit' || context.kind === 'integration') {
-		const all = verificationCases(text);
-		const cases = context.kind === 'unit' ? all.filter((c) => context.cases.includes(c.n)) : all;
-		return { log, content, scope: context.kind === 'unit' ? `unit:${context.unit.n}` : 'integration', cases: cases.map(({ n, check }) => ({ n, check })), requireSuites: context.kind === 'integration' };
-	}
-	return { log, content };
 }
 export const higherClass = (a: RoundClass | null, b: RoundClass): RoundClass => (CLASSES.indexOf(a ?? 'A') >= CLASSES.indexOf(b ?? 'A') ? a ?? 'A' : b);
 
@@ -173,10 +98,6 @@ export async function runStep(argv: string[], { quiet = false, buildReason, resu
 	const step = positionals[0];
 	if (!STEPS.includes(step)) {
 		console.error(`invalid step "${step ?? ''}" — one of: ${STEPS.join(' ')}`);
-		refuseCaller();
-	}
-	if (argv.includes('--restart-units') && step !== 'build') {
-		console.error('wf step: --restart-units applies only to build');
 		refuseCaller();
 	}
 	const waitingOn = flag('waiting-on') ?? (step === 'agree' ? 'user' : null);
@@ -231,15 +152,8 @@ export async function runStep(argv: string[], { quiet = false, buildReason, resu
 				if (reason) throw new StepGateError(`class ${klass} round, ${reason} — T1 (wf agree) must approve the agreement material ${step === 'build' ? 'that is about to be built' : `before \`${step}\``}`);
 			}
 			const agreement = agreementPath(toplevel, klass, current.folder);
-			const context = sliceContext(existsSync(agreement) ? readFileSync(agreement, 'utf8') : '', current.slices);
-			const restarting = step === 'build' && argv.includes('--restart-units');
-			const plan = restarting ? parseBuildUnits(existsSync(agreement) ? readFileSync(agreement, 'utf8') : '') : null;
-			if (restarting && plan?.kind !== 'units') throw new StepGateError('wf step build --restart-units needs a valid ## Units table');
-			if (['build', 'assess', 'review', 'pr'].includes(step) && context.kind === 'invalid' && !restarting) throw new StepGateError(context.why);
-			if ((step === 'assess' || step === 'review') && context.kind === 'pending') throw new StepGateError('start the declared units with wf next before handing off');
-			if (step === 'pr' && context.kind !== 'single' && context.kind !== 'integration') throw new StepGateError('unit approval is not delivery approval — complete the units and integration first');
-			// The handoff past the build needs a wf check green of the implementation as it is: a build
-			// that skipped `wf check`, or whose check could not run, does not reach the assessment or T2.
+			// The handoff past the build: a committed, un-fenced tree with named proof. `wf check` is the
+			// build's own tool, not a gate here; a person or the independent reviewer owns whether it ran.
 			if (step === 'assess' || step === 'review') {
 				const gap = assessmentHandoffGap(toplevel, { ...current, class: klass });
 				if (gap) throw new StepGateError(gap);
@@ -256,7 +170,7 @@ export async function runStep(argv: string[], { quiet = false, buildReason, resu
 				if (gap) throw new StepGateError(gap);
 			}
 			const base = flag('base') ?? current.base ?? null;
-			const assessmentFile = context.kind === 'unit' ? context.assessmentFile : 'ASSESSMENT.md';
+			const assessmentFile = ASSESSMENT_FILE;
 			const assessmentPath = current.folder ? join(toplevel, current.folder, assessmentFile) : null;
 			const baseline = step === 'assess' && !(resumeAssessment && current.build_reason?.kind === 'handoff' && current.assessment_baseline?.file === assessmentFile) && (current.step !== 'assess' || current.assessment_baseline?.file !== assessmentFile)
 				? { assessment_baseline: { file: assessmentFile, sha: assessmentContentSha(assessmentPath && existsSync(assessmentPath) ? readFileSync(assessmentPath, 'utf8') : null) } }
@@ -265,7 +179,6 @@ export async function runStep(argv: string[], { quiet = false, buildReason, resu
 				...baseline,
 				build_reason: step === 'build' ? buildReason ?? current.build_reason ?? null : null,
 				wf_version: WF_STATE_VERSION,
-				...(restarting && plan?.kind === 'units' ? { slices: initializeSlices(plan, sh(['rev-parse', 'HEAD'])), repairs: 0 } : step === 'build' && context.kind === 'pending' ? { slices: initializeSlices(context.plan, sh(['rev-parse', 'HEAD'])), repairs: 0 } : {}),
 				round, class: klass, base, step, since,
 				waiting_on: waitingOn ?? current.questions?.[0]?.to ?? null,
 				history: stepHistory(current.history, step, since),

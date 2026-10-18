@@ -14,7 +14,7 @@ Before dispatching a wf helper, use your brief's wf entry to run `wf models` and
 model explicitly. The round worker's own model is not the helper's model.
 
 The phases are `agree` (write the working agreement; for class B/C this is T1's input), `build`
-(implement the scope the brief names and run `wf check`; end by running `wf step assess`) and
-`assess` (one independent, read-only judgement of that scope, written to the file the brief names).
-There is no per-commit dispatch: a build resumes in place, and a large task's units each get a
-fresh one.
+(implement and choose relevant project verification; end by running `wf step assess`) and
+`assess` (one independent, read-only final judgment, written to the file the brief names).
+The builder owns steps, delegation and context management; a commit or worker session is not a
+workflow milestone. Honor human checkpoints agreed for the work.

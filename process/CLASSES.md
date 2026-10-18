@@ -38,6 +38,6 @@ for the diff. For known implementation paths, record `paths: src/path, another/p
 in the ticket's `## Scope` (an optional `## Files` list in the ticket or agreement also works).
 These are anticipated repo-relative files, including new files; a directory uses its trailing `/`.
 Record paths already known from intake or discovered during build; ordinary work needs no exhaustive file plan.
-`wf next` measures these hints and verification-case files against the same globs before
+`wf next` measures these hints and actual changed files against the same globs before
 dispatching a build. A match requires B and T1 whatever the `Class:` line says; new contract
 scope discovered during build stops the next build brief for agreement. A class never downgrades (A→B→C).

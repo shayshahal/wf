@@ -112,7 +112,7 @@ writeFileSync(join(irFolder, 'AGREEMENT-REVIEW.md'), 'agreement-sha: deadbeef\n\
 writeFileSync(join(irFolder, 'option-a.html'), '<p>x</p>\n');
 writeFileSync(join(ir, '.wf', 'AGREEMENT.html'), '<p>agreement page</p>\n');
 writeFileSync(join(ir, '.wf', 'checks.log'), '{"row":1,"result":"red"}\nnot json\n{"row":3,"result":"green","content":"run 3"}\n');
-const irState: State = { wf_version: 2, class: 'B', folder: 'bug-reports/BJEW-9', step: 'build', base: 'dev', questions: [{ n: 1, to: 'user', text: 'hide or delete?', asked: '2026-10-10T00:00:00Z' }], session: { harness: 'pi', id: 'sess-1234567890', transcript: 'C:/t/s.jsonl', step: 'build', at: '2026-10-10T01:00:00Z' }, decisions: [{ text: 'keep it', at: '2026-10-10T00:30:00Z' }] };
+const irState: State = { wf_version: 3, class: 'B', folder: 'bug-reports/BJEW-9', step: 'build', base: 'dev', questions: [{ n: 1, to: 'user', text: 'hide or delete?', asked: '2026-10-10T00:00:00Z' }], session: { harness: 'pi', id: 'sess-1234567890', transcript: 'C:/t/s.jsonl', step: 'build', at: '2026-10-10T01:00:00Z' }, decisions: [{ text: 'keep it', at: '2026-10-10T00:30:00Z' }] };
 const gitFake = (args: string[]) => args[0] === 'status' ? ' M packages/x.ts\0?? bug-reports/BJEW-9/new.md\0' : ' packages/x.ts | 5 +++--\n 2 files changed, 5 insertions(+), 2 deletions(-)\n';
 const fakeIdentity = () => 'run 3';
 check('porcelain keeps git\'s exact staged/unstaged XY', JSON.stringify(porcelainEntries('M  a.ts\0 M b.ts\0MM c.ts\0?? d.ts\0')) === JSON.stringify([{ status: 'M ', path: 'a.ts' }, { status: ' M', path: 'b.ts' }, { status: 'MM', path: 'c.ts' }, { status: '??', path: 'd.ts' }]));
@@ -155,7 +155,7 @@ check('name-status lists the committed change set, a rename by its destination, 
     mkdirSync(join(repo, folder), { recursive: true });
     mkdirSync(join(repo, '.wf'), { recursive: true });
     writeFileSync(join(repo, folder, 'AGREEMENT.md'), '# AGREEMENT\n\n## Observed\n- x\n\n## Agreed\n- y\n\n## Verification\n\n| # | case | files | check |\n|---|---|---|---|\n| 1 | a | b | c |\n');
-    writeFileSync(join(repo, '.wf', 'state.json'), JSON.stringify({ wf_version: 2, round: 'fix/x', id: 'x', folder, class: 'B', step: 'review', base: 'main' }));
+    writeFileSync(join(repo, '.wf', 'state.json'), JSON.stringify({ wf_version: 3, round: 'fix/x', id: 'x', folder, class: 'B', step: 'review', base: 'main' }));
     writeFileSync(join(repo, 'committed.txt'), 'committed\n');
     git('add', '-A'); git('commit', '-qm', 'the whole round committed, worktree clean');
     const st = JSON.parse(readFileSync(join(repo, '.wf', 'state.json'), 'utf8')) as State;

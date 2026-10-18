@@ -1,8 +1,6 @@
 // deliver.selfcheck.ts — node deliver.selfcheck.ts → exit 0 when green.
 // Fixture agreement + assessment → the PR title, the PR body, the tracker note.
-import { commitRows, deliveryResume, existingNoteAction, githubPrRepo, githubRepo, hookRefused, noteComplete, originTarget, prBody, prLookup, prTitle, redactRemote, refusedPushSection, sliceDeliveryGap, t2Gap } from './deliver.ts';
-import { initializeSlices, parseBuildUnits } from '../round/build-units.ts';
-import type { BuildPlan } from '../round/build-units.ts';
+import { commitRows, deliveryResume, existingNoteAction, githubPrRepo, githubRepo, hookRefused, noteComplete, originTarget, prBody, prLookup, prTitle, redactRemote, refusedPushSection, t2Gap } from './deliver.ts';
 import type { State } from '../round/state.ts';
 
 let failures = 0;
@@ -10,7 +8,7 @@ const check = (name: string, cond: boolean, detail = '') =>
 	(console.log(cond ? `  ok   ${name}` : `  FAIL ${name}${detail ? ` — ${detail}` : ''}`) as unknown) || (cond || failures++);
 
 // The current contract is process/AGREEMENT-TEMPLATE.md and prompts/assess.md, not a legacy
-// PLAN.md/VALIDATION.md: a class B agreement (Observed + Agreed + Verification + Units) and a final
+// PLAN.md/VALIDATION.md: a class B agreement (Observed + Agreed + Verification + Repro) and a final
 // assessment (Verdict/head + Intent/Behavior and evidence/Design/Standards). The commit subject is
 // deliberately NOT the case name: the formatter must list the two independently (#112).
 const ticket = ['# BJEW-1 — the code never arrives', '', '## Intent', '- Shay, 2026-01-01: "the code never arrives"'].join('\r\n');
@@ -37,7 +35,7 @@ const agreement = [
 	'|---|---|---|---|',
 	'| 1 | fix(auth): the send result raises | `packages/backend/app/api/auth.py` | `packages/backend/app/api/auth.spec.ts::raises@12` |',
 	'',
-	'## Units',
+	'## Repro',
 	'',
 	'1. capture the result',
 	'2. raise at the caller',
@@ -76,7 +74,7 @@ check('the commits are one row per pushed commit, no case, hash or check joined 
 check('the verification cases are listed separately, with no commit hash in them', body.includes('## Verification\n\n| # | case | check |\n|---|---|---|\n| 1 | fix(auth): the send result raises | `packages/backend/app/api/auth.spec.ts::raises@12` |') && !/## Verification[\s\S]*abc1234/.test(body));
 check('the case name and the commit subject need not match, and the files cell and Row instructions are gone', !body.includes('app/api/auth.py |') && !body.includes('Row 1:') && body.indexOf('fix(auth): raise at the caller') < body.indexOf('fix(auth): the send result raises'));
 check('the T2 walk and the assessment verdict/head/intent/evidence/design/standards are there', body.includes('## T2 walk\n\nopen: /login as shay') && body.includes('## Assessment\n\nVerdict: clean\nhead: abc123') && body.includes('### Intent\n\n- the code never arrives: met: auth.py:1 · before: discarded · after: raised') && body.includes('### Behavior and evidence\n\n`wf check` green on auth.spec.ts::raises@12') && body.includes('### Design\n\nnone') && body.includes('### Standards\n\n- error handling: followed'));
-check('the agreement’s working notes (units) are folded, not in what the reviewer reads first', body.includes('<summary>Working notes — units</summary>') && body.includes('1. capture the result') && !visible.includes('1. capture the result'));
+check('the agreement’s working notes (repro) are folded, not in what the reviewer reads first', body.includes('<summary>Working notes — repro</summary>') && body.includes('1. capture the result') && !visible.includes('1. capture the result'));
 check('no legacy plan/validation machinery survives: no Approach, Not doing, Build, Suites or Plan history', !body.includes('## Approach') && !body.includes('## Not doing') && !body.includes('## Build') && !body.includes('## Suites') && !body.includes('## Unplanned') && !body.includes('Plan history') && !body.includes('Revision ('));
 check('a body under the budget is not called shortened', !body.includes('Shortened:') && body.trimEnd().endsWith('</details>'));
 check('an empty agreement gives a commits table of the pushed commits alone', JSON.stringify(commitRows(['- abc1234 one'])) === JSON.stringify(['| abc1234 | one |']) && JSON.stringify(commitRows(['not a commit line'])) === '[]');
@@ -86,7 +84,7 @@ check('an empty agreement gives a commits table of the pushed commits alone', JS
 const row = (n: number) => `| ${n} | feat(x): case ${n} | a.ts | node --test |`;
 const rows18 = Array.from({ length: 18 }, (_, i) => row(i + 1));
 const bigTicket = ['# JX-1 — a big round', '', '## Intent', '- the ask'].join('\n');
-const bigAgreement = ['# AGREEMENT — JX-1 · «a big round»', '', '## Observed', '', '- fact:1', '', '## Agreed', '', '- **Behavior.** a', '- **T2 walk.** open: /users/1', '', '## Verification', '| # | case | files | check |', ...rows18, '', '## Units', '', 'u'.repeat(70000)].join('\n');
+const bigAgreement = ['# AGREEMENT — JX-1 · «a big round»', '', '## Observed', '', '- fact:1', '', '## Agreed', '', '- **Behavior.** a', '- **T2 walk.** open: /users/1', '', '## Verification', '| # | case | files | check |', ...rows18, '', '## Repro', '', 'u'.repeat(70000)].join('\n');
 const bigCommits = Array.from({ length: 18 }, (_, i) => `- c${i}abcd feat(x): case ${i + 1}`);
 const bigAssessment = `# JX-1 — final assessment\nVerdict: clean\nhead: abc\n\n## Intent\n- the ask: met: a.ts:1 · before: red · after: green\n\n## Behavior and evidence\n${'e'.repeat(2000)}\n\n## Design\nnone`;
 const fit = prBody({ ticket: bigTicket, agreement: bigAgreement, commitLines: bigCommits, assessment: bigAssessment, agreementPath: 'bug-reports/jx-1/AGREEMENT.md' });
@@ -190,27 +188,11 @@ check('deliver\u2019s own interrupted write is completed, not refused forever', 
 check('a scaffold truncated after one body line is completed though noteComplete calls it complete', noteComplete(cutAfterOneLine, ['BJEW-1']) && existingNoteAction(cutAfterOneLine, scaffold, ['BJEW-1']) === 'replace');
 check('a note deliver cannot account for is refused', existingNoteAction('## BJEW-9\nx\n', scaffold, ['BJEW-1']) === 'refuse' && existingNoteAction('<!-- wf: cut off -->\n', scaffold, ['BJEW-1']) === 'refuse');
 
-// A planned round delivers only after every unit is done, each checkpoint approved, and REVIEW.md's
-// verdict is scoped `integration`. A chunk's approval (REVIEW-unit-<n>.md, scope unit:<n>) is never a
-// merge, and an active unit is never deliverable (build-units.ts, HUMAN-TOUCHPOINTS.md).
-const planUnitsText = '## Verification\n\n| # | case | files | check |\n|---|---|---|---|\n| 1 | a | x.ts | \u2014 |\n| 2 | b | y.ts | \u2014 |\n\n## Units\n\n| # | unit | cases | depends on | review after |\n|---|---|---|---|---|\n| 1 | the schema | 1 | \u2014 | shape |\n| 2 | the API | 2 | 1 | \u2014 |\n';
-const planUnits = parseBuildUnits(planUnitsText) as BuildPlan;
-const planStart = initializeSlices(planUnits, 'h0');
-const scopedVerdict = (scope: string) => `base: h0\nscope: ${scope}\nverdict: approved\n`;
-const doneUnits = { ...planStart, unit: null, base: 'h2', reviewBase: 'h1', completed: [{ n: 1, head: 'h1', reviewed: true }, { n: 2, head: 'h2', reviewed: false }] };
-check('an active unit cannot be delivered', (sliceDeliveryGap(planUnits, planStart, scopedVerdict('unit:1')) ?? '').includes('still being built'), sliceDeliveryGap(planUnits, planStart, scopedVerdict('unit:1')) ?? '');
-check('a chunk approval is not the integration', (sliceDeliveryGap(planUnits, doneUnits, scopedVerdict('unit:1')) ?? '').includes('not integration'), sliceDeliveryGap(planUnits, doneUnits, scopedVerdict('unit:1')) ?? '');
-check('an unscoped verdict is not the integration either', (sliceDeliveryGap(planUnits, doneUnits, 'verdict: approved\n') ?? '').includes('not integration'));
-check('every unit reviewed with scope integration delivers', sliceDeliveryGap(planUnits, doneUnits, scopedVerdict('integration')) === null);
-const gapUnit1 = { ...doneUnits, completed: [{ n: 1, head: 'h1', reviewed: false }, { n: 2, head: 'h2', reviewed: false }] };
-check('a unit whose checkpoint was never approved blocks delivery', (sliceDeliveryGap(planUnits, gapUnit1, scopedVerdict('integration')) ?? '').includes('checkpoint review'), sliceDeliveryGap(planUnits, gapUnit1, scopedVerdict('integration')) ?? '');
-const notDone = { ...doneUnits, unit: null, completed: [{ n: 1, head: 'h1', reviewed: true }] };
-check('a plan whose later unit never finished blocks delivery', (sliceDeliveryGap(planUnits, notDone, scopedVerdict('integration')) ?? '').includes('never completed'), sliceDeliveryGap(planUnits, notDone, scopedVerdict('integration')) ?? '');
-check('progress made against another plan is refused', (sliceDeliveryGap(planUnits, { ...doneUnits, planSha: 'other' }, scopedVerdict('integration')) ?? '').includes('changed'));
-check('a single-build plan with no slices delivers on the verdict alone', sliceDeliveryGap({ kind: 'single' }, undefined, 'verdict: approved\n') === null);
-check('slices without a plan now is a changed plan, not a delivery', (sliceDeliveryGap({ kind: 'single' }, planStart, 'verdict: approved\n') ?? '').includes('plan changed'));
-check('a plan with no slices at all is refused', (sliceDeliveryGap(planUnits, undefined, scopedVerdict('integration')) ?? '').includes('no state.slices'));
-check('an invalid table refuses delivery', (sliceDeliveryGap({ kind: 'invalid', why: 'bad' }, undefined, scopedVerdict('integration')) ?? '').includes('cannot be read'));
+// The final review is the unscoped one. A checkpoint verdict copied into REVIEW.md carries
+// `scope: checkpoint` and delivery refuses it; an unscoped approval delivers (deliver.ts t2Gap).
+check('a checkpoint verdict cannot approve delivery', (t2Gap({ step: 'pr' }, 'base: h0\nscope: checkpoint\nverdict: approved\n') ?? '').includes('only the final review'));
+check('a unit-scoped verdict from before the cutover is refused too', (t2Gap({ step: 'pr' }, 'scope: unit:1\nverdict: approved\n') ?? '').includes('only the final review'));
+check('an unscoped approval delivers on the verdict alone', t2Gap({ step: 'pr' }, 'verdict: approved\n') === null);
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');
 process.exit(failures ? 1 : 0);

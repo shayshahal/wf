@@ -3,15 +3,13 @@
 // (B/C) with T1, build, one final assessment with bounded repair, the explicit blocked/capped ruling
 // and the class A T2 walk. A reviewer's verdict and measured head are the only machine-read claims.
 import { execFileSync } from 'node:child_process';
-import { appendFileSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { nextAction, unpostedSections } from './next.ts';
 import type { Snapshot } from './next.ts';
-import { checkGap } from './step.ts';
-import { readState, legacyStateGap } from './state.ts';
+import { readState, legacyStateGap, WF_STATE_VERSION } from './state.ts';
 import { WF_ROOT } from '../paths.ts';
-import { worktreeContentSha } from '../gates/content-identity.ts';
 
 let failures = 0;
 const check = (name: string, cond: boolean, detail = '') =>
@@ -67,12 +65,8 @@ check('class A build: one phase, resumed in place (no per-commit dispatch)', say
 check('a blocked build waits on the user with the question', say(base({ step: 'build', files: { agreement: null, assessment: null, review: null, blocked: 'Question: which label?\n' } })) === 'wait user: blocked — which label?');
 
 // ── a check round: it writes ## Repro, then wf check --repro is the answer
-check('a check round with no ## Repro: dispatch agree to write it', say(base({ check: true })).startsWith('dispatch agree') && say(base({ check: true })).includes('no `## Repro`'), say(base({ check: true })));
-check('a check round with ## Repro: run wf check --repro and wait on the user', say(base({ check: true, files: { agreement: TICKET + '\n## Repro\ncommand: yarn repro\n', assessment: null, review: null, blocked: null } })).startsWith('check: run `node C:/wf/wf.mjs check --repro`'), say(base({ check: true })));
-const emptyRepro = base({ check: true, reproEmpty: true, files: { agreement: TICKET + '\n## Repro\ncommand: yarn repro\n', assessment: null, review: null, blocked: null } });
-check('a check round with ## Repro but an empty repro/: dispatch agree to write the spec', say(emptyRepro).startsWith('dispatch agree') && say(emptyRepro).includes('repro/'), say(emptyRepro));
-const outside = base({ check: true, reproOutside: 'run 1 red at api.ts:502', files: { agreement: TICKET + '\n## Repro\ncommand: yarn repro\n', assessment: null, review: null, blocked: null } });
-check('a check round whose unchanged repro was recorded "not the defect": dispatch agree with the failure', say(outside).startsWith('dispatch agree') && say(outside).includes('(again: the repro never measured the defect — run 1 red at api.ts:502') && !say(outside).includes('again: again:'), say(outside));
+check('a check round with no ## Repro: dispatch agree to write and run the repro', say(base({ check: true })).startsWith('dispatch agree') && say(base({ check: true })).includes('no `## Repro`'), say(base({ check: true })));
+check('a check round with ## Repro: wait on the person decision, no wf check dispatch', say(base({ check: true, files: { agreement: TICKET + '\n## Repro\ncommand: yarn repro\n', assessment: null, review: null, blocked: null } })).startsWith('wait user: the repro result'), say(base({ check: true })));
 
 // ── consequential (B/C): one agreement, one T1
 check('B/C with no agreement: dispatch agree with the gap', say(base({ klass: 'B' })).startsWith('dispatch agree') && say(base({ klass: 'B' })).includes('no AGREEMENT.md'), say(base({ klass: 'B' })));
@@ -194,55 +188,10 @@ const spentToFix = { ...spent, answered: [{ n: 1, to: 'user', text: 'x', source:
 check('a repair-cap fix ruling returns to build', steps(spentToFix).join() === 'build' && asks(spentToFix).length === 0, say(spentToFix));
 check('R-6: the blocked question carries the whole assessment, including the unmet finding', asks(blocked)[0].text.includes('not met: the modal still jumps') && asks(blocked)[0].text.includes('answer `accept`'), asks(blocked)[0].text);
 
-// ── verification handoff (JX-1239): a build cannot hand off to assess without a wf-recorded green of
-// this implementation; harness trouble stops with a named cause. A clean reviewer verdict then passes
-// the boundary, whatever its prose says; the mechanical check identity is what gates.
-const line = (o: object) => JSON.stringify({ ts: 't', row: null, rowCheck: null, tasks: [], ...o });
-const GREEN = (content?: string) => line({ result: 'green', ...(content ? { content } : {}) });
-const ENV_RED = (content?: string) => line({ tasks: [{ label: 'stack', exit: null, missing: 'the stack would not answer' }], result: 'red', cause: 'environment', ...(content ? { content } : {}) });
-const CODE_RED = (content: string) => line({ tasks: [{ label: 'unit', exit: 1 }], result: 'red', cause: 'code', content });
-const SUITES = (result: string, content: string, labels = ['unit']) => line({ row: 'suites', head: 'H4', tasks: labels.map((label) => ({ label, exit: result === 'green' ? 0 : 1 })), result, content });
-const ev = (log: string[], content: string | null = 'tree:w1') => ({ log: log.map((l) => `${l}\n`).join(''), content });
-const filesWith = (assessment: string) => ({ agreement: TICKET_WALK, assessment, review: null, blocked: null });
-const cleanLive = ASSESS() + '\n## Live\n- Intent 1: INCONCLUSIVE — mobile/LTR not driven, no scenario setup — proof/none\n';
-
-const noCheck = base({ step: 'assess', checks: ev([]), files: filesWith(ASSESS()) });
-check('assess with no wf check on record goes back to build, never to the assessor or T2', steps(noCheck).join() === 'build' && say(noCheck).startsWith('dispatch build') && say(noCheck).includes('wf check'), say(noCheck));
-const stale = base({ step: 'assess', checks: ev([GREEN('tree:w0')]), files: filesWith(ASSESS()) });
-check('assess whose last green measured other bytes is stale: back to build', steps(stale).join() === 'build' && say(stale).includes('changed since'), say(stale));
-check('assess whose last check at these bytes is red: back to build', steps(base({ step: 'assess', checks: ev([GREEN('tree:w0'), CODE_RED('tree:w1')]), files: filesWith(ASSESS()) })).join() === 'build');
-check('a green of these bytes (paperwork commits do not move its content) lets the assessment stand', say(base({ step: 'assess', checks: ev([GREEN('tree:w1')]), files: filesWith(ASSESS()) })).startsWith('review: T2'));
-const harness = base({ step: 'assess', checks: ev([], null), files: filesWith(ASSESS()) });
-check('git cannot compute the tree: an actionable stop naming the harness, not a build dispatch', say(harness).startsWith('wait user: harness') && steps(harness).length === 0, say(harness));
-const envRed = base({ step: 'build', checks: ev([ENV_RED('tree:w1')]) });
-check('a build that ended on an environment red of these bytes stops on the harness, not another dispatch', say(envRed).startsWith('wait user: harness') && say(envRed).includes('the stack would not answer'), say(envRed));
-check('an environment red of older bytes is not a stop: the build changed since and is dispatched', say(base({ step: 'build', checks: ev([ENV_RED('tree:w0')]) })).startsWith('dispatch build'));
-check('a build with a code red is dispatched again (product trouble, not harness)', say(base({ step: 'build', checks: ev([CODE_RED('tree:w1')]) })).startsWith('dispatch build'));
-check('a first build dispatch with an empty log is not a harness stop', say(base({ step: 'build', checks: ev([]) })).startsWith('dispatch build'));
-
-// A reviewer's clean verdict is not re-judged from prose: unmeasured Live lines and red suites at
-// these bytes reach T2. The mechanical checkGap still gates the handoff (no green of these bytes →
-// build), never a fix-or-accept vote about whether the reviewer's evidence is good enough.
-const inconclusive = base({ step: 'assess', checks: ev([GREEN('tree:w1')]), files: filesWith(cleanLive) });
-check('a clean verdict with an unmeasured Live line reaches T2', say(inconclusive).startsWith('review: T2') && asks(inconclusive).length === 0, say(inconclusive));
-const redSuite = base({ step: 'assess', checks: ev([GREEN('tree:w1'), SUITES('red', 'tree:w1', ['unit', 'e2e'])]), files: filesWith(ASSESS() + '\n## Behavior and evidence\nthe 3 red cases are in a file this round never touched, so unrelated\n') });
-check('a clean verdict with red suites at these bytes reaches T2', say(redSuite).startsWith('review: T2') && asks(redSuite).length === 0, say(redSuite));
-
-// #127, JX-275: review and the assess policy must agree after HEAD/check evidence moves.
-for (const [name, snapshot] of [
-	['moved HEAD', base({ step: 'assess', checks: ev([GREEN('tree:w1')]), files: filesWith(ASSESS({ head: 'H3' })) })],
-	['changed implementation', stale],
-	['code red', base({ step: 'assess', checks: ev([CODE_RED('tree:w1')]), files: filesWith(ASSESS()) })],
-	['missing assessment', base({ step: 'assess', checks: ev([GREEN('tree:w1')]) })],
-	['harness failure', harness],
-] satisfies [string, Snapshot][]) {
-	const assessed = nextAction(snapshot);
-	const reviewed = nextAction({ ...snapshot, step: 'review' });
-	check(`#127: review applies the assess policy for ${name}`, reviewed.say === assessed.say && !reviewed.say.startsWith('review: T2'), reviewed.say);
-	if (assessed.say.startsWith('dispatch assess')) check(`#127: ${name} moves review back to assess`, reviewed.effects.some((e) => e.step?.join(' ') === 'assess'));
-}
-check('#127: dismissed but stale review still repairs freshness first', say({ ...stale, step: 'review', files: { ...stale.files, review: 'verdict: dismissed\n' } }).startsWith('dispatch build'));
-check('#127: fresh review continues to T2 without state effects', say(base({ step: 'review', checks: ev([GREEN('tree:w1')]), files: filesWith(ASSESS()) })).startsWith('review: T2') && steps(base({ step: 'review', checks: ev([GREEN('tree:w1')]), files: filesWith(ASSESS()) })).length === 0);
+// #127, JX-275: review applies the same assessment-freshness policy as assess, so a stale or
+// missing assessment at review goes back to assess, never to T2.
+check("#127: a missing assessment at review dispatches assess, not T2", say(base({ step: "review" })).startsWith("dispatch assess"), say(base({ step: "review" })));
+check("#127: an assessment of an earlier HEAD at review dispatches assess", say(base({ step: "review", files: { agreement: null, assessment: ASSESS({ head: "H3" }), review: null, blocked: null } })).includes("HEAD is H4"));
 
 // ── helpers
 check('unpostedSections names the sections without (posted)', unpostedSections('## A (posted)\n## B\n').join() === 'B');
@@ -251,7 +200,8 @@ check('unpostedSections names the sections without (posted)', unpostedSections('
 check('a state with no wf_version is refused with an actionable line', (legacyStateGap({ step: 'implement' }) ?? '').includes('older wf') && (legacyStateGap({ step: 'implement' }) ?? '').includes('wf_version'));
 check('a versionless state at a shared step (classify/review/pr/held/merged) is refused too', ['classify', 'review', 'pr', 'held', 'merged'].every((step) => (legacyStateGap({ step }) ?? '').includes('older wf')));
 check('a versionless state with no step is refused too', (legacyStateGap({ round: 'r' }) ?? '').includes('older wf'));
-check('a state at the current version is accepted', legacyStateGap({ wf_version: 2, step: 'build' }) === null);
+check('a state at the current version is accepted', legacyStateGap({ wf_version: WF_STATE_VERSION, step: 'build' }) === null);
+check('a version-2 state (with executable units) is refused, not reinterpreted', (legacyStateGap({ wf_version: 2, step: 'build' }) ?? '').includes('version 2'));
 check('no state is not a legacy round', legacyStateGap(null) === null);
 
 // ── real CLI: an ordinary class A round reaches build through wf next; a legacy state is refused
@@ -273,14 +223,14 @@ const cli = (repo: string, ...args: string[]) => {
 	mkdirSync(join(repo, 'bug-reports/r'), { recursive: true });
 	writeFileSync(join(repo, 'bug-reports/r/TICKET.md'), TICKET);
 	mkdirSync(join(repo, '.wf'), { recursive: true });
-	writeFileSync(join(repo, '.wf', 'state.json'), `${JSON.stringify({ wf_version: 2, round: 'r', id: 'r', folder: 'bug-reports/r', base: 'main', step: 'classify', class: 'A' }, null, 2)}\n`);
+	writeFileSync(join(repo, '.wf', 'state.json'), `${JSON.stringify({ wf_version: WF_STATE_VERSION, round: "r", id: "r", folder: "bug-reports/r", base: "main", step: "classify", class: "A" }, null, 2)}\n`);
 	const next = cli(repo, 'next');
 	check('CLI: an ordinary class A round steps to build and dispatches it', next.code === 0 && next.out.includes('dispatch build') && readState(repo)?.step === 'build', next.out);
 	// the class is measured: a ticket declaring Class: B upgrades the round before any build
 	writeFileSync(join(repo, 'bug-reports/r/TICKET.md'), `${TICKET}\nClass: B\n`);
 	mkdirSync(join(repo, 'docs', 'agents'), { recursive: true });
 	writeFileSync(join(repo, 'docs', 'agents', 'contract-paths.txt'), 'src/**\n');
-	writeFileSync(join(repo, '.wf', 'state.json'), `${JSON.stringify({ wf_version: 2, round: 'r', id: 'r', folder: 'bug-reports/r', base: 'main', step: 'classify', class: 'A' }, null, 2)}\n`);
+	writeFileSync(join(repo, '.wf', 'state.json'), `${JSON.stringify({ wf_version: WF_STATE_VERSION, round: "r", id: "r", folder: "bug-reports/r", base: "main", step: "classify", class: "A" }, null, 2)}\n`);
 	const upgraded = cli(repo, 'next');
 	check('CLI: an agreement declaring Class: B upgrades the round and takes T1', upgraded.code === 0 && readState(repo)?.class === 'B' && upgraded.out.includes('T1'), upgraded.out);
 	// the version guard refuses a mutating command on a legacy state
@@ -295,15 +245,9 @@ const cli = (repo: string, ...args: string[]) => {
 	rmSync(repo, { recursive: true, force: true });
 }
 
-// pure: the evidence readers next and step share
-check('checkGap: a green of these bytes is no gap; null content is a harness gap', checkGap(ev([GREEN('tree:w1')])) === null && checkGap(ev([], null))?.kind === 'harness');
-check('checkGap: an unavailable line with no content is the harness; changed or code red are product trouble', checkGap(ev([line({ result: 'unavailable' })]))?.kind === 'harness' && checkGap(ev([line({ result: 'changed', content: 'tree:w1' })]))?.kind === 'check' && checkGap(ev([CODE_RED('tree:w1')]))?.kind === 'check');
-check('checkGap: a later green of the same bytes outweighs an earlier environment red; repro and suites lines are not checks', checkGap(ev([ENV_RED('tree:w1'), GREEN('tree:w1')])) === null && checkGap(ev([line({ row: 'repro', result: 'stable', content: 'tree:w1' }), SUITES('green', 'tree:w1')]))?.say === 'no wf check has run in this round');
-check('checkGap: a later unavailable check supersedes an older green even without a content identity', checkGap(ev([GREEN('tree:w1'), line({ result: 'unavailable' })]))?.kind === 'harness');
-check('checkGap: a truncated log line is skipped, not fatal', checkGap({ log: `${GREEN('tree:w1')}
-{"ts":"t","re`, content: 'tree:w1' }) === null);
 
-// ── real CLI: the handoff boundary is enforced on a direct `wf step`, not only through wf next
+// ── real CLI: the handoff boundary on a direct `wf step` — a committed tree, and no protected oracle
+// edit; no wf check green is required (the agent chooses its checks).
 {
 	const repo = mkdtempSync(join(tmpdir(), 'wf-handoff-'));
 	git(repo, 'init', '-q', '-b', 'main');
@@ -312,76 +256,32 @@ check('checkGap: a truncated log line is skipped, not fatal', checkGap({ log: `$
 	writeFileSync(join(repo, '.gitignore'), '.wf/\n');
 	git(repo, 'add', '-A');
 	git(repo, 'commit', '-q', '-m', 'base');
+	// The base branch the oracle guard reads (project baseBranch is dev).
+	git(repo, 'update-ref', 'refs/remotes/origin/dev', 'HEAD');
 	git(repo, 'checkout', '-q', '-b', 'fix/r');
 	mkdirSync(join(repo, 'bug-reports/r'), { recursive: true });
 	writeFileSync(join(repo, 'bug-reports/r/TICKET.md'), TICKET_WALK);
 	mkdirSync(join(repo, '.wf'), { recursive: true });
-	writeFileSync(join(repo, '.wf', 'state.json'), `${JSON.stringify({ wf_version: 2, round: 'r', id: 'r', folder: 'bug-reports/r', base: 'main', step: 'build', class: 'A' }, null, 2)}\n`);
-	const logGreen = () => appendFileSync(join(repo, '.wf', 'checks.log'), `${GREEN(worktreeContentSha(repo, 'bug-reports/r', null, 'row'))}\n`);
+	const stateAt = (step: string) => writeFileSync(join(repo, '.wf', 'state.json'), `${JSON.stringify({ wf_version: WF_STATE_VERSION, round: 'r', id: 'r', folder: 'bug-reports/r', base: 'origin/dev', step, class: 'A' }, null, 2)}\n`);
+	stateAt('build');
+	// Uncommitted product cannot hand off: the assessment judges a committed implementation.
 	writeFileSync(join(repo, 'a.txt'), 'b\n');
+	const dirty = cli(repo, 'step', 'assess');
+	check('CLI: wf step assess refuses an uncommitted tree', dirty.code === 2 && dirty.out.includes('commit the implementation'), dirty.out);
 	git(repo, 'commit', '-q', '-am', 'fix');
-	const noLog = cli(repo, 'step', 'assess');
-	check('CLI: wf step assess with no wf check on record is refused and the state stays at build', noLog.code === 2 && noLog.out.includes('wf check') && readState(repo)?.step === 'build', noLog.out);
-	appendFileSync(join(repo, '.wf', 'checks.log'), `${ENV_RED()}\n`);
-	const envLog = cli(repo, 'step', 'review');
-	check('CLI: wf step review is the same boundary, and a harness trouble says BLOCKED.md', envLog.code === 2 && envLog.out.includes('BLOCKED.md') && readState(repo)?.step === 'build', envLog.out);
-	logGreen();
-	writeFileSync(join(repo, 'bug-reports/r/ASSESSMENT.md'), 'paperwork\n');
-	git(repo, 'add', '-A');
-	git(repo, 'commit', '-q', '-m', 'paper');
-	const ok = cli(repo, 'step', 'assess');
-	check('CLI: a green of this implementation hands off, and a paperwork-only commit after it does not regress it', ok.code === 0 && readState(repo)?.step === 'assess', ok.out);
-	writeFileSync(join(repo, 'bug-reports/r/ASSESSMENT.md'), ASSESS({ head: git(repo, 'rev-parse', 'HEAD').trim() }) + '\n## Live\n- INCONCLUSIVE — mobile path not driven\n');
-	const cleanReview = cli(repo, 'step', 'review');
-	check('CLI: a clean verdict passes the review boundary regardless of unmeasured prose', cleanReview.code === 0 && readState(repo)?.step === 'review', cleanReview.out);
+	stateAt('build');
+	const committed = cli(repo, 'step', 'assess');
+	check('CLI: a committed implementation hands off with no wf check required', committed.code === 0 && readState(repo)?.step === 'assess', committed.out);
+	// The assessment must name the HEAD it judged; a product change after it is stale at review.
+	writeFileSync(join(repo, 'bug-reports/r/ASSESSMENT.md'), ASSESS({ head: git(repo, 'rev-parse', 'HEAD').trim() }));
+	stateAt('assess');
+	const review = cli(repo, 'step', 'review');
+	check('CLI: a clean assessment at this HEAD passes to review', review.code === 0 && readState(repo)?.step === 'review', review.out);
 	writeFileSync(join(repo, 'a.txt'), 'c\n');
-	git(repo, 'commit', '-q', '-am', 'product after the check');
-	const after = cli(repo, 'step', 'review');
-	check('CLI: a product change after the last green is refused at the next boundary', after.code === 2 && after.out.includes('changed since'), after.out);
-	const backToBuild = cli(repo, 'next');
-	check('#127 CLI: next repairs stale checks at review instead of recommending a refused review', backToBuild.code === 0 && backToBuild.out.startsWith('dispatch build') && readState(repo)?.step === 'build', backToBuild.out);
-	logGreen();
-	writeFileSync(join(repo, 'bug-reports/r/ASSESSMENT.md'), ASSESS({ head: git(repo, 'rev-parse', 'HEAD').trim() }));
-	cli(repo, 'step', 'review');
-	git(repo, 'add', 'bug-reports/r'); git(repo, 'commit', '-qm', 'paperwork moves assessed HEAD, not implementation');
-	const staleReview = cli(repo, 'step', 'review');
-	check('#127 CLI: review gate identifies a moved assessed HEAD with unchanged checks', staleReview.code === 2 && staleReview.out.includes('HEAD is'), staleReview.out);
-	const backToAssess = cli(repo, 'next');
-	check('#127 CLI: next dispatches assess and persists assess after a moved HEAD', backToAssess.code === 0 && backToAssess.out.startsWith('dispatch assess') && readState(repo)?.step === 'assess', backToAssess.out);
-	writeFileSync(join(repo, 'bug-reports/r/ASSESSMENT.md'), ASSESS({ head: git(repo, 'rev-parse', 'HEAD').trim() }));
-	const freshReview = cli(repo, 'next');
-	check('#127 CLI: a fresh assessment restores a review the step gate accepts', freshReview.out.startsWith('review: T2') && cli(repo, 'step', 'review').code === 0, freshReview.out);
-	rmSync(repo, { recursive: true, force: true });
-}
-
-// ── #139, JX-1068 real CLI: a class A ticket with no T2 walk is refused at the review boundary — the
-// direct `wf step review` and `wf next`, which sends the build back to record it — and reaches T2 only
-// once the bullet is there.
-{
-	const repo = mkdtempSync(join(tmpdir(), 'wf-walk-'));
-	git(repo, 'init', '-q', '-b', 'main');
-	git(repo, 'config', 'core.autocrlf', 'false');
-	writeFileSync(join(repo, '.gitignore'), '.wf/\n');
-	writeFileSync(join(repo, 'a.txt'), 'a\n');
-	git(repo, 'add', '-A');
-	git(repo, 'commit', '-q', '-m', 'base');
-	git(repo, 'checkout', '-q', '-b', 'fix/r');
-	mkdirSync(join(repo, 'bug-reports/r'), { recursive: true });
-	writeFileSync(join(repo, 'bug-reports/r/TICKET.md'), TICKET);
-	mkdirSync(join(repo, '.wf'), { recursive: true });
-	const assessState = `${JSON.stringify({ wf_version: 2, round: 'r', id: 'r', folder: 'bug-reports/r', base: 'main', step: 'assess', class: 'A' }, null, 2)}\n`;
-	writeFileSync(join(repo, '.wf', 'state.json'), assessState);
-	writeFileSync(join(repo, 'bug-reports/r/ASSESSMENT.md'), ASSESS({ head: git(repo, 'rev-parse', 'HEAD') }));
-	appendFileSync(join(repo, '.wf', 'checks.log'), `${GREEN(worktreeContentSha(repo, 'bug-reports/r', null, 'row'))}\n`);
-	const refusedReview = cli(repo, 'step', 'review');
-	check('#139 CLI: wf step review refuses a class A ticket with no T2 walk, naming TICKET.md', refusedReview.code === 2 && refusedReview.out.includes('T2 walk') && refusedReview.out.includes('TICKET.md'), refusedReview.out);
-	const refuseNext = cli(repo, 'next');
-	check('#139 CLI: wf next dispatches the build to record the walk, not T2', refuseNext.code === 0 && refuseNext.out.startsWith('dispatch build') && refuseNext.out.includes('T2 walk') && readState(repo)?.step === 'build', refuseNext.out);
-	// The build records the walk; a paperwork change does not move the implementation or the assessed HEAD.
-	writeFileSync(join(repo, 'bug-reports/r/TICKET.md'), TICKET_WALK);
-	writeFileSync(join(repo, '.wf', 'state.json'), assessState);
-	const walked = cli(repo, 'next');
-	check('#139 CLI: with the walk recorded, wf next reaches T2', walked.code === 0 && walked.out.startsWith('review: T2'), walked.out);
+	git(repo, 'commit', '-q', '-am', 'product after the assessment');
+	stateAt('assess');
+	const stale = cli(repo, 'step', 'review');
+	check('CLI: a product change after the assessment is refused at review', stale.code === 2 && stale.out.includes('HEAD is'), stale.out);
 	rmSync(repo, { recursive: true, force: true });
 }
 

@@ -1,30 +1,12 @@
-// baseline-run.ts — the isolated scratch environment a red-base ("before") run gets (#133).
+// baseline-run.ts — optional isolated baseline work through the normal worktree/setup/teardown seams.
+// JX-1069: reverting live files for a before measurement left the dev server serving stale code.
+// A scratch instead starts from the whole requested ref and receives only the caller's explicit
+// probe inputs. Choosing the comparison, inputs and test command belongs to the caller; this module
+// neither selects agreement rows nor interprets assertions. The live tree/index/stack stay untouched.
 //
-// The observed failure (JX-1069): `wf check` ran a `verification/` spec's red-base by stashing the
-// row's change out of the LIVE worktree and driving the LIVE stack. Vite kept serving the pre-stash
-// bundle after the change was restored, so the "before" measurement was taken against code the round
-// no longer had, and repair cycles went to the stale server instead of the defect.
-//
-// A red-base task that drives the app (`task.stack`) is therefore run in the project's own scratch
-// worktree at the baseline commit, through the same seams `wf new`/`wf reap` use (worktrees/worktree.ts:
-// createWorktree, removalPlan). The live worktree, its index and the live stack are never touched.
-//
-// Unlike the in-place path (`withFixReverted`, which takes ONLY the row's named implementation files
-// back), the isolated before side is the WHOLE baseline tree at `ref`, with the case's current test
-// inputs copied in. That is what the issue needs: the live round keeps its fixed code, index and
-// serving app, while the before measurement runs against a full baseline checkout on the baseline
-// branch's own stack and database. `isTestInput` decides which declared files are copied (the test plus
-// its helpers/fixtures/config); the fence already requires every changed file to be declared, so a new
-// transitive test dependency is declared too. The row's fixed implementation is never copied.
-//
-// The scratch is at the baseline, so the case's own test and the helpers/fixtures/config it loads are
-// copied in — not the row's implementation, which must stay at the baseline. The scratch is torn down
-// in a finally, and `remove()` returns the steps that did NOT confirm the resource released, so the
-// caller can refuse a green rather than silently claim the scratch is gone (#133 review).
-//
-// Ownership and concurrency are explicit: the scratch branch is a fixed name per round, so a run
-// refuses when it already exists (a concurrent `wf check` or a crash's leftover) instead of deleting a
-// ref it did not make. `remove()` deletes only the branch and worktree this run created.
+// The caller removes the scratch in a finally and reports unconfirmed cleanup. A fixed branch name
+// and exclusive lock refuse concurrent runs or crash leftovers rather than deleting another run's
+// resources. remove() only releases the branch and worktree this handle created.
 import { execFileSync, spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { appendFileSync, closeSync, copyFileSync, existsSync, lstatSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync, writeSync } from 'node:fs';
@@ -205,7 +187,7 @@ export function scratchDestination(root: string, file: string): string {
 }
 
 /**
- * Creates the scratch worktree at `ref`, copies the case's probe/test inputs into it, and returns the
+ * Creates the scratch worktree at `ref`, copies the caller's explicit probe inputs into it, and returns the
  * handle. Throws (after cleaning any partially created resource) when the branch already exists. The
  * caller MUST call `remove()` in a finally and refuse a green if it returns failures.
  */

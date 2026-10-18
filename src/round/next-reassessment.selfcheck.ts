@@ -41,7 +41,7 @@ try {
 	const file = join(repo, folder, 'ASSESSMENT.md');
 	writeFileSync(file, assessment(head));
 	utimesSync(file, new Date(0), new Date(0));
-	writeFileSync(join(repo, '.wf/state.json'), JSON.stringify({ wf_version: 2, folder, round: 'r', id: 'r', base: 'main', class: 'A', step: 'build', repairs: 2, answered: [{ n: 1, to: 'user', text: 'fix or accept', source: `ASSESSMENT.md#${head}`, answer: 'perform the missing page check', asked: 't', answered: 't' }] }));
+	writeFileSync(join(repo, '.wf/state.json'), JSON.stringify({ wf_version: 3, folder, round: 'r', id: 'r', base: 'main', class: 'A', step: 'build', repairs: 2, answered: [{ n: 1, to: 'user', text: 'fix or accept', source: `ASSESSMENT.md#${head}`, answer: 'perform the missing page check', asked: 't', answered: 't' }] }));
 	appendFileSync(join(repo, '.wf/checks.log'), `${JSON.stringify({ result: 'green', content: worktreeContentSha(repo, folder, null, 'row') })}\n`);
 	const handoff = cli(repo, 'step', 'assess');
 	check('the measurement-only repair hands off without changing HEAD', handoff.code === 0 && readState(repo)?.step === 'assess' && git(repo, 'rev-parse', 'HEAD') === head, handoff.out);

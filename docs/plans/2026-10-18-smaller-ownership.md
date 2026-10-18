@@ -112,8 +112,51 @@ Baseline: `bbb1656` (`origin/main` when the reduction worktree was created). Tra
 
 Before-change safety check: `src/gates/content-identity.selfcheck.ts` passes from an isolated archive of `bbb1656`. It exercises stale/unbound approval refusal, uncommitted product at review, mutating checks and push hooks, sibling path identity and the existing checkpoint safety path. Re-run its retained invariants against the replacement; deleted unit scheduling assertions need replacement checkpoint coverage, not preservation of the scheduler.
 
-First cut in progress: remove assessment-prose routing and obligatory repair-response/proof formats. Retain explicit reviewer outcomes and mechanical assessment freshness. Executable units and verification-row enforcement are later cuts; do not describe this first cut as the completed reduction.
+Implementation complete in this worktree, uncommitted at the time of writing. Three cuts landed
+together, so no state or caller still depends on a deleted protocol.
 
-Next-cut design: retain optional human-agreed checkpoints as explicit `wf review --checkpoint` diff reviews, separate from final `REVIEW.md`; checkpoint approvals resume building and never authorize delivery. Remove the plan-table scheduler and per-unit assessment/receipt state rather than replacing them with another registry. Ordinary command execution and records belong to the harness, not a new generic wf command language.
+**Cut 1 — assessment prose and repair responses.** Automated routing no longer reads `NOT MEASURED`,
+`surviving:`, `material:`, `deferred:` or quoted intent lines; the reviewer states `Verdict: clean |
+repair | blocked` and prose explains it. The obligatory R1/source/content-sha response documents and
+question-specific proof files are gone from the prompts and the runtime. Kept: the explicit outcome,
+`head:`/`assessed-at` freshness, durable questions and rulings.
 
-No publication or active-round cutover is authorized by the local implementation record. Validate the replacement and finish incompatible active rounds before deployment.
+**Cut 2 — mandatory per-case baseline, repro and suite policy.** `wf check` is now an optional
+project affected-check runner (`runCheck` with no arguments): no `--case`/`--repro`/`--suites`, no
+three-run repro verdict, no assertion/selector parsing, no expected-red or refactor rules, no
+per-case file fence, no cached baseline proof. Deleted `src/gates/baseline-proof.ts`,
+`projects/jewelryx/evidence.ts`, `parseReproRequirements` and the project's selected-test/suite
+machinery. Kept: process supervision and cancellation, curated runner environment, requested
+readiness/profile leases, before/after measured-tree identity, protected-oracle refusal and the
+isolated baseline scratch (`baseline-run.ts`) for callers that want a before side.
+
+**Cut 3 — executable units and duplicate handoff judges.** Deleted `src/round/build-units.ts` and
+`slice-workflow.selfcheck.ts` with the `## Units` parser, per-unit assessments
+(`ASSESSMENT-unit-*`), receipts, `state.slices`, the integration route and `--restart-units`.
+`WF_STATE_VERSION` is 3 and a version-2 state is refused with an actionable line rather than
+reinterpreted. The semantic handoff hook (`wf handoff check`, the sent-back marker, the no-fork
+policy) is replaced by session recording only (`wf handoff record`); the Claude Code plugin keeps
+one SubagentStop hook and no PreToolUse hook. Replacing the per-unit route, `wf review <round>
+--checkpoint [--base <ref>]` appends `CHECKPOINT-REVIEW.md` with `scope: checkpoint`; approval and
+requested changes both return to build, and a scoped verdict can never approve delivery (the final
+`--done` and `deliver.ts` refuse it). No new state field, registry or scheduler.
+
+Net effect in this worktree: 80 files changed, 1,040 insertions, 6,304 deletions (~5,264 lines
+removed) against `bbb1656`.
+
+Evidence (local, focused): `node src/selfcheck.ts` runs 74 checks — 72 `*.selfcheck.ts` files plus
+`tsc` and `eslint` — all green in ~143 s, including the retained adversarial arms (stale approval,
+uncommitted product at review, a mutated tree during a check, push hooks, unowned process release,
+interrupted delivery, protected-file refusal) and new checkpoint coverage: approve → build,
+changes-requested → build, copied checkpoint verdict into `REVIEW.md` → final refuses.
+
+Not yet done, by design: no deployment, no Version bump in `.claude-plugin/plugin.json`, no
+active-round cutover, and no measured comparison against the JX-437/JX-1399 timings. Validation
+still owed before deployment: one real lifecycle cycle (a small bug and a larger change with one
+correction, measured), and finishing any round still on version 2.
+
+One unrelated flake was seen once under full-suite load and not reproduced standalone:
+`env/adapters/plannotator-inbox.selfcheck.ts`'s 300 ms no-answer arm.
+
+No publication or active-round cutover is authorized by this local implementation record. Validate
+the replacement and finish incompatible active rounds before deployment.

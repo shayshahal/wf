@@ -87,7 +87,7 @@ rmSync(dir, { recursive: true, force: true });
 		mkdirSync(join(repo, '.wf'), { recursive: true });
 		writeFileSync(join(repo, folder, 'TICKET.md'), '# T\n\n## Intent\n- a thing should change — the requester said so\n');
 		writeFileSync(join(repo, folder, 'AGREEMENT.md'), '# AGREEMENT — DEC\n\n## Observed\n- a fact at `a.txt:1`\n\n## Agreed\n\n- **Behavior.** the thing changes\n- **T2 walk.** open: `b2b /catalog as buyer`\n\n## Verification\n\n| # | case | files | check |\n|---|---|---|---|\n| 1 | fix(dec): thing | `a.txt` | `a.spec.ts::x@1` |\n');
-		writeFileSync(join(repo, '.wf', 'state.json'), JSON.stringify({ wf_version: 2, made_by: 'kit', round: 'fix/dec', id: 'dec', folder, base: 'main', class: 'B', step: 'build', since: '2026-10-10T00:00:00Z' }));
+		writeFileSync(join(repo, '.wf', 'state.json'), JSON.stringify({ wf_version: 3, made_by: 'kit', round: 'fix/dec', id: 'dec', folder, base: 'main', class: 'B', step: 'build', since: '2026-10-10T00:00:00Z' }));
 		const run = join(WF_ROOT, 'wf.mjs');
 		const wf = (...args: string[]) => execFileSync(process.execPath, [run, ...args], { cwd: repo, encoding: 'utf8' });
 		wf('decide', 'keep the existing button');
@@ -97,16 +97,15 @@ rmSync(dir, { recursive: true, force: true });
 		const repairPrompt = wf('prompt', 'build');
 		check('a normal T2 repair reaches the real build brief without renewing T1', repairPrompt.includes('inputs should be wider') && repairPrompt.includes('proof/after-he-1280.png') && readState(repo)?.step === 'build', repairPrompt);
 		const agreementPrompt = wf('prompt', 'agree');
-		check('agreement separates preservation cases from defect assertion bindings', agreementPrompt.includes('A preservation case uses `refactor: path::<test id>`') && agreementPrompt.includes('fails on the claimed behavior') && agreementPrompt.includes('manual:') && agreementPrompt.includes('a preservation case includes the changed'));
+		check('agreement records the verification plan as cases a build works from', agreementPrompt.includes('| # | case | files | check |') && agreementPrompt.includes('manual:') && agreementPrompt.includes('the builder may refine'));
 		for (const phase of ['build', 'assess']) {
 			const prompt = wf('prompt', phase);
-			check(`${phase}: the real brief distinguishes defect proof from preservation checks`, phase === 'build'
-				? prompt.includes('Keep preservation checks green on both sides') && prompt.includes('behavioral assertion')
-				: prompt.includes('inspect its selected test and named assertion') && prompt.includes('green on both sides') && prompt.includes('representation alone'));
-			check(`${phase}: visual claims require the relevant rendered state, not attribute/class proxies`, prompt.includes('rendered evidence of clipping') && prompt.includes('configured filter bounds') && prompt.includes('relevant certificate row') && prompt.includes('aria-invalid'));
+			check(`${phase}: the real brief weighs the promised behavior, not a proxy or an unrun check`, phase === 'build'
+				? prompt.includes('Measure the promised behavior') && prompt.includes('inspect `control-jewelryx errors`')
+				: prompt.includes('value/reset behavior') && prompt.includes('does not prove rendered clipping'));
 			const count = (prompt.match(/keep the existing button/g) ?? []).length;
 			check(`the decision reaches the ${phase} prompt exactly once`, count === 1, `count=${count}`);
-			if (phase === 'assess') check('the assessor judges evidence plainly and leaves fixable work to the builder', prompt.includes("Judge the builder's chosen verification and repair approach on its evidence") && prompt.includes('fixable work\nwithin the agreement returns to the builder') && !prompt.includes('Repair responses') && !prompt.includes('R1:'));
+			if (phase === 'assess') check('the assessor judges evidence plainly and leaves fixable work to the builder', prompt.includes('Addressable product or evidence gaps are repair findings') && !prompt.includes('Repair responses') && !prompt.includes('R1:'));
 		}
 		// #137: a contradictory proof is a fixable reading/recording gap, not a first-pass
 		// human product ruling. This checks routing after the assessor names the contradiction;
@@ -149,7 +148,7 @@ rmSync(dir, { recursive: true, force: true });
 		mkdirSync(join(repo, folder), { recursive: true });
 		mkdirSync(join(repo, '.wf'), { recursive: true });
 		const ticket = '# Guidance\n## Intent\n- preserve the existing behavior\n';
-		const state = { wf_version: 2, round: 'fix/guidance', id: 'guidance', folder, base: 'main', step: 'build', class: 'A' };
+		const state = { wf_version: 3, round: 'fix/guidance', id: 'guidance', folder, base: 'main', step: 'build', class: 'A' };
 		const wf = (...args: string[]) => execFileSync(process.execPath, [join(WF_ROOT, 'wf.mjs'), ...args], { cwd: repo, encoding: 'utf8' });
 		for (const withCases of [false, true]) {
 			writeFileSync(join(repo, folder, 'TICKET.md'), ticket + (withCases ? '\n## Verification\n| # | case | files | check |\n|---|---|---|---|\n| 1 | refactor: existing behavior | src/planned.txt src/committed.txt | — |\n' : ''));

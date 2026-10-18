@@ -54,7 +54,7 @@ function repo(branch: string, klass: 'A' | 'B', agreement: string | null) {
 	writeFileSync(join(dir, 'bug-reports/r/TICKET.md'), TICKET);
 	if (agreement !== null) writeFileSync(join(dir, 'bug-reports/r/AGREEMENT.md'), agreement);
 	mkdirSync(join(dir, '.wf'), { recursive: true });
-	writeFileSync(join(dir, '.wf/state.json'), `${JSON.stringify({ wf_version: 2, round: 'r', id: 'r', folder: 'bug-reports/r', base: 'main', step: 'agree', class: klass }, null, 2)}\n`);
+	writeFileSync(join(dir, '.wf/state.json'), `${JSON.stringify({ wf_version: 3, round: 'r', id: 'r', folder: 'bug-reports/r', base: 'main', step: 'agree', class: klass }, null, 2)}\n`);
 	return { dir, git };
 }
 function cli(dir: string, ...args: string[]) {
@@ -102,25 +102,11 @@ const approve = (dir: string, klass: 'B', agreement: string) => {
 	rmSync(dir, { recursive: true, force: true });
 }
 
-// ── scope: an unrelated change is refused, a helper inside a case is allowed
-{
-	const { dir } = repo('fix/routeS', 'A', null);
-	writeFileSync(join(dir, '.wf/state.json'), `${JSON.stringify({ wf_version: 2, round: 'r', id: 'r', folder: 'bug-reports/r', base: 'main', step: 'build', class: 'A' }, null, 2)}\n`);
-	writeFileSync(join(dir, 'bug-reports/r/TICKET.md'), `${TICKET}\n## Verification\n| # | case | files | check |\n|---|---|---|---|\n| 1 | fix(x): one | src/Page.svelte | — |\n`);
-	// An edit to a file no case names is refused by the scope fence.
-	writeFileSync(join(dir, 'src/Other.svelte'), 'x\n');
-	const refused = cli(dir, 'check');
-	check('scope: a change outside the agreement\'s cases is refused', refused.code === 1 && refused.out.includes('fence: src/Other.svelte'), refused.out);
-	const line = JSON.parse(readFileSync(join(dir, '.wf/checks.log'), 'utf8').trim().split('\n').at(-1)!);
-	check('scope: the refused run is recorded red, not green', line.result === 'red' && line.cause === 'code', JSON.stringify(line));
-	rmSync(dir, { recursive: true, force: true });
-}
-
 // ── the assessment: a repair returns to build, bounded; a blocked verdict asks one durable ruling
 {
 	const { dir } = repo('fix/routeR', 'A', null);
 	const assess = (v: string, intent: string) => `# r — assessment\nVerdict: ${v}\nhead: ${execFileSync('git', ['-C', dir, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()}\n## Intent\n${intent}\n${v === 'repair' ? '\n## Repairs\n- R1: scroll position | action: fix the scroll restoration and drive the modal regression case\n' : ''}`;
-	const setStep = (step: string, extra: object = {}) => writeFileSync(join(dir, '.wf/state.json'), `${JSON.stringify({ wf_version: 2, round: 'r', id: 'r', folder: 'bug-reports/r', base: 'main', step, class: 'A', ...extra })}\n`);
+	const setStep = (step: string, extra: object = {}) => writeFileSync(join(dir, '.wf/state.json'), `${JSON.stringify({ wf_version: 3, round: 'r', id: 'r', folder: 'bug-reports/r', base: 'main', step, class: 'A', ...extra })}\n`);
 	setStep('assess');
 	checked(dir);
 	writeFileSync(join(dir, 'bug-reports/r/ASSESSMENT.md'), assess('repair', '- "x": met: src/Page.svelte:1 · before: red · after: green'));
@@ -203,7 +189,7 @@ head: ${git('rev-parse', 'HEAD').trim()}
 // ── the classic flow: a decided exclusion goes through no obsolete dispatch
 {
 	const { dir } = repo('fix/routeX', 'A', null);
-	writeFileSync(join(dir, '.wf/state.json'), `${JSON.stringify({ wf_version: 2, round: 'r', id: 'r', folder: 'bug-reports/r', base: 'main', step: 'assess', class: 'A' }, null, 2)}\n`);
+	writeFileSync(join(dir, '.wf/state.json'), `${JSON.stringify({ wf_version: 3, round: 'r', id: 'r', folder: 'bug-reports/r', base: 'main', step: 'assess', class: 'A' }, null, 2)}\n`);
 	const head = execFileSync('git', ['-C', dir, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
 	// An excluded intent line with a reason is a clean assessment: it reaches T2, not a question.
 	writeFileSync(join(dir, 'bug-reports/r/ASSESSMENT.md'), `# r — assessment\nVerdict: clean\nhead: ${head}\n## Intent\n- "x": left out: overruled by Shay, 2026-10-10: a separate ticket\n`);
@@ -216,12 +202,10 @@ head: ${git('rev-parse', 'HEAD').trim()}
 // ── a raw `--case` names its file, so the fence and the executed-proof run on the class A alternative
 {
 	const { dir } = repo('fix/routeRaw', 'A', null);
-	writeFileSync(join(dir, '.wf/state.json'), `${JSON.stringify({ wf_version: 2, round: 'r', id: 'r', folder: 'bug-reports/r', base: 'main', step: 'build', class: 'A' })}\n`);
+	writeFileSync(join(dir, '.wf/state.json'), `${JSON.stringify({ wf_version: 3, round: 'r', id: 'r', folder: 'bug-reports/r', base: 'main', step: 'build', class: 'A' })}\n`);
 	writeFileSync(join(dir, 'src/Other.svelte'), 'x\n');
-	const fenced = cli(dir, 'check', '--case', 'src/Page.spec.ts::sidebar renders@42');
-	check('raw --case: a change outside the named file is fenced', fenced.code === 1 && fenced.out.includes('fence: src/Other.svelte'), fenced.out);
 	// no case at all, a product file changed, no project check: refuse rather than log an empty green
-	writeFileSync(join(dir, '.wf/state.json'), `${JSON.stringify({ wf_version: 2, round: 'r', id: 'r', folder: 'bug-reports/r', base: 'main', step: 'build', class: 'A' })}\n`);
+	writeFileSync(join(dir, '.wf/state.json'), `${JSON.stringify({ wf_version: 3, round: 'r', id: 'r', folder: 'bug-reports/r', base: 'main', step: 'build', class: 'A' })}\n`);
 	const empty = cli(dir, 'check');
 	check('no-case check: a product change with no case and no project check refuses (no empty green)', empty.code === 1 && empty.out.includes('COULD NOT RUN'), empty.out);
 	const line = JSON.parse(readFileSync(join(dir, '.wf/checks.log'), 'utf8').trim().split('\n').at(-1)!);
@@ -233,7 +217,7 @@ head: ${git('rev-parse', 'HEAD').trim()}
 // other untracked file can make the refusal pass for the wrong reason)
 {
 	const { dir } = repo('fix/routeCommit', 'A', null);
-	writeFileSync(join(dir, '.wf/state.json'), `${JSON.stringify({ wf_version: 2, round: 'r', id: 'r', folder: 'bug-reports/r', base: 'main', step: 'build', class: 'A' })}\n`);
+	writeFileSync(join(dir, '.wf/state.json'), `${JSON.stringify({ wf_version: 3, round: 'r', id: 'r', folder: 'bug-reports/r', base: 'main', step: 'build', class: 'A' })}\n`);
 	writeFileSync(join(dir, 'src/Committed.svelte'), 'y\n');
 	execFileSync('git', ['-C', dir, '-c', 'user.name=t', '-c', 'user.email=t@t', 'add', 'src/Committed.svelte']);
 	execFileSync('git', ['-C', dir, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'add committed product']);
@@ -241,8 +225,6 @@ head: ${git('rev-parse', 'HEAD').trim()}
 	check('R-1: a committed-only product change with no case refuses (no empty green)', committedOnly.code === 1 && committedOnly.out.includes('COULD NOT RUN'), committedOnly.out);
 	const cline = JSON.parse(readFileSync(join(dir, '.wf/checks.log'), 'utf8').trim().split('\n').at(-1)!);
 	check('R-1: the committed-only refusal is recorded red, not green', cline.result === 'red', JSON.stringify(cline));
-	const fenceCommitted = cli(dir, 'check', '--case', 'src/Page.spec.ts::sidebar renders@42');
-	check('R-1: a committed product change outside the named case is fenced', fenceCommitted.code === 1 && fenceCommitted.out.includes('fence: src/Committed.svelte'), fenceCommitted.out);
 	// N-2: the index differs while the worktree is back at HEAD (a plain `git commit` would commit it)
 	writeFileSync(join(dir, 'src/Committed.svelte'), 'z\n');
 	execFileSync('git', ['-C', dir, '-c', 'user.name=t', '-c', 'user.email=t@t', 'add', 'src/Committed.svelte']);
@@ -255,7 +237,7 @@ head: ${git('rev-parse', 'HEAD').trim()}
 // ── N-1: an unresolved base fails closed with one actionable line, never an empty green or a git fatal
 {
 	const { dir } = repo('fix/routeBase', 'A', null);
-	writeFileSync(join(dir, '.wf/state.json'), `${JSON.stringify({ wf_version: 2, round: 'r', id: 'r', folder: 'bug-reports/r', base: 'origin/does-not-exist', step: 'build', class: 'A' })}\n`);
+	writeFileSync(join(dir, '.wf/state.json'), `${JSON.stringify({ wf_version: 3, round: 'r', id: 'r', folder: 'bug-reports/r', base: 'origin/does-not-exist', step: 'build', class: 'A' })}\n`);
 	writeFileSync(join(dir, 'src/Committed.svelte'), 'y\n');
 	execFileSync('git', ['-C', dir, '-c', 'user.name=t', '-c', 'user.email=t@t', 'add', 'src/Committed.svelte']);
 	execFileSync('git', ['-C', dir, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'committed product']);
@@ -309,7 +291,7 @@ for (const mode of ['ordinary', 'check', 'C', 'discovery']) {
 	writeFileSync(join(dir, 'docs/agents/contract-paths.txt'), 'src/shared/**\n');
 	const ticket = `${TICKET}\n## Scope\n- paths: ${mode === 'ordinary' ? 'src/Page.svelte' : 'src/shared/Future.ts'}\n`;
 	writeFileSync(join(dir, 'bug-reports/r/TICKET.md'), ticket);
-	if (mode !== 'ordinary') writeFileSync(join(dir, '.wf/state.json'), JSON.stringify({ wf_version: 2, round: 'r', id: 'r', folder: 'bug-reports/r', base: 'main', step: mode === 'discovery' ? 'build' : 'agree', class: mode === 'C' ? 'C' : 'A', check: mode === 'check' }));
+	if (mode !== 'ordinary') writeFileSync(join(dir, '.wf/state.json'), JSON.stringify({ wf_version: 3, round: 'r', id: 'r', folder: 'bug-reports/r', base: 'main', step: mode === 'discovery' ? 'build' : 'agree', class: mode === 'C' ? 'C' : 'A', check: mode === 'check' }));
 	const next = cli(dir, 'next');
 	if (mode === 'ordinary') check('scope: ordinary planned paths stay lightweight', next.out.includes('dispatch build') && state(dir).class === 'A', next.out);
 	if (mode === 'check') check('scope: a check round still reproduces without upgrading', next.out.includes('dispatch agree') && state(dir).class === 'A', next.out);
@@ -321,7 +303,7 @@ for (const mode of ['ordinary', 'check', 'C', 'discovery']) {
 // ── class measurement sees the index too: a restored worktree must not hide a contract edit
 {
 	const { dir, git } = repo('fix/routeIndexClass', 'A', null);
-	writeFileSync(join(dir, '.wf/state.json'), `${JSON.stringify({ wf_version: 2, round: 'r', id: 'r', folder: 'bug-reports/r', base: 'main', step: 'build', class: 'A' })}\n`);
+	writeFileSync(join(dir, '.wf/state.json'), `${JSON.stringify({ wf_version: 3, round: 'r', id: 'r', folder: 'bug-reports/r', base: 'main', step: 'build', class: 'A' })}\n`);
 	mkdirSync(join(dir, 'docs/agents'), { recursive: true });
 	writeFileSync(join(dir, 'docs/agents/contract-paths.txt'), 'src/**\n');
 	writeFileSync(join(dir, 'src/Page.svelte'), 'changed contract\n');
@@ -335,7 +317,7 @@ for (const mode of ['ordinary', 'check', 'C', 'discovery']) {
 // ── an answered BLOCKED.md resumes the build once; the same answer never loops
 {
 	const { dir } = repo('fix/routeBlk', 'A', null);
-	writeFileSync(join(dir, '.wf/state.json'), `${JSON.stringify({ wf_version: 2, round: 'r', id: 'r', folder: 'bug-reports/r', base: 'main', step: 'build', class: 'A' })}\n`);
+	writeFileSync(join(dir, '.wf/state.json'), `${JSON.stringify({ wf_version: 3, round: 'r', id: 'r', folder: 'bug-reports/r', base: 'main', step: 'build', class: 'A' })}\n`);
 	writeFileSync(join(dir, 'bug-reports/r/BLOCKED.md'), 'Question: which label?\n');
 	const wait = cli(dir, 'next');
 	check('blocked: no answer waits on the user', wait.out.includes('wait user: blocked'), wait.out);
@@ -366,7 +348,7 @@ for (const mode of ['ordinary', 'check', 'C', 'discovery']) {
 // unchanged agreement cannot leave the old T1 approval in force (R-3)
 {
 	const { dir } = repo('fix/routeRev', 'A', null);
-	writeFileSync(join(dir, '.wf/state.json'), `${JSON.stringify({ wf_version: 2, round: 'r', id: 'r', folder: 'bug-reports/r', base: 'main', step: 'agree', class: 'A', revisions: [{ text: 'the modal must also close on Escape', at: '2026-10-10T00:00:00Z' }] })}\n`);
+	writeFileSync(join(dir, '.wf/state.json'), `${JSON.stringify({ wf_version: 3, round: 'r', id: 'r', folder: 'bug-reports/r', base: 'main', step: 'agree', class: 'A', revisions: [{ text: 'the modal must also close on Escape', at: '2026-10-10T00:00:00Z' }] })}\n`);
 	const rev = cli(dir, 'next');
 	check('revision: a recorded revision dispatches a fresh agreement, not a build', rev.out.startsWith('dispatch agree') && rev.out.includes('asked the agreement to change'), rev.out);
 	const again = cli(dir, 'next');
@@ -387,7 +369,7 @@ for (const mode of ['ordinary', 'check', 'C', 'discovery']) {
 - new
 `);
 	const currentSha = revisionSha(dir, 'A', 'bug-reports/r');
-	writeFileSync(join(dir, '.wf/state.json'), `${JSON.stringify({ wf_version: 2, round: 'r', id: 'r', folder: 'bug-reports/r', base: 'main', step: 'agree', class: 'A', revisions: [
+	writeFileSync(join(dir, '.wf/state.json'), `${JSON.stringify({ wf_version: 3, round: 'r', id: 'r', folder: 'bug-reports/r', base: 'main', step: 'agree', class: 'A', revisions: [
 		{ text: 'discharged-revision-marker', at: '2026-10-10T02:00:00Z', sha: oldSha },
 		{ text: 'open-revision-marker', at: '2026-10-10T01:00:00Z', sha: currentSha },
 	] })}\n`);
