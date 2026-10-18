@@ -29,6 +29,7 @@ machine-read parts; `## Observed` + `## Agreed` are the agreed material, and T1 
 - **Excluding.** <what this round does not touch, and where it lands instead>
 - **Choice.** <the one consequential choice, and the alternative it beat, one line why>
 - **Verification.** <the promise the cases below make>
+- **Not asked for.** <`none — <why>`, or one sub-bullet per addition no source asked for, with why it is needed>
 - **T2 walk.** <the `open:` line `wf show` follows: `open: <b2b|admin> </path> as <role> [mobile]>`, or `none — <why no walk is needed>`>
 - **Review chunks.** <only with `## Units`: each checkpoint in order, and what the person sees there>
 
@@ -63,6 +64,12 @@ command: <the command that reproduces the ticket, for a check round or a repro c
   rejected alternative, the verification promise and, with `## Units`, the review chunks. A
   different user-visible surface, contract path, persistence choice, or a dropped agreed item
   changes this section and so renews T1; a new helper, file, case row or wording does not.
+- **`**Not asked for.**`** separates what the round invents from what was asked. A source is the
+  ticket, the spec it cites, or a ruling in `## Decisions`; every behavior, screen, text or contract
+  change in `## Agreed` without one is listed here, and `wf agree` prints the list so T1 rules on
+  each item on its own. `wf agree` refuses an agreement without the bullet (JX-1367, 2026-10-18: a
+  new "amount held" line on the bid form, in neither the ticket nor the pricing spec, was approved
+  as one clause of `## Agreed` and noticed only after delivery).
 - **`## Verification`** is working detail, never part of the T1 sha: adding an ordinary helper to a
   case's `files` cell or refreshing an assertion location is the build's own. With `## Units`,
   adding a case also requires assigning it to a unit. `wf check` runs the matching case and refuses a changed product/test file

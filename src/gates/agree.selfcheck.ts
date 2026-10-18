@@ -17,9 +17,9 @@ try {
 	mkdirSync(join(repo, '.wf'), { recursive: true });
 	const state = JSON.stringify({ wf_version: 2, round: 'fix/r', base: 'main', class: 'B', step: 'agree', folder });
 	writeFileSync(join(repo, '.wf/state.json'), state);
-	const agreement = '# r\n## Observed\n- measured at a.txt:1\n## Agreed\n- Behavior: the requested change\nWALK\n## Verification\n| # | case | files | check |\n|---|---|---|---|\n| 1 | behavior | a.txt | manual: check behavior |\n';
+	const agreement = '# r\n## Observed\n- measured at a.txt:1\n## Agreed\n- Behavior: the requested change\nUNASKED\nWALK\n## Verification\n| # | case | files | check |\n|---|---|---|---|\n| 1 | behavior | a.txt | manual: check behavior |\n';
 	for (const walk of ['', '- T2 walk:', '- **T2 walk.**', '- T2 walk: open:']) {
-		writeFileSync(join(repo, folder, 'AGREEMENT.md'), agreement.replace('WALK', walk));
+		writeFileSync(join(repo, folder, 'AGREEMENT.md'), agreement.replace('UNASKED', '- **Not asked for.** none — the ticket names it').replace('WALK', walk));
 		const out = spawnSync(process.execPath, [join(WF_ROOT, 'wf.mjs'), 'agree', 'fix/r'], { cwd: repo, encoding: 'utf8' });
 		assert.equal(out.status, 2, `${out.stdout}${out.stderr}`);
 		assert.match(out.stderr, /T2 walk.*finish the agreement before T1/);
@@ -27,9 +27,17 @@ try {
 		assert.equal(existsSync(join(repo, '.wf/AGREEMENT-T1.html')), false);
 		assert.equal(existsSync(join(repo, folder, 'AGREEMENT-REVIEW.md')), false);
 	}
+	// JX-1367 (2026-10-18): no Not asked for bullet, or a bare none, is refused before T1 like a missing walk.
+	for (const unasked of ['', '- **Not asked for.** none']) {
+		writeFileSync(join(repo, folder, 'AGREEMENT.md'), agreement.replace('UNASKED', unasked).replace('WALK', '- T2 walk: open: /catalog as buyer'));
+		const out = spawnSync(process.execPath, [join(WF_ROOT, 'wf.mjs'), 'agree', 'fix/r'], { cwd: repo, encoding: 'utf8' });
+		assert.equal(out.status, 2, `${out.stdout}${out.stderr}`);
+		assert.match(out.stderr, /Not asked for.*finish the agreement before T1/);
+		assert.equal(existsSync(join(repo, '.wf/AGREEMENT-T1.html')), false);
+	}
 	// Fake only the review UI. The actual agree command still parses, validates and renders the page.
 	for (const marker of ['T2 walk:', '**T2 walk.**']) {
-		writeFileSync(join(repo, folder, 'AGREEMENT.md'), agreement.replace('WALK', `- ${marker} open: /catalog as buyer`));
+		writeFileSync(join(repo, folder, 'AGREEMENT.md'), agreement.replace('UNASKED', '- **Not asked for.**\n  - a held-total line on the bid form — the split legs must total it').replace('WALK', `- ${marker} open: /catalog as buyer`));
 		const code = `import { plug } from ${JSON.stringify(pathToFileURL(join(WF_ROOT, 'src/seams.ts')).href)};
 import { runAgree } from ${JSON.stringify(pathToFileURL(join(WF_ROOT, 'src/gates/agree.ts')).href)};
 plug({reviewUI:{available:()=>true,annotate:()=>{console.log('T1_OPEN');return '';}}});
@@ -37,6 +45,7 @@ await runAgree(['fix/r']);`;
 		const out = spawnSync(process.execPath, ['--input-type=module', '-e', code], { cwd: repo, encoding: 'utf8' });
 		assert.equal(out.status, 0, `${out.stdout}${out.stderr}`);
 		assert.match(out.stdout, /T1_OPEN/);
+		assert.match(out.stdout, /not asked for — decide each at T1:\n {2}- a held-total line on the bid form/);
 		assert.equal(existsSync(join(repo, '.wf/AGREEMENT-T1.html')), true);
 	}
 } finally {

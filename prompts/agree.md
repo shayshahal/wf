@@ -17,6 +17,10 @@ There is no separate research file, plan file or spec, and nothing here is a com
   measured it). A fact and a proposal never share a line.
 - `## Agreed` — what will change and what will not: the behavior, the exclusions, the one
   consequential choice with a rejected alternative, and the verification promise.
+  Its `**Not asked for.**` bullet lists every behavior, screen, text or contract change that no
+  source asked for (the requester's words above, the spec they cite, a ruling of the person's),
+  each with why it is needed; or `none — <why>`. An item that rides inside another bullet goes
+  unseen at T1.
 - `## Verification` — one table row per case:
 
   | # | case | files | check |

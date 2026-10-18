@@ -10,7 +10,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { agreementGap, agreementPath, ASSESSMENT_FILE, assessmentGap, consequential, section } from './agreement.ts';
+import { agreementGap, agreementPath, ASSESSMENT_FILE, assessmentGap, consequential, notAskedForGap, section } from './agreement.ts';
 import { CorruptStateError, legacyStateGap, readState, writeState } from './state.ts';
 import { hookSession, isRoundWorker, recordSession } from './session.ts';
 import type { State } from './state.ts';
@@ -32,7 +32,7 @@ export function stopGap(state: State | null, files: { agreement: string | null; 
 	const klass = state.class ?? null;
 	if (state.step === 'agree') {
 		if (!files.agreement) return `write ${consequential(klass) ? 'AGREEMENT.md' : 'TICKET.md'} (its sections) before you end`;
-		if (consequential(klass)) return agreementGap(files.agreement, klass, null);
+		if (consequential(klass)) return agreementGap(files.agreement, klass, null) ?? notAskedForGap(files.agreement);
 		if (!section(files.agreement, 'Intent')) return 'TICKET.md has no `## Intent` — the requester\'s words, verbatim';
 		return null;
 	}

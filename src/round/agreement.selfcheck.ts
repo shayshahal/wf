@@ -6,7 +6,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { anticipatedPaths } from './agreement.ts';
-import { agreementClass, agreementFile, agreementGap, agreementPath, agreementSha, revisionSha, assessmentGap, assessmentHead, assessmentMaterial, assessmentOpenGaps, assessmentSurviving, assessmentVerdict, ASSESSMENT_FILE, caseFiles, consequential, intentGap, section, verificationCases } from './agreement.ts';
+import { agreementClass, agreementFile, agreementGap, agreementPath, agreementSha, revisionSha, assessmentGap, assessmentHead, assessmentMaterial, assessmentOpenGaps, assessmentSurviving, assessmentVerdict, ASSESSMENT_FILE, caseFiles, consequential, intentGap, notAskedFor, notAskedForGap, section, verificationCases } from './agreement.ts';
 
 let failures = 0;
 const check = (name: string, cond: boolean, detail = '') =>
@@ -40,6 +40,13 @@ check('a B/C agreement missing the walk is refused before T1', (agreementGap(AGR
 check('a blank walk is refused before T1', (agreementGap(AGREEMENT.replace('open: /catalog as buyer', ''), 'C') ?? '').includes('T2 walk'));
 check('an explicit no-walk reason is valid for work without a page', agreementGap(AGREEMENT.replace('open: /catalog as buyer', 'none — the contract test is the proof'), 'B') === null);
 check('an ordinary ticket needs no agreement document', agreementGap('# t\n## Intent\n- x\n', 'A') === null);
+// JX-1367 (2026-10-18): an addition no source asked for is listed on its own, so T1 rules on it.
+const UNASKED = (bullet: string) => `## Agreed\n- Behavior: hold VAT with the bid.\n${bullet}- T2 walk: none — backend\n`;
+check('no Not asked for bullet is a gap before T1', (notAskedForGap(UNASKED('')) ?? '').includes('Not asked for'));
+check('a bare none is a gap: it must say why', (notAskedForGap(UNASKED('- **Not asked for.** none\n')) ?? '').includes('Not asked for'));
+check('none with a reason passes and lists nothing', notAskedForGap(UNASKED('- **Not asked for.** none — the ticket names every change\n')) === null && notAskedFor(UNASKED('- **Not asked for.** none — the ticket names every change\n')).length === 0);
+const LISTED = UNASKED('- **Not asked for.**\n  - a held-total line on the bid form — the split legs must total it\n');
+check('each addition is listed on its own, and the T2 walk is not swallowed', notAskedForGap(LISTED) === null && JSON.stringify(notAskedFor(LISTED)) === JSON.stringify(['a held-total line on the bid form — the split legs must total it']));
 check('files split from a case cell', caseFiles(cases[0]).join() === 'src/Page.svelte');
 
 // The material sha: what T1 approves. A progress edit to ## Verification or the addition of a
