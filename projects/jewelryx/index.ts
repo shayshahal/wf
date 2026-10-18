@@ -18,7 +18,12 @@ import { listWorktrees, mainCheckout, basePortForBranch } from '../../src/worktr
 import { homedir } from 'node:os';
 import { delimiter } from 'node:path';
 import { installShim, linkVerifySkill, unlinkCompetingSkills, verifyStackEnv, writeReproConfig } from './round.ts';
-export { waitForVerificationReady } from './readiness.ts';
+import type { VerificationProfile, VerificationRequirements } from './readiness.ts';
+export { parseReproRequirements, parseVerificationProfile, probeVerificationEndpoint, verificationEndpoints, waitForVerificationReady } from './readiness.ts';
+export type { VerificationProfile, VerificationRequirements } from './readiness.ts';
+
+/** Existing app checks retain shared authentication admission unless the project declares narrower needs. */
+export const defaultVerificationRequirements: VerificationRequirements = { kind: 'stack', profile: 'shared-auth', temporary: false };
 
 // This folder's name: skills, agents and prompts reach its notes as {{project}} (ROUND.md, prompts/<phase>.md).
 export const name: string = 'jewelryx';
@@ -64,6 +69,12 @@ export type Wrap = (o: { role: keyof Origins; port: number; command: string }) =
 export function directUrls(port: Port): Origins {
 	const p = Number(port);
 	return { b2b: `http://localhost:${p}`, admin: `http://localhost:${p + 20_000}`, api: `http://127.0.0.1:${p + 10_000}/api/v1` };
+}
+
+/** The direct endpoints owned by a server profile; a narrow release must not require unrelated apps to stop. */
+export function serverDirectUrls(port: Port, profile?: VerificationProfile): string[] {
+	const urls = directUrls(port);
+	return profile === 'api' ? [urls.api] : Object.values(urls);
 }
 
 // A stack's addresses for a person: the machine's names for it when it has them (portless on
@@ -207,10 +218,10 @@ export const setup: Record<string, SetupStep> = {
 export function prepareServe(): void { machine().prepareServe?.(); }
 
 // The stack: the three dev servers, until they die (`wf serve`, when a phase needs them).
-export async function serve({ worktree, slug, port }: { worktree: string } & Stack): Promise<void> {
+export async function serve({ worktree, slug, port, profile }: { worktree: string; profile?: VerificationProfile } & Stack): Promise<void> {
 	const { runDev } = await import('./dev.ts');
 	const servers = machine().servers?.(slug);
-	return runDev({ worktree, basePort: port, origins: servers?.origins, wrap: servers?.wrap });
+	return runDev({ worktree, basePort: port, origins: servers?.origins, wrap: servers?.wrap, profile });
 }
 
 // What removing a worktree leaves behind, in order: the database's steps, then the machine's own.

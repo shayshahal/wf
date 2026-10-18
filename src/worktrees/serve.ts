@@ -16,7 +16,8 @@ import { randomUUID } from 'node:crypto';
 import { acquireProcessLock } from '../process-lock.ts';
 import { ownedProcessTree, parseProcessIdentities } from '../process-tree.ts';
 import { connect } from 'node:net';
-import { directUrls, prepareServe, serve, stackUrls } from '../project.ts';
+import { defaultVerificationRequirements, parseVerificationProfile, prepareServe, probeVerificationEndpoint, serve, serverDirectUrls, stackUrls, verificationEndpoints, waitForVerificationReady } from '../project.ts';
+import type { VerificationProfile, VerificationRequirements } from '../project.ts';
 import { seams } from '../seams.ts';
 import { realProbeStack } from '../round/status.ts';
 import { PROCESS_CWD_PS } from '../process-cwd.ts';
@@ -115,10 +116,16 @@ export async function stopWorktreeServers(worktree: string, expectedToken?: stri
 		const original = existsSync(record) ? readFileSync(record, 'utf8') : null;
 		let owners;
 		let token: string = randomUUID();
+		let profile: VerificationProfile | undefined;
 		if (original !== null) {
 			const raw: unknown = JSON.parse(original);
 			if (typeof raw !== 'object' || raw === null || !('token' in raw) || typeof raw.token !== 'string' || !('processes' in raw)) return { kind: 'refused', why: 'wf serve: malformed ownership record; retained for recovery' };
 			token = raw.token;
+			if ('verificationProfile' in raw) {
+				const parsed = parseVerificationProfile(raw.verificationProfile);
+				if (parsed.kind === 'invalid') return { kind: 'refused', why: parsed.why };
+				profile = parsed.profile;
+			}
 			if (expectedToken !== undefined && token !== expectedToken) return { kind: 'refused', why: 'wf serve: stop handle belongs to an older run; replacement retained' };
 			owners = parseProcessIdentities(raw.processes);
 			if (!owners?.length || pid !== null && owners[0].pid !== pid) return { kind: 'refused', why: 'wf serve: ownership record does not match serve.pid; retained for recovery' };
@@ -140,11 +147,11 @@ export async function stopWorktreeServers(worktree: string, expectedToken?: stri
 		owners = ownedProcessTree(owners, snapshot.processes);
 		const pidUnchanged = () => (existsSync(pidFile(worktree)) ? readFileSync(pidFile(worktree), 'utf8') : null) === pidBytes;
 		if (!pidUnchanged() || (existsSync(record) ? readFileSync(record, 'utf8') : null) !== original) return { kind: 'refused', why: 'wf serve: ownership changed during stop; retry' };
-		const releasing = JSON.stringify({ token, state: 'releasing', processes: owners });
+		const releasing = JSON.stringify({ token, state: 'releasing', processes: owners, ...(profile ? { verificationProfile: profile } : {}) });
 		writeFileSync(record, releasing);
 		if (!seams.processes.kill(owners)) return { kind: 'refused', why: 'wf serve: could not stop owned processes; ownership retained for retry' };
 		const branch = execFileSync('git', ['-C', worktree, 'rev-parse', '--abbrev-ref', 'HEAD'], { encoding: 'utf8', stdio: 'pipe' }).trim();
-		const urls = Object.values(directUrls(basePortForBranch(branch))).flatMap((value) => { const url = new URL(value); if (url.hostname !== 'localhost') return [url]; const ipv4 = new URL(value); ipv4.hostname = '127.0.0.1'; const ipv6 = new URL(value); ipv6.hostname = '[::1]'; return [ipv4, ipv6]; });
+		const urls = serverDirectUrls(basePortForBranch(branch), profile).flatMap((value) => { const url = new URL(value); if (url.hostname !== 'localhost') return [url]; const ipv4 = new URL(value); ipv4.hostname = '127.0.0.1'; const ipv6 = new URL(value); ipv6.hostname = '[::1]'; return [ipv4, ipv6]; });
 		const until = Date.now() + 3000;
 		while (true) {
 			if (!pidUnchanged() || readFileSync(record, 'utf8') !== releasing) return { kind: 'refused', why: 'wf serve: ownership changed during shutdown; replacement retained' };
@@ -162,17 +169,24 @@ export async function stopWorktreeServers(worktree: string, expectedToken?: stri
 	} finally { release?.(); }
 }
 
-// Starts the stack detached; returns its pid. stdio goes to a file, not this process: a server that
-// inherits a pipe keeps its reader waiting for EOF (40 min under an agent harness, 2026-09-20).
-export function startServers(worktree: string) {
+/** Start the persistent default stack; detached output cannot keep the calling terminal open. */
+export function startServers(worktree: string): number {
+	return startOwnedServers(worktree).pid;
+}
+
+// Keep the exact launch token inside the acquisition operation: reading it back after startup could
+// accidentally adopt a replacement owner's receipt (#146, temporary verification servers).
+function startOwnedServers(worktree: string, profile?: VerificationProfile): { pid: number; token: string } {
 	prepareServe();
 	const release = reserveServerOwnership(worktree);
 	try {
 		if (existsSync(pidFile(worktree)) || existsSync(join(worktree, '.wf', 'serve-owner.json'))) throw new Error('wf serve: existing ownership must be released before starting another stack');
 		mkdirSync(join(worktree, '.wf', 'logs'), { recursive: true });
 		const fd = openSync(join(worktree, '.wf', 'logs', 'serve.log'), 'a');
-		writeFileSync(join(worktree, '.wf', 'serve-owner.json'), JSON.stringify({ token: randomUUID(), state: 'starting', processes: [] }));
-		const child = spawn(process.execPath, [seams.entry, 'serve', '--foreground'], { cwd: worktree, detached: true, stdio: ['ignore', fd, fd], windowsHide: true });
+		const token = randomUUID();
+		const selected = profile ? { verificationProfile: profile } : {};
+		writeFileSync(join(worktree, '.wf', 'serve-owner.json'), JSON.stringify({ token, state: 'starting', processes: [], ...selected }));
+		const child = spawn(process.execPath, [seams.entry, 'serve', '--foreground', ...(profile ? ['--verification-profile', profile] : [])], { cwd: worktree, detached: true, stdio: ['ignore', fd, fd], windowsHide: true });
 		closeSync(fd);
 		child.once('error', () => appendFileSync(join(worktree, '.wf', 'logs', 'serve.log'), 'wf serve: foreground launch failed; ownership retained\n'));
 		child.unref();
@@ -181,9 +195,70 @@ export function startServers(worktree: string) {
 		const snapshot = seams.processes.snapshot();
 		const root = snapshot.kind === 'known' ? snapshot.processes.find((p) => p.pid === child.pid) : null;
 		if (!root) throw new Error('wf serve: startup ownership was not established; launch reference retained and no stack authorized');
-		writeFileSync(join(worktree, '.wf', 'serve-owner.json'), JSON.stringify({ token: randomUUID(), state: 'running', processes: [root] }));
-		return child.pid;
+		writeFileSync(join(worktree, '.wf', 'serve-owner.json'), JSON.stringify({ token, state: 'running', processes: [root], ...selected }));
+		return { pid: child.pid, token };
 	} finally { release(); }
+}
+
+/** A verification lease releases only its own temporary servers, never a borrowed stack. */
+export type VerificationServers =
+	| { readonly kind: 'acquired'; readonly release: () => Promise<string | null>; readonly signal?: AbortSignal }
+	| { readonly kind: 'refused'; readonly why: string };
+
+/** Acquire the project's declared verification dependencies; unknown ownership never grants a kill. */
+export async function acquireVerificationServers(worktree: string, env: Record<string, string>, requirements: VerificationRequirements = defaultVerificationRequirements, { stack = ensureServers, ready = waitForVerificationReady }: { stack?: typeof ensureServers; ready?: typeof waitForVerificationReady } = {}): Promise<VerificationServers> {
+	if (requirements.kind === 'none') return { kind: 'acquired', release: async () => null };
+	if (!requirements.temporary) {
+		try {
+			await stack(worktree, { wait: true });
+			await ready(worktree, env, { profile: requirements.profile });
+			return { kind: 'acquired', release: async () => null };
+		} catch (error) { return { kind: 'refused', why: error instanceof Error ? error.message : String(error) }; }
+	}
+	const controller = new AbortController();
+	const cancel = () => controller.abort();
+	process.on('SIGINT', cancel); process.on('SIGTERM', cancel);
+	let token: string | undefined;
+	let releasing: Promise<string | null> | undefined;
+	const release = () => releasing ??= (async () => {
+		try {
+			if (token === undefined) return null;
+			const stopped = await stopWorktreeServers(worktree, token);
+			return stopped.kind === 'refused' ? stopped.why : null;
+		} finally {
+			process.off('SIGINT', cancel); process.off('SIGTERM', cancel);
+		}
+	})();
+	try {
+		// Parse configuration before any startup. Borrowing is read-only, but a recorded unknown
+		// owner still requires inspection instead of being replaced (#146, scoped startup).
+		const endpoints = verificationEndpoints(env, requirements.profile);
+		const record = join(worktree, '.wf', 'serve-owner.json');
+		const pid = servePid(worktree);
+		if (existsSync(record) || existsSync(pidFile(worktree))) {
+			if (!pid || serverProcessOwner(worktree, pid) !== 'owned') throw new Error('wf verification: existing server ownership is unresolved; inspect before retrying');
+			if (existsSync(record)) {
+				const raw: unknown = JSON.parse(readFileSync(record, 'utf8'));
+				const owners = typeof raw === 'object' && raw !== null && 'state' in raw && raw.state === 'running' && 'token' in raw && typeof raw.token === 'string' && raw.token.length > 0 && 'processes' in raw ? parseProcessIdentities(raw.processes) : null;
+				if (typeof raw === 'object' && raw !== null && 'verificationProfile' in raw) {
+					const parsed = parseVerificationProfile(raw.verificationProfile);
+					if (parsed.kind === 'invalid') throw new Error(parsed.why);
+				}
+				const snapshot = seams.processes.snapshot();
+				if (!owners?.length || owners[0].pid !== pid || snapshot.kind === 'unknown' || !snapshot.processes.some((owner) => owner.pid === pid && owner.born === owners[0].born)) throw new Error('wf verification: existing server identity is unavailable or changed; ownership retained');
+			}
+		}
+		const answering = (await Promise.all(endpoints.map((endpoint) => probeVerificationEndpoint(endpoint, 2000, controller.signal)))).every((why) => why === null);
+		if (!answering) {
+			if (!pid && !existsSync(record)) token = startOwnedServers(worktree, requirements.profile).token;
+			await ready(worktree, env, { profile: requirements.profile, signal: controller.signal });
+		}
+		if (controller.signal.aborted) throw new Error('wf verification: cancelled before execution');
+		return { kind: 'acquired', release, signal: controller.signal };
+	} catch (error) {
+		const cleanup = await release();
+		return { kind: 'refused', why: `${error instanceof Error ? error.message : String(error)}${cleanup ? `; temporary server release unconfirmed: ${cleanup}` : ''}` };
+	}
 }
 
 // Pure: on Windows, the detached process re-runs itself once with windowsHide, or null. A detached
@@ -193,9 +268,9 @@ export function startServers(worktree: string) {
 // Pipes, not inherited stdio: libuv asks for CREATE_NO_WINDOW only when no stdio is inherited. With
 // 'inherit' the hop got a console with SW_HIDE, and Windows Terminal (the default terminal) still
 // flashed a window for it at every wf new and wf serve (the console watcher, 2026-09-28 17:34:20).
-export function hiddenHop(platform: NodeJS.Platform, env: NodeJS.ProcessEnv): { args: string[]; options: { stdio: ['ignore', 'pipe', 'pipe']; windowsHide: boolean; env: NodeJS.ProcessEnv } } | null {
+export function hiddenHop(platform: NodeJS.Platform, env: NodeJS.ProcessEnv, profile?: VerificationProfile): { args: string[]; options: { stdio: ['ignore', 'pipe', 'pipe']; windowsHide: boolean; env: NodeJS.ProcessEnv } } | null {
 	if (platform !== 'win32' || env.WF_SERVE_HIDDEN) return null;
-	return { args: [seams.entry, 'serve', '--foreground'], options: { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, env: { ...env, WF_SERVE_HIDDEN: '1' } } };
+	return { args: [seams.entry, 'serve', '--foreground', ...(profile ? ['--verification-profile', profile] : [])], options: { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, env: { ...env, WF_SERVE_HIDDEN: '1' } } };
 }
 
 // Starts the worktree's stack unless it answers or is starting already; returns what it did, for the
@@ -234,6 +309,10 @@ export async function ensureServers(worktree: string, { wait = false, timeoutMs 
 }
 
 export async function runServe(argv: string[]) {
+	const profileAt = argv.indexOf('--verification-profile');
+	const parsed = parseVerificationProfile(profileAt < 0 ? undefined : argv[profileAt + 1] ?? null);
+	if (parsed.kind === 'invalid') { console.error(parsed.why); process.exitCode = 1; return; }
+	if (profileAt >= 0 && !argv.includes('--foreground')) { console.error('wf serve: verification profiles belong to owned foreground startup'); process.exitCode = 1; return; }
 	const git = (...args: string[]) => execFileSync('git', args, { encoding: 'utf8' }).trim();
 	const worktree = git('rev-parse', '--show-toplevel');
 	if (argv.includes('--stop')) {
@@ -262,7 +341,7 @@ export async function runServe(argv: string[]) {
 			}
 			if (!recorded) { console.error('wf serve: foreground ownership was not recorded; no stack started'); process.exitCode = 1; return; }
 		}
-		const hop = hiddenHop(process.platform, process.env);
+		const hop = hiddenHop(process.platform, process.env, profileAt < 0 ? undefined : parsed.profile);
 		if (hop) {
 			const child = spawn(process.execPath, hop.args, hop.options);
 			child.stdout.pipe(process.stdout);
@@ -270,7 +349,7 @@ export async function runServe(argv: string[]) {
 			child.on('exit', (code) => process.exit(code ?? 1));
 			return;
 		}
-		return serve({ worktree, slug, port });
+		return serve({ worktree, slug, port, profile: parsed.profile });
 	}
 	console.log(await ensureServers(worktree, { wait: argv.includes('--wait') }));
 }

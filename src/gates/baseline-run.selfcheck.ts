@@ -78,7 +78,7 @@ try {
 	let reacquired = false;
 	try { const l = acquireScratchLock(common, failSlug); l.release(); reacquired = true; } catch (e) { writeError = (e as Error).message; }
 	check('the failed acquisition left the scratch lock free for the next run', reacquired, writeError);
-	const scratch = await startBaselineScratch({ toplevel: repo, branch, ref: 'main', probeFiles: ['probe.ts'], log: join(repo, '.wf', 'logs', 'baseline.log') });
+	const scratch = await startBaselineScratch({ toplevel: repo, branch, ref: 'main', probeFiles: ['probe.ts'], log: join(scratchRoot, 'baseline.log') });
 	check('the scratch worktree is created from the baseline ref through the project seam', created.length === 1 && created[0] === `${branch}@main`, JSON.stringify(created));
 	check('the case\'s own test/fixture is copied into the scratch', existsSync(join(scratch.path, 'probe.ts')) && readFileSync(join(scratch.path, 'probe.ts'), 'utf8') === 'probe fixture\n');
 	check('the scratch root has its own setup output; the live worktree does not', existsSync(join(scratch.path, 'setup-ran.txt')) && !existsSync(join(repo, 'setup-ran.txt')));
@@ -86,9 +86,19 @@ try {
 	// the lock, never reaching a cleanup that could delete the winner's resources.
 	let loserRefused = false;
 	let loserMsg = '';
-	try { await startBaselineScratch({ toplevel: repo, branch, ref: 'main', probeFiles: ['probe.ts'], log: join(repo, '.wf', 'logs', 'baseline.log') }); } catch (e) { loserRefused = true; loserMsg = (e as Error).message; }
+	try { await startBaselineScratch({ toplevel: repo, branch, ref: 'main', probeFiles: ['probe.ts'], log: join(scratchRoot, 'baseline.log') }); } catch (e) { loserRefused = true; loserMsg = (e as Error).message; }
 	check('a concurrent acquisition is refused by the lock, and the winner\'s worktree/branch are untouched', loserRefused && /in use/.test(loserMsg) && existsSync(scratch.path) && branchExists(repo, branch) && created.length === 1, loserMsg);
+	const persistentLog = join(scratchRoot, 'baseline.log');
+	writeFileSync(persistentLog, 'setup output stays\n');
+	mkdirSync(join(scratch.path, '.wf', 'logs'), { recursive: true });
+	writeFileSync(join(scratch.path, '.wf', 'logs', 'dev.log'), 'dev startup failed\n');
+	writeFileSync(join(scratch.path, '.wf', 'logs', 'serve.log'), 'serve startup failed\n');
 	const cleanRemove = await scratch.remove();
+	const retained = readFileSync(persistentLog, 'utf8');
+	check('both server logs survive with source boundaries and original setup output', retained.startsWith('setup output stays\n') && retained.includes('--- baseline scratch .wf/logs/dev.log ---\ndev startup failed') && retained.includes('--- baseline scratch .wf/logs/serve.log ---\nserve startup failed'));
+	await scratch.remove();
+	check('a repeated remove does not append diagnostics twice', readFileSync(persistentLog, 'utf8') === retained);
+
 	check('a clean teardown removes the scratch, its branch, and reports no failures', cleanRemove.length === 0 && teardowns.length === 1 && !existsSync(scratch.path) && !branchExists(repo, branch));
 	check('a clean teardown releases the scratch lock', !existsSync(lock));
 	check('the live worktree bytes and index are untouched by a successful scratch', readFileSync(join(repo, 'product.ts'), 'utf8') === liveBytes && status(repo) === liveStatus, `status ${JSON.stringify(status(repo))}`);
@@ -97,7 +107,7 @@ try {
 	git(repo, 'branch', branch, 'main');
 	let refused = false;
 	try {
-		await startBaselineScratch({ toplevel: repo, branch, ref: 'main', probeFiles: ['probe.ts'], log: join(repo, '.wf', 'logs', 'baseline.log') });
+		await startBaselineScratch({ toplevel: repo, branch, ref: 'main', probeFiles: ['probe.ts'], log: join(scratchRoot, 'baseline.log') });
 	} catch { refused = true; }
 	check('a pre-existing scratch branch is refused, not deleted, and no worktree is made', refused && branchExists(repo, branch) && !existsSync(scratchPathFor(branch)) && created.length === 1, JSON.stringify({ refused, exists: branchExists(repo, branch) }));
 	check('the refused acquisition released its lock', !existsSync(lock));
@@ -105,14 +115,38 @@ try {
 
 	// Partial acquisition: createWorktree makes the branch and the path, then fails. The cleanup must
 	// release both before rethrowing, so a failed acquisition leaks nothing.
-	plug({ createWorktree: ({ branch, base }) => { const path = scratchPathFor(branch); git(repo, 'worktree', 'add', '--quiet', '-b', branch, path, base); throw new Error('setup failed after the worktree was made'); } });
+	plug({ createWorktree: ({ branch, base }) => { const path = scratchPathFor(branch); git(repo, 'worktree', 'add', '--quiet', '-b', branch, path, base); mkdirSync(join(path, '.wf', 'logs'), { recursive: true }); writeFileSync(join(path, '.wf', 'logs', 'dev.log'), 'partial setup diagnostic\n'); throw new Error('setup failed after the worktree was made'); } });
 	let acquired = false;
 	try {
-		await startBaselineScratch({ toplevel: repo, branch, ref: 'main', probeFiles: ['probe.ts'], log: join(repo, '.wf', 'logs', 'baseline.log') });
+		await startBaselineScratch({ toplevel: repo, branch, ref: 'main', probeFiles: ['probe.ts'], log: join(scratchRoot, 'baseline.log') });
 	} catch { acquired = true; }
 	check('an acquisition failure after partial setup releases the worktree and branch, then rethrows', acquired && !existsSync(scratchPathFor(branch)) && !branchExists(repo, branch) && teardowns.length === 2, JSON.stringify({ acquired, teardowns: teardowns.length }));
+	check('partial acquisition retains diagnostics discovered through the registered worktree', readFileSync(persistentLog, 'utf8').includes('partial setup diagnostic'));
 	check('an acquisition failure releases its lock', !existsSync(lock));
 	check('a failed acquisition also leaves the live worktree untouched', readFileSync(join(repo, 'product.ts'), 'utf8') === liveBytes && status(repo) === liveStatus);
+
+	// Real I/O failures, not mocked fs: a directory cannot be read as a log or appended to.
+	// An invalid owner must be refused, never guessed-killed, even when retention fails.
+	for (const failureMode of ['read', 'append']) {
+		const failedBranch = baselineBranchFor(`round/retain-${failureMode}`);
+		const failedLog = join(scratchRoot, `retain-${failureMode}.log`);
+		if (failureMode === 'append') mkdirSync(failedLog);
+		else writeFileSync(failedLog, 'original setup output\n');
+		plug({ createWorktree: ({ branch: b, base }) => { const path = scratchPathFor(b); git(repo, 'worktree', 'add', '--quiet', '-b', b, path, base); return { path, branch: b }; } });
+		const failed = await startBaselineScratch({ toplevel: repo, branch: failedBranch, ref: 'main', probeFiles: [], log: failedLog });
+		const source = join(failed.path, '.wf', 'logs', 'dev.log');
+		mkdirSync(join(failed.path, '.wf', 'logs'), { recursive: true });
+		if (failureMode === 'read') mkdirSync(source);
+		else writeFileSync(source, 'only original diagnostic\n');
+		const owner = join(failed.path, '.wf', 'serve-owner.json');
+		writeFileSync(owner, 'invalid ownership retained');
+		const beforePlan = teardowns.length;
+		const result = await failed.remove();
+		check(`${failureMode} retention failure is explicit and preserves scratch, source, branch and recovery`, result.some((f) => f.includes('baseline diagnostic retention failed')) && existsSync(source) && branchExists(repo, failedBranch) && existsSync(join(common, `wf-baseline-${failed.slug}.recovery.json`)) && teardowns.length === beforePlan, JSON.stringify(result));
+		check(`${failureMode} retention failure attempts safe server release and preserves refused ownership`, result.some((f) => f.includes('baseline scratch server release failed')) && readFileSync(owner, 'utf8') === 'invalid ownership retained', JSON.stringify(result));
+		check(`${failureMode} retention failure remains idempotent`, await failed.remove() === result);
+		if (failureMode === 'read') check('failed retention preserves the original setup log', readFileSync(failedLog, 'utf8') === 'original setup output\n');
+	}
 
 	// M1: a removalPlan that rejects must report the failure, not throw, and must still free the lock
 	// (it used to be released only at the last line, so a throwing plan leaked it forever because the
@@ -124,7 +158,7 @@ try {
 		createWorktree: ({ branch: b, base }) => { const path = scratchPathFor(b); git(repo, 'worktree', 'add', '--quiet', '-b', b, path, base); return { path, branch: b }; },
 		removalPlan: () => { throw new Error('teardown exploded'); },
 	});
-	const reject = await startBaselineScratch({ toplevel: repo, branch: rejectBranch, ref: 'main', probeFiles: ['probe.ts'], log: join(repo, '.wf', 'logs', 'baseline.log') });
+	const reject = await startBaselineScratch({ toplevel: repo, branch: rejectBranch, ref: 'main', probeFiles: ['probe.ts'], log: join(scratchRoot, 'baseline.log') });
 	let rejectFailures: string[] = [];
 	let rejectThrew: string | null = null;
 	try { rejectFailures = await reject.remove(); } catch (e) { rejectThrew = (e as Error).message; }
@@ -141,7 +175,7 @@ try {
 		createWorktree: ({ branch, base }) => { const path = scratchPathFor(branch); git(repo, 'worktree', 'add', '--quiet', '-b', branch, path, base); return { path, branch }; },
 		removalPlan: (): RemovalStep[] => [{ label: 'drop the baseline database', run: () => { throw new Error('no database answered'); } }],
 	});
-	const leaky = await startBaselineScratch({ toplevel: repo, branch, ref: 'main', probeFiles: ['probe.ts'], log: join(repo, '.wf', 'logs', 'baseline.log') });
+	const leaky = await startBaselineScratch({ toplevel: repo, branch, ref: 'main', probeFiles: ['probe.ts'], log: join(scratchRoot, 'baseline.log') });
 	const leakFailures = await leaky.remove();
 	check('a teardown step that fails is reported, not silently called gone', leakFailures.some((f) => f.includes('no database answered')), JSON.stringify(leakFailures));
 	check('an unreleased worktree is reported too, so the caller refuses green', leakFailures.some((f) => f.includes(leaky.path)) && branchExists(repo, branch), JSON.stringify(leakFailures));
@@ -158,13 +192,13 @@ try {
 		createWorktree: ({ branch: b, base }) => { const path = scratchPathFor(b); git(repo, 'worktree', 'add', '--quiet', '-b', b, path, base); return { path, branch: b }; },
 		removalPlan: ({ path: target }): RemovalStep[] => { planCalls++; return [{ label: 'rm once scratch', rm: target }, { label: 'prune', cmd: 'git', args: ['-C', repo, 'worktree', 'prune'] }]; },
 	});
-	const a = await startBaselineScratch({ toplevel: repo, branch: onceBranch, ref: 'main', probeFiles: ['probe.ts'], log: join(repo, '.wf', 'logs', 'baseline.log') });
+	const a = await startBaselineScratch({ toplevel: repo, branch: onceBranch, ref: 'main', probeFiles: ['probe.ts'], log: join(scratchRoot, 'baseline.log') });
 	const [aFirst, aSecond] = await Promise.all([a.remove(), a.remove()]);
 	check('two simultaneous remove() calls share one cleanup and run the removal plan once', planCalls === 1 && aFirst === aSecond);
 	check('a successful exactly-once remove() releases A\'s worktree, branch and lock', !existsSync(scratchPathFor(onceBranch)) && !branchExists(repo, onceBranch) && !existsSync(onceLock));
 
 	// B recreates the same stable branch/path A had. The stale A.remove() must be a no-op.
-	const b = await startBaselineScratch({ toplevel: repo, branch: onceBranch, ref: 'main', probeFiles: ['probe.ts'], log: join(repo, '.wf', 'logs', 'baseline.log') });
+	const b = await startBaselineScratch({ toplevel: repo, branch: onceBranch, ref: 'main', probeFiles: ['probe.ts'], log: join(scratchRoot, 'baseline.log') });
 	writeFileSync(join(b.path, 'b-only.txt'), 'B owns this\n');
 	const bProbeBytes = readFileSync(join(b.path, 'probe.ts'), 'utf8');
 	const planBeforeStale = planCalls;
