@@ -16,11 +16,13 @@ const check = (name: string, cond: unknown, detail = '') =>
 
 const tree = mkdtempSync(join(tmpdir(), 'wf-gw-'));
 const labels = () => removalPlan({ path: tree, slug: 'fix-a' } as Parameters<typeof removalPlan>[0]).map((s) => s.label).join(' → ');
-check('no stack started: teardown before the folder goes, then prune', labels() === 'stop owned servers → drop database → drop stranded test databases → rm -rf worktree → git worktree prune', labels());
+check('no stack started: both owned releases, teardown, then the folder and prune', labels() === 'stop owned servers → close the show browser → drop database → drop stranded test databases → rm -rf worktree → git worktree prune', labels());
 mkdirSync(join(tree, '.wf'));
 writeFileSync(join(tree, '.wf', 'serve.pid'), '31337\n');
-check('a stack started: it stops first', labels().startsWith('stop owned servers → drop database'), labels());
+check('a stack started: it stops first', labels().startsWith('stop owned servers → close the show browser'), labels());
 check('cleanup verifies ownership in-process rather than handing a raw PID or path to a kill command', Boolean(removalPlan({ path: tree, slug: 'fix-a' } as Parameters<typeof removalPlan>[0])[0].run));
+// #180: the window `wf show` opens holds the folder, so its release is its own step before the delete.
+check('the show browser is released by identity in-process, before the folder goes', Boolean(removalPlan({ path: tree, slug: 'fix-a' } as Parameters<typeof removalPlan>[0]).find((s) => s.label === 'close the show browser')?.run));
 rmSync(tree, { recursive: true, force: true });
 
 // A base git cannot check out (a git~1 entry: invalid path on every platform) fails the add after

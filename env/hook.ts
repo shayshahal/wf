@@ -13,6 +13,8 @@ import { fileURLToPath } from 'node:url';
 import { repo, setup, teardown } from '../src/project.ts';
 import type { State } from '../src/round/state.ts';
 import { mergedImplementationGap } from '../src/round/delivered-round.ts';
+import { runRemovalStep } from '../src/worktrees/removal.ts';
+import type { RemovalStep } from '../src/seams.ts';
 import { urlLines } from '../src/worktrees/worktree.ts';
 import { stackNames } from './projects/jewelryx/index.ts';
 
@@ -56,6 +58,16 @@ export function gateVerdict({ state, force }: { state: State | null | undefined;
 	if (force || state === undefined) return null;
 	if (state === null) return 'its .wf/state.json is unreadable';
 	return state.step === 'merged' ? null : `round step is "${state.step ?? 'unknown'}" (expected "merged"); run wf step merged first`;
+}
+
+// Pure: the project's teardown split into the steps that shell out (`cmd`) and the ones that run
+// in-process (`run`, e.g. the project closing this checkout's browsers, #180): a `run` step has no
+// argv to hand to spawnSync, and must not silently vanish from the pre-remove hook.
+export function splitTeardownSteps(steps: readonly RemovalStep[]): { cmds: Extract<RemovalStep, { cmd: string }>[]; runs: RemovalStep[] } {
+	const cmds: Extract<RemovalStep, { cmd: string }>[] = [];
+	const runs: RemovalStep[] = [];
+	for (const step of steps) (step.cmd ? cmds : runs).push(step as never);
+	return { cmds, runs };
 }
 
 // Pure: the teardown steps that failed. A piece that is already gone is not a failure.
@@ -113,7 +125,13 @@ export async function runHook(argv: string[]) {
 		process.exit(1);
 	}
 	if (step === 'down') {
-		const failures = teardownFailures(teardown({ slug, worktree }).map((t) => ({ t, r: spawnSync(t.cmd!, t.args!, { encoding: 'utf8', shell: process.platform === 'win32', env: { ...process.env, ...t.env } }) })));
+		// A `run` step (the project closing this checkout's browsers, #180) cannot go through the
+		// cmd helper below: it has no argv, and its result is a confirmation, not an exit code.
+		const { cmds, runs } = splitTeardownSteps(teardown({ slug, worktree }));
+		const spawns: Parameters<typeof teardownFailures>[0] = cmds.map((t) => ({ t, r: spawnSync(t.cmd, t.args!, { encoding: 'utf8', shell: process.platform === 'win32', env: { ...process.env, ...t.env } }) }));
+		const failed: string[] = [];
+		for (const t of runs) { const outcome = await runRemovalStep(t); if (!outcome.ok) failed.push(outcome.say); }
+		const failures = [...teardownFailures(spawns), ...failed];
 		if (failures.length) { console.error(failures.join('\n')); process.exit(1); }
 		return console.log(`worktree down: ${slug}`);
 	}

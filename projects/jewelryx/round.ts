@@ -1,7 +1,9 @@
 // projects/jewelryx/round.ts — what a new JewelryX round gets besides its folder (index.ts newRound).
 import { existsSync, lstatSync, mkdirSync, readFileSync, rmdirSync, symlinkSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import type { Origins } from './index.ts';
+import type { RemovalStep } from '../../src/seams.ts';
 
 const SKILL_DIRS = ['.pi/skills', '.claude/skills', '.agents/skills'];
 
@@ -40,6 +42,24 @@ export function linkVerifySkill(worktree: string): string[] {
 		linked.push(`${dir}/verify-jewelryx`);
 	}
 	return linked;
+}
+
+// Close this checkout's browsers before its folder goes (#180). The headed window `wf show` opens for
+// T2 — and any session an agent drove — keeps the worktree as its working folder, and Windows will not
+// delete a folder a process still runs in: reap's delete failed with EPERM while the window sat there.
+// `cleanup` runs playwright-cli `close-all` for this checkout's own install (sessions are keyed per
+// install root, so another worktree's browsers are untouched) and drops the saved logins.
+// Best effort by design: reap's own release (src/worktrees/show-browser.ts) owns the window wf opened
+// and refuses to report success if it cannot stop it; this step only widens that to sessions wf never
+// started, so it must not turn a teardown into a failure.
+export function closeBrowsers(worktree: string): RemovalStep[] {
+	const cli = join(worktree, VERIFY_SKILL, 'control-jewelryx.mjs');
+	const playwright = join(worktree, 'verification', 'node_modules', '@playwright', 'cli', 'playwright-cli.js');
+	if (!existsSync(cli) || !existsSync(playwright)) return [];
+	return [{ label: "close this checkout's browsers", run: () => {
+		const r = spawnSync(process.execPath, [cli, 'cleanup'], { cwd: worktree, encoding: 'utf8', timeout: 60_000 });
+		if (r.status !== 0) console.error(`control-jewelryx cleanup exited ${r.status ?? 'without a status'}: ${`${r.stdout ?? ''}${r.stderr ?? ''}`.trim().split('\n').at(-1) ?? 'no output'}`);
+	} }];
 }
 
 // The bare command `control-jewelryx` for every agent shell. A shell inherits one PATH for all

@@ -16,7 +16,7 @@ import type { State } from '../../src/round/state.ts';
 import { listWorktrees, mainCheckout, basePortForBranch } from '../../src/worktrees/worktree.ts';
 import { homedir } from 'node:os';
 import { delimiter } from 'node:path';
-import { installShim, linkVerifySkill, unlinkCompetingSkills, verifyStackEnv, writeReproConfig } from './round.ts';
+import { closeBrowsers, installShim, linkVerifySkill, unlinkCompetingSkills, verifyStackEnv, writeReproConfig } from './round.ts';
 import type { VerificationProfile, VerificationRequirements } from './readiness.ts';
 export { parseVerificationProfile, probeVerificationEndpoint, verificationEndpoints, waitForVerificationReady } from './readiness.ts';
 export type { VerificationProfile, VerificationRequirements } from './readiness.ts';
@@ -236,7 +236,9 @@ export async function serve({ worktree, slug, port, profile }: { worktree: strin
 // goes (the kit's removal plan); Shay's run after it (wt's post-remove hook).
 export function teardown({ slug, worktree }: { slug: string; worktree: string }): RemovalStep[] {
 	const m = machine();
-	return [...m.database.teardown({ slug, worktree }), ...m.teardown({ slug, worktree })];
+	// Browsers first: they hold the folder itself, so a database drop that needs the worktree still
+	// runs while nothing is parked in it.
+	return [...closeBrowsers(worktree), ...m.database.teardown({ slug, worktree }), ...m.teardown({ slug, worktree })];
 }
 
 // After `wf new` made the worktree and its round folder: the repro scaffold, and the lines to print.
