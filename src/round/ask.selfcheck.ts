@@ -1,5 +1,6 @@
 // ask.selfcheck.ts — node ask.selfcheck.ts → exit 0 when green.
 // Pure arms: a question opens, the round waits on its person, an answer closes it, the gate holds.
+import { preAgreementDecisions } from './prompt.ts';
 import { addQuestion, appendAnswer, blockedQuestion, closeQuestion, openQuestionGate, openRevisions, parseArgs, questionLines, reviseState } from './ask.ts';
 
 let failures = 0;
@@ -60,6 +61,9 @@ check('a second answer is added, not replacing the first', reviseState(sent, 'an
 check('an open question still holds the round on its person', reviseState({ ...implementing, questions: [{ n: 5, to: 'einat', text: 'x', asked: t }] }, 'y', 'sha-c', t2).waiting_on === 'einat');
 check('R-3: a revision is open while the material sha is unchanged, answered once it moves', openRevisions(sent.revisions, 'sha-a').length === 1 && openRevisions(sent.revisions, 'sha-z').length === 0 && openRevisions(undefined, 'sha-a').length === 0);
 check('--revise is a flag of decide', parseArgs(['--revise', '--q', '2', 'x'], ['q'], ['revise']).revise === true);
+
+const pre = preAgreementDecisions([{ text: 'q1 → einat: wizard falls back to X' }], 'earlier');
+check('pre-agreement decisions reach the agree brief', pre.includes('- q1 → einat: wizard falls back to X') && pre.includes('## Decisions') && preAgreementDecisions([], '') === '');
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');
 process.exit(failures ? 1 : 0);

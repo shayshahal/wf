@@ -173,7 +173,11 @@ export async function runDecide(argv: string[]): Promise<void> {
 	// while the question is still open, instead of closing it with nowhere to record the answer.
 	const blocked = open.find((q) => q.n === target)?.source?.startsWith('BLOCKED.md') ?? false;
 	const assessmentSource = isAssessmentRulingSource(open.find((q) => q.n === target)?.source);
-	if (!blocked && !assessmentSource && !existsSync(agreement)) {
+	// Before the agreement exists (class B/C, step classify) the answer is kept in state.decisions and
+	// agree's brief carries it (prompt.ts): `wf next` waits on an open question before dispatching
+	// agree, so refusing here deadlocked the round (JX-284, 2026-10-18).
+	const preAgreement = !blocked && !assessmentSource && !existsSync(agreement) && (state.step ?? 'classify') === 'classify';
+	if (!blocked && !assessmentSource && !preAgreement && !existsSync(agreement)) {
 		console.error(`wf decide: no ${agreement} to record q${target}'s answer in`);
 		process.exit(2);
 	}
