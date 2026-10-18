@@ -69,6 +69,8 @@ check('a blocked build waits on the user with the question', say(base({ step: 'b
 // ── a check round: it writes ## Repro, then wf check --repro is the answer
 check('a check round with no ## Repro: dispatch agree to write it', say(base({ check: true })).startsWith('dispatch agree') && say(base({ check: true })).includes('no `## Repro`'), say(base({ check: true })));
 check('a check round with ## Repro: run wf check --repro and wait on the user', say(base({ check: true, files: { agreement: TICKET + '\n## Repro\ncommand: yarn repro\n', assessment: null, review: null, blocked: null } })).startsWith('check: run `node C:/wf/wf.mjs check --repro`'), say(base({ check: true })));
+const emptyRepro = base({ check: true, reproEmpty: true, files: { agreement: TICKET + '\n## Repro\ncommand: yarn repro\n', assessment: null, review: null, blocked: null } });
+check('a check round with ## Repro but an empty repro/: dispatch agree to write the spec', say(emptyRepro).startsWith('dispatch agree') && say(emptyRepro).includes('repro/'), say(emptyRepro));
 
 // ── consequential (B/C): one agreement, one T1
 check('B/C with no agreement: dispatch agree with the gap', say(base({ klass: 'B' })).startsWith('dispatch agree') && say(base({ klass: 'B' })).includes('no AGREEMENT.md'), say(base({ klass: 'B' })));
