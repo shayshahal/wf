@@ -13,7 +13,7 @@
 //   review | deliver | check | done        the orchestrator runs it, then wf next
 // It does the bookkeeping itself (the step, a question the round now waits on).
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { refuseCaller } from '../refusal.ts';
 import { addQuestion, blockedQuestion, openRevisions } from './ask.ts';
@@ -55,6 +55,8 @@ export type Snapshot = {
 	step: string | null;
 	klass: RoundClass | null;
 	check: boolean;
+	// A check round's <round>/repro/ holds no file: `## Repro` names a command with nothing to run.
+	reproEmpty?: boolean;
 	questions: Question[];
 	answered: Question[];
 	files: Record<'agreement' | 'assessment' | 'review' | 'blocked', string | null>;
@@ -185,6 +187,9 @@ export function nextAction(s: Snapshot, purpose: 'dispatch' | 'brief' = 'dispatc
 		// measures it; a green repro is the finding and the user decides whether to go on.
 		if (s.check) {
 			if (!/^## Repro[ \t]*$/m.test((s.files.agreement ?? '').replace(/\r\n/g, '\n'))) return dispatch('agree', `no \`## Repro\` in ${consequential(s.klass) ? 'AGREEMENT.md' : 'TICKET.md'} yet`);
+			// 2026-10-18 JX-1374: `## Repro` had a command but repro/ was empty, so `wf check --repro` said
+			// "No tests found" three times and `wf next` sent the round to it again, forever.
+			if (s.reproEmpty) return dispatch('agree', `\`## Repro\` names a command but ${s.folder ?? '<round>'}/repro/ has no spec file yet — write it`);
 			if (step !== 'agree') effects.push({ step: ['agree', '--waiting-on', 'user'] });
 			return act(`check: run \`${wf} check --repro\` (it says whether the ticket reproduces), then \`${wf} next\`. Go on: \`${wf} step build\` and set the started status; stop: \`WF_FORCE_REAP=1 ${wf} reap ${s.branch}\``);
 		}
@@ -435,6 +440,7 @@ export function snapshotOf(toplevel: string): Snapshot {
 		step: state.step ?? null,
 		klass: state.class ?? null,
 		check: state.check ?? false,
+		reproEmpty: !!state.check && !!state.folder && !(existsSync(join(dir, 'repro')) && readdirSync(join(dir, 'repro')).length),
 		questions: state.questions ?? [],
 		answered: state.answered ?? [],
 		revisions: state.revisions ?? [],
