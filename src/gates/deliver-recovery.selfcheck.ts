@@ -5,11 +5,12 @@
 // was asked to create, edit and merge, so a retry that duplicates work is visible in its records, and
 // the bare origin shows a branch a retry pushed back. Nothing here contacts GitHub or a tracker.
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { trackerNote } from '../project.ts';
+import { disposeCorrection } from '../round/corrections.ts';
 import { approvalIdentity, headContentSha, trackerNotePath } from './content-identity.ts';
 
 const ROOT = mkdtempSync(join(tmpdir(), 'wf-deliver-recovery-'));
@@ -52,6 +53,7 @@ const headsOf = (remote: string, work: string) => must(['ls-remote', '--heads', 
 // the metadata the real query asks for (head, base, cross-repository) so deliver's checks run for real.
 const HARNESS = `
 import { run } from ${JSON.stringify(pathToFileURL(fileURLToPath(new URL('../run.ts', import.meta.url))).href)};
+import { captureCorrection } from ${JSON.stringify(pathToFileURL(fileURLToPath(new URL('../round/corrections.ts', import.meta.url))).href)};
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 
@@ -66,6 +68,10 @@ const row = (state, oid) => ({ number: 108, url: 'https://github.com/o/r/pull/10
 // GitHub moves an open PR's head when its branch moves; a merged PR's head is fixed. The
 // stale-open mode holds an OPEN PR at its stored head, to model a PR the branch has outrun.
 const effectiveHead = (p, cwd) => (p.state !== 'OPEN' || mode === 'stale-open' ? p.headRefOid : head(cwd));
+const correct = (cwd, event) => {
+  const result = captureCorrection(cwd, { kind: 'human', author: 'Shay', source: 'test:' + event, relay: 'test delivery adapter', text: 'Keep this late instruction verbatim.', scope: 'the round', reason: 'Explicit post-approval correction' });
+  if (result.kind === 'refused') throw new Error(result.reason);
+};
 const gh = (args, cwd) => {
   if (mode === 'fail') return { status: 1, stdout: '', stderr: 'error connecting to api.github.com' };
   if (mode === 'garbage') return { status: 0, stdout: 'not json', stderr: '' };
@@ -73,11 +79,14 @@ const gh = (args, cwd) => {
   const r = readRemote();
   if (args[0] === 'pr' && args[1] === 'list') {
     r.lists = (r.lists ?? []).concat([args]);
+    if (mode === 'correct-before-merge' && r.lists.length === 2) correct(cwd, mode);
+    if (mode === 'correct-unknown-merge' && r.uncertain) return { status: 1, stdout: '', stderr: 'connection lost' };
     writeRemote(r);
     return { status: 0, stdout: JSON.stringify((r.prs[branch] ?? []).map((p) => ({ ...p, headRefOid: effectiveHead(p, cwd) }))), stderr: '' };
   }
   if (args[0] === 'pr' && args[1] === 'create') {
     r.create++;
+    if (mode === 'correct-create') correct(cwd, mode);
     r.creates = (r.creates ?? []).concat([args]);
     if ((r.prs[branch] ?? []).length) { writeRemote(r); return { status: 1, stdout: '', stderr: 'a pull request for branch already exists' }; }
     // A create that also changes the product (a hook, or a concurrent task): deliver's approval
@@ -88,6 +97,7 @@ const gh = (args, cwd) => {
     return { status: 0, stdout: 'https://github.com/o/r/pull/108\\n', stderr: '' };
   }
   if (args[0] === 'pr' && args[1] === 'edit') {
+    if (mode === 'correct-edit') correct(cwd, mode);
     r.edit++; r.edits = (r.edits ?? []).concat([args]);
     // An edit that commits a new HEAD: the merge must be refused because the approved commit is no
     // longer the one the merge would land.
@@ -96,6 +106,11 @@ const gh = (args, cwd) => {
   }
   if (args[0] === 'pr' && args[1] === 'merge') {
     r.merges = (r.merges ?? []).concat([args]);
+    if (mode.startsWith('correct-') && mode.endsWith('-merge')) correct(cwd, mode);
+    if (mode === 'correct-open-merge' || mode === 'correct-unknown-merge') {
+      r.uncertain = mode === 'correct-unknown-merge'; writeRemote(r);
+      return { status: 1, stdout: '', stderr: 'merge request interrupted' };
+    }
     const pr = Object.values(r.prs).flat().find((p) => p.url === args[2]);
     if (!pr) { writeRemote(r); return { status: 1, stdout: '', stderr: 'no pull request found' }; }
     const i = args.indexOf('--match-head-commit');
@@ -501,6 +516,79 @@ for (const [mode, why] of [['fail', 'a gh failure'], ['garbage', 'a gh answer th
 	check('an old merged PR beside a fresh open one is refused, not selected', r.code !== 0 && readState(f).step === 'pr', `${r.code}: ${r.out}`);
 	check("…the refusal says the branch's PRs cannot be told apart", /cannot be told/i.test(r.out), r.out.trim());
 	check('…nothing was pushed, created, edited, merged or noted', !remoteBranches(f.work).includes(BRANCH) && readRemote(f).create === 2 && readRemote(f).edit === 0 && readRemote(f).merge === 1 && !readState(f).note, JSON.stringify(readRemote(f)));
+}
+
+// #150: real dispatcher and state lock, with incoming events delivered at the remote seam.
+for (const mode of ['correct-create', 'correct-edit', 'correct-before-merge']) {
+	const f = makeRepo(mode);
+	setRemote(f, mode === 'correct-edit' ? { prs: { [BRANCH]: [pr('OPEN', f.head)] }, create: 1, edit: 0, merge: 0 } : empty());
+	const review = readFileSync(join(f.work, FOLDER, 'REVIEW.md'), 'utf8');
+	const r = attempt(f, mode);
+	check(`${mode}: state-only instruction blocks merge`, r.code !== 0 && readState(f).step === 'build' && readRemote(f).merge === 0 && !readState(f).merge_attempt, r.out);
+	check(`${mode}: original approval bytes survive`, readFileSync(join(f.work, FOLDER, 'REVIEW.md'), 'utf8') === review);
+	const retry = attempt(f);
+	check(`${mode}: direct retry cannot bypass the instruction`, retry.code !== 0 && readRemote(f).merge === 0, retry.out);
+}
+for (const mode of ['correct-during-merge', 'correct-open-merge', 'correct-unknown-merge']) {
+	const f = makeRepo(mode);
+	setRemote(f, empty());
+	const review = readFileSync(join(f.work, FOLDER, 'REVIEW.md'), 'utf8');
+	const r = attempt(f, mode);
+	const state = readState(f);
+	check(`${mode}: the incoming instruction remains durable`, Array.isArray(state.corrections) && state.corrections.length === 1 && readFileSync(join(f.work, FOLDER, 'REVIEW.md'), 'utf8') === review, r.out);
+	if (mode === 'correct-during-merge') {
+		check('instruction during successful merge retains receipt, not reopened approval', r.code === 0 && state.step === 'merged' && !!state.delivery && !state.merge_attempt && /fresh follow-up/.test(r.out), r.out);
+	} else if (mode === 'correct-open-merge') {
+		check('definite unmerged result clears attempt and routes correction to build', r.code !== 0 && state.step === 'build' && !state.merge_attempt && !state.delivery, r.out);
+	} else {
+		check('unknown merge result retains attempt without premature build routing', r.code !== 0 && state.step === 'pr' && !!state.merge_attempt && !state.delivery, r.out);
+		const retry = attempt(f, 'fail');
+		check('unknown retry reconciles remotely before pending-correction gate', /merge outcome remains uncertain/.test(retry.out) && !!readState(f).merge_attempt, retry.out);
+		// Even an externally changed step cannot skip reconciliation of the authorized attempt.
+		setState(f, { step: 'build' });
+		const reconciled = attempt(f);
+		check('known open retry clears attempt and routes retained instruction', reconciled.code !== 0 && readState(f).step === 'build' && !readState(f).merge_attempt && readRemote(f).merge === 0, reconciled.out);
+	}
+}
+{
+	const f = makeRepo('system-hook-correction');
+	setRemote(f, empty());
+	const review = readFileSync(join(f.work, FOLDER, 'REVIEW.md'), 'utf8');
+	writeFileSync(join(f.work, '.git', 'hooks', 'pre-push'), '#!/bin/sh\necho "pre-push: error: repair this hook failure" >&2\nexit 1\n', { mode: 0o755 });
+	const r = attempt(f);
+	const state = readState(f);
+	check('actual pre-push refusal becomes system correction without verdict mutation', r.code !== 0 && state.step === 'build' && Array.isArray(state.corrections) && state.corrections[0]?.kind === 'system' && state.corrections[0]?.text.includes('repair this hook failure') && readFileSync(join(f.work, FOLDER, 'REVIEW.md'), 'utf8') === review, r.out);
+	unlinkSync(join(f.work, '.git', 'hooks', 'pre-push'));
+	const corrections = state.corrections;
+	if (!Array.isArray(corrections) || typeof corrections[0]?.id !== 'string') throw new Error('hook correction missing');
+	const disposed = disposeCorrection(f.work, corrections[0].id, { kind: 'addressed', note: 'Transient hook environment repaired; reviewed implementation unchanged.' });
+	const retry = attempt(f);
+	check('unchanged transient hook recovery reuses original approval', disposed.kind === 'recorded' && retry.code === 0 && readState(f).step === 'merged' && readFileSync(join(f.work, FOLDER, 'REVIEW.md'), 'utf8') === review, retry.out);
+}
+{
+	const f = makeRepo('uncertain-then-confirmed-merged');
+	setRemote(f, empty());
+	attempt(f, 'correct-unknown-merge');
+	const head = must(['rev-parse', 'HEAD'], f.work);
+	setRemote(f, mergedAt(head));
+	setState(f, { step: 'build' });
+	const retry = attempt(f);
+	check('confirmed remote merge wins over local build and pending correction', retry.code === 0 && readState(f).step === 'merged' && !!readState(f).delivery && !readState(f).merge_attempt && /fresh follow-up/.test(retry.out), retry.out);
+}
+{
+	const f = makeRepo('network-push-retry');
+	setRemote(f, empty());
+	const local = pathToFileURL(join(f.work, '..', 'origin.git')).href;
+	must(['config', '--unset-all', `url.${local}.insteadOf`], f.work);
+	const unavailable = pathToFileURL(join(f.work, '..', 'unavailable.git')).href;
+	must(['config', `url.${unavailable}.insteadOf`, GITHUB], f.work);
+	const review = readFileSync(join(f.work, FOLDER, 'REVIEW.md'), 'utf8');
+	const first = attempt(f);
+	check('network-only push failure does not manufacture product repair', first.code !== 0 && readState(f).step === 'pr' && !readState(f).corrections && readFileSync(join(f.work, FOLDER, 'REVIEW.md'), 'utf8') === review, first.out);
+	must(['config', '--unset-all', `url.${unavailable}.insteadOf`], f.work);
+	must(['config', `url.${local}.insteadOf`, GITHUB], f.work);
+	const retry = attempt(f);
+	check('unchanged network retry retains approval', retry.code === 0 && readState(f).step === 'merged' && readFileSync(join(f.work, FOLDER, 'REVIEW.md'), 'utf8') === review, retry.out);
 }
 
 rmSync(ROOT, { recursive: true, force: true });

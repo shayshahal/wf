@@ -23,6 +23,7 @@ import { stepHistory } from './friction.ts';
 import { changedFiles, isRoundPaperwork } from '../gates/check.ts';
 import { assessmentContentSha } from './agreement.ts';
 import { deliveredCommandGap } from './delivered-round.ts';
+import { correctionGate, correctionStateSha, outstandingCorrections } from './corrections.ts';
 import { shouldStopRoundServers } from './round-servers.ts';
 import { stopWorktreeServers } from '../worktrees/serve.ts';
 
@@ -85,7 +86,7 @@ export function appendDecision(agreementText: string, text: string, date = new D
 }
 
 /** Transition the round under its gates; next may resume a cleared handoff without replacing its baseline. */
-export async function runStep(argv: string[], { quiet = false, buildReason, resumeAssessment }: { quiet?: boolean; buildReason?: State['build_reason']; resumeAssessment?: true } = {}) {
+export async function runStep(argv: string[], { quiet = false, buildReason, resumeAssessment, expectedCorrections }: { quiet?: boolean; buildReason?: State['build_reason']; resumeAssessment?: true; expectedCorrections?: string } = {}) {
 	const flag = (name: string) => {
 		const i = argv.indexOf(`--${name}`);
 		return i >= 0 ? argv[i + 1] : null;
@@ -137,8 +138,17 @@ export async function runStep(argv: string[], { quiet = false, buildReason, resu
 	// Direct review/step callers must obey the same assessment rulings as wf next, not bypass it.
 	const reviewPolicy = step === 'review' ? await import('./next.ts') : null;
 	let state: State;
+	let reasonlessBuild = false;
 	try {
 		state = writeState(toplevel, (current) => {
+			if (expectedCorrections !== undefined && correctionStateSha(current) !== expectedCorrections) throw new StepGateError('corrections changed since dispatch; run wf next again rather than applying a stale transition');
+			if (current.merge_attempt && step !== 'merged' && step !== 'held') throw new StepGateError('merge outcome is uncertain; run wf deliver to reconcile it before changing activity');
+			if (step === 'pr' && current.step === 'held') throw new StepGateError('the round is held; approval completion cannot resume it implicitly');
+			if (step === 'assess' || step === 'review' || step === 'pr') {
+				const correction = correctionGate(current);
+				if (correction) throw new StepGateError(correction);
+			}
+			reasonlessBuild = step === 'build' && !buildReason && !outstandingCorrections(current).length;
 			const delivered = deliveredCommandGap(current, ['step', ...argv]);
 			if (delivered) throw new StepGateError(delivered);
 			const klass: RoundClass | null = step === 'classify'
@@ -177,7 +187,7 @@ export async function runStep(argv: string[], { quiet = false, buildReason, resu
 				: {};
 			return {
 				...baseline,
-				build_reason: step === 'build' ? buildReason ?? current.build_reason ?? null : null,
+				build_reason: step === 'build' ? buildReason ?? (outstandingCorrections(current).length ? current.build_reason ?? null : null) : null,
 				wf_version: WF_STATE_VERSION,
 				round, class: klass, base, step, since,
 				waiting_on: waitingOn ?? current.questions?.[0]?.to ?? null,
@@ -195,5 +205,6 @@ export async function runStep(argv: string[], { quiet = false, buildReason, resu
 		if (stopped.kind === 'refused') console.error(stopped.why);
 		else if (stopped.kind === 'stopped') console.error(`wf serve: released idle server tree ${stopped.pid}`);
 	}
+	if (!quiet && reasonlessBuild) console.error('wf step build: warning — no new correction or dispatch reason recorded; the brief carries no new assignment. Record an actual instruction with wf correct rather than rewriting a review verdict.');
 	if (!quiet) console.log(JSON.stringify(state));
 }

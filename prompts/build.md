@@ -4,6 +4,8 @@ Implement the agreement at `{{folder}}/{{file}}`.
 
 {{agreement}}
 
+{{corrections}}
+
 {{review}}
 
 {{assessment}}
@@ -18,6 +20,10 @@ Implement the agreement at `{{folder}}/{{file}}`.
 - Run the project's normal commands through your harness. Choose repetitions, regression coverage
   and baseline comparisons for the behavior being changed. `wf check` is an optional affected-check
   convenience, not a required certificate.
+- Address each applicable recorded correction, preserving its source and scope. Use `wf correct
+  --address <id> --note "<action/evidence>"` when acted on, or `wf correct --block <id> --owner
+  "<recovery owner>" --note "<concrete blocker>"`. Reading this brief or acknowledging a message is
+  not completion. Do not edit a person's historical verdict to carry an instruction.
 - Record the commands, observed results, limitations and useful evidence references in the working
   document. Read previous findings and recorded decisions; repair them through the work and its
   evidence, rather than a prescribed response form.

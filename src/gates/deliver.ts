@@ -11,14 +11,18 @@ import { stopWorktreeServers } from '../worktrees/serve.ts';
 //      tracker), its path in .wf/state.json for `wf next`
 //   5. `wf step merged`
 import { execFileSync, spawnSync } from 'node:child_process';
-import { appendFileSync, existsSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { refuseCaller } from '../refusal.ts';
 import { seams } from '../seams.ts';
 import { baseBranch, protectedFilesGap, trackerNote } from '../project.ts';
 import { agreementPath, agreementT2WalkLines, assessmentGap, ASSESSMENT_FILE, TICKET_FILE, verificationCases } from '../round/agreement.ts';
+import { randomUUID } from 'node:crypto';
+import { captureCorrection, correctionGate, correctionStateSha, outstandingCorrections } from '../round/corrections.ts';
 import { openQuestionGate } from '../round/ask.ts';
+import { stepHistory } from '../round/friction.ts';
+import { acquireProcessLock } from '../process-lock.ts';
 import { readVerdict, approvalBinding, approvalContentGap, lastField, reviewScopeBinding } from './review-format.ts';
 import { commitContentSha, headContentSha, trackerNotePath, worktreeContentSha } from './content-identity.ts';
 import type { ContentIdentity } from './content-identity.ts';
@@ -31,6 +35,20 @@ import type { State } from '../round/state.ts';
 // 6,260 + commits, "Body is too long" at `gh pr create`). The budget keeps a margin under it; .length
 // counts UTF-16 units, never fewer than GitHub's characters.
 export const PR_BODY_BUDGET = 60000;
+/** Durable merge attempt: reconcile remotely before retrying any mutation. */
+export type MergeAttempt = { url: string; head: string; contentSha: string; correctionsSha: string; at: string };
+
+// A definite unmerged answer releases the attempt, not an existing hold or unrelated activity.
+function unmergedAttemptPatch(current: State): Partial<State> {
+	const pending = outstandingCorrections(current);
+	const route = pending.length && !current.delivery && ['pr', 'build', 'review', 'assess'].includes(current.step ?? '');
+	const at = new Date().toISOString();
+	return { merge_attempt: null, ...(route ? {
+		step: 'build', since: at, correction_return_to: current.correction_return_to ?? 'pr',
+		history: stepHistory(current.history, 'build', at),
+		build_reason: { kind: 'work', text: pending.map((c) => `${c.id}: ${c.text}`).join('\n') },
+	} : {}) };
+}
 
 type PrSources = { ticket: string; agreement: string; commitLines: string[]; assessment: string; agreementPath: string; folder?: string; budget?: number };
 
@@ -197,6 +215,8 @@ export function prBody({ ticket, agreement, commitLines, assessment, agreementPa
 // is the unscoped one; a checkpoint verdict copied into REVIEW.md carries `scope: checkpoint` and is
 // refused here (a checkpoint can never authorize delivery).
 export function t2Gap(state: State | null, reviewText: string | null, current?: ContentIdentity) {
+	const corrections = correctionGate(state);
+	if (corrections) return corrections;
 	if (state?.step !== 'pr' || readVerdict(reviewText ?? '') !== 'approved') return 'T2 has not approved this round. deliver merges, so it comes after `wf review <branch> --done` with verdict: approved';
 	const boundScope = reviewScopeBinding(reviewText ?? '').scope;
 	if (boundScope) return `REVIEW.md's verdict is scoped ${boundScope} — only the final review (no scope) approves delivery; a checkpoint approval is not the merge`;
@@ -208,16 +228,14 @@ export function t2Gap(state: State | null, reviewText: string | null, current?: 
 // Pure: whether a failed push was the project's pre-push hook refusing it (not the network or auth).
 export const hookRefused = (output: string) => /pre-push/i.test(output ?? '');
 
-// Pure: the REVIEW.md section a push the hook refused becomes. Its changes-requested verdict is a T2
-// fix like any other (wf next dispatches fix-review, then T2 again): TJEW-670's orchestrator built
-// this by hand, 2026-09-28, after fallow-audit refused a push T2 had approved.
-export function refusedPushSection(output: string, date: string) {
+// A hook refusal is a system instruction, never a synthetic human review verdict (#150).
+export function refusedPushInstruction(output: string) {
 	// The lines that name a failure, not the tail: the hook's last 30 lines were svelte-kit and node
 	// warnings, and the file fallow flagged was above them (bench, 2026-09-28).
 	const all = output.replace(/\r\n/g, '\n').split('\n').filter((l) => l.trim());
 	const named = all.filter((l) => /[\u2717\u2718]|\u{1F94A}|\berror\b|CRITICAL|^\s*(packages|verification|scripts|docs)\/|^\s+:\d+\s/u.test(l) && !/lefthook v\d/.test(l));
 	const lines = (named.length ? named : all).slice(-30);
-	return `\n## ${date} \u2014 the push was refused by the project's pre-push hook\n\ncomments:\n(the push) \u2014 fix what the hook reports; \`wf check\` runs the same hook on the files you change:\n${lines.map((l) => `    ${l}`).join('\n')}\n\nverdict: changes-requested\n`;
+	return `The push was refused by the project's pre-push hook. Fix what the hook reports; wf check runs the same hook on the files you change:\n${lines.map((l) => `    ${l}`).join('\n')}`;
 }
 
 const git = (toplevel: string, args: string[]) => execFileSync('git', ['-C', toplevel, ...args], { encoding: 'utf8' }).trimEnd();
@@ -513,16 +531,46 @@ async function finishDelivery({ toplevel, state, folder, ids, url, head, because
 	// Bind the receipt to the remotely merged commit, never a concurrent local HEAD. A retry after
 	// the receipt but before step merged reasserts this same identity from the remote (#129).
 	const contentSha = commitContentSha(toplevel, head, folder, rel, 'row');
-	writeState(toplevel, () => ({ note: kept, delivery: { url, head, contentSha } }));
+	writeState(toplevel, () => ({ note: kept, delivery: { url, head, contentSha }, merge_attempt: null }));
 	console.log(`${url} ${because}; tracker note: ${kept}`);
 	await runStep(['merged']);
+	if (outstandingCorrections(readState(toplevel)).length) console.error('wf deliver: merged with retained corrections; a fresh follow-up is required, not reopening this approval.');
 	const released = await stopWorktreeServers(toplevel);
 	if (released.kind === 'refused') { console.error(`wf deliver: merged, cleanup incomplete: ${released.why}; retry deliver`); process.exitCode = 1; }
 }
 
+/** Serialize delivery requests, not instruction intake; only a dead creator's retry may reconcile. */
 export async function runDeliver() {
 	const toplevel = toplevelOf();
-	const state = readState(toplevel);
+	// An OPEN query cannot settle another live delivery's in-flight merge (#150). Reuse the
+	// identity-proven process lock, outside the content tree, without holding state.json locked.
+	const lock = acquireProcessLock(git(toplevel, ['rev-parse', '--path-format=absolute', '--git-path', 'wf-deliver.lock']));
+	if (lock.kind === 'refused') { console.error(`wf deliver: ${lock.why}`); process.exitCode = 2; return; }
+	process.once('exit', lock.release);
+	try { await runLockedDelivery(toplevel); }
+	finally { process.removeListener('exit', lock.release); lock.release(); }
+}
+
+async function runLockedDelivery(toplevel: string) {
+	let state = readState(toplevel);
+	if (state?.merge_attempt) {
+		const attempt = state.merge_attempt;
+		const branch = git(toplevel, ['rev-parse', '--abbrev-ref', 'HEAD']);
+		const target = originTarget(gitConfigAll(toplevel, 'remote.origin.url'), gitConfigAll(toplevel, 'remote.origin.pushurl'), gitPushUrls(toplevel));
+		if (target.kind === 'refuse') { console.error(`wf deliver: ${target.why}; merge outcome remains uncertain`); process.exit(2); }
+		const repo = target.repo;
+		const lookup = prLookup(seams.gh(['pr', 'list', '--repo', `${repo.owner}/${repo.name}`, '--head', branch, '--base', baseBranch, '--state', 'all', '--json', 'url,state,headRefOid,headRefName,baseRefName,isCrossRepository'], toplevel), { headRefName: branch, baseRefName: baseBranch, repo });
+		if (lookup.kind !== 'found' || lookup.url !== attempt.url || (lookup.state === 'MERGED' && lookup.headRefOid !== attempt.head)) {
+			console.error('wf deliver: merge outcome remains uncertain; retain attempt and instructions, retry remote reconciliation'); process.exit(2);
+		}
+		if (lookup.state === 'MERGED') {
+			const { id, folder } = roundOf(state, toplevel);
+			if (!id || !folder) { console.error('wf deliver: merged attempt has no round identity'); process.exit(2); }
+			await finishDelivery({ toplevel, state, folder, ids: state.ids ?? [id], url: attempt.url, head: attempt.head, because: 'confirmed merged after attempted delivery' });
+			return;
+		}
+		state = writeState(toplevel, unmergedAttemptPatch);
+	}
 	// The step is the delivery's last write; once it is `merged` there is nothing left to finish. A
 	// retry that never reached it is recovered above, from what the remote shows.
 	if (state?.step === 'merged') {
@@ -572,6 +620,9 @@ export async function runDeliver() {
 	// the approved bytes are shipped (#106). Both are accepted at every boundary because a resumed
 	// delivery meets HEAD == the approved worktree, not the reviewed HEAD (#108).
 	const requireApprovedContent = (what: string) => {
+		const current = readState(toplevel);
+		const gate = correctionGate(current) ?? openQuestionGate(current);
+		if (gate || current?.step !== 'pr') { console.error(`wf deliver: ${gate ?? 'round is no longer at pr'}`); process.exit(2); }
 		const now = identityNow();
 		const worktreeOk = binding.contentSha !== null && now.worktree === binding.contentSha;
 		const headOk = now.head === binding.headSha || now.head === binding.contentSha;
@@ -657,6 +708,7 @@ export async function runDeliver() {
 	// uncommitted, and reap keeps them in ~/.cache/wf-reaped (Shay, 2026-09-27). A checkpoint review
 	// (CHECKPOINT-REVIEW.md) is the same paperwork.
 	const keep = ['--', folder, ...[`${folder}/repro/.auth`, `${folder}/REVIEW.md`, `${folder}/CHECKPOINT-REVIEW.md`].filter((path) => !ignored(path)).map((path) => `:(exclude)${path}`)];
+	requireApprovedContent('before the round-folder commit');
 	if (git(toplevel, ['status', '--porcelain', ...keep])) {
 		git(toplevel, ['add', ...keep]);
 		// Pathspec, not a bare commit: a product file staged for another purpose is not swept into the
@@ -665,14 +717,15 @@ export async function runDeliver() {
 	}
 	requireApprovedContent('the round-folder commit');
 	// gh pr create cannot push without a terminal; push first (BJEW-603, the first real deliver).
+	const pushEvent = `wf:push-hook:${git(toplevel, ['rev-parse', 'HEAD'])}:${randomUUID()}`;
 	const pushed = spawnSync('git', ['-C', toplevel, 'push', '-q', '-u', 'origin', 'HEAD'], { encoding: 'utf8' });
 	if (pushed.status !== 0) {
 		const output = (pushed.stdout ?? '') + (pushed.stderr ?? '');
 		console.error(`FAILED: git push\n${output}`.trimEnd());
 		if (hookRefused(output)) {
-			appendFileSync(reviewFile, refusedPushSection(output, new Date().toISOString().slice(0, 10)));
-			await runStep(['build']);
-			console.error(`wf deliver: the pre-push hook refused the push. ${folder}/REVIEW.md now asks for the fix (verdict: changes-requested); the round is back at build. \`wf next\` dispatches it, then T2 again.`);
+			const text = refusedPushInstruction(output);
+			const result = captureCorrection(toplevel, { kind: 'system', author: 'wf deliver pre-push hook', source: pushEvent, relay: null, text, scope: 'the approved round implementation', reason: 'The project pre-push hook refused delivery.' });
+			console.error(result.kind === 'refused' ? result.reason : 'wf deliver: pre-push failure retained as a system correction; REVIEW.md is unchanged. Run wf next.');
 		}
 		process.exit(1);
 	}
@@ -692,6 +745,8 @@ export async function runDeliver() {
 	const title = prTitle({ ticket, agreement: agreementText, commitLines });
 	// An open PR is this delivery's own: edit its body, never create a second one (issue 108).
 	const url = resume.do === 'resume' ? resume.url : null;
+	requireApprovedContent('before PR create/edit');
+	const consumedCorrectionsSha = correctionStateSha(readState(toplevel));
 	const pr = url
 		? seams.gh(['pr', 'edit', url, '--body-file', body], toplevel)
 		: seams.gh(['pr', 'create', '--repo', repoName, '--base', baseBranch, '--title', title, '--body-file', body], toplevel);
@@ -745,11 +800,32 @@ export async function runDeliver() {
 		console.error(`wf deliver: HEAD moved to ${headAtMerge.slice(0, 12)} after the merge was pinned to ${headNow.slice(0, 12)}; nothing was merged`);
 		process.exit(1);
 	}
+	// No network request or human wait holds this authorization lock.
+	writeState(toplevel, (current) => {
+		const gap = correctionGate(current) ?? openQuestionGate(current);
+		if (gap || current.step !== 'pr' || current.merge_attempt || correctionStateSha(current) !== consumedCorrectionsSha) {
+			console.error(`wf deliver: merge authorization refused: ${gap ?? 'round or correction state changed'}`); process.exit(2);
+		}
+		requireApprovedContent('merge authorization');
+		if (git(toplevel, ['rev-parse', 'HEAD']) !== headNow || readFileSync(reviewFile, 'utf8') !== reviewText) {
+			console.error('wf deliver: merge authorization refused: HEAD or approval changed'); process.exit(2);
+		}
+		return { merge_attempt: { url: prUrl, head: headNow, contentSha: binding.contentSha!, correctionsSha: consumedCorrectionsSha, at: new Date().toISOString() } };
+	});
 	// Not --delete-branch: gh would then check out the base branch in this worktree, and it is checked
 	// out in the person's clone (finishDelivery does the delete).
 	const merged = seams.gh(['pr', 'merge', prUrl, '--merge', '--match-head-commit', headNow], toplevel);
 	if (merged.status !== 0) {
 		console.error(`FAILED: gh pr merge ${prUrl}\n${(merged.stdout ?? '') + (merged.stderr ?? '')}`.trimEnd());
+		const outcome = prLookup(seams.gh(['pr', 'list', '--repo', repoName, '--head', branch, '--base', baseBranch, '--state', 'all', '--json', 'url,state,headRefOid,headRefName,baseRefName,isCrossRepository'], toplevel), { headRefName: branch, baseRefName: baseBranch, repo });
+		if (outcome.kind === 'found' && outcome.url === prUrl) {
+			if (outcome.state === 'MERGED' && outcome.headRefOid === headNow) {
+				await finishDelivery({ toplevel, state, folder, ids: state?.ids ?? [id], url: prUrl, head: headNow, because: 'confirmed merged despite failed request' });
+				return;
+			}
+			if (outcome.state !== 'MERGED') writeState(toplevel, unmergedAttemptPatch);
+		}
+		console.error('wf deliver: merge request failed; unresolved outcome retains its attempt. Retry deliver to reconcile before repair.');
 		process.exit(1);
 	}
 	// Every --id the round was made with: a round on subitems has one note per subitem (TJEW-670).

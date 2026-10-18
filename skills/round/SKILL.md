@@ -65,6 +65,10 @@ handoffs rather than duplicating a running worker's work or consuming its transc
   approval permits delivery. A dismissed review grants nothing.
 - **deliver:** `wf deliver` pushes, creates/reconciles the PR, confirms merge and writes the tracker
   note. Project hooks still apply. Then `wf next`.
+- **follow-up:** a clear instruction arrived after confirmed delivery. Start the fresh round named
+  by `wf next`, capture its exact instruction/source there with `wf correct`, then address the old
+  correction with that new round/correction reference. Only then may old cleanup continue; the old
+  approval does not authorize the new implementation.
 - **post:** post each outstanding tracker-note section, marking its heading ` (posted)` immediately
   after success so resume does not duplicate it. Then `wf next`.
 - **done:** run the named reap from a surviving checkout and report the merged PR and timing line.
@@ -78,6 +82,24 @@ Before proceeding past a human-agreed checkpoint, show the intended diff with
 assessment or integration phase is required. Final T2 still reviews the whole round.
 
 ## Decisions and blockers
+
+**Corrections.** When a clear round-linked instruction arrives from Shay in chat, review, Inbox,
+ticket or PR feedback, record it yourself once:
+`wf correct --source "<actual message/event reference>" --author "<original author>" --scope "<intended scope>" --reason "<why it applies>" "<instruction, verbatim>"`.
+Preserve attribution when relaying; ordinary discussion, non-directive approval notes and third-party
+suggestions are not new assignments. A clear instruction is still actionable when delivered beside
+an approval; classify its meaning, not just the review's verdict. If intent is ambiguous, retain the words and ask only what is missing.
+Shay need not repeat the instruction in another tool. Reuse the exact source identity on retry;
+explicit replacement uses `--supersedes <id,...>`, never timestamps or rewriting a review verdict.
+Run `wf next`: the actual build and assessment context carries the instruction until addressed,
+blocked or explicitly replaced. Builders record disposition through the command in their brief.
+When a concrete blocker clears, record `wf correct --unblock <id> --note "<what cleared it/source>"`,
+then `wf next` resumes the same instruction; unblocking is not application. Previous dispositions
+remain inspectable. Dispatch and transport acknowledgement are not application. An outstanding instruction blocks
+delivery even when file bytes have not yet changed. After disposition, `wf next` may resume
+unchanged approved delivery; changed subjects follow fresh assessment/T2. A recorded uncertain
+merge is reconciled before repair or follow-up. Receive/read through the current harness and
+project tools; wf itself does not watch those sources or start a departed worker (#159).
 
 Use project tools to resolve ordinary setup and engineering problems. A missing capability does
 not authorize fixing every dependency: name the gap and owner. For a real decision or missing

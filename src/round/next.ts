@@ -32,7 +32,8 @@ import type { Question, RoundClass, State } from './state.ts';
 import { stepHistory } from './friction.ts';
 import { assessmentHandoffGap, higherClass, runStep } from './step.ts';
 import { assessmentContentSha, assessmentRulingSource } from './agreement.ts';
-import { mergedImplementationGap } from './delivered-round.ts';
+import { followupRoundLine, mergedImplementationGap } from './delivered-round.ts';
+import { correctionStateSha, outstandingCorrections } from './corrections.ts';
 import { shouldStopRoundServers } from './round-servers.ts';
 import { stopWorktreeServers } from '../worktrees/serve.ts';
 import type { MergedImplementationGap } from './delivered-round.ts';
@@ -72,6 +73,11 @@ export type Snapshot = {
 	assessmentBaselineMissing?: boolean;
 	assessmentHandoffGap?: string | null;
 	buildReason?: State['build_reason'];
+	corrections?: State['corrections'];
+	mergeAttempt?: State['merge_attempt'];
+	delivery?: State['delivery'];
+	id?: string;
+	ids?: string[];
 	/** A merged round cannot post/reap on the old delivery while carrying new product work. */
 	mergedGap?: MergedImplementationGap | null;
 };
@@ -107,14 +113,17 @@ export function nextAction(s: Snapshot, purpose: 'dispatch' | 'brief' = 'dispatc
 	if (s.step === 'held') return act('wait user: the round is held (wf step <name> resumes it)');
 	// The tracker hears last, one section per item; a session can die between two posts, so the note
 	// says which are posted and a resumed round posts the rest, never one twice.
+	const corrections = outstandingCorrections({ corrections: s.corrections });
+	if (s.mergeAttempt || (s.delivery && s.step !== 'merged')) return act(`deliver: reconcile the recorded merge outcome before repair or follow-up — \`${wf} deliver\`; do not assume the merge was prevented`);
 	if (s.step === 'merged') {
+		if (corrections.length) return act(`follow-up: instructions arrived after delivery: ${corrections.map((c) => `${c.id}: ${c.text}`).join(' | ')}. ${followupRoundLine({ round: s.branch, id: s.id, ids: s.ids })}. Carry the exact source and instruction to the fresh round before recording its transfer here; never reuse this approval.`);
 		if (s.mergedGap?.kind === 'changed') return act(`wait user: ${s.mergedGap.reason}`);
 		const left = unpostedSections(s.note?.text ?? null);
 		if (left.length) return act(`post: ${left.join(', ')} — each section of ${s.note!.file} on its own item, with the delivered status (ROUND.md); right after each, its heading gets \` (posted)\`. Then \`${wf} next\``);
 		if (s.mergedGap) return act(`wait user: ${s.mergedGap.reason}`);
 		return act(`done: \`${wf} reap ${s.branch}\``);
 	}
-	if (s.step === 'pr') return act(`deliver: T2 approved — \`${wf} deliver\` (push, PR, merge, the tracker note), then \`${wf} next\``);
+	if (s.step === 'pr' && !corrections.length) return act(`deliver: T2 approved — \`${wf} deliver\` (push, PR, merge, the tracker note), then \`${wf} next\``);
 
 	// The class is measured from what the round actually does — a declared `Class:` line, a verification
 	// case, or a changed file that reaches a contract path. It runs at every working step, so an A round
@@ -150,7 +159,7 @@ export function nextAction(s: Snapshot, purpose: 'dispatch' | 'brief' = 'dispatc
 	const t1Approved = s.t1.sha !== null && s.t1.reviewed === s.t1.sha && s.t1.verdict === 'approved';
 	// T1 stays live after the build starts: a build or progress edit that changes the agreed material
 	// sends the round back to a fresh T1 rather than riding the old approval (#111.4).
-	if (s.step === 'build' || s.step === 'assess' || s.step === 'review') {
+	if (s.step === 'build' || s.step === 'assess' || s.step === 'review' || (s.step === 'pr' && corrections.length)) {
 		if (consequential(s.klass) && !t1Approved) {
 			const why = s.t1.reviewed === null ? `no ${AGREEMENT_REVIEW_FILE} yet` : s.t1.reviewed !== s.t1.sha ? 'the agreed material changed since T1' : `T1 verdict is ${s.t1.verdict ?? 'pending'}`;
 			effects.push({ step: ['agree', '--waiting-on', 'user'] });
@@ -191,6 +200,12 @@ export function nextAction(s: Snapshot, purpose: 'dispatch' | 'brief' = 'dispatc
 		}
 		effects.push({ step: ['build'] });
 		step = 'build';
+	}
+
+	if (corrections.length) {
+		const blocked = corrections.filter((c) => c.outcome.kind === 'blocked');
+		if (blocked.length) return act(blocked.map((c) => c.outcome.kind === 'blocked' ? `wait ${c.outcome.owner}: correction ${c.id} — ${c.outcome.note}; instruction: ${c.text}` : '').join('\n'));
+		return dispatch('build', `address recorded corrections: ${corrections.map((c) => `${c.id}: ${c.text}`).join(' | ')}; record each disposition with evidence or a concrete blocker, not merely a transport acknowledgement`);
 	}
 
 	// build: one phase, resumed in place, ended by the build worker running `wf step assess`.
@@ -317,6 +332,11 @@ export function snapshotOf(toplevel: string): Snapshot {
 		revisions: state.revisions ?? [],
 		blockedAnswered: state.blocked_answered ?? 0,
 		buildReason: state.build_reason,
+		corrections: state.corrections,
+		mergeAttempt: state.merge_attempt,
+		delivery: state.delivery,
+		id: state.id,
+		ids: state.ids,
 		repairs: state.repairs ?? 0,
 		assessmentChangedSinceHandoff,
 		assessmentBaselineMissing,
@@ -342,6 +362,9 @@ export function snapshotOf(toplevel: string): Snapshot {
 	};
 }
 
+// A private expected abort inside writeState: no stale side-effect reaches persisted authority.
+class NextCorrectionRace extends Error {}
+
 export async function runNext() {
 	const toplevel = toplevelOf();
 	const state = readState(toplevel);
@@ -349,14 +372,30 @@ export async function runNext() {
 		console.error('wf next: no round here — run it in the round\'s worktree (wf new <branch> --id <id> makes one)');
 		refuseCaller();
 	}
-	let { say, effects } = nextAction(snapshotOf(toplevel));
+	const snapshot = snapshotOf(toplevel);
+	const expectedCorrections = correctionStateSha({ corrections: snapshot.corrections });
+	let { say, effects } = nextAction(snapshot);
 	for (const e of effects) {
-		if (e.step) await runStep(e.step, { quiet: true, buildReason: e.buildReason, resumeAssessment: e.resumeAssessment });
-		// A repair stays within the agreement and is bounded per build; the independent reviewer's
-		// explicit outcome owns sufficiency.
-		if (e.repair) writeState(toplevel, (s) => ({ repairs: (s.repairs ?? 0) + 1 }));
-		if (e.blockedAnswered !== undefined) writeState(toplevel, () => ({ blocked_answered: e.blockedAnswered }));
-		if (e.ask) writeState(toplevel, (state) => addQuestion(state, e.ask!));
+		if (e.step) await runStep(e.step, { quiet: true, buildReason: e.buildReason, resumeAssessment: e.resumeAssessment, expectedCorrections });
+		// All effects consume the same instruction snapshot, including a question/repair update
+		// after an asynchronous step. A stale assessment must not park a newly admitted instruction.
+		if (e.repair || e.blockedAnswered !== undefined || e.ask) {
+			try {
+				writeState(toplevel, (current) => {
+					if (correctionStateSha(current) !== expectedCorrections) throw new NextCorrectionRace();
+					return {
+						...(e.repair ? { repairs: (current.repairs ?? 0) + 1 } : {}),
+						...(e.blockedAnswered !== undefined ? { blocked_answered: e.blockedAnswered } : {}),
+						...(e.ask ? addQuestion(current, e.ask) : {}),
+					};
+				});
+			} catch (error) {
+				if (!(error instanceof NextCorrectionRace)) throw error;
+				console.error('wf next: corrections changed during dispatch; run wf next again for the current instruction');
+				process.exitCode = 2;
+				return;
+			}
+		}
 	}
 	if (effects.some((e) => e.ask)) ({ say } = nextAction(snapshotOf(toplevel)));
 	const current = readState(toplevel);
