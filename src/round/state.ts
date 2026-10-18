@@ -103,8 +103,9 @@ export function resolveRoundBase(toplevel: string, state: State | null): { ref: 
 // command mutates it (finish-before-release, #110): the new route cannot read the old fields, and a
 // silent reinterpretation would corrupt a half-finished round. A genuine read-only inspection may
 // still report it; every mutating command refuses (run.ts).
-// 3 (2026-10-18) removed the executable-unit runtime (build-units.ts, state.slices): a version-2
-// round may be mid-unit and has no meaning here, so it finishes on the wf that made it.
+// 3 (2026-10-18) removed the executable-unit runtime (build-units.ts, state.slices). A version-2 state
+// that holds no unit progress carries only fields this runtime reads, so it keeps working (JX-1069 was
+// mid-T2 at version 2 when this cut shipped); one that holds `slices` is refused by readState.
 export const WF_STATE_VERSION = 3;
 // The steps the smaller route removed (#111/#112/#113). A round parked at one is an old round: it must
 // finish on the installed wf that made it, and this wf refuses to reinterpret it.
@@ -112,10 +113,11 @@ const OLD_ROUTE_STEPS = ['research', 'plan', 'design', 'implement'];
 export function legacyStateGap(state: State | null): string | null {
 	if (!state) return null;
 	if (state.wf_version === WF_STATE_VERSION) return null;
-	// Any state this runtime did not write is refused before a mutating command touches it: an unknown
-	// version, a versionless old round (even parked at a step the two routes share, like classify or
-	// review), or a hand-edited file. Fresh/absent state is allowed to initialize version 2; a
-	// read-only inspection may still report an old round (run.ts).
+	// Version 2 without `slices` (readState refuses that field) is readable here and is accepted, so a
+	// protocol cut does not strand rounds that hold no removed progress. A newer or hand-edited version
+	// is refused before a mutating command touches it, as is a versionless old round (even parked at a
+	// step the two routes share, like classify or review).
+	if (state.wf_version === 2) return null;
 	if (typeof state.wf_version === 'number') return `this round's state names wf version ${state.wf_version}, not ${WF_STATE_VERSION} — finish it on that wf, then start a new round`;
 	const at = state.step && OLD_ROUTE_STEPS.includes(state.step) ? ` (step "${state.step}")` : '';
 	return `this round's state is from an older wf (no wf_version${at}): finish it on the installed wf that made it, then start a new round — this wf refuses to reinterpret old state (finish-before-release, #110)`;

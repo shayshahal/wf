@@ -69,14 +69,16 @@ writeFileSync(stateFile(bad), good);
 check('a restored file reads again', readState(bad)?.revisions?.[0]?.text === 'a');
 rmSync(bad, { recursive: true, force: true });
 
-// A version-2 state, or any state still carrying executable-unit progress (`slices`), is refused:
-// the unit runtime is gone and the field is never silently ignored (finish-before-release, #110).
+// A version-2 state that holds no executable-unit progress (`slices`) keeps working: it carries only
+// fields this runtime reads. One still carrying `slices` is corrupt, never silently ignored.
 const sliced = tempDir();
 writeState(sliced, () => ({}));
 writeFileSync(stateFile(sliced), JSON.stringify({ wf_version: 2, round: 'r', step: 'build' }));
-check('a version-2 round is refused, not reinterpreted', (legacyStateGap(readState(sliced)) ?? '').includes('version 2'));
+check('a version-2 round without unit progress is read, not refused', legacyStateGap(readState(sliced)) === null);
 writeFileSync(stateFile(sliced), JSON.stringify({ wf_version: 3, round: 'r', step: 'build', slices: { planSha: 'x' } }));
 check('a state carrying removed executable-unit progress is corrupt, not silently ignored', throws(() => readState(sliced)) instanceof CorruptStateError);
+writeFileSync(stateFile(sliced), JSON.stringify({ wf_version: 2, round: 'r', step: 'build', slices: { planSha: 'x' } }));
+check('a version-2 state still carrying unit progress is corrupt too', throws(() => readState(sliced)) instanceof CorruptStateError);
 rmSync(sliced, { recursive: true, force: true });
 
 // A malformed recovery marker cannot silently turn a real repair into a cleared handoff.

@@ -201,7 +201,8 @@ check('a state with no wf_version is refused with an actionable line', (legacySt
 check('a versionless state at a shared step (classify/review/pr/held/merged) is refused too', ['classify', 'review', 'pr', 'held', 'merged'].every((step) => (legacyStateGap({ step }) ?? '').includes('older wf')));
 check('a versionless state with no step is refused too', (legacyStateGap({ round: 'r' }) ?? '').includes('older wf'));
 check('a state at the current version is accepted', legacyStateGap({ wf_version: WF_STATE_VERSION, step: 'build' }) === null);
-check('a version-2 state (with executable units) is refused, not reinterpreted', (legacyStateGap({ wf_version: 2, step: 'build' }) ?? '').includes('version 2'));
+check('a version-2 round without unit progress is accepted, so a protocol cut does not strand it', legacyStateGap({ wf_version: 2, step: 'build' }) === null);
+check('a newer version is refused, so an old runtime cannot misread new state', (legacyStateGap({ wf_version: WF_STATE_VERSION + 1, step: 'build' }) ?? '').includes(`version ${WF_STATE_VERSION + 1}`));
 check('no state is not a legacy round', legacyStateGap(null) === null);
 
 // ── real CLI: an ordinary class A round reaches build through wf next; a legacy state is refused
