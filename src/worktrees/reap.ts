@@ -7,7 +7,7 @@
 // guards unfinished work, and a finished round has none. BJEW-562 (2026-09-27): wf next said
 // `wf reap <branch>`, it only printed its plan, and Claude Code's auto mode refused the flag.
 // Every step tolerates "already gone": a reap that is re-run is a no-op, not an error.
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { appendFileSync, copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { createHash, randomUUID } from 'node:crypto';
@@ -123,11 +123,34 @@ export function reapRuns(env: NodeJS.ProcessEnv, state: State | null) {
 	return env.WF_FORCE_REAP === '1' || state?.step === 'merged';
 }
 
+// Pure: the argv that deletes a local branch in the repository the round's branch lives in.
+export const branchDeleteArgs = (gitDir: string, branch: string) => [`--git-dir=${gitDir}`, 'branch', '-D', branch];
+
 // Pure: the step that deletes the round's local branch, or null. Only a merged round's (wf deliver
 // merged it and deleted the remote one): a force-reaped round that never merged keeps its work. The
 // team's clone collected them, cr/TJEW-670-texts-buttons and -back-button (2026-09-28).
-export function branchStep(state: State | null, branch: string, gitDir: string): Extract<RemovalStep, { cmd: string }> | null {
-	return state?.step === 'merged' ? { label: `delete local branch ${branch}`, cmd: 'git', args: [`--git-dir=${gitDir}`, 'branch', '-D', branch] } : null;
+// A branch already deleted by hand is "already gone", not a failure: `git branch -D` exits 1 on a
+// missing branch, and reap re-runs its last step from the journal, so that exit 1 repeated forever —
+// the folder deleted, the journal never cleared (2026-10-18, #180's neighbouring report).
+export function branchStep(state: State | null, branch: string, gitDir: string): RemovalStep | null {
+	if (state?.step !== 'merged') return null;
+	return { label: `delete local branch ${branch}`, run: () => {
+		const ref = `refs/heads/${branch}`;
+		if (spawnSync('git', [`--git-dir=${gitDir}`, 'show-ref', '--verify', '--quiet', ref]).status !== 0) return;
+		const removed = spawnSync('git', branchDeleteArgs(gitDir, branch), { encoding: 'utf8' });
+		if (removed.status !== 0) throw new Error(`${removed.stderr.trim().split('\n').at(-1) || `git branch -D exited ${removed.status}`}`);
+	} };
+}
+
+// Pure: what reap says about the local branch. A merged round's was deleted by its own step; anything
+// else keeps it on purpose (an unmerged round's work is not ours to delete), and a reap that silently
+// leaves a branch behind reads as a failure to the person running it (2026-10-18, #180: two worktrees
+// whose branches were deleted by hand after reap said nothing about them).
+export function branchKeptLine(state: State | null, branch: string, deleted: boolean): string {
+	if (deleted) return `local branch ${branch}: deleted (the round merged)`;
+	return state
+		? `local branch ${branch}: kept — this round never reached step merged, so its work stays`
+		: `local branch ${branch}: kept — this worktree was not a round`;
 }
 
 // Directory identity survives a partially deleted .wf folder; a replacement gets another file ID.
@@ -229,7 +252,8 @@ export async function runReap(argv: string[]) {
 			// continue to the explicit directory removal, which will preserve progress if that fails too.
 			const unregistered = step.label === 'wt remove' && !listWorktrees(survivor).some((tree) => resolve(tree.path) === path);
 			if (!outcome.ok && !unregistered) {
-				console.error(`wf reap: incomplete; recovery journal ${journal}. Retry wf reap ${branch} from ${survivor}`);
+				const where = existsSync(path) ? `the worktree is still at ${path}` : 'the worktree itself is gone — only this step is outstanding';
+				console.error(`wf reap: incomplete (${where}); recovery journal ${journal}. Retry wf reap ${branch} from ${survivor}`);
 				process.exitCode = 1;
 				return;
 			}
@@ -244,6 +268,7 @@ export async function runReap(argv: string[]) {
 		writeCloneLaunch(slug, null);
 		unlinkSync(journal);
 		console.log('launch.json entries: ok');
+		console.log(branchKeptLine(state, branch, deleteBranch !== null));
 		if (kept) console.log(reapSummary({ slug, dest: join(homedir(), '.cache', 'wf-reaped', slug), ...kept, folder: state?.folder, worktree: path, worktreeGone: !existsSync(path) }));
 	} finally { reapLock?.release(); }
 }

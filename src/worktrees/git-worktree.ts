@@ -2,12 +2,14 @@
 // in <repo>/.claude/worktrees/<slug>, Claude Code Desktop's own place (kit and env plan, step 3).
 //   create: git worktree add, the project's setup steps side by side (no stack: the phases that use one
 //           start it, serve.ts ensureServers)
-//   remove: stop the stack, the project's teardown while the worktree is still there, then the folder
+//   remove: stop the stack, close the show browser, the project's teardown while the worktree is still
+//           there, then the folder
 import { closeSync, openSync, readFileSync } from 'node:fs';
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { setup, teardown } from '../project.ts';
 import type { RemovalStep, Seams, Worktree } from '../seams.ts';
 import { stopWorktreeServers } from './serve.ts';
+import { stopShowBrowser } from './show-browser.ts';
 import { basePortForBranch, excludeFromGit, excludeWfFolder, listWorktrees, slugForBranch, worktreesHome } from './worktree.ts';
 
 // The project's setup steps all at once, as worktrunk runs them: a command runs in a shell, its
@@ -64,6 +66,12 @@ export function removalPlan({ path, slug }: Pick<Parameters<NonNullable<Seams['r
 	return [
 		{ label: 'stop owned servers', run: async () => {
 			const result = await stopWorktreeServers(path);
+			if (result.kind === 'refused') throw new Error(result.why);
+		} },
+		// The window `wf show` opened outlives wf and holds the folder on Windows: release it before
+		// teardown and rm, or reap's delete fails with EPERM (#180).
+		{ label: 'close the show browser', run: async () => {
+			const result = await stopShowBrowser(path);
 			if (result.kind === 'refused') throw new Error(result.why);
 		} },
 		...teardown({ slug, worktree: path }),

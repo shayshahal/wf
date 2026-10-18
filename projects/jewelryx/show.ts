@@ -16,6 +16,7 @@ import { opensWindows } from '../../src/worktrees/editor.ts';
 import { ensureServers } from '../../src/worktrees/serve.ts';
 import { writeCloneLaunch } from '../../src/worktrees/new.ts';
 import { readState, roundOf, toplevelOf, writeState } from '../../src/round/state.ts';
+import { browserPidFromOutput, recordShowBrowser } from '../../src/worktrees/show-browser.ts';
 import { agreementPath, agreementSha, agreementT2WalkLines, consequential } from '../../src/round/agreement.ts';
 import { basePortForBranch, slugForBranch } from '../../src/worktrees/worktree.ts';
 import { logins, stackUrls } from './index.ts';
@@ -160,7 +161,16 @@ export async function runShow(argv: string[]): Promise<void> {
 	}
 	// wf step/next release an idle stack, so by T2 nothing may be listening: start it first, as brief does.
 	try { console.error(await ensureServers(toplevel, { wait: true })); } catch (e) { console.error((e as Error).message); process.exit(1); }
-	const r = spawnSync(process.execPath, showArgs(open), { cwd: toplevel, stdio: 'inherit' });
+	// Capture rather than inherit: the browser pid is in this CLI's first output line, and the window
+	// it leaves behind keeps the worktree on Windows until reap releases it (#180).
+	const r = spawnSync(process.execPath, showArgs(open), { cwd: toplevel, encoding: 'utf8' });
+	const printed = `${r.stdout ?? ''}${r.stderr ?? ''}`;
+	if (printed) process.stdout.write(printed.endsWith('\n') ? printed : `${printed}\n`);
+	if (r.status === 0) {
+		const pid = browserPidFromOutput(printed);
+		if (pid === null) console.error('wf show: the CLI printed no `opened with pid` line, so this window is not recorded as the round\'s and `wf reap` may fail to delete the worktree while it is open. Report it; the project\'s teardown still closes this checkout\'s browsers');
+		else recordShowBrowser(toplevel, [pid]);
+	}
 	process.exit(r.status ?? 1);
 }
 

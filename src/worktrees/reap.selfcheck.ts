@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { branchStep, keepRoundPaperwork, paperworkToKeep, proofToKeep, reapRuns, reapSummary } from './reap.ts';
+import { branchDeleteArgs, branchKeptLine, branchStep, keepRoundPaperwork, paperworkToKeep, proofToKeep, reapRuns, reapSummary } from './reap.ts';
 import { runRemovalStep } from './removal.ts';
 
 let failures = 0;
@@ -55,8 +55,27 @@ check('merged: reap runs without the flag', reapRuns({}, { step: 'merged' }));
 check('not merged: dry unless WF_FORCE_REAP=1', !reapRuns({}, { step: 'review' }) && !reapRuns({}, null) && reapRuns({ WF_FORCE_REAP: '1' }, { step: 'review' }));
 
 const del = branchStep({ step: 'merged' }, 'cr/x', 'C:/repo/.git');
-check('merged: the local branch goes too, in its own repository', del?.args.join(' ') === '--git-dir=C:/repo/.git branch -D cr/x');
+check('merged: the local branch goes too, in its own repository', branchDeleteArgs('C:/repo/.git', 'cr/x').join(' ') === '--git-dir=C:/repo/.git branch -D cr/x' && Boolean(del && 'run' in del && del.run));
 check('force-reaped but never merged: the branch stays', branchStep({ step: 'review' }, 'cr/x', 'C:/repo/.git') === null && branchStep(null, 'cr/x', 'C:/repo/.git') === null);
+
+// A branch deleted by hand must not make reap fail: the step is "already gone", and reap re-runs it
+// from its journal on every retry (2026-10-18, #180's neighbouring report).
+{
+  const repo = mkdtempSync(join(tmpdir(), 'wf-branch-step-'));
+  const git = (...args: string[]) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@e.invalid', ...args], { cwd: repo, encoding: 'utf8', stdio: 'pipe' });
+  git('init', '-q', '-b', 'main');
+  git('commit', '-qm', 'base', '--allow-empty');
+  git('branch', 'cr/x');
+  const step = branchStep({ step: 'merged' }, 'cr/x', join(repo, '.git'));
+  const first = await runRemovalStep(step!);
+  check('a merged round\'s branch is deleted', first.ok && git('branch', '--list', 'cr/x') === '');
+  const again = await runRemovalStep(step!);
+  check('a branch already gone is already gone, not a failure', again.ok, again.say);
+  rmSync(repo, { recursive: true, force: true });
+}
+check('a deleted branch is said to be deleted', branchKeptLine({ step: 'merged' }, 'fix/x', true).includes('deleted'));
+check('an unmerged round\'s kept branch says why', branchKeptLine({ step: 'review' }, 'fix/x', false).includes('never reached step merged'));
+check('a worktree that was never a round says that instead', branchKeptLine(null, 'verification/x', false).includes('was not a round'));
 
 // The shared removal-step runner (reap.ts runs the plan with it; a baseline scratch tears itself down
 // with it, baseline-run.ts). Every step tolerates "already gone" and a failed step never aborts the

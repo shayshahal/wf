@@ -4,6 +4,7 @@ import { closeSync, openSync, readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { teardown } from '../src/project.ts';
 import { stopWorktreeServers } from '../src/worktrees/serve.ts';
+import { stopShowBrowser } from '../src/worktrees/show-browser.ts';
 import { excludeWfFolder, resolveWorktree } from '../src/worktrees/worktree.ts';
 import type { RemovalStep, Seams } from '../src/seams.ts';
 
@@ -30,15 +31,21 @@ export function createWorktree({ branch, base, log }: Parameters<NonNullable<Sea
 	return tree;
 }
 
-// Pure: the ordered steps. `rm` is done in-process (fs.rmSync), so it carries no cmd. `platform` picks
-// the straggler sweep, so the selfcheck can check Windows's plan on any machine (it read
-// process.platform, and was red everywhere but Windows, 2026-10-03).
+// Pure: the ordered steps. `rm` is done in-process (fs.rmSync), so it carries no cmd. `platform` is
+// kept in the signature so the selfcheck can check Windows's plan on any machine (it read
+// process.platform and was red everywhere but Windows, 2026-10-03).
 export function removalPlan({ branch, path, slug, pid }: Parameters<NonNullable<Seams['removalPlan']>>[0], platform: NodeJS.Platform = process.platform): RemovalStep[] {
 	// Verified release must succeed before the project's teardown can remove scenario data.
 	// The safe cwd and recovery journal belong to reap, outside the directory wt may unregister.
 	return [
 		{ label: 'stop owned servers', run: async () => {
 			const result = await stopWorktreeServers(path);
+			if (result.kind === 'refused') throw new Error(result.why);
+		} },
+		// The window `wf show` opened outlives wf and holds the folder on Windows: release it before
+		// teardown and rm, or reap's delete fails with EPERM (#180).
+		{ label: 'close the show browser', run: async () => {
+			const result = await stopShowBrowser(path);
 			if (result.kind === 'refused') throw new Error(result.why);
 		} },
 		...teardown({ slug, worktree: path }),

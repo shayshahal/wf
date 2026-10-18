@@ -1,7 +1,7 @@
 // hook.selfcheck.ts — node hook.selfcheck.ts → exit 0 when green.
 // Pure arms: the wt hook block and its install, the reap gate, what a teardown counts as failed.
 // Nothing is run. What the project's steps do: projects/<name>/index.selfcheck.ts.
-import { gateVerdict, hookBlock, teardownFailures, withHookBlock } from './hook.ts';
+import { gateVerdict, hookBlock, splitTeardownSteps, teardownFailures, withHookBlock } from './hook.ts';
 import { repo, setup } from '../src/project.ts';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -63,6 +63,15 @@ try {
 // ── teardown: a piece already gone is not a failure
 const run = (status: number, stderr: string) => ({ t: { cmd: 'docker', args: ['rm', 'x'] }, r: { status, stdout: '', stderr } });
 check('a clean teardown has no failures', teardownFailures([run(0, ''), run(0, '')]).length === 0);
+// #180: a project step that runs in-process (closing this checkout's browsers) must reach the hook.
+{
+  const split = splitTeardownSteps([
+    { label: 'drop database', cmd: 'docker', args: ['rm', 'x'] },
+    { label: "close this checkout's browsers", run: () => null },
+  ]);
+  check('the teardown split keeps a run step out of the spawn path', split.cmds.map((s) => s.label).join() === 'drop database' && split.runs.map((s) => s.label).join() === "close this checkout's browsers");
+  check('every step lands in exactly one of the two', split.cmds.length + split.runs.length === 2);
+}
 check('"no such container" and "not found" are already gone', teardownFailures([run(1, 'Error: No such container: x'), run(1, 'network x not found')]).length === 0);
 check('any other error is a failure, naming the command', teardownFailures([run(1, 'daemon is not running')])[0] === 'docker rm x: daemon is not running');
 
