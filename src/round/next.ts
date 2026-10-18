@@ -17,7 +17,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { refuseCaller } from '../refusal.ts';
 import { addQuestion, blockedQuestion, openRevisions } from './ask.ts';
-import { agreementClass, agreementGap, agreementPath, agreementSha, revisionSha, AGREEMENT_FILE, AGREEMENT_REVIEW_FILE, ASSESSMENT_FILE, assessmentGap, assessmentHead, assessmentMaterial, assessmentOpenGaps, assessmentSurviving, assessmentVerdict, caseFiles, consequential, hasT2Walk, REVIEW_FILE, verificationCases } from './agreement.ts';
+import { agreementClass, agreementGap, agreementPath, agreementSha, revisionSha, AGREEMENT_FILE, AGREEMENT_REVIEW_FILE, ASSESSMENT_FILE, assessmentGap, assessmentHead, assessmentMaterial, assessmentOpenGaps, assessmentSurviving, assessmentVerdict, caseFiles, consequential, hasT2Walk, notAskedForGap, REVIEW_FILE, verificationCases } from './agreement.ts';
 import { contractPaths as contractPathsFile } from '../project.ts';
 import { classFromFiles } from '../gates/classify.ts';
 import { anticipatedPaths, TICKET_FILE } from './agreement.ts';
@@ -208,6 +208,9 @@ export function nextAction(s: Snapshot, purpose: 'dispatch' | 'brief' = 'dispatc
 				// A T1 that asked for changes sends the round back to a fresh agreement; otherwise the round
 				// waits on the person at the T1 page.
 				if (s.t1.reviewed === s.t1.sha && s.t1.verdict === 'changes-requested') return dispatch('agree', 'T1 asked for changes (AGREEMENT-REVIEW.md)');
+				// Only before T1: an agreement approved before this rule (JX-1367, 2026-10-18) is not reopened.
+				const unasked = notAskedForGap(s.files.agreement);
+				if (unasked) return dispatch('agree', unasked);
 				if (step !== 'agree') effects.push({ step: ['agree', '--waiting-on', 'user'] });
 				return act(`wait user: T1 on AGREEMENT.md — \`${wf} agree ${s.branch}\``);
 			}

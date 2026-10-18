@@ -27,6 +27,7 @@ Class: B
 - Choice: extract DetailsLayout (rejected: absolute-position).
 - Verification: the existing tests pass, plus the sidebar region renders.
 - T2 walk: open: /catalog as buyer
+- **Not asked for.** none — the ticket names every change
 ## Verification
 | # | case | files | check |
 |---|---|---|---|
@@ -79,6 +80,11 @@ check('B/C with no agreement: dispatch agree with the gap', say(base({ klass: 'B
 check('B/C agreement not yet approved: wait on the user for T1 with wf agree', say(base({ klass: 'B', files: { agreement: AGREEMENT, assessment: null, review: null, blocked: null }, t1: { sha: 's1', reviewed: null, verdict: null } })) === 'wait user: T1 on AGREEMENT.md — `node C:/wf/wf.mjs agree fix/r`', say(base({ klass: 'B' })));
 check('B/C T1 approved: step build and dispatch build', steps(base({ klass: 'B', files: { agreement: AGREEMENT, assessment: null, review: null, blocked: null }, t1: { sha: 's1', reviewed: 's1', verdict: 'approved' } })).join() === 'build', say(base({ klass: 'B' })));
 check('B/C T1 changes-requested: dispatch agree again', say(base({ klass: 'B', step: 'agree', files: { agreement: AGREEMENT, assessment: null, review: null, blocked: null }, t1: { sha: 's1', reviewed: 's1', verdict: 'changes-requested' } })).startsWith('dispatch agree'));
+// JX-1367 (2026-10-18): the bullet is required before T1 only; an approved agreement is not reopened.
+const NO_UNASKED = AGREEMENT.replace('- **Not asked for.** none — the ticket names every change\n', '');
+const preT1 = say(base({ klass: 'B', files: { agreement: NO_UNASKED, assessment: null, review: null, blocked: null }, t1: { sha: 's1', reviewed: null, verdict: null } }));
+check('JX-1367: no Not asked for bullet goes back to agree before T1, not to the person', preT1.startsWith('dispatch agree') && preT1.includes('Not asked for'), preT1);
+check('JX-1367: an agreement approved before the rule is not reopened for the bullet', !say(base({ klass: 'B', step: 'build', files: { agreement: NO_UNASKED, assessment: null, review: null, blocked: null }, t1: { sha: 's1', reviewed: 's1', verdict: 'approved' } })).includes('Not asked for'));
 check('B/C a new agreement sha (material changed): T1 again, not approved', say(base({ klass: 'B', step: 'agree', files: { agreement: AGREEMENT, assessment: null, review: null, blocked: null }, t1: { sha: 's2', reviewed: 's1', verdict: 'approved' } })).startsWith('wait user: T1'));
 
 // ── the assessment

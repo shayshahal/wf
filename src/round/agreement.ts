@@ -53,15 +53,17 @@ export function anticipatedPaths(text: string | null | undefined): string[] {
 		.filter(Boolean))];
 }
 
-/** The explicit T2 walk bullet and its indented continuations; never sibling facts or headings. */
-export function agreementT2WalkLines(text: string | null | undefined): string[] {
+/** The `## Agreed` bullet labelled `label` (plain or bold) and its indented continuations; never
+ * sibling facts or headings. Class A has no `## Agreed`, so its ticket is read whole. */
+function agreedBulletLines(text: string | null | undefined, label: string): string[] {
 	const normalized = (text ?? '').replace(/\r\n/g, '\n');
 	const body = section(normalized, 'Agreed') ?? normalized;
+	const bullet = new RegExp(`^([ \\t]*)[-*][ \\t]+(?:\\*\\*${label}[.:]?\\*\\*|${label})[.:]?(?:[ \\t]+(.*)|$)`, 'i');
 	const lines: string[] = [];
 	let indent: number | null = null;
 	for (const raw of body.split('\n')) {
 		if (indent === null) {
-			const marker = /^([ \t]*)[-*][ \t]+(?:\*\*T2 walk[.:]?\*\*|T2 walk)[.:]?(?:[ \t]+(.*)|$)/i.exec(raw);
+			const marker = bullet.exec(raw);
 			if (!marker) continue;
 			indent = marker[1].length;
 			lines.push((marker[2] ?? '').trim());
@@ -74,12 +76,33 @@ export function agreementT2WalkLines(text: string | null | undefined): string[] 
 	return lines.filter((line) => line && !line.startsWith('<!--'));
 }
 
+/** The explicit T2 walk bullet and its indented continuations. */
+export const agreementT2WalkLines = (text: string | null | undefined): string[] => agreedBulletLines(text, 'T2 walk');
+
+const NONE_WITH_REASON = /^none\s*(?:—|[-:])\s*\S/i;
+
+/** The `**Not asked for.**` items: what the agreement adds that no source asked for — the ticket, the
+ * spec it cites, or a ruling of the person's. Empty for `none — <why>`, and when the bullet is absent.
+ * 2026-10-18, JX-1367: the ticket asked to hold VAT with the bid; the agreement also put a new
+ * "amount held" line on the bid form that neither the ticket nor the pricing spec (JX-696) described.
+ * It sat as one clause of an approved `## Agreed`, and Shay did not catch it at T1. Listing the
+ * additions apart makes each one a decision of its own. */
+export const notAskedFor = (text: string | null | undefined): string[] =>
+	agreedBulletLines(text, 'Not asked for').filter((line) => !NONE_WITH_REASON.test(line));
+
+/** Pure: why the agreement cannot go to T1 for want of a `**Not asked for.**` bullet, or null. */
+export function notAskedForGap(text: string | null | undefined): string | null {
+	const lines = agreedBulletLines(text, 'Not asked for');
+	if (lines.length && !lines.some((line) => /^none\b/i.test(line) && !NONE_WITH_REASON.test(line))) return null;
+	return `${AGREEMENT_FILE} needs a \`**Not asked for.**\` bullet under \`## Agreed\`: one sub-bullet per behavior, screen, text or contract change no source asked for (the ticket, the spec it cites, a ruling), each with why it is needed; or \`none — <why>\``;
+}
+
 /** Pure: true when the round declares a T2 walk `wf show` can follow: an `open:` target or the
  * explicit `none — <why>`. Class A's bullet lives in TICKET.md (there is no `## Agreed` to scope it),
  * B/C's under `## Agreed`; agreementT2WalkLines reads both. Shared by agreementGap (B/C before T1)
  * and `wf next` (class A before T2, #139 JX-1068: a class A round reached T2 with no walk at all). */
 export function hasT2Walk(text: string | null | undefined): boolean {
-	return agreementT2WalkLines(text).some((line) => /^open:[ \t]*`?[^`\s<]/i.test(line) || /^none\s*(?:—|[-:])\s*\S/i.test(line));
+	return agreementT2WalkLines(text).some((line) => /^open:[ \t]*`?[^`\s<]/i.test(line) || NONE_WITH_REASON.test(line));
 }
 
 // A verification case: a table row under `## Verification` whose first cell is the case number. A

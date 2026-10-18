@@ -13,7 +13,7 @@ import { refuseCaller } from '../refusal.ts';
 import { openFile, openInEditor, opensWindows } from '../worktrees/editor.ts';
 import { resolveWorktree } from '../worktrees/worktree.ts';
 import { appendDatedSection, devUrlsFor, foldFeedbackLine, agreementPage, renderHeader, renderSkeleton, roundArtifacts } from './review-format.ts';
-import { agreementGap, agreementPath, agreementSha, AGREEMENT_REVIEW_FILE, consequential, section } from '../round/agreement.ts';
+import { agreementGap, agreementPath, agreementSha, AGREEMENT_REVIEW_FILE, consequential, notAskedFor, notAskedForGap, section } from '../round/agreement.ts';
 import { seams } from '../seams.ts';
 import { readState, roundFile } from '../round/state.ts';
 import { runStep } from '../round/step.ts';
@@ -50,7 +50,7 @@ export async function runAgree(argv: string[]) {
 		process.exit(2);
 	}
 	const text = readFileSync(agreement, 'utf8');
-	const gap = agreementGap(text, klass, round);
+	const gap = agreementGap(text, klass, round) ?? (consequential(klass) ? notAskedForGap(text) : null);
 	if (gap) {
 		console.error(`wf agree: ${gap} — finish the agreement before T1`);
 		process.exit(2);
@@ -78,6 +78,10 @@ export async function runAgree(argv: string[]) {
 		artifacts: roundArtifacts(dirname(agreement), join(worktree, '.wf')),
 	}));
 	console.log(`page: ${pageFile}`);
+	// JX-1367 (2026-10-18): an addition no source asked for was approved unseen inside `## Agreed`.
+	// Name each one where the person reads first, so T1 decides it on its own.
+	const unasked = consequential(klass) ? notAskedFor(text) : [];
+	if (unasked.length) console.log([`not asked for — decide each at T1:`, ...unasked.map((item) => `  - ${item}`)].join('\n'));
 	if (seams.reviewUI?.available()) {
 		const line = seams.reviewUI.annotate({ worktree, file: pageFile, since: new Date().toISOString() });
 		appendDatedSection(file, `${header()}${line ? foldFeedbackLine(line) : 'verdict: dismissed'}`);
