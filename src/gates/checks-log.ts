@@ -23,6 +23,8 @@ export type CheckLogEntry = {
 	readonly result?: string;
 	readonly cause?: string;
 	readonly content?: string;
+	readonly say?: string;
+	readonly inputs?: string;
 	readonly tasks?: readonly { readonly label?: string; readonly exit?: number | null; readonly missing?: string; readonly evidence?: RunEvidence; readonly baseline?: BaselineIdentity }[];
 };
 
@@ -97,7 +99,7 @@ export function parseChecksLog(log: string): ParsedChecksLog {
 		if (!isRecord(raw)) continue;
 		const row = raw.row === null || typeof raw.row === 'string' || typeof raw.row === 'number' ? raw.row : undefined;
 		const tasks = Array.isArray(raw.tasks) ? raw.tasks.filter(isRecord).map((task) => ({ label: text(task.label), exit: task.exit === null || typeof task.exit === 'number' ? task.exit : undefined, missing: text(task.missing), evidence: parseEvidence(task.evidence), baseline: parseBaseline(task.baseline) })) : undefined;
-		const entry: CheckLogEntry = { row, rowCheck: raw.rowCheck === null ? null : text(raw.rowCheck), scope: text(raw.scope), result: text(raw.result), cause: text(raw.cause), content: text(raw.content), tasks };
+		const entry: CheckLogEntry = { row, rowCheck: raw.rowCheck === null ? null : text(raw.rowCheck), scope: text(raw.scope), result: text(raw.result), cause: text(raw.cause), content: text(raw.content), say: text(raw.say), inputs: text(raw.inputs), tasks };
 		// Status historically displays sparse fields as text. Keep that projection separate from the
 		// string-only identities and results the gates compare, so display coercion grants no authority.
 		const summary: CheckEvidenceLine = { row: row ?? null, result: String(raw.result ?? ''), ...(raw.content ? { content: String(raw.content) } : {}) };
@@ -114,8 +116,8 @@ export function parseChecksLog(log: string): ParsedChecksLog {
 }
 
 /** Encode a case or repro measurement, retaining the identity and scope it actually measured. */
-export function checkRunLine({ ts, row, rowCheck, tasks, result, cause, content, scope }: { ts: string; row: number | string | null; rowCheck: string | null; tasks: CheckRun[]; result: string; cause?: RedCause; content?: string; scope?: string }): string {
-	return JSON.stringify({ ts, row, rowCheck, tasks, result, ...(cause ? { cause } : {}), ...(content ? { content } : {}), ...(scope ? { scope } : {}) });
+export function checkRunLine({ ts, row, rowCheck, tasks, result, cause, content, scope, say, inputs }: { ts: string; row: number | string | null; rowCheck: string | null; tasks: CheckRun[]; result: string; cause?: RedCause; content?: string; scope?: string; say?: string; inputs?: string }): string {
+	return JSON.stringify({ ts, row, rowCheck, tasks, result, ...(cause ? { cause } : {}), ...(content ? { content } : {}), ...(scope ? { scope } : {}), ...(say ? { say } : {}), ...(inputs ? { inputs } : {}) });
 }
 
 /** Encode whole suites: retain failing output tails and never mint green after an identity change. */

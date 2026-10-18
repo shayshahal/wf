@@ -44,6 +44,7 @@
 // is then observed, not claimed (llm-as-a-verifier: trust observed output, not narration).
 import { runCheckProcess } from './check-process.ts';
 import { execFileSync, spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { baseBranch, baselineRunnerEnv, checks, isTestInput, redBaseEvidence, reproFailure, roundReproRuntimeInputs, runnerEnv, suites, verificationStackEnv, waitForVerificationReady } from '../project.ts';
@@ -349,6 +350,22 @@ const contentOf = (toplevel: string, folder: string | null): string | undefined 
 	}
 };
 
+// What a repro run was handed besides the product: the repro files and the agreement. The round
+// folder is outside `content`, so a "not the defect" verdict binds to these instead (JX-1374).
+export function reproInputsSha(toplevel: string, folder: string | null, agreementFile: string): string {
+	const h = createHash('sha256');
+	const walk = (dir: string) => {
+		for (const e of readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+			const f = join(dir, e.name);
+			if (e.isDirectory()) walk(f);
+			else h.update(`${f} `).update(readFileSync(f)).update(' ');
+		}
+	};
+	if (folder && existsSync(join(toplevel, folder, 'repro'))) walk(join(toplevel, folder, 'repro'));
+	if (existsSync(agreementFile)) h.update(readFileSync(agreementFile));
+	return h.digest('hex');
+}
+
 // Pure: what an unreadable or changed before/after identity means. `unavailable` when git could not
 // read either snapshot (fail closed: no green is minted); `changed` when a task rewrote the tree
 // between them. `null` only when both were read and are equal.
@@ -501,7 +518,7 @@ export async function runRepro({ stack = ensureServers, ready = waitForVerificat
 	// A repro that rewrites the tree measures bytes other than the ones it was handed: no verdict binds.
 	// An unreadable before/after snapshot is refused too, not counted as no change.
 	const gap = identityGap(start, end);
-	appendFileSync(join(toplevel, '.wf', 'checks.log'), `${checkRunLine({ ts: new Date().toISOString(), row: 'repro', rowCheck: null, tasks, result: gap ?? verdict.result, content: end })}\n`);
+	appendFileSync(join(toplevel, '.wf', 'checks.log'), `${checkRunLine({ ts: new Date().toISOString(), row: 'repro', rowCheck: null, tasks, result: gap ?? verdict.result, content: end, ...(verdict.result === 'outside' && !gap ? { say: verdict.say, inputs: reproInputsSha(toplevel, folder, research) } : {}) })}\n`);
 	if (gap === 'unavailable') {
 		console.error('check --repro: could not read the implementation before and after the repro (git could not compute the tree); refusing to record a verdict.');
 		process.exit(1);
