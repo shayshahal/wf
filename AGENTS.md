@@ -15,6 +15,14 @@ moves. There is no staging and no CI. So, before every push:
   then `wf hook install` from the installed copy to point worktrunk back
 - never run wf from this clone for real rounds: `~/bin/wf` runs the installed copy
 
+## Development feedback
+
+Use `node src/selfcheck.ts <relative.selfcheck.ts>...` during edit loops: selected checks plus tsc
+and eslint. Its focused result is not delivery proof. The pre-push hook runs the complete gate;
+use that final run rather than immediately duplicating a manual full run on unchanged code.
+When the gate fails, isolate the failing check and capture diagnostic evidence before another
+full run. A later green alone does not explain an intermittent failure.
+
 ## Core and projects
 
 - Core (everything outside `projects/` and `env/`) names no project and no project technology: no

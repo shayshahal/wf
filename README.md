@@ -215,4 +215,16 @@ falls back to asking directly and `wf decide`. No runtime packages are needed.
 
 From this folder: `node src/selfcheck.ts` (every `*.selfcheck.ts`, wf's and the projects', `tsc`, and
 lint-kit's error-handling rules through `eslint`, in parallel; `npm ci` first). Pure checks, no network; `review.selfcheck.ts` needs a git checkout (this one). The pre-push hook
-runs it and refuses a red push.
+runs it and refuses a red push. Each completed check prints its elapsed time.
+
+For an edit loop, pass explicit relative selfcheck paths:
+
+```sh
+node src/selfcheck.ts src/round/next.selfcheck.ts src/round/ask.selfcheck.ts
+```
+
+This runs those files plus tsc and eslint, and labels the result **focused**, not full delivery
+proof. Unknown paths refuse the whole selection before any checks start. No arguments still runs
+every check; the pre-push hook uses that complete gate. Use its final run instead of duplicating a
+manual full run immediately before pushing unchanged code. On failure, use the printed check path
+to isolate it and collect diagnostics before another full-suite attempt.
