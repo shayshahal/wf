@@ -414,6 +414,7 @@ check('the changed-tree row reruns the shared suite it could not reuse, and the 
 // URLs from its process env. The stack is a stand-in (the seam runBrief's selfcheck already uses),
 // and the repro command is a stub that records the env it received and exits green. The stub writes
 // outside the repo: a repro that rewrites the tree is refused by runRepro itself.
+const reseeds: number[] = [];
 async function runReproEnv(): Promise<Record<string, string> | null> {
   const repo = mkdtempSync(join(tmpdir(), 'wf-repro-env-'));
   const seenDir = mkdtempSync(join(tmpdir(), 'wf-repro-seen-'));
@@ -444,7 +445,7 @@ async function runReproEnv(): Promise<Record<string, string> | null> {
     git(['commit', '-qm', 'base']);
     process.chdir(repo);
     process.env.WF_ENV_OUT = seen;
-    await runRepro({ stack: async () => 'wf serve: stand-in (no server started)', ready: async () => {} });
+    await runRepro({ stack: async () => 'wf serve: stand-in (no server started)', ready: async () => {}, reseed: async () => { reseeds.push(1); } });
     return existsSync(seen) ? JSON.parse(readFileSync(seen, 'utf8')) as Record<string, string> : null;
   } finally {
     delete process.env.WF_ENV_OUT;
@@ -456,6 +457,8 @@ async function runReproEnv(): Promise<Record<string, string> | null> {
 
 const reproSeen = await runReproEnv();
 check('wf check --repro spawns the repro with the round seed actors and .verify-stack.env, no browser or DB', reproSeen?.owner === 'buyer@seed.jewelryx' && reproSeen?.supplier === 'seller@seed.jewelryx' && reproSeen?.url === 'http://localhost:11111' && reproSeen?.sentinel === 'from-selfcheck', JSON.stringify(reproSeen));
+
+check('wf check --repro re-seeds the round database before each of its 3 repro runs', reseeds.length === 3, String(reseeds.length));
 
 // ── #133: a validated red-base proof is reused across paperwork; a changed fixture is not ─────
 // The observed failure (JX-1069): a later assessment discarded an existing before-the-fix
