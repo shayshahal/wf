@@ -13,6 +13,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { opensWindows } from '../../src/worktrees/editor.ts';
+import { ensureServers } from '../../src/worktrees/serve.ts';
 import { writeCloneLaunch } from '../../src/worktrees/new.ts';
 import { readState, roundOf, toplevelOf, writeState } from '../../src/round/state.ts';
 import { agreementPath, agreementSha, agreementT2WalkLines, consequential } from '../../src/round/agreement.ts';
@@ -101,7 +102,7 @@ export function showArgs(open: Open): string[] {
 	return [`${VERIFY_SKILL}/control-jewelryx.mjs`, 'open', open.app, open.path, 'as', open.as, ...(open.mobile ? ['mobile'] : []), '--headed'];
 }
 
-export function runShow(argv: string[]): void {
+export async function runShow(argv: string[]): Promise<void> {
 	const toplevel = toplevelOf();
 	let line: string | null = argv.map((a) => unMsys(a, process.env)).join(' ').trim();
 	let setups: { cmd: string; token: string }[] = [];
@@ -157,8 +158,10 @@ export function runShow(argv: string[]): void {
 		console.error(`wf show: this worktree has no ${VERIFY_SKILL} — its base predates the verification skill`);
 		process.exit(1);
 	}
+	// wf step/next release an idle stack, so by T2 nothing may be listening: start it first, as brief does.
+	try { console.error(await ensureServers(toplevel, { wait: true })); } catch (e) { console.error((e as Error).message); process.exit(1); }
 	const r = spawnSync(process.execPath, showArgs(open), { cwd: toplevel, stdio: 'inherit' });
 	process.exit(r.status ?? 1);
 }
 
-if (process.argv[1]?.endsWith('show.ts')) runShow(process.argv.slice(2));
+if (process.argv[1]?.endsWith('show.ts')) await runShow(process.argv.slice(2));
