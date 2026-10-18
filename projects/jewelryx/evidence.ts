@@ -573,6 +573,9 @@ export function reproFailure({ cmd, args, output }: { cmd: string; args: string[
 		const headline = firstMatch(lines, /^([A-Za-z]*Error):\s*(.+)$/)?.slice(1).join(': ');
 		return { asserted: /^AssertionError\b/.test(headline ?? ''), say: headline ?? 'no error headline in the vitest report' };
 	}
-	const headline = firstMatch(lines, /^Error:\s*(.+)$/)?.[1];
-	return { asserted: /^expect\(/.test(headline ?? ''), say: headline ?? 'no error headline in the playwright report' };
+	const headlineAt = lines.findIndex((l) => /^Error:\s*(.+)$/.test(l));
+	const headline = headlineAt < 0 ? undefined : lines[headlineAt]!.replace(/^Error:\s*/, '');
+	// `expect(v, 'message')` prints the message as the headline and the matcher line after it (2026-10-18, JX-1399)
+	const matcherNext = headlineAt >= 0 && /^expect\(/.test(lines.slice(headlineAt + 1).find((l) => l !== '') ?? '');
+	return { asserted: /^expect\(/.test(headline ?? '') || matcherNext, say: headline ?? 'no error headline in the playwright report' };
 }

@@ -380,6 +380,13 @@ check('playwright: the real basename `--list` collection is unavailable, not a p
 
 // ── the repro classifier: only a framework assertion can measure the defect
 check('reproFailure reads a framework assertion: pytest assert, vitest AssertionError, playwright expect', reproFailure({ cmd: 'uv', args: ['run', '--frozen', 'pytest', 'r.py'], output: 'E       assert 401 == 200\n' }).asserted && reproFailure({ cmd: 'pnpm', args: ['exec', 'vitest', 'run', 'r.test.ts'], output: 'AssertionError: expected 1 to be 2\n' }).asserted && reproFailure({ cmd: 'pnpm', args: ['--dir', 'verification', 'exec', 'playwright', 'test', 'r.spec.ts'], output: '    Error: expect(received).toBe(expected)\n' }).asserted);
+check('reproFailure reads a playwright assertion with a custom message; a plain thrown Error stays unasserted', (() => {
+	const pw = { cmd: 'pnpm', args: ['exec', 'playwright', 'test', 'r.spec.ts'] };
+	const custom = reproFailure({ ...pw, output: 'Error: seller_name on the admin row\n\n    expect(received).not.toBe(expected) // Object.is equality\n' });
+	const plain = reproFailure({ ...pw, output: 'Error: expect(received).toBe(expected)\n' });
+	const thrown = reproFailure({ ...pw, output: 'Error: x\n\n    at r.spec.ts:3:9\n' });
+	return custom.asserted && custom.say === 'seller_name on the admin row' && plain.asserted && !thrown.asserted;
+})());
 check('reproFailure refuses a generic error or a crash, whatever the runner', !reproFailure({ cmd: 'uv', args: ['run', '--frozen', 'pytest', 'r.py'], output: 'E       NameError: name \'x\' is not defined\n' }).asserted && !reproFailure({ cmd: 'pnpm', args: ['exec', 'vitest', 'run', 'r.test.ts'], output: "Error: Cannot find module './missing'\n" }).asserted && !reproFailure({ cmd: 'pnpm', args: ['--dir', 'verification', 'exec', 'playwright', 'test', 'r.spec.ts'], output: '    Error: setup before the defect\n' }).asserted);
 // A faithful real `node` capture: the CLI crashed before measuring anything. wf cannot read a Node
 // script's throw, so it is not a measurement (2026-10-09, node 26.10.0).
