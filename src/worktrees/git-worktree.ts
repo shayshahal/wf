@@ -73,6 +73,8 @@ export function removalPlan({ path, slug }: Pick<Parameters<NonNullable<Seams['r
 		{ label: 'close the show browser', run: async () => {
 			const result = await stopShowBrowser(path);
 			if (result.kind === 'refused') throw new Error(result.why);
+			// The step's own say is just "ok": name what it stopped, so a reap shows the window is gone.
+			if (result.kind === 'stopped' && result.stopped) console.log(`closed ${result.stopped} browser process(es) wf show opened`);
 		} },
 		...teardown({ slug, worktree: path }),
 		{ label: 'rm -rf worktree', rm: path },

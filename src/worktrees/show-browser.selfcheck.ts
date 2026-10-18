@@ -2,6 +2,7 @@
 // The browser `wf show` opens belongs to the round (#180): recorded from the pid the CLI reports,
 // released by identity before the worktree goes, and never a browser wf did not start. The process
 // inventory is injected, so the arms are deterministic and no real browser is opened here.
+import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -94,6 +95,29 @@ plug({ processes: { snapshot: () => ({ kind: 'known', processes: [browser] }), k
 const stubborn = await stopShowBrowser(worktree, { timeoutMs: 50, pollMs: 10 });
 check('a browser that outlives the deadline refuses, with its record retained', stubborn.kind === 'refused' && existsSync(showOwnerPath(worktree)) && (stubborn.why ?? '').includes('still hold'));
 plug({ processes: realProcesses });
+
+// ── the real thing: the release kills the browser tree it recorded, and nothing else.
+// Two real process trees (a browser and a bystander), the kit's own inventory and kill, no injection.
+{
+  const tree = { parent: `const { spawn } = require('node:child_process'); const fs = require('node:fs');
+const kid = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' });
+fs.writeFileSync(process.argv[1], JSON.stringify({ parent: process.pid, child: kid.pid }));
+setInterval(() => {}, 1000);` };
+  const written = (name: string) => join(worktree, name);
+  const start = (name: string) => { spawn(process.execPath, ['-e', tree.parent, written(name)], { stdio: 'ignore', windowsHide: true }).unref(); };
+  start('browser-tree.json');
+  start('bystander-tree.json');
+  const read = async (name: string) => { for (let i = 0; i < 100; i++) { try { return JSON.parse(readFileSync(written(name), 'utf8')) as { parent: number; child: number }; } catch { await new Promise((r) => setTimeout(r, 50)); } } throw new Error(`${name} was not written`); };
+  const alive = (pid: number) => { try { process.kill(pid, 0); return true; } catch { return false; } };
+  const browser = await read('browser-tree.json');
+  const bystander = await read('bystander-tree.json');
+  check('the real browser tree is running before the release', alive(browser.parent) && alive(browser.child), JSON.stringify(browser));
+  check('recording the browser covers its helper process too', recordShowBrowser(worktree, [browser.parent]) >= 2);
+  const real = await stopShowBrowser(worktree);
+  check('the release stops the recorded tree for real, and confirms it', real.kind === 'stopped' && !alive(browser.parent) && !alive(browser.child), JSON.stringify(real));
+  check('a process wf never recorded is still running', alive(bystander.parent) && alive(bystander.child));
+  for (const pid of [bystander.parent, bystander.child]) { try { process.kill(pid, 'SIGKILL'); } catch { /* already gone */ } }
+}
 rmSync(worktree, { recursive: true, force: true });
 check('the record lives in .wf/ beside the other round metadata', SHOW_OWNER_FILE === 'show-owner.json' && showOwnerPath('W').endsWith(join('.wf', 'show-owner.json')));
 
