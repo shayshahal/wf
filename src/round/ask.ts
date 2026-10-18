@@ -208,9 +208,11 @@ export async function runDecide(argv: string[]): Promise<void> {
 		console.log(`q${question.n} closed · ruling recorded`);
 	} else {
 		const line = `${question.text} → ${question.to}: ${answer}`;
-		writeFileSync(agreement, appendDecision(readFileSync(agreement, 'utf8'), line));
+		// No agreement yet (preAgreement): state.decisions is the only home; agree's brief carries it.
+		const written = existsSync(agreement);
+		if (written) writeFileSync(agreement, appendDecision(readFileSync(agreement, 'utf8'), line));
 		recordDecision(toplevel, line);
-		console.log(`q${question.n} closed · recorded in ${agreement} § Decisions`);
+		console.log(written ? `q${question.n} closed · recorded in ${agreement} § Decisions` : `q${question.n} closed · recorded in state.decisions (agree's brief carries it)`);
 	}
 	if (a.revise) console.log('the round is back at agree: `wf next` sends it to a fresh agreement and T1 with this answer');
 }
