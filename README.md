@@ -156,8 +156,7 @@ The team installs the kit alone (docs/plans/2026-09-27-kit-and-env.md, step 5). 
 Claude Code, plus what the project's `setup` runs (JewelryX: pnpm, uv, docker, portless).
 
 1. `git clone https://github.com/shayshahal/wf ~/work/wf`: the editing clone. Never run wf from it.
-   Then `git -C ~/work/wf config core.hooksPath .githooks`: its pre-push hook runs every self-check,
-   and `npm ci` in it: tsc, which the self-checks run (wf itself needs no packages).
+   Run `npm ci` in it for the manual self-check tools (wf itself needs no packages).
 2. `node ~/work/wf/env/update.ts`: installs the committed code into `~/.local/share/wf`, and wf's
    agents into pi (`~/.pi/agent/agents`). Claude Code gets wf from the plugin, as the team does:
    nothing of wf goes into `~/.claude/`, where a user-level agent or skill would outrank the plugin's.
@@ -214,5 +213,18 @@ falls back to asking directly and `wf decide`. No runtime packages are needed.
 ## Self-checks
 
 From this folder: `node src/selfcheck.ts` (every `*.selfcheck.ts`, wf's and the projects', `tsc`, and
-lint-kit's error-handling rules through `eslint`, in parallel; `npm ci` first). Pure checks, no network; `review.selfcheck.ts` needs a git checkout (this one). The pre-push hook
-runs it and refuses a red push.
+lint-kit's error-handling rules through `eslint`, in parallel; `npm ci` first). Pure checks, no network;
+`review.selfcheck.ts` needs a git checkout (this one). Each completed check prints its elapsed time.
+The suite is manual: wf has no mandatory selfcheck pre-push hook.
+
+For an edit loop, pass explicit relative selfcheck paths:
+
+```sh
+node src/selfcheck.ts src/round/next.selfcheck.ts src/round/ask.selfcheck.ts
+```
+
+This runs those files plus tsc and eslint, and labels the result **focused**, not full delivery
+proof. Unknown paths refuse the whole selection before any checks start. No arguments still runs
+every check, when you choose to run the complete suite. Report which checks ran and any known
+failures when publishing. On failure, use the printed check path to isolate it and collect diagnostics
+before another full-suite attempt.
