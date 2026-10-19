@@ -42,9 +42,11 @@ returned to agreement. Working-detail edits need not renew unchanged material; c
 ## T2 and agreed checkpoints
 
 1. Inspect the current agreement, implementation diff and independent assessment. Run the project's
-   preview/walk command from `wf notes` and the agreement's setup recipe. If the harness cannot open
-   a browser, use an available external UI or give the person the exact URL and setup. Missing
-   required live verification stays visible, not silently satisfied by a screenshot or code reading.
+   preview/walk command from `wf notes` and the agreement's setup recipe, and open it where the person
+   already is: a harness with its own browser pane uses it (T3 Code: `mcp__t3-code__preview_open`, or
+   `preview_navigate` with `{target:{kind:'environment-port',port:<n>}}` for the round's stack);
+   otherwise an available external UI, or the exact URL and setup. Missing required live verification
+   stays visible, not silently satisfied by a screenshot or code reading.
 2. Run `wf review <branch>`. It prepares the bound review record and inspection artifacts. Use the
    configured UI, or show the person the named files and record their comments and actual verdict.
    Preserve the reviewed identity header. It is not approval of later product/test changes.

@@ -35,7 +35,9 @@ path. This file is the rest, and the rules all of them follow.
   the one question text cannot carry. The markdown stays what binds; `wf agree` and `wf review`
   render the artifact beside the agreement (`.wf/AGREEMENT-T1.html`; `.wf/AGREEMENT.html`,
   `.wf/before-after.html`), and a reader
-  who never opens it loses nothing the agreement does not say.
+  who never opens it loses nothing the agreement does not say. A session with its own viewer also puts
+  it in front of the person there — T3 Code renders it inline with `html_render`, after `html_preview`
+  checks it — so the artifact is not a file left waiting to be opened.
 - **A prototype shows proposed behavior, not implementation proof.** A runtime capture shows
   observed behavior only for the code revision, state and conditions captured.
 - **`NOT MEASURED — <why>` is always acceptable. Silence is not** (`PRACTICES.md`): a view asserts a

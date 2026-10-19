@@ -11,4 +11,6 @@ file.
 Draw the smallest view that makes the point; keep prose to the one line that says why the next view
 matters. In the agreement session the views go into `AGREEMENT.md` — they are not a
 second document. When no static view carries it (a layout, a screen, a state comparison), write one
-focused HTML file in the round's folder; `wf agree` and `wf review` render it beside the agreement.
+focused HTML file in the round's folder; `wf agree` and `wf review` render it beside the agreement,
+and a session with its own viewer renders it inline as well (T3 Code: `html_preview` to check it,
+then `html_render`) — do not open a window beside a harness that shows it.
