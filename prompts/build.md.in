@@ -27,9 +27,11 @@ Implement the agreement at `{{folder}}/{{file}}`.
 - Record the commands, observed results, limitations and useful evidence references in the working
   document. Read previous findings and recorded decisions; repair them through the work and its
   evidence, rather than a prescribed response form.
-- Use project setup/reset and diagnostic tools to reach the actual scenario. If a capability is
-  unavailable, name what is missing and who owns it; ordinary work does not authorize fixing every
-  external dependency.
+- Use project setup/reset and diagnostic tools to reach the actual scenario. A check that could not
+  run because the scenario or state was absent is this build's work — set it up with the project's
+  tools, measure the claim, then restore what you changed, rather than handing the finding back. If a
+  capability is unavailable, name what is missing and who owns it; ordinary work does not authorize
+  fixing every external dependency.
 - Ordinary helpers, tests and local corrections are yours. A genuinely new behavior, consequential
   contract/persistence choice or dropped agreed item needs a recorded decision and renewed agreement.
   Record newly discovered contract paths under `paths:` in the ticket's `## Scope` and run `wf next`.

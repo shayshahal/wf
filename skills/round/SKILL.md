@@ -43,6 +43,10 @@ links, never the only copy of a decision or outstanding instruction.
 `wf next` identifies the current work or the unmet condition. It maintains durable gate facts;
 it does not start an agent. After completing an action, run it again. Judge implementation choices
 within the agreement yourself; let the commands check evidence, scope and approval freshness.
+The round's worktree, its stack and its database are disposable and are this round's: preparing the
+scenario — seed data, fixtures, task-scoped setup and reset — is ordinary authorized work with the
+project's own tools, and a check that could not run because that state was absent is work left to do,
+not a finding about the product.
 
 | Action | Completion criterion |
 |---|---|

@@ -15,5 +15,8 @@ Restore any state you changed and use the project's cleanup helper.
 
 Addressable product or evidence gaps are repair findings. A missing authority or a real scope
 decision is blocked. Your explicit verdict owns that judgment; wf does not infer it from
-per-line status words. Keep this assessment read-only, and identify any protected verification
-asset change for its authorized owner rather than weakening the check.
+per-line status words. Read-only means product code, committed assets and other people's data, not
+this checkout: its stack and its own database (`jewelryx_<round>`) are disposable, so build the
+state your check needs with the project's tools, and put it back with `wf seed --reset` when a run
+dirties it. Identify any protected verification asset change for its authorized owner rather than
+weakening the check.

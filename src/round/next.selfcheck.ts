@@ -73,7 +73,7 @@ check('the assess packet requires a fresh independent reviewer context and names
 check('the build effects are exactly the step transition, no repair or question', steps(base({ step: 'build' })).join() === 'build' && repairs(base({ step: 'build' })) === 0 && asks(base({ step: 'build' })).length === 0, buildSay);
 check('a blocked build waits on the user with the question', say(base({ step: 'build', files: { agreement: null, assessment: null, review: null, blocked: 'Question: which label?\n' } })) === 'wait user: blocked — which label?');
 
-// ── a check round: it writes ## Repro, then wf check --repro is the answer
+// ── a check round: it writes ## Repro, then the person decides on the result
 check('a check round with no ## Repro: dispatch agree to write and run the repro', say(base({ check: true })).startsWith('work agree') && say(base({ check: true })).includes('no `## Repro`'), say(base({ check: true })));
 check('a check round with ## Repro: wait on the person decision, no wf check dispatch', say(base({ check: true, files: { agreement: TICKET + '\n## Repro\ncommand: yarn repro\n', assessment: null, review: null, blocked: null } })).startsWith('wait user: the repro result'), say(base({ check: true })));
 

@@ -24,14 +24,6 @@ export type { VerificationProfile, VerificationRequirements } from './readiness.
 /** Existing app checks retain shared authentication admission unless the project declares narrower needs. */
 export const defaultVerificationRequirements: VerificationRequirements = { kind: 'stack', profile: 'shared-auth', temporary: false };
 
-// Put the worktree's fixtures back to their fixed values (the seed, not a reset): a repro that spends a one-off fixture (JX-1399: MKT-0002, stock 1) could
-// never reach its assertion on the second run, nor after an earlier hand run.
-export async function reseedForRepro(toplevel: string): Promise<void> {
-	// A checkout without the seeder has no fixtures to restore (the readiness selfchecks run in a stub repo).
-	if (!existsSync(join(toplevel, 'packages', 'backend', 'scripts', 'seed_fixtures.py'))) return;
-	(await import('./seed.ts')).runSeed([], toplevel);
-}
-
 // This folder's name: skills, agents and prompts reach its notes as {{project}} (ROUND.md, prompts/<phase>.md).
 export const name: string = 'jewelryx';
 export const repo: string = 'github.com/Raynw-MediaTech/jeweleryx';

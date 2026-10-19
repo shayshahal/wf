@@ -6,8 +6,11 @@ Use the matching feature recipe; seed users and fixed IDs live in `docs/agents/s
 `control-jewelryx …` runs the worktree's copy; fallback:
 `node docs/agents/verify-jewelryx/control-jewelryx.mjs …` from its root.
 
-Use project setup/reset tools to reach and restore the scenario. On an unexplained failed request,
-500 or blank screen, inspect `control-jewelryx errors` (or `.wf/logs/dev.log`) before guessing.
+Use project setup/reset tools to reach and restore the scenario. This checkout's stack and its own
+`jewelryx_<round>` database are the round's: creating the data a case needs is ordinary work there,
+and `wf seed` puts the fixtures back (`--reset` after a run dirties them). On an unexplained failed
+request, 500 or blank screen, inspect `control-jewelryx errors` (or `.wf/logs/dev.log`) before
+guessing.
 Measure the promised behavior, not just a new CSS/accessibility attribute.
 
 For T2, record the live recipe in the working document:

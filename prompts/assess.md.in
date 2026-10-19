@@ -26,7 +26,10 @@ do not change product code.
 
 The builder chooses verification methods. Baseline comparisons, repetition and broad suites are
 tools for the hypothesis, not universal obligations. Explain unmeasured behavior and what evidence
-would resolve it. Use available project capabilities before declaring something unreachable.
+would resolve it. Use available project capabilities before declaring something unreachable. The
+round's stack and its own database are the round's and disposable: setting the scenario up there is
+preparation, not a product change, and being asked not to change product code never means leaving a
+check unmeasured whose missing state you could build.
 
 ## What to write
 
