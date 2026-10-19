@@ -26,8 +26,11 @@ inputs. A failed setup is an environment blocker, not evidence of a product defe
 
 ## Reproduction-only work
 
-`wf next` first asks for the ticket's `## Repro` with `command: <the reproducing command>`, then
-asks for `wf check --repro`. Report whether it reproduced and what actually ran; stop there.
+`wf next` asks for `## Repro` first: run the repro with the project's own commands — `wf serve --wait`
+when the app must answer, the project's fixture/reset tools between runs — and record the command,
+the observed result, setup/reset and limitations. Choose enough runs for the hypothesis; there is no
+fixed count and wf does not interpret assertion output. `wf next` then hands the result to the person.
+Report whether it reproduced and what actually ran; stop there.
 
 - **Go:** `wf step build`, set the started tracker status, and continue the task.
 - **Stop:** make only the tracker update the person authorized, then run the indicated cleanup.
