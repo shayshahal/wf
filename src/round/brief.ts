@@ -12,6 +12,7 @@ import { harnessSession, recordSession } from './session.ts';
 import { agreementFile, consequential } from './agreement.ts';
 import { ensureServers } from '../worktrees/serve.ts';
 import { readState, toplevelOf } from './state.ts';
+import { correctionStateSha } from './corrections.ts';
 
 // The phases that drive the app in a browser: their brief starts the stack and waits for it. The
 // build chooses its own checks; the assessment may look at the app itself.
@@ -20,7 +21,7 @@ export const USES_STACK = new Set(['assess']);
 // Pure: the handoff a phase's brief ends with. No token is minted: the build's handoff is the step
 // transition `wf step assess`, the assessment's the ASSESSMENT.md it writes.
 export function handoffText(phase: string, folder: string | null, klass: string | null, assessmentFile = 'ASSESSMENT.md'): string {
-	if (phase === 'build') return `\n## Handoff\n\nWhen the agreement's behavior is implemented and you have run the checks that matter for this change, commit, then run \`wf step assess\`. If a check cannot run (stack, git, a missing runner), do not retry blind: write \`${folder}/BLOCKED.md\` with a \`Question:\` naming what could not run. Write it too if you cannot proceed.\n`;
+	if (phase === 'build') return `\n## Handoff\n\nAfter recording a correction's disposition, run \`wf next\`: unchanged approved delivery may resume without another vote. Otherwise, when the agreement's behavior is implemented and you have run the checks that matter for this change, commit, then run \`wf step assess\`. If a check cannot run (stack, git, a missing runner), do not retry blind: write \`${folder}/BLOCKED.md\` with a \`Question:\` naming what could not run. Write it too if you cannot proceed.\n`;
 	if (phase === 'assess') return `\n## Handoff\n\nWrite \`${folder}/${assessmentFile}\` whole, with its \`Verdict:\` line and \`head:\` line; then \`wf next\`.\n`;
 	return `\n## Handoff\n\nWrite \`${folder}/${agreementFile(klass as 'A' | 'B' | 'C')}\` (class ${klass}: ${consequential(klass as 'A' | 'B' | 'C') ? 'the agreement with `## Observed`, `## Agreed` and `## Verification`' : 'the ticket, with `## Repro` for a check round'}); then \`wf next\`.\n`;
 }
@@ -38,9 +39,11 @@ export async function runBrief(argv: string[], { stack = ensureServers }: { stac
 	let composed: ReturnType<typeof composePrompt>;
 	let blockedAnswer = '';
 	let dispatchReason = '';
+	let expectedCorrections = '';
 	try {
 		const toplevel = toplevelOf();
 		const snapshot = snapshotOf(toplevel);
+		expectedCorrections = correctionStateSha({ corrections: snapshot.corrections });
 		const action = nextAction(snapshot, 'brief').say;
 		const gap = briefGap(argv, action);
 		if (phase === 'build') dispatchReason = `
@@ -64,6 +67,11 @@ ${action}
 	// without it, and `wf check` starts its own.
 	if (USES_STACK.has(phase)) {
 		try { console.error(await stack(toplevel, { wait: true })); } catch (e) { /* the brief still goes out */ console.error((e as Error).message); }
+	}
+	if (correctionStateSha(readState(toplevel)) !== expectedCorrections) {
+		console.error('wf brief: corrections changed while preparing the brief; run wf next again to receive the current instruction');
+		process.exitCode = 2;
+		return;
 	}
 	process.stdout.write(`${composed.text.trimEnd()}\n${dispatchReason}${blockedAnswer}${handoffText(phase, folder, readState(toplevel)?.class ?? state?.class ?? null, composed.assessmentFile)}`);
 }

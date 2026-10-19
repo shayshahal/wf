@@ -19,6 +19,7 @@ import { WF_ROOT } from '../paths.ts';
 import { guidance as guidanceDir, name as projectName, stackUrls } from '../project.ts';
 import { basePortForBranch, listWorktrees, portsAndSlugsForBranches, slugForBranch } from '../worktrees/worktree.ts';
 import type { State } from './state.ts';
+import { formatCorrectionOutcome } from './corrections.ts';
 
 export type PullRequest = { headRefName: string; number: number; isDraft: boolean; reviewDecision: string | null; statusCheckRollup: { conclusion?: string; state?: string; status?: string }[] | null };
 export type StatusRow = { path: string; state: State | null; pr: string; stack: { port: number; up: boolean; name: string | null } | null; processes?: number; inspect?: RoundInspect };
@@ -168,6 +169,8 @@ export type T1Fact = { sha: string | null; reviewed: string | null; verdict: str
 export type T2Fact = { verdict: string | null; contentSha: string | null; headSha: string | null; fresh: boolean | null };
 export type RoundInspect = {
   buildReason?: string | null;
+  corrections?: State['corrections'];
+  mergeAttempt?: State['merge_attempt'];
   scope?: { label: string; assessment: string; review: string };
   agreement: { file: string; sha: string | null; exists: boolean };
   // `files` null = git could not read the worktree (UNKNOWN, never an empty-as-clean list); it is the
@@ -302,6 +305,8 @@ export function inspectRound({ path, state, git, guidance = [], wfRoot = WF_ROOT
   return {
     agreement,
     buildReason: state.step === 'build' ? state.build_reason?.text ?? null : null,
+    corrections: state.corrections,
+    mergeAttempt: state.merge_attempt,
     diff,
     evidence: { ...evidence, binding: evidenceBinding(evidence.case, currentRow) },
     facts: {
@@ -371,6 +376,11 @@ function evidenceLine(e: RoundInspect['evidence']): string {
 export function formatInspect(i: RoundInspect): string {
   const out: string[] = [];
   if (i.buildReason) out.push(`  build reason: ${i.buildReason}`);
+  if (i.mergeAttempt) out.push(`  merge outcome: awaiting reconciliation — ${i.mergeAttempt.url} at ${i.mergeAttempt.head}; corrections received now may need follow-up, not repair of an unmerged round`);
+  for (const c of i.corrections ?? []) {
+    out.push(`  correction: ${c.id} · ${formatCorrectionOutcome(c.outcome)}\n    ${c.kind} author: ${c.author} · source: ${c.source}${c.relay ? ` · relay: ${c.relay}` : ''}\n    scope: ${c.scope} · reason: ${c.reason}\n    instruction: ${c.text}`);
+    for (const previous of c.history ?? []) out.push(`    previous disposition: ${formatCorrectionOutcome(previous)}`);
+  }
   if (i.scope) out.push(`  scope: ${i.scope.label} · ${i.scope.assessment} · ${i.scope.review}`);
   out.push(`  agreement: ${i.agreement.file}${i.agreement.exists ? '' : ' (absent)'}${i.agreement.sha ? ` · sha ${i.agreement.sha.slice(0, 12)}` : ''}`);
   const d = i.diff;

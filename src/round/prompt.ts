@@ -19,6 +19,7 @@ import { agreementFile, agreementPath, revisionSha, ASSESSMENT_FILE, caseFiles, 
 import { openQuestionGate, openRevisions, overruledAsks } from './ask.ts';
 import { guidanceSection, notesFor, readNotes } from './guidance.ts';
 import { readState, resolveRoundBase, roundOf, toplevelOf } from './state.ts';
+import { correctionContext } from './corrections.ts';
 
 export function renderPrompt(template: string, vars: Record<string, unknown>) {
 	return template.replace(/\{\{(\w+)\}\}/g, (m, key: string) => (key in vars ? String(vars[key]) : m));
@@ -147,9 +148,12 @@ ${vars.answers}`;
 	const wf = `node ${seams.entry.replace(/\\/g, '/')}`;
 	// #126/#130: anchor template instructions before inserting people's verbatim rulings.
 	// Recorded answers are inserted after anchoring for the same reason.
-	const text = template.split('{{answers}}')
-		.map((part) => anchorToolPaths(renderPrompt(part, vars).replace(/`wf /g, `\`${wf} `), WF_HOME, projectName))
-		.join(vars.answers) + guidanceSection(notesFor(readNotes(toplevel, guidance), files));
+	// Source words are inserted after anchoring: a quoted wf command is the author's text,
+	// not a template to rewrite. Both phases consume the same durable instruction projection.
+	const corrections = phase === 'build' || phase === 'assess' ? correctionContext(state) : '';
+	const text = template.split(/(\{\{answers\}\}|\{\{corrections\}\})/)
+		.map((part) => part === '{{answers}}' ? vars.answers : part === '{{corrections}}' ? corrections : anchorToolPaths(renderPrompt(part, vars).replace(/`wf /g, `\`${wf} `), WF_HOME, projectName))
+		.join('') + guidanceSection(notesFor(readNotes(toplevel, guidance), files));
 	return { text, toplevel, state, folder, phase, assessmentFile, n: null, key: phase };
 }
 

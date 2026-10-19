@@ -40,7 +40,7 @@ export const wantsHelp = (argv: string[]) => argv[0] === 'help' || argv.some((a)
 async function usage() {
 	const { commands } = await import('./project.ts');
 	const own = Object.keys({ ...commands, ...seams.commands });
-	return `usage: wf <new|serve|next|brief|notes|handoff|step|prompt|check|models|deliver|ask|decide|inbox|status|reap|classify|agree|review${own.map((c) => `|${c}`).join('')}> [...]`;
+	return `usage: wf <new|serve|next|brief|notes|handoff|step|prompt|check|models|deliver|ask|decide|correct|inbox|status|reap|classify|agree|review${own.map((c) => `|${c}`).join('')}> [...]`;
 }
 
 export async function run(argv: string[], pieces: Partial<Seams> = {}) {
@@ -132,6 +132,9 @@ export async function run(argv: string[], pieces: Partial<Seams> = {}) {
 	} else if (cmd === 'decide') {
 		const { runDecide } = await import('./round/ask.ts');
 		await runDecide(rest);
+	} else if (cmd === 'correct') {
+		const { runCorrect } = await import('./round/corrections.ts');
+		runCorrect(rest);
 	} else if (cmd === 'inbox') {
 		const { runInbox } = await import('./round/inbox.ts');
 		await runInbox(rest);

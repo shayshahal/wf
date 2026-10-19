@@ -6,13 +6,17 @@ do not change product code.
 
 {{agreement}}
 
+{{corrections}}
+
 {{answers}}
 
 {{assessment}}
 
 ## What to judge
 
-- Intent: does the change deliver what was asked, without silently adding or dropping behavior?
+- Intent: does the change deliver what was asked, including applicable authored corrections, without
+  silently adding or dropping behavior? Judge addressed correction claims against the actual work
+  and evidence; a recorded disposition is not a certificate of sufficiency.
 - Behavior and evidence: do the commands and observations actually support the claims? Distinguish
   a product failure from setup/runner failure, an unexecuted check, or a test that measures a proxy.
   Inspect important assertions and live evidence where appropriate. Existing usable evidence does

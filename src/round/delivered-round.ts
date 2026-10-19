@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { approvalBinding } from '../gates/review-format.ts';
 import { approvalPaperworkExcluded, commitContentSha, headContentSha, worktreeContentSha } from '../gates/content-identity.ts';
 import type { State } from './state.ts';
+import { outstandingCorrections } from './corrections.ts';
 
 /** The remote merge and product content delivered; round paperwork may still be filled or posted. */
 export type DeliveryReceipt = { readonly url: string; readonly head: string; readonly contentSha: string };
@@ -28,7 +29,9 @@ export function followupRoundLine(state: State): string {
 /** Refuse workflow mutations that would reuse a merged round's evidence or erase its delivery. */
 export function deliveredCommandGap(state: State | null, argv: readonly string[]): string | null {
 	const [command, ...flags] = argv;
-	if (state?.step !== 'merged') return null;
+	if (state?.merge_attempt && ['brief', 'check', 'agree', 'review', 'step'].includes(command) && !(command === 'step' && (flags[0] === 'held' || (flags[0] === 'merged' && state.delivery)))) return 'merge outcome is uncertain; run wf deliver to reconcile it before repair or follow-up';
+	if (state?.step !== 'merged' && !state?.delivery) return null;
+	if (command === 'step' && flags[0] === 'merged' && state?.delivery) return null;
 	// Posting may still need a person's answer. Only an agreement revision would reopen the round.
 	if (command === 'decide' && !flags.includes('--revise')) return null;
 	if (!['step', 'brief', 'check', 'agree', 'review', 'decide'].includes(command)) return null;
@@ -36,11 +39,14 @@ export function deliveredCommandGap(state: State | null, argv: readonly string[]
 }
 
 /** Changed product blocks posting; missing historical binding blocks only automatic cleanup. */
-export type MergedImplementationGap = { readonly kind: 'changed' | 'unbound'; readonly reason: string };
+export type MergedImplementationGap = { readonly kind: 'changed' | 'unbound' | 'corrections'; readonly reason: string };
 
 /** Unknown old evidence may still post its saved note, but neither gap permits automatic cleanup. */
 export function mergedImplementationGap(toplevel: string, state: State): MergedImplementationGap | null {
-	if (state.step !== 'merged') return null;
+	if (state.merge_attempt) return { kind: 'unbound', reason: 'the recorded merge outcome is uncertain; run wf deliver to reconcile it before cleanup' };
+	if (state.step !== 'merged' && !state.delivery) return null;
+	const instructions = outstandingCorrections(state);
+	if (instructions.length) return { kind: 'corrections', reason: `unresolved post-delivery instructions ${instructions.map((c) => c.id).join(', ')} must reach a fresh follow-up before cleanup; ${followupRoundLine(state)}` };
 	if (!state.folder) return { kind: 'unbound', reason: 'the delivered round has no folder to identify its implementation' };
 	const roundFolder = state.folder;
 	try {

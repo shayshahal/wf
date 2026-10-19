@@ -12,6 +12,9 @@ import { join } from 'node:path';
 import { baseBranch, roundsDir } from '../project.ts';
 import { deliveryReceiptGap } from './delivered-round.ts';
 import type { DeliveryReceipt } from './delivered-round.ts';
+import { correctionStateGap } from './corrections.ts';
+import type { RoundCorrection } from './corrections.ts';
+import type { MergeAttempt } from '../gates/deliver.ts';
 
 export type RoundClass = 'A' | 'B' | 'C';
 // The latest received answer in its thread's message order; transport alone grants no authority.
@@ -71,6 +74,12 @@ export type State = {
 	// `## Decisions`): the round's explicit fact, so a resumed build's brief carries them without a
 	// renewed agreement (#114). A correction that changes agreed behavior is `revisions` instead.
 	decisions?: { text: string; at: string }[];
+	/** Authored instructions retain their own lifecycle, independent of the review verdict. */
+	corrections?: RoundCorrection[];
+	/** Resume unchanged approval only after explicit disposition of the interrupted work. */
+	correction_return_to?: 'pr' | null;
+	/** Final merge authorization survives uncertain remote outcomes and racing corrections. */
+	merge_attempt?: MergeAttempt | null;
 	last_question?: number;
 	// The agreement material sha whose project T2 setup `wf show` already ran.
 	t2_setup?: string;
@@ -106,7 +115,9 @@ export function resolveRoundBase(toplevel: string, state: State | null): { ref: 
 // 3 (2026-10-18) removed the executable-unit runtime (build-units.ts, state.slices). A version-2 state
 // that holds no unit progress carries only fields this runtime reads, so it keeps working (JX-1069 was
 // mid-T2 at version 2 when this cut shipped); one that holds `slices` is refused by readState.
-export const WF_STATE_VERSION = 3;
+// 4 adds correction/merge authority that older runtimes would ignore. New readers accept 2/3
+// without removed unit state; writers carrying the new facts mark 4 so old readers fail closed.
+export const WF_STATE_VERSION = 4;
 // The steps the smaller route removed (#111/#112/#113). A round parked at one is an old round: it must
 // finish on the installed wf that made it, and this wf refuses to reinterpret it.
 const OLD_ROUTE_STEPS = ['research', 'plan', 'design', 'implement'];
@@ -117,7 +128,7 @@ export function legacyStateGap(state: State | null): string | null {
 	// protocol cut does not strand rounds that hold no removed progress. A newer or hand-edited version
 	// is refused before a mutating command touches it, as is a versionless old round (even parked at a
 	// step the two routes share, like classify or review).
-	if (state.wf_version === 2) return null;
+	if (state.wf_version === 2 || state.wf_version === 3) return null;
 	if (typeof state.wf_version === 'number') return `this round's state names wf version ${state.wf_version}, not ${WF_STATE_VERSION} — finish it on that wf, then start a new round`;
 	const at = state.step && OLD_ROUTE_STEPS.includes(state.step) ? ` (step "${state.step}")` : '';
 	return `this round's state is from an older wf (no wf_version${at}): finish it on the installed wf that made it, then start a new round — this wf refuses to reinterpret old state (finish-before-release, #110)`;
@@ -180,6 +191,15 @@ export function readState(toplevel: string): State | null {
 	if ('build_reason' in parsed && parsed.build_reason !== null) {
 		const reason = parsed.build_reason;
 		if (typeof reason !== 'object' || !('kind' in reason) || (reason.kind !== 'work' && reason.kind !== 'handoff') || !('text' in reason) || typeof reason.text !== 'string' || !reason.text.trim()) throw new CorruptStateError(file, 'invalid build_reason');
+	}
+	if ('corrections' in parsed) {
+		const gap = correctionStateGap(parsed.corrections);
+		if (gap) throw new CorruptStateError(file, gap);
+	}
+	if ('correction_return_to' in parsed && parsed.correction_return_to !== null && parsed.correction_return_to !== 'pr') throw new CorruptStateError(file, 'invalid correction_return_to');
+	if ('merge_attempt' in parsed && parsed.merge_attempt !== null) {
+		const attempt = parsed.merge_attempt;
+		if (typeof attempt !== 'object' || Array.isArray(attempt) || !('url' in attempt) || typeof attempt.url !== 'string' || !/^https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/pull\/\d+$/.test(attempt.url) || !('head' in attempt) || typeof attempt.head !== 'string' || !/^[a-f0-9]{40}$/.test(attempt.head) || !('contentSha' in attempt) || typeof attempt.contentSha !== 'string' || !/^tree:[a-f0-9]{40}$/.test(attempt.contentSha) || !('correctionsSha' in attempt) || typeof attempt.correctionsSha !== 'string' || !/^[a-f0-9]{64}$/.test(attempt.correctionsSha) || !('at' in attempt) || typeof attempt.at !== 'string' || !Number.isFinite(Date.parse(attempt.at))) throw new CorruptStateError(file, 'invalid merge_attempt');
 	}
 	if ('delivery' in parsed) {
 		const gap = deliveryReceiptGap(parsed.delivery);
@@ -424,6 +444,9 @@ export function writeState(toplevel: string, update: StateUpdater): State {
 			const current = before ?? {};
 			const patch = update(structuredClone(current));
 			const state: State = { ...current, ...patch };
+			// The capability boundary is the write of durable authority, not a later step command:
+			// old wf must refuse a correction admitted before the agent has run next (#150).
+			if ((state.corrections?.length || state.merge_attempt) && (state.wf_version === undefined || state.wf_version === 2 || state.wf_version === 3)) state.wf_version = WF_STATE_VERSION;
 			writeStateFileAtomically(toplevel, state);
 
 			return state;

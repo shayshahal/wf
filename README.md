@@ -36,7 +36,9 @@ round commits (for JewelryX, `bug-reports/<round>/`).
     assessment for freshness and T2 instead of requiring an empty rebuild;
     `step`, `ask`/`decide` (`decide --revise` sends a round back to `agree` for a new T1),
     `inbox` (posts user questions through the env's optional transport and saves replies; `decide`
-    records the ruling), `status`, `notes`, and `handoff-hook.ts` (`wf handoff`, the Claude Code hooks).
+    records the ruling), `corrections.ts` (`wf correct`, durable authored instructions, explicit
+    disposition and source deduplication), `status`, `notes`, and `handoff-hook.ts` (`wf handoff`,
+    the Claude Code hooks).
     Builders and assessors receive the prior assessment and recorded question answers plainly; the
     builder chooses verification and repairs and the independent assessor judges the evidence, with
     no prescribed repair-response records or verification-ruling receipts. `clean` goes to T2,
@@ -191,6 +193,16 @@ state. Refresh the ticket/scope and obtain fresh assessment and T2 for the follo
 `WF_FORCE_REAP=1` remains an explicit discard of the worktree and local branch; product changes are
 not archived. Older rounds without a content binding can post their saved note, but cleanup requires
 restored original evidence or that explicit discard.
+
+## Corrections after approval
+
+Give the instruction normally. The receiving agent records it with `wf correct`, preserving its
+source, author, scope and words; `wf next`, actual build/assessment context and `status --inspect`
+carry it independently of REVIEW.md. Reading or dispatching does not address it. Pending or blocked
+instructions prevent delivery even before file bytes change. Historical approval remains intact;
+changed reviewed content requires fresh T2, while an unchanged transient interruption can resume.
+A correction racing an attempted merge waits for remote reconciliation; confirmed delivered product
+work uses a fresh follow-up, never the old approval. Worker wake/launch is not provided here (#159).
 
 ## Async round questions
 

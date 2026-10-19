@@ -16,7 +16,9 @@ import type { ContentIdentity } from './content-identity.ts';
 import { seams } from '../seams.ts';
 import { manualCheck } from './check.ts';
 import { agreementPath, ASSESSMENT_FILE, CHECKPOINT_REVIEW_FILE, REVIEW_FILE, verificationCases } from '../round/agreement.ts';
-import { roundFile, writeState } from '../round/state.ts';
+import { readState as readRoundState, roundFile, writeState } from '../round/state.ts';
+import { correctionGate } from '../round/corrections.ts';
+import { deliveredCommandGap } from '../round/delivered-round.ts';
 import type { State } from '../round/state.ts';
 import { stepHistory } from '../round/friction.ts';
 import { runStep } from '../round/step.ts';
@@ -26,21 +28,18 @@ const usage: () => never = () => {
   console.error('usage: wf review <round> [--checkpoint [--base <ref>]] | wf review <round> --done');
   refuseCaller();
 };
-const inWorktree = async (worktree: string, round: string, step: string) => {
+const inWorktree = async (worktree: string, round: string, step: string, buildReason?: State['build_reason']) => {
   const prev = process.cwd();
   process.chdir(worktree);
   try {
-    await runStep([step, '--waiting-on', 'user', '--round', round]);
+    await runStep([step, '--waiting-on', 'user', '--round', round], { buildReason });
   } finally {
     process.chdir(prev);
   }
 };
 // No state.json is a worktree wf did not make, and T2 goes on without it. One that does not parse is
 // a broken round: it used to read as {}, and the header went out with no base and no round folder.
-const readState = (worktree: string): State => {
-  const file = join(worktree, '.wf', 'state.json');
-  return existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : {};
-};
+const readState = (worktree: string): State => readRoundState(worktree) ?? {};
 // A diff git cannot take stops T2: it used to read as no files, and the header listed nothing to review.
 const changedFiles = (worktree: string, base: string): string[] => {
   try {
@@ -264,6 +263,12 @@ export async function runReview(argv: string[]) {
 }
 
 async function runReviewDone(worktree: string, round: string, target: ReviewTarget) {
+  const currentState = readState(worktree);
+  const pending = correctionGate(currentState);
+  if (pending || currentState.merge_attempt || currentState.step === 'held') {
+    console.error(`wf review --done: ${pending ?? (currentState.merge_attempt ? 'merge outcome needs reconciliation through wf deliver' : 'the round is held')}`);
+    process.exit(2);
+  }
   const file = roundFile(worktree, target.reviewFile);
   if (!existsSync(file)) {
     console.error(`no ${file} — run wf review ${round}${target.kind === 'checkpoint' ? ' --checkpoint' : ''} first`);
@@ -304,11 +309,15 @@ async function runReviewDone(worktree: string, round: string, target: ReviewTarg
       process.exit(2);
     }
     const since = new Date().toISOString();
-    writeState(worktree, (current) => ({
-      step: 'build', repairs: 0, since, waiting_on: null,
-      build_reason: { kind: 'work', text: `checkpoint review: ${verdict === 'approved' ? 'approved' : 'changes requested'} (${CHECKPOINT_REVIEW_FILE})` },
-      history: stepHistory(current.history, 'build', since),
-    }));
+    writeState(worktree, (current) => {
+      const delivered = deliveredCommandGap(current, ['review']);
+      if (delivered || current.merge_attempt || current.step === 'held' || correctionGate(current)) throw new Error(`wf review --done: ${delivered ?? correctionGate(current) ?? 'round activity changed during review completion; run wf next'}`);
+      return {
+        step: 'build', repairs: 0, since, waiting_on: current.questions?.[0]?.to ?? null,
+        build_reason: { kind: 'work', text: `checkpoint review: ${verdict === 'approved' ? 'approved' : 'changes requested'} (${CHECKPOINT_REVIEW_FILE})` },
+        history: stepHistory(current.history, 'build', since),
+      };
+    });
     console.log(`checkpoint ${verdict === 'approved' ? 'approved' : 'changes requested'}: back to build — a checkpoint approval never permits delivery`);
     return;
   }
@@ -327,7 +336,7 @@ async function runReviewDone(worktree: string, round: string, target: ReviewTarg
     }
     await inWorktree(worktree, round, 'pr');
   } else if (verdict === 'changes-requested') {
-    await inWorktree(worktree, round, 'build');
+    await inWorktree(worktree, round, 'build', { kind: 'work', text: `T2 requested changes (${REVIEW_FILE})` });
   } else {
     console.error(`review was dismissed — re-run wf review ${round}`);
     process.exit(2);

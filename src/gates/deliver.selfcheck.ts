@@ -1,6 +1,6 @@
 // deliver.selfcheck.ts — node deliver.selfcheck.ts → exit 0 when green.
 // Fixture agreement + assessment → the PR title, the PR body, the tracker note.
-import { commitRows, deliveryResume, existingNoteAction, githubPrRepo, githubRepo, hookRefused, noteComplete, originTarget, prBody, prLookup, prTitle, redactRemote, refusedPushSection, t2Gap } from './deliver.ts';
+import { commitRows, deliveryResume, existingNoteAction, githubPrRepo, githubRepo, hookRefused, noteComplete, originTarget, prBody, prLookup, prTitle, redactRemote, refusedPushInstruction, t2Gap } from './deliver.ts';
 import type { State } from '../round/state.ts';
 
 let failures = 0;
@@ -109,8 +109,8 @@ check('thousands of commits are cut down to the newest, with a count of the rest
 const noise = Array.from({ length: 40 }, (_, i) => `  (node) warning ${i}`).join('\n');
 const refusedOutput = `  packages/frontend/admin/src/lib/x.ts\n    :1 probe CRITICAL\n${noise}\n│ fallow-audit\n✗ complexity: 1 finding\nsummary: (done in 60s)\n✘ fallow-audit\nerror: failed to push some refs\nhook: pre-push`;
 check('a hook refusal is told from a network one', hookRefused(refusedOutput) && !hookRefused('fatal: unable to access https://github.com/: Could not resolve host'));
-const section = refusedPushSection(refusedOutput, '2026-09-28');
-check('the refusal is one changes-requested verdict, the one wf next counts', [...`verdict: approved\n${section}`.matchAll(/^verdict:\s*changes-requested\s*$/gm)].length === 1 && section.includes('    ✗ complexity: 1 finding') && section.includes('packages/frontend/admin/src/lib/x.ts') && section.includes(':1 probe CRITICAL') && !section.includes('warning 39'), section);
+const section = refusedPushInstruction(refusedOutput);
+check('the system instruction never manufactures a review verdict', !section.includes('verdict:') && section.includes('    ✗ complexity: 1 finding') && section.includes('packages/frontend/admin/src/lib/x.ts') && section.includes(':1 probe CRITICAL') && !section.includes('warning 39'), section);
 check('T2 approved: deliver may run', t2Gap({ step: 'pr' }, 'verdict: approved\n') === null);
 check('before T2, T2 pending or changes requested: refused', ([[{ step: 'implement' }, null], [{ step: 'review' }, 'verdict: pending'], [{ step: 'pr' }, 'verdict: changes-requested'], [{ step: 'pr' }, null]] satisfies [State, string | null][]).every(([s, r]) => t2Gap(s, r)?.startsWith('T2 has not approved')));
 
