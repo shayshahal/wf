@@ -22,6 +22,9 @@ try {
 	const installedAgents = join(home, '.pi/agent/agents');
 	mkdirSync(join(repo, 'src'), { recursive: true });
 	mkdirSync(join(repo, 'agents'));
+	mkdirSync(join(repo, 'prompts'));
+	const portableTemplate = 'Read {{wf}}/process/CLASSES.md and {{project}}/ROUND.md.\n';
+	writeFileSync(join(repo, 'prompts', 'build.md'), portableTemplate);
 	mkdirSync(installedAgents, { recursive: true });
 	mkdirSync(join(home, '.local/share'), { recursive: true });
 	writeFileSync(join(repo, 'src/project.ts'), "export * from '../projects/fixture/index.ts';\n");
@@ -44,6 +47,7 @@ if (install(${JSON.stringify(join(repo, '.git'))}, ${JSON.stringify(rev)}) !== $
 	const run = spawnSync(process.execPath, ['--input-type=module', '-e', script], { env, encoding: 'utf8' });
 	check('the real installer succeeds in an isolated home', run.status === 0);
 	if (run.status !== 0) console.error(run.stderr);
+	check('installation retains relocatable tool templates for skill export', readFileSync(join(home, '.local/share/wf/prompts/build.md'), 'utf8') === portableTemplate);
 	for (const agent of agents) {
 		const text = readFileSync(join(installedAgents, agent), 'utf8');
 		check(`install replaces ${agent}'s stale global pin with caller inheritance`, !/^(model|effort):/m.test(text) && !text.includes('stale default'));

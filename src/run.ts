@@ -12,7 +12,7 @@ import { deliveredCommandGap } from './round/delivered-round.ts';
 // last console.error line; the exit handler has to write synchronously. `kind` is `caller` for the
 // refusals wf makes before it reads the round (refusal.ts), which the record counts apart.
 async function logRefusals(argv: string[]) {
-	if (['handoff', 'hook', 'update'].includes(argv[0])) return;
+	if (['hook', 'update', 'skill'].includes(argv[0])) return;
 	const { refusalLine } = await import('./round/friction.ts');
 	const { appendFileSync, existsSync } = await import('node:fs');
 	const { join } = await import('node:path');
@@ -40,23 +40,23 @@ export const wantsHelp = (argv: string[]) => argv[0] === 'help' || argv.some((a)
 async function usage() {
 	const { commands } = await import('./project.ts');
 	const own = Object.keys({ ...commands, ...seams.commands });
-	return `usage: wf <new|serve|next|brief|notes|handoff|step|prompt|check|models|deliver|ask|decide|correct|inbox|status|reap|classify|agree|review${own.map((c) => `|${c}`).join('')}> [...]`;
+	return `usage: wf <new|serve|next|brief|notes|skill|step|prompt|check|models|deliver|ask|decide|correct|inbox|status|reap|classify|agree|review${own.map((c) => `|${c}`).join('')}> [...]`;
 }
 
 export async function run(argv: string[], pieces: Partial<Seams> = {}) {
 	plug(pieces);
 	const [cmd, ...rest] = argv;
 	if (wantsHelp(argv)) {
-		console.log(`${await usage()}\nNo command has help of its own: README.md, *Where things are*, says what each one does.`);
+		console.log(`${await usage()}\nPortable skill: wf skill export <new-directory>\nStart by reading the round SKILL.md; wf notes prints project guidance and workflow references.`);
 		return;
 	}
 	// Windows .cmd shims (portless, pnpm) need shell: true, and Node then prints DEP0190 on every spawn
 	// that passes args (reap printed it on every run). Every argv wf spawns is one it built itself.
 	process.noDeprecation = true;
 	await logRefusals(argv);
-	// The hooks run whichever wf the plugin carries; the env's own commands are not a round's.
+	// Environment hooks/update and skill packaging are not round mutations.
 	// Releasing a verified stack needs no round schema/entry permission: old rounds leak too.
-	if (!['handoff', 'hook', 'update'].includes(cmd) && !(cmd === 'serve' && rest.includes('--stop'))) {
+	if (!['hook', 'update', 'skill'].includes(cmd) && !(cmd === 'serve' && rest.includes('--stop'))) {
 		const { CorruptStateError, entryGap, legacyStateGap, readState, toplevelOf } = await import('./round/state.ts');
 		let gap = null;
 		try {
@@ -108,9 +108,9 @@ export async function run(argv: string[], pieces: Partial<Seams> = {}) {
 	} else if (cmd === 'notes') {
 		const { runNotes } = await import('./round/notes.ts');
 		runNotes();
-	} else if (cmd === 'handoff') {
-		const { runHandoff } = await import('./round/handoff-hook.ts');
-		await runHandoff(rest);
+	} else if (cmd === 'skill') {
+		const { runSkillExport } = await import('./skill/skill-export.ts');
+		await runSkillExport(rest);
 	} else if (cmd === 'brief') {
 		const { runBrief } = await import('./round/brief.ts');
 		await runBrief(rest);

@@ -1,22 +1,62 @@
 # wf
 
-Shay's agent workflow: agree → build and verify → independent final assessment → human T2 →
-deliver. Consequential work gets T1 before building; large work can agree human checkpoints.
-Agents own implementation steps, delegation, verification choices and ordinary repairs. wf owns
-isolated workspaces/resources, durable decisions, review identity and safe resumable delivery.
-Runs in pi and Claude Code, on Windows. See `process/AGREEMENT-TEMPLATE.md`.
+A portable skill for taking a project task through agreement, implementation and verification,
+independent review, human approval and safe delivery. The agent uses whichever harness it has;
+wf does not select its model, spawn its workers or require a particular terminal UI.
 
-It lives outside every project's repo on purpose. A project's repo keeps only the round memory each
-round commits (for JewelryX, `bug-reports/<round>/`).
+The skill owns the workflow instructions. Small executable tools prepare workspaces, measure results,
+retain decisions and enforce approval/delivery safeguards. Project facts and verification recipes live
+in the project's repository; each task keeps its durable memory in its worktree (JewelryX:
+`bug-reports/<round>/`, plus `.wf/` machine records). The previous chat is not required to resume.
 
-**Changing wf:** read [DIRECTION.md](DIRECTION.md) for the consolidation target. This README describes the current implementation.
+## Use as one skill folder
+
+From this checkout, with Node >=22.18:
+
+```sh
+node wf.mjs skill export /path/to/skills/round
+```
+
+Choose a new destination. The command refuses to overwrite an existing directory. Give the exported
+folder to a harness that supports skills, or tell any agent to read its `SKILL.md` explicitly:
+
+```text
+round/
+├── SKILL.md
+├── references/             # Branch-specific intake, review, questions and fallback guidance
+└── scripts/
+    ├── wf.mjs              # The portable entry
+    └── runtime/            # Generated from the kit's one source, not another implementation
+```
+
+Run its tools as `node "/path/to/skills/round/scripts/wf.mjs" <command>` from the project/round.
+No plugin, globally installed `wf`, runtime npm dependencies or named agent profiles are required.
+The folder includes the currently configured project adapter (JewelryX); it is portable between
+harnesses, not a claim that arbitrary projects or operating-system prerequisites need no setup.
+The kit exports no `env/`, secrets, sessions, task state, git metadata or development dependencies.
+It can be moved or re-exported without keeping this checkout.
+
+Start with `notes` for the project's prerequisites and workflow references. `next` identifies the
+current allowed work; `brief agree|build|assess` supplies its context and handoff. Agreement/build can
+run in the current session. Assessment requires a fresh independent context, supplied by this or
+another harness; the tools enforce report freshness but cannot prove an LLM context's independence.
+Missing capabilities produce an explicit blocker/handover, not a silently weaker completion standard.
+
+A configured machine launcher is still useful for machine-specific infrastructure. Keep using the
+entry that created an existing task: changing harnesses does not authorize changing its environment.
+`WF_NO_OPEN=1` suppresses external editor/browser windows for a remote or UI-owning harness. Inbox,
+review UI, delegation, wakeups and durable execution are optional conveniences; plain sessions save
+and resume rather than claiming to run after exit.
+
+**Changing wf:** [DIRECTION.md](DIRECTION.md) records the consolidation goal. The skill is
+`skills/round/SKILL.md`; [AGENTS.md](AGENTS.md) governs changes to the tools.
 
 ## Where things are
 
 - `wf.mjs`: the kit's entry. The code is under `src/`, one module per command; the pure functions are
   checked by the `*.selfcheck.ts` files `src/selfcheck.ts` runs (beside the module that owns them):
   - `src/run.ts` is the dispatcher; `src/paths.ts` says where wf's own files are (`WF_ROOT`)
-  - `src/models.ts`: each phase's effort level (`low` for the read-only judges, `medium` for the
+  - `src/models.ts`: optional helper profiles' effort level (`low` for the read-only judges, `medium` for the
     rest) and `wf models`, the model each level runs on here. Agent files say `effort:`, never a
     model: Claude Code's aliases are the kit's, pi's patterns are Shay's (`env/models.ts`)
   - `src/seams.ts`: what differs between machines (worktrees, the database, review screen,
@@ -24,21 +64,20 @@ round commits (for JewelryX, `bug-reports/<round>/`).
     entry plugs its pieces in: `env/wf.mjs` is Shay's.
   - `src/project.ts` → `projects/<name>/`: everything project-specific. See *Projects* below.
   - `src/round/`: a round's state and its loop. `state.ts` is `.wf/state.json` (versioned; an
-    old-route round is refused before mutation); `next.ts` is `wf next`, the round's next action
-    from its state and files (the orchestrator's whole loop); `agreement.ts` is the working
-    agreement (which file it is and the agreed-material sha T1 binds);
+    old-route round is refused before mutation); `next.ts` is `wf next`, the current work or unmet condition
+    from its state and files (no model selection or agent dispatch); `agreement.ts` is the working
+    agreement (which file it is, the agreed-material sha T1 binds, the verification cases);
     `brief.ts` + `prompt.ts` are `wf brief <phase>`, what a phase agent runs first. Each build-to-assess
     handoff records the previous assessment's content identity: a fresh report is needed even if only
     the evidence changed and HEAD stayed the same. Each report records `assessed-at`; touching an old
     report cannot send the completed build back to repair. Legacy visits without a recorded identity
-    get one fresh assessment rather than guessing from file timestamps. Build dispatch reasons survive in
+    get one fresh assessment rather than guessing from file timestamps. Build reasons survive in
     state, served briefs and `wf status --inspect`. A cleared handoff gap re-evaluates the existing
     assessment for freshness and T2 instead of requiring an empty rebuild;
     `step`, `ask`/`decide` (`decide --revise` sends a round back to `agree` for a new T1),
     `inbox` (posts user questions through the env's optional transport and saves replies; `decide`
     records the ruling), `corrections.ts` (`wf correct`, durable authored instructions, explicit
-    disposition and source deduplication), `status`, `notes`, and `handoff-hook.ts` (`wf handoff`,
-    the Claude Code hooks).
+    disposition and source deduplication), `status` and `notes`.
     Builders and assessors receive the prior assessment and recorded question answers plainly; the
     builder chooses verification and repairs and the independent assessor judges the evidence, with
     no prescribed repair-response records or verification-ruling receipts. `clean` goes to T2,
@@ -61,6 +100,7 @@ round commits (for JewelryX, `bug-reports/<round>/`).
     Stops verify process identity and working directory, rather than trusting a recycled PID, and await
     shutdown before clearing the record. Unverified ownership warns at a phase boundary without blocking
     its action; an explicit stop refuses and preserves the record.
+  - `src/skill/skill-export.ts`: exports the self-contained skill from the canonical instructions and kit;
   - `src/plugin/`: `plugin.ts` writes `claude/agents/` from `agents/`; `anchor.ts` fills the paths
     in text (below)
   - `src/selfcheck.ts` runs every selfcheck and tsc; `src/boundary.selfcheck.ts` fails if the kit
@@ -71,19 +111,20 @@ round commits (for JewelryX, `bug-reports/<round>/`).
   (`env/projects/`).
   `env/projects/jewelryx/rework.ts` measures how much of each change's code is changed again within N days, and by
   what (a fix, a revert, a sweep, other work): wf rounds against other ticket work and other PRs
-- `skills/round/SKILL.md`: the orchestrator skill ("start 662", "resume 662"); `skills/design-session/` for T1; `skills/show-me/` for a view
-- `prompts/`: one prompt per phase, `agree`, `build` and `assess` (`wf prompt <phase>` prints it)
-- `.claude-plugin/` + `claude/`: the Claude Code plugin (manifest, marketplace, agents, hooks)
-- `agents/`: `round-worker` (every phase), `codebase-locator` and `codebase-analyzer` (agree, pi only), `harness-fixer` (harness trouble, outside the round)
+- `skills/round/SKILL.md`: the portable workflow skill ("start 662", "resume 662"); `skills/design-session/` for T1; `skills/show-me/` for a view
+- `prompts/*.md.in`: pristine templates for `agree`, `build` and `assess` (`wf prompt <phase>` prints them). The `.in` suffix also protects the first upgrade through an older installer's markdown anchoring.
+- `.claude-plugin/` + `claude/`: the optional Claude Code packaging (manifest, marketplace and helper profiles)
+- `agents/`: `round-worker` (optional bounded help), `codebase-locator` and `codebase-analyzer` (optional read-only discovery), `harness-fixer` (harness trouble, outside the round)
 - `process/`: lifecycle, classes, the agreement template (`AGREEMENT-TEMPLATE.md`), the views an agreement carries (`SHOW-ME.md`), review format, touchpoints, standards
 - `docs/plans/2026-09-17-workflow-v2.md`: the plan wf was built from (history; done)
 - `docs/research/papers-and-first-principles.md`: what wf is for, and the five papers read after it was built
 - `docs/research/show-me-maintainability-papers.html`: five papers on what happens to agent code after it merges, against wf (notes per paper in `docs/research/papers/`)
 - `docs/demo/`: the agreement pages rendered (`process/SHOW-ME.md`, `agreementPage`, the `manual:` cell) — `node docs/demo/make-demo.mjs`, then open `.wf/AGREEMENT-T1.html` (T1, the page `wf agree` annotates) and `.wf/AGREEMENT.html` (T2)
 
-Text names wf's own files as `{{wf}}/…` (prompts, docs) or `${CLAUDE_PLUGIN_ROOT}/…` (the skills),
-and the project's folder as `{{project}}/…`: `wf prompt`, Claude Code (for the plugin) and the
-installed copy fill in the real paths (`anchor.ts`).
+Runtime templates name wf's files as `{{wf}}/…` and project notes as `{{project}}/…`.
+`wf prompt` / `wf brief` and `wf notes` fill in the current paths when read (`anchor.ts`); installation
+keeps those templates relocatable. Skill references are relative. Only machine-installed optional
+helper profiles have their installed location filled in ahead of time.
 
 ## Install (the team: the Claude Code plugin)
 
@@ -93,10 +134,9 @@ The kit alone, as a Claude Code plugin: this repo is its marketplace (`.claude-p
   `claude plugin marketplace add shayshahal/wf` then `claude plugin install wf@wf`.
 - **It carries:**
   - the skills `wf:round`, `wf:design-session` and `wf:show-me`;
-  - the agents `wf:round-worker`, `wf:codebase-locator`, `wf:codebase-analyzer` and `wf:harness-fixer` (generated
-    from `agents/` by `node plugin.ts`);
-  - one session-recording hook (`wf handoff record`); worker completion and delegation belong
-    to the harness, not semantic handoff or no-fork gates.
+  - optional helpers `wf:round-worker`, `wf:codebase-locator`, `wf:codebase-analyzer` and
+    `wf:harness-fixer` (generated by `node src/plugin/plugin.ts`). There are no dispatch, fork
+    restriction or handback hooks; the same skill works without these profiles.
 - **Needs:** git, gh, node ≥ 22.18 (wf is TypeScript, which Node runs as is from 22.18), the project's own tools (JewelryX: pnpm, uv), and one MongoDB
   (`MONGO_URL`, default `mongodb://127.0.0.1:27017`; JewelryX: unset and down, wf brings up the repo's
   own with Docker). The project's `.env` files sit in the
@@ -179,6 +219,11 @@ Claude Code, plus what the project's `setup` runs (JewelryX: pnpm, uv, docker, p
    Every new worktree copies them from there.
 
 ## Update
+
+The portable-skill release changes `next` from harness dispatch lines to `work <phase>:` packets.
+Reload the round skill (or start a new session) before continuing an active task. Version-2 task
+records and their evidence/approval identities are unchanged; resume using the entry that created
+that task. This does not convert legacy pipeline state or make environment configurations equivalent.
 
 After a push to `main`, the next `wf` command installs it by itself and prints
 `wf: updated <old> → <new>`. `wf update` fetches first. After changing `env/hook.ts` or the project's

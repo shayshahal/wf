@@ -7,6 +7,13 @@ import { anchorToolPaths } from '../plugin/anchor.ts';
 import { WF_HOME } from '../paths.ts';
 import { name } from '../project.ts';
 
+/** Print authoritative workflow references and the configured project's round guidance. */
 export function runNotes() {
-	process.stdout.write(anchorToolPaths(readFileSync(`${WF_HOME}/projects/${name}/ROUND.md`, 'utf8'), WF_HOME, name));
+	process.stdout.write(`Workflow references (read the applicable branch):
+- Before classifying a task: ${WF_HOME}/process/CLASSES.md
+- Consequential agreement / agreed checkpoints: ${WF_HOME}/process/AGREEMENT-TEMPLATE.md
+- When a view helps a decision: ${WF_HOME}/process/SHOW-ME.md
+- Writing or recording a review: ${WF_HOME}/process/REVIEW-FORMAT.md
+
+${anchorToolPaths(readFileSync(`${WF_HOME}/projects/${name}/ROUND.md`, 'utf8'), WF_HOME, name)}`);
 }

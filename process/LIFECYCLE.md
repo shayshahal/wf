@@ -4,7 +4,7 @@ Run `wf …` from the round's worktree, not the clone it was cut from. Who creat
 removes a worktree is the machine's: the kit makes them with `git worktree` in
 `<repo>/.claude/worktrees/`, and an env plugs its own in (`src/seams.ts`, `createWorktree` and
 `removalPlan`). What the setup does is the project's: its `setup`, `serve` and `teardown` in
-`projects/<name>/index.ts` (JewelryX's: `{{project}}/STACK.md`).
+`projects/<name>/index.ts`; `wf notes` names the configured project's guidance.
 
 Create worktrees only via `wf new <branch> --class A|B|C [--base <ref>] [--check] [--id <token>]...`
 (default base `origin/<the project's base branch>`): it makes the worktree, runs the project's

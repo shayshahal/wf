@@ -45,7 +45,7 @@ export function openQuestionGate(state: State | null): string | null {
 	return `${open.length} open question${open.length > 1 ? 's' : ''} — ${open.map((q) => `q${q.n} → ${q.to}: ${q.text}`).join(' | ')}. Their answer → \`wf decide\` first.`;
 }
 
-// Pure: the one-line Question of a BLOCKED.md (prompts/build.md).
+// Pure: the one-line Question of a BLOCKED.md (prompts/build.md.in).
 export function blockedQuestion(text: string): string | null {
 	return text.replace(/\r\n/g, '\n').match(/^Question:[ \t]*(.+)$/m)?.[1].trim() || null;
 }

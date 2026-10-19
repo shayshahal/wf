@@ -93,7 +93,7 @@ export async function runAgree(argv: string[]) {
 	if (!opensWindows()) {
 		console.log(`to annotate: ${toAnnotate}
 review file: ${file}
-  Claude Code: show the person this section (in plain words if they ask, adding nothing it does not say); write into the review file a \`note —\` line with what you showed them, verbatim, then their comments and the verdict they said`);
+  Show the person this section using the available UI; write into the review file a \`note —\` line with what you showed them, verbatim, then their comments and the verdict they actually gave`);
 		return;
 	}
 	if (!openInEditor([worktree, toAnnotate])) console.log(`fallback: no editor found — annotate by hand:\n  worktree: ${worktree}\n  agreement: ${toAnnotate}\n  review file: ${file}`);

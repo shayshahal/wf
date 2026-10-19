@@ -1,10 +1,14 @@
 // editor.selfcheck.ts — node editor.selfcheck.ts → exit 0 when green.
 // Pure arm: how the editor fallback is started (editor.ts editorCommand). Nothing is started.
-import { editorCommand } from './editor.ts';
+import { editorCommand, opensWindows } from './editor.ts';
 
 let failures = 0;
 const check = (name: string, cond: unknown, detail = '') =>
 	(console.log(cond ? `  ok   ${name}` : `  FAIL ${name}${detail ? ` — ${detail}` : ''}`) as unknown) || (cond || failures++);
+
+check('any harness can retain UI ownership without identifying as Claude Code', !opensWindows({ WF_NO_OPEN: '1' }));
+check('the existing Claude Code UI default is preserved', !opensWindows({ CLAUDECODE: '1' }));
+check('plain interactive use may still open its external UI', opensWindows({}));
 
 const [wcmd, wargs, wshell] = editorCommand('code --new-window', ['C:/w t', 'C:/w t/REVIEW.md'], 'win32');
 check('Windows: one line through the shell, so code.cmd starts', wshell === true && wargs.length === 0 && wcmd === 'code --new-window "C:/w t" "C:/w t/REVIEW.md"', wcmd);

@@ -61,10 +61,10 @@ check('a red that never ran is named apart from a failed check', withEnvironment
 const misuse = [
 	refusalLine({ ts: 't', argv: ['step', 'bogus'], code: 2, message: 'invalid step ""', kind: 'caller' }),
 	refusalLine({ ts: 't', argv: ['decide', '--q'], code: 2, message: 'usage: wf decide [--q <n>] "<the answer>"', kind: 'caller' }),
-	refusalLine({ ts: 't', argv: ['brief', 'validate'], code: 2, message: `wf next is not dispatching \`validate\` (it says: wait user: …)` }),
+	refusalLine({ ts: 't', argv: ['brief', 'validate'], code: 2, message: `wf next is not working \`validate\` (it says: wait user: …)` }),
 ].join('\n');
 const withCaller = frictionLine({ state, checksLog, eventsLog: `${eventsLog}\n${misuse}`, reviewText, end: '2026-09-28T09:30:00.000Z' });
-check('a refusal wf made before it read the round is counted apart, and its message kept out of the round\'s', withCaller.includes('wf refused 5 (2 not about the round): review cr/x:') && withCaller.includes('brief validate: wf next is not dispatching') && !withCaller.includes('invalid step') && !withCaller.includes('usage: wf decide'), withCaller);
+check('a refusal wf made before it read the round is counted apart, and its message kept out of the round\'s', withCaller.includes('wf refused 5 (2 not about the round): review cr/x:') && withCaller.includes('brief validate: wf next is not working') && !withCaller.includes('invalid step') && !withCaller.includes('usage: wf decide'), withCaller);
 
 const old = frictionLine({ state: { round: 'fix/y', class: 'A', step: 'merged' }, checksLog: '', eventsLog: '', reviewText: '', end: '2026-09-28T09:30:00.000Z' });
 check('a round from before history was recorded still gets a line', old.includes('fix/y (class A, merged)') && old.includes('steps not recorded') && old.includes('T2 0'), old);

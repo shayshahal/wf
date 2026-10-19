@@ -15,6 +15,14 @@ implementation and deployment are tracked separately there.
 
 Recorded 2026-10-09; reconciled with HumanLayer's August 2026–present resources the same day. The consolidation goal is agreed; session, reviewer, and artifact counts below are proposed defaults to evaluate, not research-established rules. This is not the implemented workflow or a migration plan. README.md and the round skill still describe current behavior.
 
+## Portable skill delivery (2026-10-19)
+
+The workflow is distributed as one skill folder: harness-neutral instructions and executable kit
+capabilities, exported from the same source. The agent owns implementation and chooses whether to
+delegate; wf no longer prescribes agent names, models or phase-dispatch hooks. Independent review,
+measured evidence, consequential agreement, approval identity and recoverable delivery remain.
+Harness-native durability is optional execution infrastructure, not wf's new workflow engine.
+
 ## Purpose
 
 **Help Shay agree on consequential choices, see and steer the work cheaply, verify the actual result, and deliver only what Shay approved.**

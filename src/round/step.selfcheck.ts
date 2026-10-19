@@ -71,7 +71,7 @@ try {
 	const report = `Verdict: clean\nhead: ${git(main.repo, 'rev-parse', 'HEAD')}\n## Intent\n- "x": met: before: old behavior · after: fixed behavior\n`;
 	writeFileSync(join(main.repo, 'bug-reports/r/ASSESSMENT.md'), report);
 	const next = cli(main.repo, 'next');
-	check('next returns an assessor capture to build before offering T2, without a human ruling', next.out.startsWith('dispatch build') && next.out.includes(timestamp) && readState(main.repo)?.step === 'build' && !readState(main.repo)?.questions?.length, next.out);
+	check('next returns an assessor capture to build before offering T2, without a human ruling', next.out.startsWith('work build') && next.out.includes(timestamp) && readState(main.repo)?.step === 'build' && !readState(main.repo)?.questions?.length, next.out);
 	renameSync(join(main.proof, timestamp), join(main.proof, 'after-2.png'));
 	const rehandoff = cli(main.repo, 'step', 'assess');
 	writeFileSync(join(main.repo, 'bug-reports/r/ASSESSMENT.md'), report.replace('## Intent', 'assessed-at: 2026-10-14T10:00:00Z\n## Intent'));

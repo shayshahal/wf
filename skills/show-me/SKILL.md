@@ -5,7 +5,7 @@ description: Draw the current topic as a view — a call stack, a file tree, a s
 
 # Show me
 
-Read `${CLAUDE_PLUGIN_ROOT}/process/SHOW-ME.md` — it is the whole rule set, and it wins over this
+Read `../../process/SHOW-ME.md` relative to this skill folder — it is the whole rule set, and it wins over this
 file.
 
 Draw the smallest view that makes the point; keep prose to the one line that says why the next view

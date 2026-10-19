@@ -11,7 +11,7 @@ import { assessmentContentSha } from './agreement.ts';
 import { readState } from './state.ts';
 import { agreementSha, revisionSha } from './agreement.ts';
 import { worktreeContentSha } from '../gates/content-identity.ts';
-import { WF_ROOT } from '../paths.ts';
+import { WF_ROOT, wfCommand } from '../paths.ts';
 
 let failures = 0;
 const check = (name: string, cond: boolean, detail = '') =>
@@ -74,7 +74,7 @@ const approve = (dir: string, klass: 'B', agreement: string) => {
 {
 	const { dir } = repo('fix/routeA', 'A', null);
 	const next = cli(dir, 'next');
-	check('class A: wf next steps to build and dispatches it', next.code === 0 && next.out.includes('dispatch build') && state(dir).step === 'build', next.out);
+	check('class A: wf next steps to build and dispatches it', next.code === 0 && next.out.includes('work build') && state(dir).step === 'build', next.out);
 	check('class A: wf new/step stamp wf_version 2', state(dir).step === 'build');
 	rmSync(dir, { recursive: true, force: true });
 }
@@ -86,14 +86,14 @@ const approve = (dir: string, klass: 'B', agreement: string) => {
 	check('B/C: no approved agreement → wait on the user for T1', noT1.out.includes('wait user: T1 on AGREEMENT.md'), noT1.out);
 	approve(dir, 'B', AGREEMENT);
 	const approved = cli(dir, 'next');
-	check('B/C: approved material → step build and dispatch build', approved.out.includes('dispatch build') && state(dir).step === 'build', approved.out);
+	check('B/C: approved material → step build and dispatch build', approved.out.includes('work build') && state(dir).step === 'build', approved.out);
 	// An unchanged agreed direction is not invalidated by a progress edit to the mutable cases.
 	const before = readFileSync(join(dir, '.wf/state.json'), 'utf8');
 	const withCase = AGREEMENT.replace('| 1 | layout: sidebar renders | src/Page.svelte |', '| 1 | layout: sidebar renders | src/Page.svelte, src/Helper.ts |');
 	writeFileSync(join(dir, 'bug-reports/r/AGREEMENT.md'), withCase);
 	writeFileSync(join(dir, '.wf/state.json'), before.replace(/"step": "build"/, '"step": "agree"'));
 	const stillApproved = cli(dir, 'next');
-	check('B/C: adding a helper to a case does not renew T1', stillApproved.out.includes('dispatch build') && state(dir).step === 'build', stillApproved.out);
+	check('B/C: adding a helper to a case does not renew T1', stillApproved.out.includes('work build') && state(dir).step === 'build', stillApproved.out);
 	// A behavior change does renew T1.
 	writeFileSync(join(dir, 'bug-reports/r/AGREEMENT.md'), AGREEMENT.replace('two columns', 'three columns'));
 	writeFileSync(join(dir, '.wf/state.json'), before.replace(/"step": "build"/, '"step": "agree"'));
@@ -148,9 +148,9 @@ head: ${git('rev-parse', 'HEAD').trim()}
 	writeFileSync(join(proof, '20261014.png'), 'capture');
 	const bounced = cli(dir, 'next');
 	const reason = readState(dir)?.build_reason;
-	check('gap recovery: the real proof gap returns to build with a durable reason', bounced.out.includes('dispatch build') && reason?.kind === 'handoff' && reason.text.includes('20261014.png') && state(dir).repairs !== 1, bounced.out);
+	check('gap recovery: the real proof gap returns to build with a durable reason', bounced.out.includes('work build') && reason?.kind === 'handoff' && reason.text.includes('20261014.png') && state(dir).repairs !== 1, bounced.out);
 	const brief = cli(dir, 'brief', 'build');
-	check('gap recovery: a fresh worker sees the reason in its served brief', brief.code === 0 && brief.out.includes('## Build dispatch reason') && brief.out.includes(reason?.text ?? 'MISSING'), brief.out.slice(-1800));
+	check('gap recovery: the reason reaches the served brief', brief.code === 0 && brief.out.includes('## Build reason') && brief.out.includes(reason?.text ?? 'MISSING'), brief.out.slice(-1800));
 	check('gap recovery: an unresolved gap keeps dispatching actionable work', cli(dir, 'next').out.includes('20261014.png'));
 	rmSync(join(proof, '20261014.png'));
 	const recovered = cli(dir, 'next');
@@ -163,7 +163,7 @@ head: ${git('rev-parse', 'HEAD').trim()}
 	rmSync(join(proof, 'new-capture.png'));
 	git('commit', '-q', '--allow-empty', '-m', 'head moved');
 	const stale = cli(dir, 'next');
-	check('gap recovery: clearing a gap cannot approve a stale report', stale.out.startsWith('dispatch assess') && !stale.out.includes('review: T2'), stale.out);
+	check('gap recovery: clearing a gap cannot approve a stale report', stale.out.startsWith('work assess') && !stale.out.includes('review: T2'), stale.out);
 	cli(dir, 'step', 'build');
 	checked(dir);
 	check('gap recovery: explicit build handoff still records the current report baseline', cli(dir, 'step', 'assess').code === 0 && readState(dir)?.assessment_baseline?.sha === assessmentContentSha(readFileSync(report, 'utf8')));
@@ -277,12 +277,12 @@ for (const path of ['src/api/future.ts', 'src/shared/Control.ts', 'package.json'
 	check('scope: no implementation diff exists before classification', git('diff', '--name-only', 'main...HEAD').trim() === '' && git('diff', '--name-only').trim() === '');
 	check('scope: direct build brief refuses anticipated contract work before T1', cli(dir, 'brief', 'build').code === 2);
 	const measured = cli(dir, 'next');
-	check(`scope: ${path} upgrades A to B before dispatch`, measured.code === 0 && state(dir).class === 'B' && !measured.out.includes('dispatch build'), measured.out);
-	check('scope: the consequential agreement is requested before building', cli(dir, 'next').out.includes('dispatch agree'));
+	check(`scope: ${path} upgrades A to B before dispatch`, measured.code === 0 && state(dir).class === 'B' && !measured.out.includes('work build'), measured.out);
+	check('scope: the consequential agreement is requested before building', cli(dir, 'next').out.includes('work agree'));
 	writeFileSync(join(dir, 'bug-reports/r/AGREEMENT.md'), AGREEMENT);
 	check('scope: a completed agreement still needs T1', cli(dir, 'next').out.includes('wait user: T1'));
 	approve(dir, 'B', AGREEMENT);
-	check('scope: approved T1 permits build and its brief', cli(dir, 'next').out.includes('dispatch build') && cli(dir, 'brief', 'build').code === 0);
+	check('scope: approved T1 permits build and its brief', cli(dir, 'next').out.includes('work build') && cli(dir, 'brief', 'build').code === 0);
 	rmSync(dir, { recursive: true, force: true });
 }
 for (const mode of ['ordinary', 'check', 'C', 'discovery']) {
@@ -293,10 +293,10 @@ for (const mode of ['ordinary', 'check', 'C', 'discovery']) {
 	writeFileSync(join(dir, 'bug-reports/r/TICKET.md'), ticket);
 	if (mode !== 'ordinary') writeFileSync(join(dir, '.wf/state.json'), JSON.stringify({ wf_version: 3, round: 'r', id: 'r', folder: 'bug-reports/r', base: 'main', step: mode === 'discovery' ? 'build' : 'agree', class: mode === 'C' ? 'C' : 'A', check: mode === 'check' }));
 	const next = cli(dir, 'next');
-	if (mode === 'ordinary') check('scope: ordinary planned paths stay lightweight', next.out.includes('dispatch build') && state(dir).class === 'A', next.out);
-	if (mode === 'check') check('scope: a check round still reproduces without upgrading', next.out.includes('dispatch agree') && state(dir).class === 'A', next.out);
-	if (mode === 'C') check('scope: anticipated paths never downgrade C', state(dir).class === 'C' && !next.out.includes('dispatch build'), next.out);
-	if (mode === 'discovery') check('scope: newly discovered contract scope interrupts build before more work', state(dir).class === 'B' && !next.out.includes('dispatch build') && cli(dir, 'brief', 'build').code === 2, next.out);
+	if (mode === 'ordinary') check('scope: ordinary planned paths stay lightweight', next.out.includes('work build') && state(dir).class === 'A', next.out);
+	if (mode === 'check') check('scope: a check round still reproduces without upgrading', next.out.includes('work agree') && state(dir).class === 'A', next.out);
+	if (mode === 'C') check('scope: anticipated paths never downgrade C', state(dir).class === 'C' && !next.out.includes('work build'), next.out);
+	if (mode === 'discovery') check('scope: newly discovered contract scope interrupts build before more work', state(dir).class === 'B' && !next.out.includes('work build') && cli(dir, 'brief', 'build').code === 2, next.out);
 	rmSync(dir, { recursive: true, force: true });
 }
 
@@ -310,7 +310,7 @@ for (const mode of ['ordinary', 'check', 'C', 'discovery']) {
 	git('add', 'src/Page.svelte');
 	git('restore', '--source=HEAD', '--worktree', '--', 'src/Page.svelte');
 	const measured = cli(dir, 'next');
-	check('class measured: an index-only contract edit upgrades A to B before build dispatch', measured.code === 0 && state(dir).class === 'B' && !measured.out.includes('dispatch build'), measured.out);
+	check('class measured: an index-only contract edit upgrades A to B before build dispatch', measured.code === 0 && state(dir).class === 'B' && !measured.out.includes('work build'), measured.out);
 	rmSync(dir, { recursive: true, force: true });
 }
 
@@ -325,9 +325,9 @@ for (const mode of ['ordinary', 'check', 'C', 'discovery']) {
 	const decided = cli(dir, 'decide', 'cancel the dialog');
 	check('blocked: the answer lands in BLOCKED.md § Answer', decided.out.includes('§ Answer'), decided.out);
 	const resume = cli(dir, 'next');
-	check('blocked: an answered BLOCKED.md resumes the build once', resume.out.includes('dispatch build') && resume.out.includes('answered'), resume.out);
+	check('blocked: an answered BLOCKED.md resumes the build once', resume.out.includes('work build') && resume.out.includes('answered'), resume.out);
 	const brief = cli(dir, 'brief', 'build');
-	check('blocked: dispatched build receives its brief and the answer', brief.code === 0 && brief.out.includes('## Answered build block') && brief.out.includes('cancel the dialog') && brief.out.includes('wf step assess'), brief.out.slice(-1500));
+	check('blocked: the build receives its brief, answer and portable handoff', brief.code === 0 && brief.out.includes('## Answered build block') && brief.out.includes('cancel the dialog') && brief.out.includes(`${wfCommand(join(WF_ROOT, 'wf.mjs'))} step assess`), brief.out.slice(-1500));
 	const again = cli(dir, 'next');
 	check('blocked: the same answer does not resume twice', again.out.includes('wait user: blocked'), again.out);
 	for (const question of ['which label?', 'which endpoint?']) {
@@ -336,10 +336,10 @@ for (const mode of ['ordinary', 'check', 'C', 'discovery']) {
 		check('blocked: a fresh block waits for a new answer', cli(dir, 'next').out.includes('wait user: blocked'));
 		cli(dir, 'ask', '--blocked');
 		cli(dir, 'decide', 'use the approved option');
-		check('blocked: a new answer dispatches a build', cli(dir, 'next').out.includes('dispatch build'));
+		check('blocked: a new answer dispatches a build', cli(dir, 'next').out.includes('work build'));
 		const fresh = cli(dir, 'brief', 'build');
 		check('blocked: the new brief carries the current answer', fresh.code === 0 && fresh.out.includes('use the approved option'), fresh.out.slice(-1000));
-		check('blocked: the new answer also dispatches only once', !cli(dir, 'next').out.includes('dispatch build'));
+		check('blocked: the new answer also dispatches only once', !cli(dir, 'next').out.includes('work build'));
 	}
 	rmSync(dir, { recursive: true, force: true });
 }
@@ -350,9 +350,9 @@ for (const mode of ['ordinary', 'check', 'C', 'discovery']) {
 	const { dir } = repo('fix/routeRev', 'A', null);
 	writeFileSync(join(dir, '.wf/state.json'), `${JSON.stringify({ wf_version: 3, round: 'r', id: 'r', folder: 'bug-reports/r', base: 'main', step: 'agree', class: 'A', revisions: [{ text: 'the modal must also close on Escape', at: '2026-10-10T00:00:00Z' }] })}\n`);
 	const rev = cli(dir, 'next');
-	check('revision: a recorded revision dispatches a fresh agreement, not a build', rev.out.startsWith('dispatch agree') && rev.out.includes('asked the agreement to change'), rev.out);
+	check('revision: a recorded revision dispatches a fresh agreement, not a build', rev.out.startsWith('work agree') && rev.out.includes('asked the agreement to change'), rev.out);
 	const again = cli(dir, 'next');
-	check('R-3: an unchanged agreement after --revise never builds on the old approval', again.out.startsWith('dispatch agree') && state(dir).step !== 'build', again.out);
+	check('R-3: an unchanged agreement after --revise never builds on the old approval', again.out.startsWith('work agree') && state(dir).step !== 'build', again.out);
 	rmSync(dir, { recursive: true, force: true });
 }
 
@@ -383,7 +383,7 @@ for (const mode of ['ordinary', 'check', 'C', 'discovery']) {
 	const { dir } = repo('fix/routeLive', 'B', AGREEMENT);
 	approve(dir, 'B', AGREEMENT);
 	const built = cli(dir, 'next');
-	check('T1 live: an approved agreement builds', built.out.includes('dispatch build') && state(dir).step === 'build', built.out);
+	check('T1 live: an approved agreement builds', built.out.includes('work build') && state(dir).step === 'build', built.out);
 	writeFileSync(join(dir, 'bug-reports/r/AGREEMENT.md'), AGREEMENT.replace('two columns', 'three columns'));
 	const back = cli(dir, 'next');
 	check('T1 live: a changed ## Agreed at step build returns to T1', back.out.includes('wait user: T1') && state(dir).step === 'agree', back.out);

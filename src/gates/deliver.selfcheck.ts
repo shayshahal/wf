@@ -7,7 +7,7 @@ let failures = 0;
 const check = (name: string, cond: boolean, detail = '') =>
 	(console.log(cond ? `  ok   ${name}` : `  FAIL ${name}${detail ? ` — ${detail}` : ''}`) as unknown) || (cond || failures++);
 
-// The current contract is process/AGREEMENT-TEMPLATE.md and prompts/assess.md, not a legacy
+// The current contract is process/AGREEMENT-TEMPLATE.md and prompts/assess.md.in, not a legacy
 // PLAN.md/VALIDATION.md: a class B agreement (Observed + Agreed + Verification + Repro) and a final
 // assessment (Verdict/head + Intent/Behavior and evidence/Design/Standards). The commit subject is
 // deliberately NOT the case name: the formatter must list the two independently (#112).

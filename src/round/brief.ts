@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 // brief.ts — wf brief <agree | build | assess>
-// What a phase agent runs first: the orchestrator dispatches one line, "run `wf brief <phase>` and do
-// exactly what it prints", so the agent's brief is wf's own text, never a summary or a shell
-// expression. The old per-phase handoff token (a `<!-- brief: … -->` line recording which brief a
+// What a phase runs first: `wf next` prints one `work <phase>:` packet, "run `wf brief <phase>` and do
+// exactly what it prints", so the brief is wf's own text, never a summary or a shell expression, and
+// the session already open may run it just as a fresh agent may be handed the same line. The old
+// per-phase handoff token (a `<!-- brief: … -->` line recording which brief a
 // file answered) is gone (#112): a phase is identified by the round's step, and a build ends by
 // running `wf step assess`, not by matching a commit subject or a row number.
 import { existsSync, readFileSync } from 'node:fs';
@@ -13,6 +14,8 @@ import { agreementFile, consequential } from './agreement.ts';
 import { ensureServers } from '../worktrees/serve.ts';
 import { readState, toplevelOf } from './state.ts';
 import { correctionStateSha } from './corrections.ts';
+import { wfCommand } from '../paths.ts';
+import { seams } from '../seams.ts';
 
 // The phases that drive the app in a browser: their brief starts the stack and waits for it. The
 // build chooses its own checks; the assessment may look at the app itself.
@@ -22,23 +25,26 @@ export const USES_STACK = new Set(['assess']);
 // transition `wf step assess`, the assessment's the ASSESSMENT.md it writes.
 export function handoffText(phase: string, folder: string | null, klass: string | null, assessmentFile = 'ASSESSMENT.md'): string {
 	if (phase === 'build') return `\n## Handoff\n\nAfter recording a correction's disposition, run \`wf next\`: unchanged approved delivery may resume without another vote. Otherwise, when the agreement's behavior is implemented and you have run the checks that matter for this change, commit, then run \`wf step assess\`. If a check cannot run (stack, git, a missing runner), do not retry blind: write \`${folder}/BLOCKED.md\` with a \`Question:\` naming what could not run. Write it too if you cannot proceed.\n`;
-	if (phase === 'assess') return `\n## Handoff\n\nWrite \`${folder}/${assessmentFile}\` whole, with its \`Verdict:\` line and \`head:\` line; then \`wf next\`.\n`;
+	if (phase === 'assess') return `\n## Handoff\n\nWrite \`${folder}/${assessmentFile}\` whole, with its \`Verdict:\` line and \`head:\` line; this must be a fresh independent context, never the session that built the work. Then \`wf next\`.\n`;
 	return `\n## Handoff\n\nWrite \`${folder}/${agreementFile(klass as 'A' | 'B' | 'C')}\` (class ${klass}: ${consequential(klass as 'A' | 'B' | 'C') ? 'the agreement with `## Observed`, `## Agreed` and `## Verification`' : 'the ticket, with `## Repro` for a check round'}); then \`wf next\`.\n`;
 }
 
-// Pure: null when `wf next` dispatches exactly this brief, else why not. A brief read out of turn
-// would run a phase the round is not at (the old token was what made a stale file not count).
+// Pure: null when `wf next` is working exactly this brief, else why not. A brief read out of turn
+// would run a phase the round is not at; only the current `work <phase>:` packet is accepted, and the
+// old `dispatch <phase> (model: …)` line is refused so a stale instruction cannot start a phase.
 export function briefGap(argv: string[], say: string): string | null {
 	const label = argv.join(' ');
-	if (say.split('\n').some((l) => l.startsWith(`dispatch ${label}:`) || l.startsWith(`dispatch ${label} (model: `))) return null;
-	return `wf next is not dispatching \`${label}\` (it says: ${say.split('\n')[0]}). To read a phase's prompt, \`wf prompt ${label}\``;
+	const lines = say.split('\n');
+	if (lines.some((l) => l.startsWith(`work ${label}:`))) return null;
+	if (lines.some((l) => l.startsWith(`dispatch ${label}:`) || l.startsWith(`dispatch ${label} (model: `))) return `wf next no longer dispatches a phase to a fixed agent — it is working \`${label}\`; run \`wf next\` and act on the \`work ${label}:\` packet it prints`;
+	return `wf next is not working \`${label}\` (it says: ${lines[0]}). To read a phase's prompt, \`wf prompt ${label}\``;
 }
 
 export async function runBrief(argv: string[], { stack = ensureServers }: { stack?: typeof ensureServers } = {}): Promise<void> {
 	const phase = argv[0];
 	let composed: ReturnType<typeof composePrompt>;
 	let blockedAnswer = '';
-	let dispatchReason = '';
+	let workReason = '';
 	let expectedCorrections = '';
 	try {
 		const toplevel = toplevelOf();
@@ -46,8 +52,8 @@ export async function runBrief(argv: string[], { stack = ensureServers }: { stac
 		expectedCorrections = correctionStateSha({ corrections: snapshot.corrections });
 		const action = nextAction(snapshot, 'brief').say;
 		const gap = briefGap(argv, action);
-		if (phase === 'build') dispatchReason = `
-## Build dispatch reason
+		if (phase === 'build') workReason = `
+## Build reason
 
 ${action}
 `;
@@ -59,9 +65,8 @@ ${action}
 		process.exit(2);
 	}
 	const { toplevel, folder, state } = composed;
-	// The phase worker's own harness session is the one to resume: record it as a round fact (pi's
-	// PI_SESSION_ID / PI_SESSION_FILE). Claude Code's shared session id is not the worker's, so in
-	// Claude the worker is recorded from its own hook (session.ts). Best-effort.
+	// A known context may be linked for inspection; task records, not a harness session or hook,
+	// carry the resume contract. Missing context identity is deliberately harmless.
 	recordSession(toplevel, harnessSession(), readState(toplevel)?.step ?? phase);
 	// The stack comes first. A stack that will not start does not stop the brief: the build can start
 	// without it, and `wf check` starts its own.
@@ -73,7 +78,9 @@ ${action}
 		process.exitCode = 2;
 		return;
 	}
-	process.stdout.write(`${composed.text.trimEnd()}\n${dispatchReason}${blockedAnswer}${handoffText(phase, folder, readState(toplevel)?.class ?? state?.class ?? null, composed.assessmentFile)}`);
+	const handoff = handoffText(phase, folder, readState(toplevel)?.class ?? state?.class ?? null, composed.assessmentFile)
+		.replace(/`wf /g, `\`${wfCommand(seams.entry)} `);
+	process.stdout.write(`${composed.text.trimEnd()}\n${workReason}${blockedAnswer}${handoff}`);
 }
 
 if (process.argv[1]?.endsWith('brief.ts')) await runBrief(process.argv.slice(2));

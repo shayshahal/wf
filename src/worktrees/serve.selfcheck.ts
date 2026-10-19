@@ -103,7 +103,7 @@ try {
 	writeFileSync(statePath, JSON.stringify({ ...JSON.parse(readFileSync(statePath, 'utf8')), class: 'B' }));
 	actual = await start(idle);
 	const next = cli(idle, 'next');
-	check('an agreement dispatch releases an idle stack instead of leaving it until reap', next.code === 0 && next.out.startsWith('dispatch agree') && await down(actual) && !existsSync(pidFile(idle)), next.out);
+	check('an agreement dispatch releases an idle stack instead of leaving it until reap', next.code === 0 && next.out.startsWith('work agree') && await down(actual) && !existsSync(pidFile(idle)), next.out);
 	await cleanup(actual);
 	actual = await start(idle);
 	const held = cli(idle, 'step', 'held');
@@ -112,7 +112,7 @@ try {
 	writeFileSync(statePath, JSON.stringify({ ...JSON.parse(readFileSync(statePath, 'utf8')), class: 'A', step: 'build' }));
 	actual = await start(idle);
 	const building = cli(idle, 'next');
-	check('an active build dispatch keeps both stack listeners and its ownership', building.code === 0 && building.out.startsWith('dispatch build') && (await Promise.all(actual.map((listener) => answers(listener.port)))).every(Boolean) && existsSync(pidFile(idle)), building.out);
+	check('an active build dispatch keeps both stack listeners and its ownership', building.code === 0 && building.out.startsWith('work build') && (await Promise.all(actual.map((listener) => answers(listener.port)))).every(Boolean) && existsSync(pidFile(idle)), building.out);
 	writeFileSync(join(idle, folder, 'BLOCKED.md'), 'Question: Restore the required capability?\n');
 	const waiting = cli(idle, 'next');
 	check('a blocked non-review human wait releases its stack', waiting.code === 0 && waiting.out.startsWith('wait user:') && await down(actual) && !existsSync(pidFile(idle)), waiting.out);
@@ -150,7 +150,7 @@ try {
 	check('a copied/recycled PID cannot stop another worktree or erase its authority', forged.code !== 0 && (await Promise.all(independent.map((listener) => answers(listener.port)))).every(Boolean) && readFileSync(pidFile(idle), 'utf8') === bytes, forged.out);
 	writeFileSync(statePath, JSON.stringify({ wf_version: 3, round: 'fix/stack', id: 'X-1', folder, base: 'main', class: 'B', step: 'agree' }));
 	const staleNext = cli(idle, 'next');
-	check('an unowned stale PID warns without refusing agreement dispatch', staleNext.code === 0 && staleNext.out.startsWith('dispatch agree') && staleNext.out.includes('not a verified foreground server') && readFileSync(pidFile(idle), 'utf8') === bytes && independent.every((listener) => stillRunning(listener.pid)), staleNext.out);
+	check('an unowned stale PID warns without refusing agreement dispatch', staleNext.code === 0 && staleNext.out.startsWith('work agree') && staleNext.out.includes('not a verified foreground server') && readFileSync(pidFile(idle), 'utf8') === bytes && independent.every((listener) => stillRunning(listener.pid)), staleNext.out);
 	const staleHeld = cli(idle, 'step', 'held');
 	check('an unowned stale PID also warns without invalidating the committed held phase', staleHeld.code === 0 && JSON.parse(readFileSync(statePath, 'utf8')).step === 'held' && readFileSync(pidFile(idle), 'utf8') === bytes && independent.every((listener) => stillRunning(listener.pid)), staleHeld.out);
 	const agentCode = `const fs=require('node:fs');const server=require('node:http').createServer((q,r)=>r.end('agent'));server.listen(0,'127.0.0.1',()=>fs.writeFileSync('.wf/agent.json',JSON.stringify({pid:process.pid,port:server.address().port})));`;

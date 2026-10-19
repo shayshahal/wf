@@ -1,132 +1,130 @@
 ---
 name: round
-description: Run a project ticket from agreement through verified implementation, independent final review and approved delivery. Use for starting or resuming tickets, checking whether they reproduce, and inspecting what is waiting.
+description: Run a project task from agreement through verified implementation, independent review and approved delivery. Use for starting or resuming tickets, checking whether they reproduce, and inspecting what is waiting.
 ---
 
 # Round
 
-wf owns isolated workspaces, durable decisions, review identity and safe delivery. Agents own
-engineering work: research, implementation, delegation, verification choices and ordinary repairs.
-Use the harness for command execution and worker sessions; wf is not a task scheduler or proof engine.
+Own the task using this harness's available capabilities. Build here or delegate bounded work when
+useful; wf specifies the result and its evidence, not an agent name, model, pane or scheduler. wf
+owns isolated workspaces, durable decisions, review identity and safe resumable delivery.
 
-## Entry and project
+## Entry and memory
 
-In pi, use `wf` on PATH (Shay's installed env). In the Claude Code plugin, use
-`node "${CLAUDE_PLUGIN_ROOT}/wf.mjs"`. Lines printed by `wf next` name the correct entry.
-An installed update printed as `wf: updated <old> → <new>` may change rules; tell the person once.
-Run round commands inside the round's worktree. Read `wf notes` once for project tracker, people,
-statuses, setup/testing guidance and T2 demonstration instructions.
+By default, `wf` below means `node "<absolute path to this skill folder>/scripts/wf.mjs"`.
+If a machine launcher was explicitly supplied, check its `--help` first: use it with this skill only
+when it advertises `Portable skill`. An older `wf` on PATH is not this folder's runtime. Use literal
+paths, quoted when they contain spaces. The bundled tools need Node >=22.18, git, and the project's
+own prerequisites; delivery also needs authenticated `gh`. No harness plugin or runtime npm install
+is required.
 
-## Start
+Use the round's worktree as cwd for every command inside a task. Keep the entry that created it:
+`wf status --inspect` and entry refusals identify it. A different harness can use the same entry;
+a different machine configuration is not automatically interchangeable. An existing task's older
+entry needs its matching skill or a compatible update, not a switch to the bundled kit to bypass it.
 
-1. Read the ticket's complete thread and attachments. Write `TICKET.md` with `## Intent` quoting the
-   requester's words verbatim and attributed; observations and your notes go elsewhere. Resolve
-   consequential ambiguity with the person, recommending an answer rather than inventing scope.
-2. Classify the requested work, not just an empty diff: A ordinary, B contract/persistence, C a
-   consequential product choice (`process/CLASSES.md`). Record anticipated `paths:` under `## Scope`.
-3. `wf new <branch> --class <A|B|C> --id <id>` creates the worktree and project environment.
-   Set the project's started status, then run `wf next` there.
+Read `wf notes` once per session: it names the project's tools, tracker, branches and workflow
+references. The project repository owns app knowledge and verification recipes. The task's working
+document, `.wf/` records, code and evidence own progress; chat and session transcripts are optional
+links, never the only copy of a decision or outstanding instruction.
 
-Class A's ticket is the working agreement. B/C uses one `AGREEMENT.md` and T1 before building
-(`design-session` skill). The agreement records behavior, exclusions, choice and verification;
-large work may agree human checkpoints. Plans and worker-session boundaries are agent-owned.
+## Start, check or resume
 
-## Check-only work
+- **Start `<id>`:** follow [starting a task](references/start.md). Done when the complete request,
+  scope and class are recorded and `wf new` has prepared the isolated worktree.
+- **Check `<id>` / does it reproduce:** use the same request intake, then `wf new <branch> --id <id>
+  --check`. Run the repro action below; stop with the measured result, leaving the tracker untouched.
+- **Resume / what's waiting:** run `wf status --all`, enter the named worktree, retrieve any pending
+  question replies, then `wf next`. Resume from its files, not a reconstruction of the old chat.
+- **Show current work:** run `wf status --inspect`. This is inspection, not another approval gate.
 
-For “does it reproduce?”, read the ticket and create `wf new <branch> --id <id> --check`.
-Do not change tracker status or begin a fix. The agree worker runs normal project repro commands,
-using `wf serve --wait` and project fixture/reset tools as needed, and records setup, actual result
-and limitations under `## Repro`. Choose repetitions for the hypothesis, not a universal count.
-A setup failure is not the ticket's symptom. Bring the finding to the person for build or stop.
-On go, `wf step build`, set started status and continue. On stop, use the explicit discard/reap path;
-what the tracker hears is the person's decision. Deployed data changes always require authority.
+## Do the next useful work
 
-## Coordinate
+`wf next` identifies the current work or the unmet condition. It maintains durable gate facts;
+it does not start an agent. After completing an action, run it again. Judge implementation choices
+within the agreement yourself; let the commands check evidence, scope and approval freshness.
 
-Run `wf next`, do the action it names, then run it again. Read file results and concise worker
-handoffs rather than duplicating a running worker's work or consuming its transcript.
+| Action | Completion criterion |
+|---|---|
+| `work agree:` | Run the named `wf brief agree`. Record observed facts, agreed behavior, exclusions and verification. Work with the person here for consequential choices; [T1](references/review.md) approves the agreed material before building. |
+| `work build:` | Run the named `wf brief build`, implement in inspectable steps, drive the project's tools, and complete its checked handoff. Continue in this context or delegate. Record commands, observations and limitations in the working document; commit when ready, then `wf step assess`. |
+| `work assess:` | Give the named brief to a **fresh independent reviewer context** that did not build the change. A separate session or harness is valid; a subagent is optional. Follow [independent review](references/review.md). Self-review is not a substitute. |
+| `classify:` / `advance:` | The recorded scope has advanced. Read the result, then run `wf next`; it does not prescribe a new agent. |
+| `check: run wf check --repro` | Run it, then `wf next`. Report the observed behavior or inability to measure, not a conclusion from code alone. |
+| `wait … q<n>` / blocked work | Follow [questions and blockers](references/questions.md). Continue only independent authorized work while the blocking question remains open. |
+| `wait user: T1 …` / `review:` | Follow [human review](references/review.md). Record the person's actual verdict on the material shown; an agent cannot supply approval. |
+| `wait user: harness …` | Record the exact missing capability and rerun command. Use [capability fallbacks](references/capabilities.md); preserve the work rather than repeatedly rebuilding or repairing unrelated infrastructure. |
+| `deliver:` | Run `wf deliver`. It reconciles interrupted remote effects and refuses stale approval. T2 authorizes this delivery, not deployment. |
+| `post:` | Follow `wf notes` to fill and post the delivered note using the project's command. Mark each section ` (posted)` at once so a resumed round does not post it twice. |
+| `done:` | Run the named `wf reap` from a surviving checkout, then report the delivered PR and cleanup result. |
 
-- **dispatch agree/build/assess:** use the printed brief and model. In pi, dispatch `round-worker`
-  with cwd the worktree and the printed line as its task; in Claude Code, dispatch
-  `subagent_type: "wf:round-worker"` the same way, from the round's worktree.
-  Let the harness deliver its result. Use fresh independent context for final assessment; ordinary
-  build delegation and context management are the builder's choice. `wf brief` serves a dispatched
-  phase; `wf prompt` inspects a prompt without dispatching it.
-- **T1:** run `wf agree <branch>` and read the recorded `AGREEMENT-REVIEW.md` verdict, then `wf next`.
-  In pi, the design session may run interactively in its own pane. In Claude Code, hold it here.
-- **build:** implement and choose relevant project verification. `wf check` is optional convenience,
-  not required evidence. Record commands, observations and limitations in the working document or
-  reference existing harness records. Commit when ready, then `wf step assess`.
-- **assess:** one independent read-only final assessment judges intent, evidence, design and
-  standards. It writes `ASSESSMENT.md` with explicit clean/repair/blocked outcome and measured HEAD.
-  Ordinary repair returns to build, bounded; a real decision goes to the person.
-- **review:** show the fix (`wf show`, per project notes), then run `wf review <branch>` yourself.
-  Read `REVIEW.md`, then `wf review <branch> --done` and `wf next`. T2 is local; only its final
-  approval permits delivery. A dismissed review grants nothing.
-- **deliver:** `wf deliver` pushes, creates/reconciles the PR, confirms merge and writes the tracker
-  note. Project hooks still apply. Then `wf next`.
-- **follow-up:** a clear instruction arrived after confirmed delivery. Start the fresh round named
-  by `wf next`, capture its exact instruction/source there with `wf correct`, then address the old
-  correction with that new round/correction reference. Only then may old cleanup continue; the old
-  approval does not authorize the new implementation.
-- **post:** post each outstanding tracker-note section, marking its heading ` (posted)` immediately
-  after success so resume does not duplicate it. Then `wf next`.
-- **done:** run the named reap from a surviving checkout and report the merged PR and timing line.
-  In Claude Code, exit the worktree with keep before reaping; its cwd otherwise holds the directory.
-
-## Agreed checkpoints
-
-Before proceeding past a human-agreed checkpoint, show the intended diff with
-`wf review <branch> --checkpoint [--base <ref>]`, then `wf review <branch> --checkpoint --done`.
-`CHECKPOINT-REVIEW.md` records the outcome. Approval resumes build, never delivery. No separate
-assessment or integration phase is required. Final T2 still reviews the whole round.
-
-## Decisions and blockers
-
-**Corrections.** When a clear round-linked instruction arrives from Shay in chat, review, Inbox,
-ticket or PR feedback, record it yourself once:
+**Corrections.** A clear round-linked instruction that arrives from the person in chat, review, Inbox,
+ticket or PR feedback is recorded once with
 `wf correct --source "<actual message/event reference>" --author "<original author>" --scope "<intended scope>" --reason "<why it applies>" "<instruction, verbatim>"`.
-Preserve attribution when relaying; ordinary discussion, non-directive approval notes and third-party
-suggestions are not new assignments. A clear instruction is still actionable when delivered beside
-an approval; classify its meaning, not just the review's verdict. If intent is ambiguous, retain the words and ask only what is missing.
-Shay need not repeat the instruction in another tool. Reuse the exact source identity on retry;
-explicit replacement uses `--supersedes <id,...>`, never timestamps or rewriting a review verdict.
-Run `wf next`: the actual build and assessment context carries the instruction until addressed,
-blocked or explicitly replaced. Builders record disposition through the command in their brief.
-When a concrete blocker clears, record `wf correct --unblock <id> --note "<what cleared it/source>"`,
-then `wf next` resumes the same instruction; unblocking is not application. Previous dispositions
-remain inspectable. Dispatch and transport acknowledgement are not application. An outstanding instruction blocks
-delivery even when file bytes have not yet changed. After disposition, `wf next` may resume
-unchanged approved delivery; changed subjects follow fresh assessment/T2. A recorded uncertain
-merge is reconciled before repair or follow-up. Receive/read through the current harness and
-project tools; wf itself does not watch those sources or start a departed worker (#159).
+Preserve attribution; ordinary discussion, non-directive approval notes and third-party suggestions
+are not new assignments. A clear instruction is still actionable when delivered beside an approval:
+classify its meaning, not just the review's verdict. If intent is ambiguous, retain the words and ask
+only what is missing. Reuse the exact source identity on retry; explicit replacement uses
+`--supersedes <id,...>`, never timestamps or a rewritten review verdict. Run `wf next`: the build and
+assessment context carries the instruction until it is addressed, blocked or explicitly replaced, and
+an outstanding instruction blocks delivery even when file bytes have not changed. A builder records
+disposition through the command in its brief. When a concrete blocker clears, record
+`wf correct --unblock <id> --note "<what cleared it/source>"`; unblocking is not application. Transport
+or dispatch acknowledgement is not application. After disposition, `wf next` may resume unchanged
+approved delivery; a changed subject follows fresh assessment and T2. A recorded uncertain merge is
+reconciled before repair or follow-up.
 
-Use project tools to resolve ordinary setup and engineering problems. A missing capability does
-not authorize fixing every dependency: name the gap and owner. For a real decision or missing
-authority, write `BLOCKED.md` with contextual `Question:`, then `wf ask --blocked`.
-Run `wf inbox` to post recorded questions and save replies; on a reply run it again, then
-`wf decide --q <n> "<their answer>"` and `wf next`. Transport alone is not a ruling or approval.
-If Inbox is unavailable, ask directly and record the answer the same way.
+Fixable within-agreement findings return to build within the recorded repair budget. Material scope
+or behavior changes go back to agreement. Keep outstanding corrections visible until implementation
+and verification answer them; a delivered notification is not completion of its instruction.
 
 A genuinely changed behavior, consequential choice or dropped agreed item uses
 `wf decide --revise [--q <n>] "<renewed behavior>"` and renewed agreement/T1. Ordinary helpers,
 files, test selection, setup refinements and review corrections remain implementation choices.
 Reviewers choose outcomes explicitly; there is no per-line assessment status or repair-proof grammar.
 
-Harness trouble may need a separate authorized worktree/repair. Isolate the failing command first;
-record its evidence and recovery owner. Do not repeatedly rerun expensive suites blindly.
+## Agreed checkpoints
 
-## Inspection, resume and authority
+Before proceeding past a human-agreed checkpoint, show the intended diff with
+`wf review <branch> --checkpoint [--base <ref>]`, then `wf review <branch> --checkpoint --done`.
+`CHECKPOINT-REVIEW.md` records the outcome. Approval resumes build, never delivery. Final T2 still
+reviews the whole round.
 
-`wf status --all` lists waiting rounds. `wf status --inspect` shows the current change, evidence
-references and session; inspection is not approval. Resume from state, decisions and files.
-Keep communication to useful decisions, reviews, blockers and delivery rather than routine narration.
+## Adapt execution, not the completion standard
 
-Only final human T2 authorizes `wf deliver`; deploy belongs to Shay. Change only this round's
-worktree and respect protected project files and hooks. Never bypass them with `--no-verify`.
-Choose helper models with `wf models` when using wf's model table; honor an explicitly printed model.
+Read [capability fallbacks](references/capabilities.md) when a required tool, background worker,
+reviewer or UI is unavailable. Prefer existing project commands to harness-specific tool names.
+Save the task and hand it off when a required capability is absent. A plain interactive harness can
+make progress and resume later; unattended execution after exit needs a host that actually offers it.
 
-A merged round owns one delivery. Further product work starts a fresh
-`wf new <branch> --reopen --class <A|B|C> --id <id>`; read `EARLIER.md` and refresh intent and scope.
-Keep prior delivery records intact. `WF_FORCE_REAP=1` is an intentional discard, not a repair for
-uncertain cleanup. Finish old-runtime rounds before installing an incompatible replacement.
+Preserve these guarantees on every harness:
+
+- Work in the task's own workspace and agreed scope. Shared configuration, protected tests and
+  unrelated work need their own authorization; verification bypasses are not a fallback.
+- Bind measurements and approvals to the implementation they concern. Changed product/test bytes
+  require fresh evidence and approval as the commands direct. Preserve the independent assessor's
+  report; answer findings in the working document rather than rewriting their verdict.
+- Keep `NOT MEASURED`, environment failures and product failures distinguishable. A substitute check
+  counts only for the behavior it actually proves.
+- Merge only through `wf deliver` after the person's T2. Deploy remains the person's authority.
+  Restrict repository permissions/credentials when an enforcement boundary stronger than instructions
+  and local checks is required.
+- Keep scope, unanswered questions, corrections, evidence references and remote-effect receipts on
+  disk. Never fabricate a result, infer permission from silence, or discard unconfirmed work.
+
+Only final human T2 authorizes `wf deliver`. Change only this round's worktree and respect protected
+project files and hooks; never bypass them with `--no-verify`. Harness trouble may need a separate
+authorized worktree or repair: isolate the failing command first, record its evidence and recovery
+owner, and do not repeatedly rerun expensive suites blindly.
+
+## Follow-up and handover
+
+A merged task owns one delivery. Further product work uses `wf new <new-branch> --reopen --class
+<A|B|C> --id <id>` and its `EARLIER.md`; history informs the new task but does not transfer approval.
+`WF_FORCE_REAP=1` is an intentional discard, not a way to preserve unfinished work. Finish
+old-runtime rounds before installing an incompatible replacement.
+
+When handing over, identify the worktree, configured entry, working document, latest measurements,
+open questions and next executable action. A new agent needs those records, not your transcript.
+Tell the person when a decision/review is needed, verification is blocked, or the work is ready or
+delivered. Use their Inbox when available for asynchronous questions and finished-work handover.

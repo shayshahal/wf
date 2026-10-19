@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // prompt.ts — wf prompt <agree | build | assess>
-// Prints the composed prompt for a fresh round agent to stdout. The three phases of the smaller
+// Prints the composed prompt for a phase agent to stdout. The three phases of the smaller
 // route (#111): agree writes the working agreement (TICKET.md for class A, AGREEMENT.md for B/C),
 // build implements within it, assess judges intent/behavior/design/standards once. The old research,
 // plan, implement-N, validate, critique, as-built, standards and fix-review phases are gone.
@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import { refuseCaller } from '../refusal.ts';
 import { changedFiles, isRoundPaperwork } from '../gates/check.ts';
 import { baseBranch, directUrls, guidance, name as projectName } from '../project.ts';
-import { WF_HOME, WF_ROOT } from '../paths.ts';
+import { WF_HOME, WF_ROOT, wfCommand } from '../paths.ts';
 import { anchorToolPaths } from '../plugin/anchor.ts';
 import { seams } from '../seams.ts';
 import { readVerdict } from '../gates/review-format.ts';
@@ -101,7 +101,9 @@ export function composePrompt(argv: string[]) {
 		const base = basePortForBranch(execFileSync('git', ['-C', toplevel, 'rev-parse', '--abbrev-ref', 'HEAD'], { encoding: 'utf8' }).trim());
 		Object.assign(vars, directUrls(base));
 	} catch { /* not in a round worktree */ }
-	let template = readFileSync(join(templatesDir, `${phase}.md`), 'utf8');
+	// The previous updater anchors every *.md, including during the first upgrade to this release.
+	// .md.in retains pristine templates for export even through that updater (2026-10-19 review P1).
+	let template = readFileSync(join(templatesDir, `${phase}.md.in`), 'utf8');
 	// agree: the round's name tells the agent which file holds the agreement.
 	if (phase === 'agree') {
 		const overruled = overruledAsks(state?.answered);
@@ -145,7 +147,7 @@ ${vars.answers}`;
 	const notes = join(WF_ROOT, 'projects', projectName, 'prompts', `${phase}.md`);
 	if (existsSync(notes)) template += `\n${readFileSync(notes, 'utf8')}`;
 	if (phase === 'assess') vars.agreementFile = vars.file;
-	const wf = `node ${seams.entry.replace(/\\/g, '/')}`;
+	const wf = wfCommand(seams.entry);
 	// #126/#130: anchor template instructions before inserting people's verbatim rulings.
 	// Recorded answers are inserted after anchoring for the same reason.
 	// Source words are inserted after anchoring: a quoted wf command is the author's text,
@@ -157,7 +159,7 @@ ${vars.answers}`;
 	return { text, toplevel, state, folder, phase, assessmentFile, n: null, key: phase };
 }
 
-// wf prompt: the prompt as it is, for reading. A dispatch runs `wf brief`, which adds the handoff note.
+// wf prompt: the prompt as it is, for reading. A work packet runs `wf brief`, which adds the handoff note.
 export function runPrompt(argv: string[]) {
 	try {
 		process.stdout.write(composePrompt(argv).text);

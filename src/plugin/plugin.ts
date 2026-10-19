@@ -2,9 +2,9 @@
 // plugin.ts — node src/plugin/plugin.ts: writes the Claude Code plugin's agents (claude/agents/) from wf's
 // own (agents/), which carry an effort level (`effort: low`, models.ts) and pi's names: `tools: read,
 // bash`, pi's `auto-exit`. Claude Code reads a model (`sonnet`, the kit's for that level) and
-// `Read, Bash`. The skills need no copy: they name
-// wf's files as ${CLAUDE_PLUGIN_ROOT}, which Claude Code fills and Shay's installer fills too
-// (anchor.ts), and a plugin's skills/ folder is always scanned, so a copy would load twice.
+// `Read, Bash`. These profiles are optional conveniences: the portable round skill builds in the
+// current context or uses any available delegation. A plugin scans skills/ directly; copying the
+// skill would create a second maintained workflow.
 // plugin.selfcheck.ts fails while a committed copy differs from what this writes.
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';

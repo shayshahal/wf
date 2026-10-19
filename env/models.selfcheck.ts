@@ -5,8 +5,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
-import { EFFORTS, modelFor, withModel } from '../src/models.ts';
-import { PHASES } from '../src/round/prompt.ts';
+import { EFFORTS, withModel } from '../src/models.ts';
 import { WF_ROOT } from '../src/paths.ts';
 import { listed, pickModel, PI_PERSONAL_MODELS, PI_ANTHROPIC_MODELS, piModelsForProvider } from './models.ts';
 
@@ -36,7 +35,6 @@ check('personal callers and bare terminals select the personal table', ['opencod
 check('work choices stay in the Anthropic account', Object.values(PI_ANTHROPIC_MODELS).every((model) => /^anthropic\//i.test(model)));
 check('personal choices stay outside the Anthropic account', Object.values(PI_PERSONAL_MODELS).every((model) => !/^anthropic\//i.test(model)));
 for (const [account, models] of [['work', PI_ANTHROPIC_MODELS], ['personal', PI_PERSONAL_MODELS]] as const) {
-	check(`${account} round phases use the configured medium model`, PHASES.every((phase) => modelFor(phase, models) === models.medium));
 	for (const effort of EFFORTS) {
 		check(`${account} ${effort} has an explicit provider and model`, /^[^/:]+\/[^:]+(?::\w+)?$/.test(models[effort]));
 		check(`${account} ${effort} agent conversion preserves the configured model and thinking`, withModel(`name: x\r\neffort: ${effort}\r\ntools: read\r\n`, models) === `name: x\r\nmodel: ${models[effort]}\r\ntools: read\r\n`);

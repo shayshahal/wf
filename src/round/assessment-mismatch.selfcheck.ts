@@ -90,12 +90,12 @@ try {
 	const fixWords = 'remove the alternate call; keep `wf next` literal in this note';
 	const fix = cli('decide', '--q', String(q?.n), fixWords);
 	const fixed = cli('next');
-	check('a non-accept ruling returns to build with the answer verbatim', fix.status === 0 && fixed.stdout.startsWith('dispatch build') && readState(dir)?.step === 'build' && readState(dir)?.answered?.at(-1)?.answer === fixWords, `${fix.stdout}${fixed.stdout}${fix.stderr}`);
+	check('a non-accept ruling returns to build with the answer verbatim', fix.status === 0 && fixed.stdout.startsWith('work build') && readState(dir)?.step === 'build' && readState(dir)?.answered?.at(-1)?.answer === fixWords, `${fix.stdout}${fixed.stdout}${fix.stderr}`);
 	// --revise renews the agreement before any build.
 	writeFileSync(join(dir, '.wf/state.json'), before);
 	const revise = cli('decide', '--revise', '--q', String(q?.n), 'remove the primary effect; preserve the alternate path');
 	const renewed = cli('next');
-	check('a --revise ruling renews the agreement before build', revise.status === 0 && readState(dir)?.step === 'agree' && readState(dir)?.revisions?.length === 1 && renewed.stdout.startsWith('dispatch agree'), `${revise.stdout}${renewed.stdout}${revise.stderr}`);
+	check('a --revise ruling renews the agreement before build', revise.status === 0 && readState(dir)?.step === 'agree' && readState(dir)?.revisions?.length === 1 && renewed.stdout.startsWith('work agree'), `${revise.stdout}${renewed.stdout}${revise.stderr}`);
 } finally {
 	rmSync(dir, { recursive: true, force: true });
 }

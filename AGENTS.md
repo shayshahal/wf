@@ -38,9 +38,22 @@ evidence before another full run. A later green alone does not explain an interm
   keeps no copy.
 - Examples taken from past rounds (BJEW-…, TJEW-…) are history and stay where they illustrate.
 
+## Portable skill
+
+- `skills/round/SKILL.md` and its `references/` are the one workflow source. The current agent may
+  agree and build; assessment still needs a fresh independent context. Harness delegation, agent
+  names, model choices, callback tools and review UIs are optional execution conveniences.
+- `wf skill export <new-directory>` packages those instructions with the kit's executable tools.
+  Generated exports are not maintained copies. Verify the exported folder after relocating it,
+  without this checkout, plugins, `env/` or runtime npm dependencies. Keep checks, questions,
+  implementation-bound approval and interrupted-delivery recovery intact.
+- Runtime templates (`prompts/*.md.in`) are anchored when read, not at installation. The `.in`
+  suffix protects the first upgrade through the previous markdown-anchoring installer. A machine
+  installer may anchor its optional helper profiles, but must not bake paths into portable templates.
+
 ## Style
 
-- Code lives in `src/`, by area: `round/`, `gates/`, `worktrees/`, `plugin/`. A module that names
+- Code lives in `src/`, by area: `round/`, `gates/`, `worktrees/`, `plugin/`, `skill/`. A module that names
   one of wf's own files (prompts, process docs, the entry) starts from `WF_ROOT` (`src/paths.ts`),
   never from its own folder.
 - One module per command, each with a `*.selfcheck.ts` beside it: pure functions checked there, the

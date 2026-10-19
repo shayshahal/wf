@@ -5,7 +5,7 @@
 //   without mutating PLAN.md;
 //   runStep merges class/base against the state under the write lock, so a concurrent classify upgrade
 //   and a base another command wrote are kept;
-//   a corrupt state blocks the handoff hook, fails the dispatcher, and is not read as "no base" by
+//   a corrupt state fails the dispatcher and is not read as "no base" by
 //   classify, instead of failing open.
 // The races are scheduled, not chance: a real `mutate` child holds the state lock while a real command
 // reads the old state and blocks at its write; the parent releases the mutate child only once the
@@ -62,12 +62,6 @@ if (mode === 'mutate') {
 		const first = open[0];
 		return { questions: open.filter((q) => q !== first).concat(newQ), answered: [...(current.answered ?? []), { ...first, answer: 'x', answered: new Date().toISOString() }], last_question: n };
 	});
-	process.exit(0);
-}
-if (mode === 'hook') {
-	process.chdir(dir);
-	const { runHandoff } = await import('./handoff-hook.ts');
-	await runHandoff(['check']);
 	process.exit(0);
 }
 
@@ -218,13 +212,10 @@ const planText = '# plan\n\n## Commits\n\n| 1 | do it | a.ts | x |\n';
 	rmSync(d, { recursive: true, force: true });
 }
 
-// ── a corrupt round state is a known error, not "no round here": it blocks the handoff hook instead
-// of letting the worker end, and the dispatcher reports it instead of running on.
+// ── a corrupt round state is a known error, not "no round here": the dispatcher refuses it.
 {
 	const d = tempRepo();
 	writeFileSync(stateFile(d), '{ "round": "r", "questions": [');
-	const hook = await spawnKid('hook', d, '', JSON.stringify({ hook_event_name: 'SubagentStop', agent_type: 'wf:round-worker' })).done;
-	check('a corrupt state blocks the handoff hook instead of failing open', hook.out.includes('"decision":"block"') && hook.out.includes('corrupt round state'), `out ${hook.out.slice(0, 200)}`);
 	const disp = spawnSync(process.execPath, [join(WF_ROOT, 'wf.mjs'), 'status', '--all'], { cwd: d, encoding: 'utf8' });
 	const text = `${disp.stdout ?? ''}${disp.stderr ?? ''}`;
 	check('the dispatcher reports corrupt state instead of running on', disp.status === 1 && text.includes('corrupt round state'), `status ${disp.status} ${text.slice(0, 200)}`);
@@ -251,14 +242,14 @@ const planText = '# plan\n\n## Commits\n\n| 1 | do it | a.ts | x |\n';
 	rmSync(d, { recursive: true, force: true });
 }
 
-// ── a version-less legacy round is refused by the handoff hook before it writes (R-5).
+// A hookless harness must still refuse legacy mutations without changing their authority.
 {
 	const d = tempRepo();
 	putState(d, { round: 'r', folder: 'round', step: 'build' });
-	const hook = await spawnKid('hook', d, '', JSON.stringify({ hook_event_name: 'SubagentStop', agent_type: 'wf:round-worker' })).done;
-	const st = readStateFile(d);
-	check('R-5: the handoff hook blocks a version-less state instead of writing it', hook.out.includes('"decision":"block"') && /older wf/.test(hook.out), hook.out.slice(0, 200));
-	check('R-5: the blocked hook left the legacy state unmutated', st.step === 'build' && st.wf_version === undefined, JSON.stringify(st));
+	const before = readFileSync(stateFile(d), 'utf8');
+	const attempt = spawnSync(process.execPath, [join(WF_ROOT, 'wf.mjs'), 'brief', 'build'], { cwd: d, encoding: 'utf8' });
+	check('R-5: the portable entry refuses a version-less state', attempt.status === 1 && /older wf/.test(attempt.stderr), attempt.stderr);
+	check('R-5: refusing legacy work preserves its state bytes', readFileSync(stateFile(d), 'utf8') === before);
 	rmSync(d, { recursive: true, force: true });
 }
 

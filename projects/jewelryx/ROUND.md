@@ -1,6 +1,6 @@
 # JewelryX: round notes
 
-What the round skill (`{{wf}}/skills/round/SKILL.md`) leaves to the project. Read once per session,
+What the round skill leaves to the project. Read once per session,
 before *Start*.
 
 ## Tracker: Jira
@@ -9,8 +9,8 @@ before *Start*.
   `d0d265f2-904c-4b76-8bd7-ecfb592eb92f`): Bugs, Tasks and their Sub-tasks, each with its own key
   (`JX-1112`; "start 1112" means `JX-1112`). Types, statuses, the Monday history and how a comment to
   Einat reads: `docs/agents/jira.md` in the worktree. An old `BJEW-`/`TJEW-` id is found the way it says.
-- The tools: Atlassian's MCP (under pi, `mcp__atlassian__*` called from a `codemode` script) for
-  issues, comments and statuses; Jira's REST API for files, which the MCP cannot move, with
+- Use an available authorized Jira connector or Jira's REST API for issues, comments and statuses.
+  Download files through Jira's REST API when the connector cannot move them, with
   `curl -u "$JIRA_EMAIL:$JIRA_TOKEN"` (your Atlassian email and an API token from
   id.atlassian.com, in the environment the session started with).
 - Fetch the whole issue: `getJiraIssue` with `fields: ["summary", "description", "status", "issuetype",
@@ -25,9 +25,9 @@ before *Start*.
   query($ids: [ID!]) { items(ids: $ids) { id name assets(assets_source: columns) { id name public_url }
     updates(limit: 100) { assets { id name public_url } replies { assets { id name public_url } } } } }
   ```
-  ⛔ **Monday is off** (`"enabled": false` in `~/.pi/agent/mcp.json`, 2026-10-08): `all_api_read`
-  does not exist until you turn the server on in `/mcp` for this session (it writes the file back).
-  Do that before fetching, or ask the user to paste the pictures.
+  If no authorized Monday connector is available for historical pictures, identify the missing
+  attachments and ask the person to supply them or enable access. Connector installation and global
+  harness configuration changes are not implicit task scope.
 - A Task that is one sentence is the "ticket that is a sentence" of *Start*: scope questions first.
 - An issue with sub-tasks is not one round (TJEW-670, 2026-09-28: a title, and 11 subitems that are
   11 changes). Fetch every sub-task's thread and attachments too, list them for the user (key, title,
@@ -37,7 +37,7 @@ before *Start*.
 - A round on sub-tasks: `--id <sub-task key>` for each. `TICKET.md`: the parent's title and thread,
   then each sub-task's; `## Intent` is the sub-tasks' words. Its statuses and its note go on its
   sub-tasks, never the parent.
-- Statuses, set by you (never an agent), by name: `getTransitionsForJiraIssue`, then
+- Statuses, set by the task owner rather than a delegated implementer, by name: `getTransitionsForJiraIssue`, then
   `transitionJiraIssue` with the id of the transition whose `to` is that status. Every type, sub-tasks
   included, has the one workflow:
 

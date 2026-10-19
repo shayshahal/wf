@@ -8,7 +8,7 @@
     {
       "name": "wf",
       "source": ".",
-      "description": "The round kit: wf's skills, agents and hooks for Claude Code."
+      "description": "The round kit: wf's skills and optional helper agents for Claude Code."
     }
   ]
 }

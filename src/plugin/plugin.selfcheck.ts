@@ -1,5 +1,5 @@
 // plugin.selfcheck.ts — node plugin.selfcheck.ts → exit 0 when green.
-// Pure arms: the Claude Code copy of an agent (plugin.ts), the plugin's hooks (handoff-hook.ts),
+// Pure arms: optional Claude Code agent copies and the portable skill installation,
 // and that the committed plugin files are what plugin.ts writes and name files that exist.
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -26,19 +26,12 @@ for (const [path, text] of pluginFiles()) {
 	const committed = existsSync(join(root, path)) ? readFileSync(join(root, path), 'utf8').replace(/\r\n/g, '\n') : null;
 	check(`${path} is what plugin.ts writes`, committed === text.replace(/\r\n/g, '\n'), committed === null ? 'missing: node src/plugin/plugin.ts' : 'stale: node src/plugin/plugin.ts');
 }
-const manifest: { name: string; agents: string[]; hooks: string } = JSON.parse(readFileSync(join(root, '.claude-plugin', 'plugin.json'), 'utf8'));
+const manifest: { name: string; agents: string[]; hooks?: string } = JSON.parse(readFileSync(join(root, '.claude-plugin', 'plugin.json'), 'utf8'));
 check('plugin.json names agent files that exist', manifest.agents.every((a) => existsSync(join(root, a))), manifest.agents.join());
 check('plugin.json names every agent', pluginFiles().every(([path]) => manifest.agents.includes(`./${path.replace(/\\/g, '/')}`)), manifest.agents.join());
-check('its hooks file exists and calls this repo\'s wf.mjs', readFileSync(join(root, manifest.hooks), 'utf8').includes('${CLAUDE_PLUGIN_ROOT}/wf.mjs'));
-// A matcher of letters and hyphens only is an exact match, and a plugin's agent type is
-// <plugin>:<name>: `round-worker` never fired (measured 2026-09-27, Claude Code 2.1.280).
-const stopHook = JSON.parse(readFileSync(join(root, manifest.hooks), 'utf8')).hooks.SubagentStop[0];
-check('SubagentStop matches the plugin-scoped agent type, anchored', stopHook.matcher === `^${manifest.name}:round-worker$`, stopHook.matcher);
-// The hook now records the worker's session; the semantic handback judge and the no-fork policy are gone.
-check('SubagentStop records the worker session', stopHook.hooks[0].args.slice(1).join(' ') === 'handoff record');
-check('no PreToolUse hook remains (the handback/no-fork policy is gone)', JSON.parse(readFileSync(join(root, manifest.hooks), 'utf8')).hooks.PreToolUse === undefined);
-const skills = ['round', 'design-session'].map((s) => readFileSync(join(root, 'skills', s, 'SKILL.md'), 'utf8'));
-check('the skills name wf\'s files as ${CLAUDE_PLUGIN_ROOT}, no {{wf}} or {{project}} left', skills.every((t) => !t.includes('{{wf}}') && !t.includes('{{project}}')));
+check('the plugin adds no mandatory dispatch or handback hooks', manifest.hooks === undefined);
+const skills = ['round', 'design-session', 'show-me'].map((s) => readFileSync(join(root, 'skills', s, 'SKILL.md'), 'utf8'));
+check('skill entry points need no harness-specific path expansion', skills.every((t) => !t.includes('{{wf}}') && !t.includes('{{project}}') && !t.includes('${CLAUDE_PLUGIN_ROOT}')));
 // The public skills are installed at `~/.local/share/wf/skills/<dir>`, and PI's `settings.json`
 // registers each installed path (`README.md` step 4). A rename that moves the folder without moving
 // the registered path dangles it, and the skill stops loading (2026-10-10, #114: a `design-session`
@@ -51,14 +44,12 @@ for (const e of readdirSync(join(root, 'skills'), { withFileTypes: true }).filte
 // BJEW-461 (2026-10-06): the round skill sent harness trouble to a `scout`, a pi agent of Shay's on another model.
 // Every text an agent of wf's reads: the skills, the prompts, the process docs, the agents themselves.
 const texts = ['skills', 'prompts', 'process', 'agents', 'projects'].flatMap((d) => readdirSync(join(root, d), { recursive: true, encoding: 'utf8' })
-	.filter((f) => f.endsWith('.md')).map((f) => ({ file: `${d}/${f.replace(/\\/g, '/')}`, text: readFileSync(join(root, d, f), 'utf8') })));
+	.filter((f) => /\.md(?:\.in)?$/.test(f)).map((f) => ({ file: `${d}/${f.replace(/\\/g, '/')}`, text: readFileSync(join(root, d, f), 'utf8') })));
 const dispatched = texts.flatMap(({ text }) => [...text.matchAll(/agent: "([\w-]+)"|subagent_type: "wf:([\w-]+)"/g)].map((m) => m[1] ?? m[2]));
-check('wf\'s texts dispatch only wf\'s own agents, and the round skill dispatches one', dispatched.length > 0 && dispatched.every((a) => existsSync(join(root, 'agents', `${a}.md`))), `dispatched ${dispatched.length}: ${dispatched.join()}`);
+check('the workflow prescribes no harness-specific agent dispatch', dispatched.length === 0, dispatched.join());
 // pi's general agents (scout, planner, worker, reviewer): a text that names one sends an agent to it.
 const general = texts.filter(({ text }) => /\bscout\b|`(planner|worker|reviewer)`/i.test(text)).map(({ file }) => file);
 check('wf\'s texts name none of pi\'s general agents', general.length === 0, general.join());
 
-// ── the hooks no longer judge a handoff (agent-owned sessions); the session rule is covered by
-// handoff-hook.selfcheck.ts.
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');
 process.exit(failures ? 1 : 0);

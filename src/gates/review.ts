@@ -136,7 +136,7 @@ function assessmentFor(worktree: string, assessmentFile: string): string[] {
   return [`assessment: ${verdict} (${file})`];
 }
 
-// The cases whose proof is a person looking (check cell `manual: …`, prompts/agree.md): T2 reads each
+// The cases whose proof is a person looking (check cell `manual: …`, prompts/agree.md.in): T2 reads each
 // as a `manual:` line beside the diff. The whole agreement's cases. `wf check` no longer gates the
 // build; the independent reviewer and the person own sufficiency.
 function manualFor(worktree: string): string[] {

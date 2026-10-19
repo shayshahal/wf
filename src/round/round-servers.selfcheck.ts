@@ -6,7 +6,7 @@ let failures = 0;
 const idle = new Set(['classify', 'agree', 'held', 'pr', 'merged']);
 const waits = ['wait user: T1', 'wait person: question'];
 for (const step of [...STEPS, undefined, 'unknown']) {
-	for (const say of ['', ...waits, 'dispatch build: continue', 'dispatch assess: continue', 'review: T2']) {
+	for (const say of ['', ...waits, 'work build: continue', 'work assess: continue', 'review: T2']) {
 		for (const waitingOn of [undefined, 'user', 'ci']) {
 			const expected = waitingOn !== 'ci' && (idle.has(step ?? '') || ((step === 'build' || step === 'assess') && waits.includes(say)));
 			if (shouldStopRoundServers({ step, say, waitingOn }) !== expected) { console.error(`FAIL idle stack policy: ${step}/${say}/${waitingOn}`); failures++; }

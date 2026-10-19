@@ -9,7 +9,7 @@
 // executable-unit runtime are gone. A large change may take human-agreed checkpoints (`wf review
 // --checkpoint`), but wf schedules none of them: the agent owns when one happens. `wf next` prints
 // one of:
-//   dispatch <phase> (model: <m>): <the line to send a fresh round-worker, on that model>
+//   work <phase>: <the line to run this phase in this worktree, or to hand a fresh agent>
 //   wait <person>: <what they owe>        tell them, verbatim; their answer → wf decide, then wf next
 //   review | deliver | check | done        the orchestrator runs it, then wf next
 // It does the bookkeeping itself (the step, a question the round now waits on).
@@ -24,9 +24,8 @@ import { classFromFiles } from '../gates/classify.ts';
 import { anticipatedPaths, TICKET_FILE } from './agreement.ts';
 import { changedFiles } from '../gates/check.ts';
 import { lastField, readVerdict } from '../gates/review-format.ts';
+import { wfCommand } from '../paths.ts';
 import { seams } from '../seams.ts';
-import { modelFor } from '../models.ts';
-import type { Models } from '../models.ts';
 import { readState, resolveRoundBase, toplevelOf, writeState } from './state.ts';
 import type { Question, RoundClass, State } from './state.ts';
 import { stepHistory } from './friction.ts';
@@ -59,7 +58,6 @@ export type Snapshot = {
 	t1: { sha: string | null; revisionSha?: string | null; reviewed: string | null; verdict: string | null };
 	head: string;
 	note: { file: string; text: string | null } | null;
-	models?: Models;
 	contractPaths?: string | null;
 	folder?: string | null;
 	filesChanged?: string[];
@@ -89,13 +87,16 @@ export function unpostedSections(note: string | null): string[] {
 	return [...(note ?? '').matchAll(/^## (\S+)(.*)$/gm)].filter((m) => !/\(posted\)/.test(m[2])).map((m) => m[1]);
 }
 
-/** Compute the next action; a brief may read an answered build assignment after dispatch consumed it. */
-export function nextAction(s: Snapshot, purpose: 'dispatch' | 'brief' = 'dispatch'): { say: string; effects: Effect[] } {
+/** Compute the next action; a brief may read an answered build assignment after the packet consumed it. */
+export function nextAction(s: Snapshot, purpose: 'next' | 'brief' = 'next'): { say: string; effects: Effect[] } {
 	const effects: Effect[] = [];
 	const act = (say: string) => ({ say, effects });
-	const wf = `node ${s.entry}`;
-	// The line a fresh round-worker gets: it runs wf brief itself, so its brief is wf's own text.
-	const dispatch = (phase: string, again: string | null = null, kind: 'work' | 'handoff' = 'work') => {
+	const wf = wfCommand(s.entry);
+	// The line a phase is worked from: it runs wf brief itself, so its brief is wf's own text. The
+	// session already open may do the work, or a fresh agent may be handed the same line; only the
+	// assessment requires a context that did not build the work (never self-review). The phase's
+	// model is the harness's business, so no packet names one.
+	const work = (phase: string, again: string | null = null, kind: 'work' | 'handoff' = 'work') => {
 		if (phase === 'build') {
 			again ??= s.buildReason?.text ?? 'implement and verify the current agreement';
 			const transition = effects.find((e) => e.step?.[0] === 'build');
@@ -104,8 +105,8 @@ export function nextAction(s: Snapshot, purpose: 'dispatch' | 'brief' = 'dispatc
 			else effects.push({ step: ['build'], buildReason });
 		}
 		if (phase === 'assess' && s.step === 'review') effects.push({ step: ['assess'] });
-		const model = s.models ? ` (model: ${modelFor(phase, s.models)})` : '';
-		return act(`dispatch ${phase}${model}: run \`${wf} brief ${phase}\` in this worktree and do exactly what it prints${again ? ` (again: ${again})` : ''}`);
+		const fresh = phase === 'assess' ? ' — a fresh independent reviewer context is required: another session, harness or subagent, never the session that built the work' : '';
+		return act(`work ${phase}: run \`${wf} brief ${phase}\` in this worktree and do exactly what it prints${fresh}${again ? ` (again: ${again})` : ''}`);
 	};
 	const open = s.questions ?? [];
 
@@ -143,7 +144,7 @@ export function nextAction(s: Snapshot, purpose: 'dispatch' | 'brief' = 'dispatc
 
 	// `wf decide --revise` records the agreement's material sha at the time. The revision is open until
 	// that sha moves (a fresh agreement the person can approve); while it is open the round cannot build
-	// on the old T1, so the agree session is dispatched again (#111.4).
+	// on the old T1, so the agree phase is worked again (#111.4).
 	const pending = openRevisions(s.revisions ?? [], s.t1.revisionSha === undefined ? s.t1.sha : s.t1.revisionSha);
 	if (pending.length) {
 		if (s.step !== 'agree') effects.push({ step: ['agree', '--waiting-on', 'user'] });
@@ -151,7 +152,7 @@ export function nextAction(s: Snapshot, purpose: 'dispatch' | 'brief' = 'dispatc
 		// open and say so, never discharge the requested change silently (N-6).
 		const malformed = pending.filter((r) => r.sha === undefined).length;
 		const note = malformed ? ` — ${malformed} revision(s) have no recorded agreement sha: .wf/state.json is malformed, fix or delete them` : '';
-		return dispatch('agree', `the person asked the agreement to change: ${pending.map((r) => r.text).join(' · ')}${note}`);
+		return work('agree', `the person asked the agreement to change: ${pending.map((r) => r.text).join(' · ')}${note}`);
 	}
 
 	// T1 binds the agreement's agreed material sha. A progress edit to `## Verification`
@@ -179,21 +180,21 @@ export function nextAction(s: Snapshot, purpose: 'dispatch' | 'brief' = 'dispatc
 		// worker writes `## Repro` into the agreement and runs the project's own repro directly; wf does
 		// not interpret the result. Once `## Repro` is there, the person decides whether to go on.
 		if (s.check) {
-			if (!/^## Repro[ \t]*$/m.test((s.files.agreement ?? '').replace(/\r\n/g, '\n'))) return dispatch('agree', `no \`## Repro\` in ${consequential(s.klass) ? 'AGREEMENT.md' : 'TICKET.md'} yet — write it and run the project's repro, recording its real output`);
+			if (!/^## Repro[ \t]*$/m.test((s.files.agreement ?? '').replace(/\r\n/g, '\n'))) return work('agree', `no \`## Repro\` in ${consequential(s.klass) ? 'AGREEMENT.md' : 'TICKET.md'} yet — write it and run the project's repro, recording its real output`);
 			return act(`wait user: the repro result is in the agreement — the person decides. Go on: \`${wf} step build\` and set the started status; stop: \`WF_FORCE_REAP=1 ${wf} reap ${s.branch}\``);
 		}
 		if (consequential(s.klass)) {
 			const gap = agreementGap(s.files.agreement, s.klass, s.branch);
-			if (gap) return dispatch('agree', gap);
+			if (gap) return work('agree', gap);
 			// T1 approves the agreement's agreed material. A progress update to `## Verification` does
 			// not change the material sha and so does not invalidate an approved direction (#111.5).
 			if (!t1Approved) {
 				// A T1 that asked for changes sends the round back to a fresh agreement; otherwise the round
 				// waits on the person at the T1 page.
-				if (s.t1.reviewed === s.t1.sha && s.t1.verdict === 'changes-requested') return dispatch('agree', 'T1 asked for changes (AGREEMENT-REVIEW.md)');
+				if (s.t1.reviewed === s.t1.sha && s.t1.verdict === 'changes-requested') return work('agree', 'T1 asked for changes (AGREEMENT-REVIEW.md)');
 				// Only before T1: an agreement approved before this rule (JX-1367, 2026-10-18) is not reopened.
 				const unasked = notAskedForGap(s.files.agreement);
-				if (unasked) return dispatch('agree', unasked);
+				if (unasked) return work('agree', unasked);
 				if (step !== 'agree') effects.push({ step: ['agree', '--waiting-on', 'user'] });
 				return act(`wait user: T1 on AGREEMENT.md — \`${wf} agree ${s.branch}\``);
 			}
@@ -205,7 +206,7 @@ export function nextAction(s: Snapshot, purpose: 'dispatch' | 'brief' = 'dispatc
 	if (corrections.length) {
 		const blocked = corrections.filter((c) => c.outcome.kind === 'blocked');
 		if (blocked.length) return act(blocked.map((c) => c.outcome.kind === 'blocked' ? `wait ${c.outcome.owner}: correction ${c.id} — ${c.outcome.note}; instruction: ${c.text}` : '').join('\n'));
-		return dispatch('build', `address recorded corrections: ${corrections.map((c) => `${c.id}: ${c.text}`).join(' | ')}; record each disposition with evidence or a concrete blocker, not merely a transport acknowledgement`);
+		return work('build', `address recorded corrections: ${corrections.map((c) => `${c.id}: ${c.text}`).join(' | ')}; record each disposition with evidence or a concrete blocker, not merely a transport acknowledgement`);
 	}
 
 	// build: one phase, resumed in place, ended by the build worker running `wf step assess`.
@@ -216,20 +217,20 @@ export function nextAction(s: Snapshot, purpose: 'dispatch' | 'brief' = 'dispatc
 			// An answer to the blocked question (`wf decide` writes `## Answer`) resumes the build once;
 			// a build that comes back still blocked asks the person again with a fresh question.
 			const answered = [...(s.answered ?? [])].reverse().find((a) => a.source?.startsWith('BLOCKED.md'));
-			// JX-1101 (#141): next consumes the dispatch, but the assigned worker still needs its brief.
+			// JX-1101 (#141): next consumes the packet, but the working agent still needs its brief.
 			// A rewritten block must not inherit the previous answer, even with the same Question.
 			if (answered && answered.text === q && /^## Answer[ \t]*\r?$/m.test(s.files.blocked) && (answered.n !== s.blockedAnswered || purpose === 'brief')) {
-				if (purpose === 'dispatch') effects.push({ blockedAnswered: answered.n });
-				return dispatch('build', `the blocked question was answered: ${answered.answer ?? ''}`);
+				if (purpose === 'next') effects.push({ blockedAnswered: answered.n });
+				return work('build', `the blocked question was answered: ${answered.answer ?? ''}`);
 			}
 			return act(`wait user: blocked — ${q}`);
 		}
 		if (s.buildReason?.kind === 'handoff') {
-			if (s.assessmentHandoffGap) return dispatch('build', s.assessmentHandoffGap, 'handoff');
+			if (s.assessmentHandoffGap) return work('build', s.assessmentHandoffGap, 'handoff');
 			// JX-1392 (#151): re-evaluate the current assessment, not an empty repair or a new baseline.
 			effects.push({ step: ['assess'], resumeAssessment: true });
 			step = 'assess';
-		} else return dispatch('build');
+		} else return work('build');
 	}
 
 	// The independent reviewer's explicit outcome owns sufficiency, not words in its evidence.
@@ -239,18 +240,18 @@ export function nextAction(s: Snapshot, purpose: 'dispatch' | 'brief' = 'dispatc
 			if (s.assessmentBaselineMissing) {
 				if (s.assessmentHandoffGap) {
 					effects.push({ step: ['build'] });
-					return dispatch('build', s.assessmentHandoffGap, 'handoff');
+					return work('build', s.assessmentHandoffGap, 'handoff');
 				}
-				// Legacy visits have no durable report identity. Capture it once before dispatch;
+				// Legacy visits have no durable report identity. Capture it once before the packet;
 				// touching an old report must not make it a new assessment.
 				if (s.step !== 'review') effects.push({ step: ['assess'] });
 			}
-			return dispatch('assess', s.files.assessment ? 'the assessment has not changed since handoff; judge the new evidence even at the same HEAD' : `write ${assessmentFile} for this handoff`);
+			return work('assess', s.files.assessment ? 'the assessment has not changed since handoff; judge the new evidence even at the same HEAD' : `write ${assessmentFile} for this handoff`);
 		}
 		const gap = assessmentGap(s.files.assessment);
-		if (gap) return dispatch('assess', gap);
+		if (gap) return work('assess', gap);
 		const measured = assessmentHead(s.files.assessment);
-		if (measured !== s.head) return dispatch('assess', `ASSESSMENT.md is of ${measured?.slice(0, 10) ?? 'no head'}…, HEAD is ${s.head.slice(0, 10)}…`);
+		if (measured !== s.head) return work('assess', `ASSESSMENT.md is of ${measured?.slice(0, 10) ?? 'no head'}…, HEAD is ${s.head.slice(0, 10)}…`);
 		const assessmentSource = assessmentRulingSource(s.files.assessment);
 		const verdict = assessmentVerdict(s.files.assessment);
 		if (verdict === 'blocked' || (verdict === 'repair' && (s.repairs ?? 0) >= MAX_REPAIRS)) {
@@ -266,18 +267,18 @@ ${s.files.assessment}`;
 			}
 			if (!/^\s*accept\b/i.test(ruling.answer ?? '')) {
 				effects.push({ step: ['build'] });
-				return dispatch('build', `the person's assessment ruling: ${ruling.answer ?? ''}`);
+				return work('build', `the person's assessment ruling: ${ruling.answer ?? ''}`);
 			}
 		} else if (verdict === 'repair') {
 			const attempts = s.repairs ?? 0;
 			effects.push({ repair: true, step: ['build'] });
-			return dispatch('build', `repair ${attempts + 1} of ${MAX_REPAIRS} for ${assessmentFile}'s findings`);
+			return work('build', `repair ${attempts + 1} of ${MAX_REPAIRS} for ${assessmentFile}'s findings`);
 		}
 		// #138: assessment can add captures after build handoff. Return them to the owner before
 		// offering T2 (or accepting --done), not only when step review later refuses to open it.
 		if (s.assessmentHandoffGap) {
 			effects.push({ step: ['build'] });
-			return dispatch('build', s.assessmentHandoffGap, 'handoff');
+			return work('build', s.assessmentHandoffGap, 'handoff');
 		}
 		if (s.step === 'review' && readVerdict(s.files.review ?? '') === 'dismissed') return act(`wait user: T2 was closed without a verdict — \`${wf} review ${s.branch}\` again when they are ready`);
 		// Class A's agreement is TICKET.md, so agreementGap never asked it for a T2 walk. `wf show` needs
@@ -285,7 +286,7 @@ ${s.files.assessment}`;
 		// (it knows the page it drove); enforced only at final T2 (#139 JX-1068).
 		if (!consequential(s.klass) && !hasT2Walk(s.files.agreement)) {
 			effects.push({ step: ['build'] });
-			return dispatch('build', 'TICKET.md needs a T2 walk before T2: a `- **T2 walk.**` bullet with the `open:` line `wf show` follows and any `setup:` lines the scenario needs, or `none — <why no walk is needed>`');
+			return work('build', 'TICKET.md needs a T2 walk before T2: a `- **T2 walk.**` bullet with the `open:` line `wf show` follows and any `setup:` lines the scenario needs, or `none — <why no walk is needed>`');
 		}
 		return act(t2);
 	}
@@ -353,7 +354,6 @@ export function snapshotOf(toplevel: string): Snapshot {
 		},
 		t1: { sha: agreementSha(toplevel, state.class ?? null, state.folder ?? null), revisionSha: revisionSha(toplevel, state.class ?? null, state.folder ?? null), reviewed: lastField(agreementReview, 'agreement-sha'), verdict: readVerdict(agreementReview) },
 		note: state.note ? { file: state.note, text: read(join(toplevel, state.note)) } : null,
-		models: seams.models,
 		contractPaths: read(join(toplevel, contractPathsFile)),
 		folder: state.folder ?? null,
 		filesChanged,

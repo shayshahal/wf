@@ -62,7 +62,7 @@ try {
 	const resumed = readFileSync(join(dir, '.wf/state.json'), 'utf8');
 	assert.equal(cli(dir, 'correct', '--unblock', id, '--note', 'fixture capability restored; readback confirms it').status, 0);
 	assert.equal(readFileSync(join(dir, '.wf/state.json'), 'utf8'), resumed, 'repeated unblock acknowledges the original operation');
-	assert.match(cli(dir, 'next').stdout, /dispatch build/);
+	assert.match(cli(dir, 'next').stdout, /work build/);
 	const brief = cli(dir, 'brief', 'build');
 	assert.equal(brief.status, 0, brief.stderr);
 	assert.ok(brief.stdout.includes(instruction.text));

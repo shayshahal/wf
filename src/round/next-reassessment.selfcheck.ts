@@ -46,27 +46,27 @@ try {
 	const handoff = cli(repo, 'step', 'assess');
 	check('the measurement-only repair hands off without changing HEAD', handoff.code === 0 && readState(repo)?.step === 'assess' && git(repo, 'rev-parse', 'HEAD') === head, handoff.out);
 	const next = cli(repo, 'next');
-	check('the old same-HEAD repair verdict cannot undo the fresh assessment handoff', next.code === 0 && next.out.startsWith('dispatch assess') && readState(repo)?.step === 'assess' && readState(repo)?.repairs === 2, next.out);
+	check('the old same-HEAD repair verdict cannot undo the fresh assessment handoff', next.code === 0 && next.out.startsWith('work assess') && readState(repo)?.step === 'assess' && readState(repo)?.repairs === 2, next.out);
 	const resumed = cli(repo, 'next');
-	check('repeated next keeps requesting assessment without consuming another repair', resumed.out.startsWith('dispatch assess') && readState(repo)?.repairs === 2, resumed.out);
+	check('repeated next keeps requesting assessment without consuming another repair', resumed.out.startsWith('work assess') && readState(repo)?.repairs === 2, resumed.out);
 	const directReview = cli(repo, 'step', 'review');
-	check('direct review cannot bypass the fresh-assessment handoff', directReview.code === 2 && directReview.out.includes('dispatch assess') && readState(repo)?.step === 'assess', directReview.out);
+	check('direct review cannot bypass the fresh-assessment handoff', directReview.code === 2 && directReview.out.includes('work assess') && readState(repo)?.step === 'assess', directReview.out);
 	const originalBaseline = readState(repo)?.assessment_baseline;
 	for (const verdict of ['clean', 'blocked']) {
 		writeFileSync(file, assessment(head, verdict));
 		writeFileSync(join(repo, '.wf/state.json'), JSON.stringify({ ...readState(repo), assessment_baseline: { file: 'ASSESSMENT.md', sha: assessmentContentSha(assessment(head, verdict)) } }));
 		utimesSync(file, new Date(0), new Date(0));
 		const stale = cli(repo, 'next');
-		check(`a pre-handoff ${verdict} report is not a current assessment either`, stale.out.startsWith('dispatch assess') && readState(repo)?.step === 'assess' && !(readState(repo)?.questions?.length), stale.out);
+		check(`a pre-handoff ${verdict} report is not a current assessment either`, stale.out.startsWith('work assess') && readState(repo)?.step === 'assess' && !(readState(repo)?.questions?.length), stale.out);
 	}
 	writeFileSync(join(repo, '.wf/state.json'), JSON.stringify({ ...readState(repo), assessment_baseline: originalBaseline }));
 	// A filesystem touch or identical rewrite is not evidence of a new independent judgment.
 	writeFileSync(file, assessment(head));
 	const touched = cli(repo, 'next');
-	check('touching or rewriting the old report cannot make it fresh', touched.out.startsWith('dispatch assess') && readState(repo)?.step === 'assess', touched.out);
+	check('touching or rewriting the old report cannot make it fresh', touched.out.startsWith('work assess') && readState(repo)?.step === 'assess', touched.out);
 	writeFileSync(file, assessment(head).replace(/\n/g, '\r\n'));
 	const converted = cli(repo, 'next');
-	check('checkout newline conversion does not change assessment identity', converted.out.startsWith('dispatch assess'), converted.out);
+	check('checkout newline conversion does not change assessment identity', converted.out.startsWith('work assess'), converted.out);
 	const repeatedHandoff = cli(repo, 'step', 'assess');
 	check('a repeated assess step preserves its baseline instead of consuming the report', repeatedHandoff.code === 0 && readState(repo)?.assessment_baseline?.sha === originalBaseline?.sha, repeatedHandoff.out);
 	// A genuinely new same-HEAD report is consumed; with the bounded repair spent it asks one durable

@@ -102,7 +102,7 @@ export function prBody({ ticket, agreement, commitLines, assessment, agreementPa
 	const K = sectionsOf(ticket);
 	const V = sectionsOf(assessment);
 	// ASSESSMENT.md's own first lines, minus its `# <round> — final assessment` title: the `Verdict:`
-	// and `head:` the reviewer reads before anything else (prompts/assess.md).
+	// and `head:` the reviewer reads before anything else (prompts/assess.md.in).
 	const verdict = assessment
 		.replace(/\r\n/g, '\n')
 		.split(/^## /m)[0]
@@ -116,7 +116,7 @@ export function prBody({ ticket, agreement, commitLines, assessment, agreementPa
 	const t2Walk = A['T2 walk']?.trim() || t2WalkOf(agreement);
 	// The assessment's own sections, in the template's order and by axis, so one cannot mask another:
 	// the intent judgement, what was observed, consequential design, applicable standards, and the
-	// reviewer's explanation of any agreement mismatch (#113.1, prompts/assess.md).
+	// reviewer's explanation of any agreement mismatch (#113.1, prompts/assess.md.in).
 	const detail: Record<string, string> = {
 		Intent: V.Intent ?? '',
 		'Behavior and evidence': V['Behavior and evidence'] ?? '',

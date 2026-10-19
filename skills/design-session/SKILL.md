@@ -6,7 +6,7 @@ user-invocable: false
 
 # Design session
 
-Read `${CLAUDE_PLUGIN_ROOT}/process/AGREEMENT-TEMPLATE.md` — it is the whole process, and it wins
+Read `../../process/AGREEMENT-TEMPLATE.md` relative to this skill folder — it is the whole process, and it wins
 over this file. Its formats: `CALL-STACK-FORMAT.md` (diff-syntax stacks) and `SHOW-ME.md` (the views
 that carry a shape a stack cannot); what comes back from T1 is `REVIEW-FORMAT.md`.
 

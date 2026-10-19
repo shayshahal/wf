@@ -70,7 +70,7 @@ function fixture(klass: 'A' | 'B' = 'A') {
   check('admission never edits the approved human history', f.reviewBytes() === f.review);
   const next = f.cli('next');
   const brief = f.cli('brief', 'build');
-  check('fresh next routes the actual instruction back to build', next.code === 0 && next.out.startsWith('dispatch build') && next.out.includes(instruction), next.out);
+  check('fresh next routes the actual instruction back to build', next.code === 0 && next.out.startsWith('work build') && next.out.includes(instruction), next.out);
   check('actual build brief carries instruction and provenance, not obsolete rejected feedback', brief.code === 0 && brief.out.includes(instruction) && brief.out.includes(source) && brief.out.includes('Shay') && brief.out.includes('pi:receiving-agent') && !brief.out.includes('obsolete-rejected-marker'), brief.out.slice(-2500));
   check('dispatch and reading a brief never resolve a correction', readState(f.dir)?.corrections?.[0]?.outcome.kind === 'pending');
   const inspection = f.cli('status', '--inspect');
@@ -194,7 +194,7 @@ for (const protection of ['held', 'question', 'T1'] as const) {
   const t1 = readFileSync(join(f.dir, folder, 'AGREEMENT-REVIEW.md'), 'utf8');
   f.cli(...admission());
   const next = f.cli('next');
-  check('within-agreement correction does not renew a valid T1', next.out.startsWith('dispatch build') && readFileSync(join(f.dir, folder, 'AGREEMENT-REVIEW.md'), 'utf8') === t1, next.out);
+  check('within-agreement correction does not renew a valid T1', next.out.startsWith('work build') && readFileSync(join(f.dir, folder, 'AGREEMENT-REVIEW.md'), 'utf8') === t1, next.out);
  } finally { rmSync(f.dir, { recursive: true, force: true }); }
 }
 

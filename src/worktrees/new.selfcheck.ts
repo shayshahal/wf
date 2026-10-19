@@ -67,7 +67,8 @@ check('no rulings: no section', !earlierText({ ids: ['X-1'], dupes: ['commit abc
 
 // ── which wf may run in a round (state.ts entryGap; new.ts records made_by and entry)
 const kitRound = { made_by: 'kit', entry: 'C:/Users/x/.claude/plugins/cache/wf/wf/0.1.0/wf.mjs' };
-check("the env's wf is refused in a kit round, naming the kit's", entryGap(kitRound, 'env')?.includes('node "C:/Users/x/.claude/plugins/cache/wf/wf/0.1.0/wf.mjs"') && entryGap(kitRound, 'env')!.includes('CLAUDE_PLUGIN_ROOT'), entryGap(kitRound, 'env'));
+const kitRefusal = entryGap(kitRound, 'env');
+check("the env's wf is refused with the recorded entry, not a harness placeholder", kitRefusal !== null && kitRefusal.includes('node "C:/Users/x/.claude/plugins/cache/wf/wf/0.1.0/wf.mjs"') && !kitRefusal.includes('CLAUDE_PLUGIN_ROOT'), kitRefusal);
 check("the kit's wf is refused in an env round", entryGap({ made_by: 'env', entry: 'C:/h/.local/share/wf/env/wf.mjs' }, 'kit')?.startsWith('this round was made by the env'));
 check('the same wf, a round from before the field, or no round: allowed', entryGap(kitRound, 'kit') === null && entryGap({ id: 'x' }, 'env') === null && entryGap(null, 'kit') === null);
 

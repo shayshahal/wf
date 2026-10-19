@@ -19,9 +19,6 @@ const REF = 'refs/remotes/origin/main';
 const git = (gitDir: string, args: string[]) => execFileSync('git', [`--git-dir=${gitDir}`, ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 const installedRevision = () => { try { return readFileSync(join(LIVE, 'REVISION'), 'utf8').trim(); } catch { /* no REVISION: a copy made by hand, which never updates itself */ return null; } };
 
-const markdownUnder = (dir: string): string[] => readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
-	e.isDirectory() ? markdownUnder(join(dir, e.name)) : e.name.endsWith('.md') ? [join(dir, e.name)] : []);
-
 // Pure: update only a running installed copy, only when the pushed branch moved.
 export function shouldUpdate({ runningFromLive, installed, published }: { runningFromLive: boolean; installed: string | null; published: string | null }) {
 	return Boolean(runningFromLive && installed && published && installed !== published);
@@ -52,7 +49,8 @@ export function install(gitDir: string, rev: string) {
 		const projectFile = ['src/project.ts', 'project.ts', 'project.mts', 'project.mjs'].map((f) => join(fresh, f)).find((f) => existsSync(f));
 		const project = projectFile && /projects\/([\w-]+)\/index\.m?[jt]s/.exec(readFileSync(projectFile, 'utf8'))?.[1];
 		if (!project) throw new Error('project.ts names no projects/<name>/index.ts');
-		for (const f of markdownUnder(fresh)) writeFileSync(f, anchorToolPaths(readFileSync(f, 'utf8'), LIVE, project));
+		// Keep tool templates relocatable: brief/notes anchor when read, and the skill exports these
+		// same sources. Only machine-installed helper profiles need the installed location baked in.
 		writeFileSync(join(fresh, 'REVISION'), `${rev}\n`);
 		// Swap whole, so a half-written copy is never live; links point at LIVE's path and follow.
 		const old = `${LIVE}.old`;
@@ -62,11 +60,11 @@ export function install(gitDir: string, rev: string) {
 		rmSync(old, { recursive: true, force: true });
 		// Every wf agent into pi. Claude Code gets none: the plugin carries them, and a user-level
 		// agent outranks a plugin's of the same name (kit and env plan, step 6). Pi agent defaults
-		// inherit the caller: a global model pin crosses accounts (JX-810, 2026-10-13). Round phases
-		// and effort-specific helpers get their explicit model from wf's current account table.
+		// inherit the caller: a global model pin crosses accounts (JX-810, 2026-10-13). The workflow
+		// selects no models; optional explicit helper choices may consult the account's wf models table.
 		const agents = join(LIVE, 'agents');
 		const pi = join(homedir(), '.pi', 'agent', 'agents');
-		if (existsSync(pi)) for (const f of readdirSync(agents)) writeFileSync(join(pi, f), withModel(readFileSync(join(agents, f), 'utf8'), null));
+		if (existsSync(pi)) for (const f of readdirSync(agents)) writeFileSync(join(pi, f), withModel(anchorToolPaths(readFileSync(join(agents, f), 'utf8'), LIVE, project), null));
 		return rev;
 	});
 }

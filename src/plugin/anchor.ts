@@ -1,8 +1,8 @@
 // anchor.ts — skills, agents and docs are read as they are, from whatever worktree the agent is in.
 // A round's worktree does not hold wf, so the text names wf's own files as {{wf}}/… (prompts, docs)
-// or ${CLAUDE_PLUGIN_ROOT}/… (the skills, which Claude Code fills itself when it loads them from the
-// plugin), and the project's notes as {{project}}/…. `wf prompt` fills them per prompt, and an env's
-// installer fills them in the copy it installs.
+// or ${CLAUDE_PLUGIN_ROOT}/… in optional Claude Code profiles, and the project's notes as
+// {{project}}/…. `wf prompt` fills them per prompt, and an env's
+// installer fills only machine-installed optional helper profiles; runtime templates stay relocatable.
 
 // Pure: {{wf}} and ${CLAUDE_PLUGIN_ROOT} → `home`, {{project}} → `home`/projects/<project>, with
 // forward slashes.

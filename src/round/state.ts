@@ -10,6 +10,7 @@ import { randomUUID } from 'node:crypto';
 import { linkSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { baseBranch, roundsDir } from '../project.ts';
+import { wfCommand } from '../paths.ts';
 import { deliveryReceiptGap } from './delivered-round.ts';
 import type { DeliveryReceipt } from './delivered-round.ts';
 import { correctionStateGap } from './corrections.ts';
@@ -57,8 +58,9 @@ export type State = {
 	repairs?: number;
 	// The report present at the last assess handoff; an unchanged report is not a new judgment.
 	assessment_baseline?: { file: string; sha: string | null };
-	/** Why the current build was dispatched; handoff gaps can clear without another build. */
+	/** Why the current build was requested; handoff gaps can clear without another build. */
 	build_reason?: { kind: 'work' | 'handoff'; text: string } | null;
+
 	questions?: Question[];
 	answered?: Question[];
 	// Answers that say the agreement must change (`wf decide --revise`, ask.ts): each carries the
@@ -471,5 +473,5 @@ export function roundOf(state: State | null, toplevel: string) {
 // review UI (kit and env plan, step 6). Rounds from before the field run anywhere.
 export function entryGap(state: State | null, madeBy: string) {
 	if (!state?.made_by || state.made_by === madeBy) return null;
-	return `this round was made by the ${state.made_by}'s wf, and this is the ${madeBy}'s: run it as node "${state.entry}"${state.made_by === 'kit' ? ' (in the Claude Code plugin: node "${CLAUDE_PLUGIN_ROOT}/wf.mjs")' : ''}`;
+	return `this round was made by the ${state.made_by}'s wf, and this is the ${madeBy}'s: ${state.entry ? `run it as ${wfCommand(state.entry)}` : 'use the configured entry that created this round'}`;
 }

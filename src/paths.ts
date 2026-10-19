@@ -9,3 +9,8 @@ export const WF_ROOT = fileURLToPath(new URL('..', import.meta.url)).replace(/[\
 export const WF_HOME = WF_ROOT.replace(/\\/g, '/');
 // Run as a script by `wf step classify` and the T2 header, not imported: it exits the process.
 export const CLASSIFY = join(WF_ROOT, 'src', 'gates', 'classify.ts');
+
+/** Render a Node command with a quoted, slash-normalized entry path, including paths with spaces. */
+export function wfCommand(entry: string): string {
+	return `node ${JSON.stringify(entry.replace(/\\/g, '/'))}`;
+}

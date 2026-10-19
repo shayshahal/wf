@@ -30,7 +30,7 @@ Every 4xx response from a handler carries an `error_code` the client can switch 
 
 ## In a round
 
-The final assessment (one independent, read-only agent by default, `prompts/assess.md`) reads the
+The final assessment (one independent, read-only agent by default, `prompts/assess.md.in`) reads the
 rules that cover the round's diff and reports what the code does about each under `## Standards`,
 each with a `path:line`. **One agent per rule is gone** (#113.8): the assessment is one pass, and a
 project's rules are input to it, not a dispatch fan-out. A `Result: pass | issues` report per rule,

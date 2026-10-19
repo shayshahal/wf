@@ -72,7 +72,7 @@ check('no kit file names Shay\'s machine (~/.herdr, .bare, LOCALAPPDATA, ~/.conf
 // and docs/ is history, so they may name the env. Before this, only code was walked, and
 // process/LIFECYCLE.md told the team to run `wt switch` on machines without worktrunk (2026-10-08).
 const AGENT_TEXT = ['prompts', 'process', 'skills', 'agents', 'claude'];
-const text = AGENT_TEXT.flatMap((d) => walk(join(root, d), join(root, d), (n) => n.endsWith('.md')));
+const text = AGENT_TEXT.flatMap((d) => walk(join(root, d), join(root, d), (n) => /\.md(?:\.in)?$/.test(n)));
 const prose = text.flatMap((f) => machineText(readFileSync(f, 'utf8')).map((l) => `${relative(root, f)}: ${l}`));
 check(`no text a round's agent reads names Shay's machine or an env-only tool (${text.length} files)`, prose.length === 0, prose.join('; '));
 
