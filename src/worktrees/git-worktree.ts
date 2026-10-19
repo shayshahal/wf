@@ -10,7 +10,7 @@ import { setup, teardown } from '../project.ts';
 import type { RemovalStep, Seams, Worktree } from '../seams.ts';
 import { stopWorktreeServers } from './serve.ts';
 import { stopShowBrowser } from './show-browser.ts';
-import { basePortForBranch, excludeFromGit, excludeWfFolder, listWorktrees, slugForBranch, worktreesHome } from './worktree.ts';
+import { basePortForBranch, excludeFromGit, excludeWfFolder, slugForBranch } from './worktree.ts';
 
 // The project's setup steps all at once, as worktrunk runs them: a command runs in a shell, its
 // output in the log; a function is awaited here. Returns the failed steps.
@@ -37,10 +37,8 @@ export function addWorktree({ branch, path, base, cwd }: { branch: string; path:
 	}
 }
 
-// Returns the worktree, or throws naming the failed steps and the log's end. A failed setup leaves
-// the worktree for a look; `wf reap` removes it.
-export async function createWorktree({ branch, base, log }: Parameters<NonNullable<Seams['createWorktree']>>[0]): Promise<Worktree> {
-	const path = `${worktreesHome(listWorktrees())}/${slugForBranch(branch)}`;
+/** Create at the supplied destination; failed setup leaves the worktree for inspection and `wf reap`. */
+export async function createWorktree({ branch, base, log, path }: Parameters<NonNullable<Seams['createWorktree']>>[0]): Promise<Worktree> {
 	// Windows: the clone's .claude/worktrees/<slug>/ is 89 characters before a tracked path starts, and
 	// a project's 185-character one put the checkout past 260: "Filename too long", exit 128, on
 	// BJEW-602 (2026-09-27). In the clone's config, not -c: `-c core.longpaths=false` did not reach

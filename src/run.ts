@@ -54,13 +54,16 @@ export async function run(argv: string[], pieces: Partial<Seams> = {}) {
 	// that passes args (reap printed it on every run). Every argv wf spawns is one it built itself.
 	process.noDeprecation = true;
 	await logRefusals(argv);
+	let roundWorktree: string | null = null;
 	// Environment hooks/update and skill packaging are not round mutations.
 	// Releasing a verified stack needs no round schema/entry permission: old rounds leak too.
 	if (!['hook', 'update', 'skill'].includes(cmd) && !(cmd === 'serve' && rest.includes('--stop'))) {
 		const { CorruptStateError, entryGap, legacyStateGap, readState, toplevelOf } = await import('./round/state.ts');
 		let gap = null;
 		try {
-			const state = readState(toplevelOf());
+			const top = toplevelOf();
+			const state = readState(top);
+			if (state) roundWorktree = top;
 			// A state from the old runtime is refused before any mutating command reads it (finish-before-
 			// release, #110): `wf next` steps the round and records questions, so it refuses too. `status`
 			// and `classify` are read-only and may still inspect an old round. `entryGap` (a round made by
@@ -79,9 +82,19 @@ export async function run(argv: string[], pieces: Partial<Seams> = {}) {
 			process.exit(1);
 		}
 	}
+	// Named human gates check their resolved target themselves, not the caller's current worktree.
+	// Keep this outside the Git/state catch: a binding reader failure is never "not in a git tree".
+	if (roundWorktree && !['status', 'classify', 'notes', 'models', 'new', 'reap', 'agree', 'review'].includes(cmd)) {
+		const { roundWorkspaceGap } = await import('./worktrees/session-workspace.ts');
+		const gap = await roundWorkspaceGap(roundWorktree);
+		if (gap) {
+			console.error(`wf: ${gap}`);
+			process.exit(1);
+		}
+	}
 	// Upgrade existing rounds too: each round's ignore rule is local, so another worktree
 	// changing shared Git excludes cannot expose our metadata mid-check (JX-1239, 2026-10-12).
-	if (['next', 'brief', 'step', 'check', 'review', 'deliver'].includes(cmd)) {
+	if (['next', 'brief', 'step', 'check', 'deliver'].includes(cmd)) {
 		const { readState, toplevelOf } = await import('./round/state.ts');
 		let top: string | null = null;
 		try { top = toplevelOf(); } catch { /* outside a worktree: the command reports its own usage */ }

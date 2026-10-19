@@ -4,7 +4,8 @@
 // through env/wf.mjs; the team's plugin runs the kit's own ../wf.mjs (kit and env plan, 2026-09-27).
 import { run } from '../src/run.ts';
 import { herdrOpener } from './adapters/herdr.ts';
-import { t3Presentation } from './adapters/t3code.ts';
+import { t3Presentation, t3WorkspaceHandoff } from './adapters/t3code.ts';
+import { readT3BoundWorkspace } from './adapters/t3-workspace.ts';
 import { processCwds } from './adapters/processes.ts';
 import { annotateFile, isPlannotatorPresent, reviewDiff } from './adapters/plannotator.ts';
 import { questionInbox } from './adapters/plannotator-inbox.ts';
@@ -22,14 +23,17 @@ export async function runEnvWf(entry: string, argv: string[]) {
 	// copy (it did not, 2026-09-24: installed from the old copy after a push).
 	if (argv[0] !== 'hook' || argv[1] === 'install') autoUpdate(entry, argv);
 
-	const models = piModelsForProvider(process.env.PI_PROVIDER);
+	const env = { ...process.env };
+	const models = piModelsForProvider(env.PI_PROVIDER);
 	await run(argv, {
 		entry,
 		madeBy: 'env',
 		createWorktree,
 		removalPlan,
 		reviewUI: { available: isPlannotatorPresent, annotate: annotateFile, reviewDiff },
-		presentation: t3Presentation(process.env),
+		presentation: t3Presentation(env),
+		sessionWorkspace: () => readT3BoundWorkspace(env),
+		workspaceHandoff: t3WorkspaceHandoff(env),
 		inbox: questionInbox,
 		opener: herdrOpener,
 		processCwds,

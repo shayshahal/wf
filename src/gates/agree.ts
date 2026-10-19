@@ -12,6 +12,7 @@ import { dirname, join } from 'node:path';
 import { refuseCaller } from '../refusal.ts';
 import { openFile, openInEditor, opensWindows } from '../worktrees/editor.ts';
 import { resolveWorktree } from '../worktrees/worktree.ts';
+import { roundWorkspaceGap } from '../worktrees/session-workspace.ts';
 import { appendDatedSection, devUrlsFor, foldFeedbackLine, agreementPage, renderHeader, renderSkeleton, roundArtifacts } from './review-format.ts';
 import { agreementGap, agreementPath, agreementSha, AGREEMENT_REVIEW_FILE, consequential, notAskedFor, notAskedForGap, section } from '../round/agreement.ts';
 import { seams } from '../seams.ts';
@@ -42,6 +43,11 @@ export async function runAgree(argv: string[]) {
 		refuseCaller();
 	}
 	const { path: worktree } = resolveWorktree(round);
+	const workspaceGap = await roundWorkspaceGap(worktree);
+	if (workspaceGap) {
+		console.error(`wf agree: ${workspaceGap}`);
+		process.exit(2);
+	}
 	const state = readState(worktree);
 	const klass = state?.class ?? 'A';
 	const agreement = agreementPath(worktree, klass, state?.folder ?? null);

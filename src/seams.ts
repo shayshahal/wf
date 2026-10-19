@@ -54,10 +54,14 @@ export type Seams = {
 	processes: { snapshot: typeof snapshotProcesses; kill: typeof killOwnedProcesses };
 	entry: string;
 	madeBy: string;
-	createWorktree: ((o: { branch: string; base: string; log: string }) => Worktree | Promise<Worktree>) | null;
+	createWorktree: ((o: { branch: string; base: string; log: string; path: string }) => Worktree | Promise<Worktree>) | null;
 	removalPlan: ((o: { branch: string; path: string; slug: string; pid: number }) => RemovalStep[] | Promise<RemovalStep[]>) | null;
 	reviewUI: ReviewUI | null;
 	presentation: NativePresentation | null;
+	/** Native session binding; null means no native session, unavailable must refuse, never downgrade. */
+	sessionWorkspace: (() => Promise<{ kind: 'bound'; path: string; branch: string | null } | { kind: 'unavailable'; why: string }> | null) | null;
+	/** Session-owned binding instructions, never a second workspace allocation or a claim it opened. */
+	workspaceHandoff: ((worktree: string) => string) | null;
 	inbox: QuestionInbox | null;
 	commands: Record<string, Command>;
 	models: Models;
@@ -76,7 +80,7 @@ export const seams: Seams = {
 	entry: join(WF_ROOT, 'wf.mjs'),
 	// Whose wf this is, recorded in each round it makes (state.ts entryGap): 'kit', or the env's name.
 	madeBy: 'kit',
-	// ({ branch, base, log }) → { path, branch }: makes the worktree, sets it up and starts its stack.
+	// ({ branch, base, log, path }) → { path, branch }: allocates at wf's destination and sets it up.
 	// null: the kit's plain git (git-worktree.ts).
 	createWorktree: null,
 	// ({ branch, path, slug, pid }) → the ordered steps `wf reap` runs (reap.ts runs them).
@@ -87,6 +91,10 @@ export const seams: Seams = {
 	reviewUI: null,
 	// Native tool instructions take precedence over an external review UI; null keeps kit defaults.
 	presentation: null,
+	// A shell's cwd is not a native session binding; the kit has no native reader.
+	sessionWorkspace: null,
+	// Native hosts supply their existing-checkout launch; terminal sessions use the printed path.
+	workspaceHandoff: null,
 	// Optional async question transport. Replies are saved by `wf inbox`, ruled on by `wf decide`.
 	inbox: null,
 	// wf subcommands the env adds: name → (argv) => void.

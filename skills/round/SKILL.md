@@ -18,7 +18,8 @@ paths, quoted when they contain spaces. The bundled tools need Node >=22.18, git
 own prerequisites; delivery also needs authenticated `gh`. No harness plugin or runtime npm install
 is required.
 
-Use the round's worktree as cwd for every command inside a task. Keep the entry that created it:
+Use the round's worktree as command cwd and session workspace; `wf notes` links the binding rules
+for starting, resuming and cleanup. Keep the entry that created it:
 `wf status --inspect` and entry refusals identify it. A different harness can use the same entry;
 a different machine configuration is not automatically interchangeable. An existing task's older
 entry needs its matching skill or a compatible update, not a switch to the bundled kit to bypass it.
@@ -34,7 +35,7 @@ links, never the only copy of a decision or outstanding instruction.
   scope and class are recorded and `wf new` has prepared the isolated worktree.
 - **Check `<id>` / does it reproduce:** use the same request intake, then `wf new <branch> --id <id>
   --check`. Run the repro action below; stop with the measured result, leaving the tracker untouched.
-- **Resume / what's waiting:** run `wf status --all`, enter the named worktree, retrieve any pending
+- **Resume / what's waiting:** run `wf status --all`, bind the session to the named worktree, retrieve any pending
   question replies, then `wf next`. Resume from its files, not a reconstruction of the old chat.
 - **Show current work:** run `wf status --inspect`. This is inspection, not another approval gate.
 
@@ -60,7 +61,7 @@ not a finding about the product.
 | `wait user: harness …` | Record the exact missing capability and rerun command. Use [capability fallbacks](references/capabilities.md); preserve the work rather than repeatedly rebuilding or repairing unrelated infrastructure. |
 | `deliver:` | Run `wf deliver`. It reconciles interrupted remote effects and refuses stale approval. T2 authorizes this delivery, not deployment. |
 | `post:` | Follow `wf notes` to fill and post the delivered note using the project's command. Mark each section ` (posted)` at once so a resumed round does not post it twice. |
-| `done:` | Run the named `wf reap` from a surviving checkout, then report the delivered PR and cleanup result. |
+| `done:` | Leave the round's bound session; run the named `wf reap` from a surviving checkout/session, then report the delivered PR and cleanup result. |
 
 **Corrections.** A clear round-linked instruction that arrives from the person in chat, review, Inbox,
 ticket or PR feedback is recorded once with

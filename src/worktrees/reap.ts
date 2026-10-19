@@ -23,6 +23,7 @@ import type { State } from '../round/state.ts';
 import type { RemovalStep } from '../seams.ts';
 import { listWorktrees, removalPlan, resolveWorktree, slugForBranch } from './worktree.ts';
 import { runRemovalStep } from './removal.ts';
+import { reapWorkspaceGap } from './session-workspace.ts';
 
 // Pure: the uncommitted round paperwork in `git status --porcelain --untracked-files=all` output.
 // The root REVIEW.md is written after deliver commits the round folder, so it is uncommitted on
@@ -184,6 +185,15 @@ export async function runReap(argv: string[]) {
 	}
 	// Never delete an ancestor of the surviving repository or its metadata. Resolve before rm.
 	path = resolve(path);
+	const recovering = existsSync(journal);
+	// A shell cd/force flag cannot free a native chat's workspace. Check the resolved recovery
+	// path too, before even constructing teardown steps or acquiring/reclaiming a cleanup lock.
+	const workspaceGap = await reapWorkspaceGap(path, { recovering });
+	if (workspaceGap) {
+		console.error(`wf reap: ${workspaceGap}; nothing removed`);
+		process.exitCode = 1;
+		return;
+	}
 	const survivor = trees.find((tree) => resolve(tree.path) !== path && !tree.bare)?.path ?? common;
 	const withinTarget = (candidate: string) => resolve(candidate).toLowerCase() === path.toLowerCase() || resolve(candidate).toLowerCase().startsWith(`${path.toLowerCase()}\\` ) || resolve(candidate).startsWith(`${path}/`);
 	const slug = slugForBranch(branch);
@@ -194,7 +204,6 @@ export async function runReap(argv: string[]) {
 		process.exit(2);
 	}
 	if (mergedGap) console.warn(`wf reap: forcing removal despite ${mergedGap.reason}; product changes are not archived`);
-	const recovering = existsSync(journal);
 	const force = recovering || reapRuns(process.env, state);
 	// Paperwork first: when it cannot be listed, reap stops, and ROUNDS.md gets no line for a round
 	// that is still there (2026-10-04, a broken .git: the line was written, then reap stopped).

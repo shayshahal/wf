@@ -9,7 +9,8 @@ import { CLASSIFY } from '../paths.ts';
 import { openFile, openInEditor, opensWindows } from '../worktrees/editor.ts';
 import { baseBranch, ticketChanges } from '../project.ts';
 import { ensureServers } from '../worktrees/serve.ts';
-import { resolveWorktree } from '../worktrees/worktree.ts';
+import { excludeWfFolder, resolveWorktree } from '../worktrees/worktree.ts';
+import { roundWorkspaceGap } from '../worktrees/session-workspace.ts';
 import { appendDatedSection, approvalContentGap, beforeAfterPage, captionFor, devUrlsFor, foldFeedbackLine, lastField, needsFreshReviewHeader, agreementPage, proofPairs, readVerdict, renderHeader, renderSkeleton, reviewScopeBinding, roundArtifacts, scopedApprovalGap } from './review-format.ts';
 import { approvalIdentity, approvalPaperworkExcluded, trackerNotePath } from './content-identity.ts';
 import type { ContentIdentity } from './content-identity.ts';
@@ -170,7 +171,13 @@ export async function runReview(argv: string[], { stack = ensureServers }: { sta
   const round = argv.find((a) => !a.startsWith('-'));
   if (!round) usage();
   const { path: worktree } = resolveWorktree(round);
+  const workspaceGap = await roundWorkspaceGap(worktree);
+  if (workspaceGap) {
+    console.error(`wf review: ${workspaceGap}`);
+    process.exit(2);
+  }
   const state = readState(worktree);
+  if (state.folder) excludeWfFolder(worktree);
   // --base names a checkpoint's own range; the final review always covers the round's base.
   const bi = argv.indexOf('--base');
   const checkpoint = argv.includes('--checkpoint');

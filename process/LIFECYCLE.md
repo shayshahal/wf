@@ -1,10 +1,31 @@
 # Worktree lifecycle
 
-Run `wf …` from the round's worktree, not the clone it was cut from. Who creates, serves and
-removes a worktree is the machine's: the kit makes them with `git worktree` in
-`<repo>/.claude/worktrees/`, and an env plugs its own in (`src/seams.ts`, `createWorktree` and
-`removalPlan`). What the setup does is the project's: its `setup`, `serve` and `teardown` in
+wf owns round workspace creation, placement and cleanup. Every adapter uses the same checkout in
+`<repo>/.claude/worktrees/<slug>` (beside the bare repository for a bare layout). The machine chooses
+how to allocate and remove it (`src/seams.ts`, `createWorktree` and `removalPlan`), not a different
+location per host. A native host opens this existing checkout; it creates no second round worktree.
+Run `wf …` there, not in the clone it was cut from. What the setup does is the project's:
+its `setup`, `serve` and `teardown` in
 `projects/<name>/index.ts`; `wf notes` names the configured project's guidance.
+
+## Workspace binding and resume
+
+One round has one checkout: command cwd, chat/file tools, implementation and evidence all refer to
+that exact worktree and its actual Git branch. In a host with a pinned session workspace, bind the
+session to the round checkout before working; changing a shell's cwd changes only the shell. Use the
+host's existing-workspace open/launch capability. If the current session cannot rebind, hand off the
+absolute worktree path, configured wf entry, working document and next action to a session that can.
+A missing or unverifiable binding is a blocker, not permission to work through cross-worktree links.
+
+Resume in that same checkout and run `wf next`; preserve its saved setup, classification and round
+files. Creating another worktree or repeating initialization is a new round, not a resume. For cleanup,
+leave the bound round session first and run reap from a surviving checkout/session: deleting a pinned
+session's workspace makes its later resume fail even if another shell has changed directory. The
+native reader verifies the calling session only: archive/leave sibling sessions bound to the round
+too. Existing rounds keep their registered paths; this policy neither migrates them nor changes
+host-wide worktree settings.
+
+## Create and prepare
 
 Create worktrees only via `wf new <branch> --class A|B|C [--base <ref>] [--check] [--id <token>]...`
 (default base `origin/<the project's base branch>`): it makes the worktree, runs the project's

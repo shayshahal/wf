@@ -5,7 +5,9 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { excludeWfFolder, mainCheckout, parseWorktreeList, resolveWorktree, urlLines, worktreesHome } from './worktree.ts';
+import { createWorktree, excludeWfFolder, listWorktrees, mainCheckout, parseWorktreeList, resolveWorktree, slugForBranch, urlLines, worktreesHome } from './worktree.ts';
+import { addWorktree } from './git-worktree.ts';
+import { plug, seams } from '../seams.ts';
 import { worktreeContentSha } from '../gates/content-identity.ts';
 
 let failures = 0;
@@ -63,6 +65,37 @@ try {
 	writeFileSync(join(round, '.wf', 'evil.sh'), 'source\n');
 	check('local metadata ignores do not hide unowned executable files from identity', worktreeContentSha(round, null, null, 'row') !== identity);
 } finally { rmSync(fixture, { recursive: true, force: true }); }
+
+// Allocation policy belongs to the shared wrapper, including when invoked inside a linked
+// checkout or for baseline scratch. The seam makes real registered Git worktrees at its input.
+const allocation = mkdtempSync(join(tmpdir(), "wf allocation ' "));
+const originalCwd = process.cwd();
+const originalAllocator = seams.createWorktree;
+try {
+	const git = (...args: string[]) => execFileSync('git', args, { cwd: allocation, encoding: 'utf8' }).trim();
+	git('init', '-q', '-b', 'main');
+	git('-c', 'user.name=wf', '-c', 'user.email=wf@test', 'commit', '-qm', 'base', '--allow-empty');
+	const inputs: { branch: string; base: string; log: string; path: string }[] = [];
+	plug({ createWorktree: (o) => { inputs.push(o); addWorktree(o); return { path: o.path, branch: o.branch }; } });
+	process.chdir(allocation);
+	for (const branch of ['round/shared', 'wf-baseline/round-shared']) {
+		const log = join(allocation, 'allocation.log');
+		const tree = await createWorktree({ branch, base: 'HEAD', log });
+		const expected = `${allocation.replace(/\\/g, '/')}/.claude/worktrees/${slugForBranch(branch)}`;
+		check(`${branch}: shared wrapper owns exact destination and preserves allocator inputs`, tree.path === expected && inputs.at(-1)?.path === expected && inputs.at(-1)?.base === 'HEAD' && inputs.at(-1)?.log === log && listWorktrees().some((t) => t.branch === branch && t.path === expected));
+		process.chdir(tree.path);
+	}
+	process.chdir(allocation);
+	const bare = join(allocation, 'bare-repo', '.bare');
+	git('clone', '--quiet', '--bare', allocation, bare);
+	process.chdir(bare);
+	const tree = await createWorktree({ branch: 'round/bare', base: 'HEAD', log: join(allocation, 'bare.log') });
+	check('a bare repository uses its containing folder, not the invoking checkout or a machine default', tree.path === `${allocation.replace(/\\/g, '/')}/bare-repo/.claude/worktrees/round-bare` && existsSync(join(tree.path, '.git')));
+} finally {
+	process.chdir(originalCwd);
+	plug({ createWorktree: originalAllocator });
+	rmSync(allocation, { recursive: true, force: true });
+}
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');
 process.exit(failures ? 1 : 0);

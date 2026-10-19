@@ -57,8 +57,9 @@ before/after states, or inspect evidence. Each control should answer a real read
 
 Use the session's native rendering, document, diff or browser tools when available; the configured
 presentation adapter supplies their guidance. Discover the actual tools and schemas in that session.
-Show the saved artifact faithfully, resolving local images/views or showing them separately. If the
-native surface cannot carry it, show the exact markdown and artifact paths and name the limitation.
+Show the saved artifact faithfully, resolving local images/views or showing them separately. Verify
+file-link targets and retain absolute paths in handoffs. If the native surface cannot carry it, show
+the exact markdown and verified paths and name the limitation.
 External UI is the fallback. A printed handoff is an instruction to present, not evidence it opened.
 
 At T1 show the complete `## Observed` + `## Agreed` material; at T2 show what changed against it,

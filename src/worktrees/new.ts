@@ -175,6 +175,8 @@ export async function runNew(argv: string[]) {
 	console.log(urlLines(urls));
 	for (const line of notes) console.log(line);
 	console.log(`Worktree: ${path}`);
+	console.log('Workspace owner: wf — bind the session to this existing checkout; resume here, and reap from a surviving session after leaving it.');
+	if (seams.workspaceHandoff) console.log(seams.workspaceHandoff(path));
 }
 
 // Direct use (node new.ts <branch>) and wf.mjs (which imports runNew) share this module.

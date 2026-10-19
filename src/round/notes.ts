@@ -10,6 +10,7 @@ import { name } from '../project.ts';
 /** Print authoritative workflow references and the configured project's round guidance. */
 export function runNotes() {
 	process.stdout.write(`Workflow references (read the applicable branch):
+- Starting, resuming or cleaning up a workspace: ${WF_HOME}/process/LIFECYCLE.md
 - Before classifying a task: ${WF_HOME}/process/CLASSES.md
 - Consequential agreement / agreed checkpoints: ${WF_HOME}/process/AGREEMENT-TEMPLATE.md
 - When a view helps a decision: ${WF_HOME}/process/SHOW-ME.md

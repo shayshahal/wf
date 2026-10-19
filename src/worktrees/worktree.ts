@@ -76,11 +76,10 @@ export function urlLines(urls: Record<string, string>) {
 
 // ── create and remove ────────────────────────────────────────────────────────
 
-// The machine decides how a worktree is made and removed (seams.ts): worktrunk and its hooks on
-// Shay's (env/worktrees.ts), plain git where no env plugged one in (git-worktree.ts). Both are
-// awaited: the kit's create runs the setup steps side by side.
-export async function createWorktree(o: Parameters<NonNullable<Seams['createWorktree']>>[0]): Promise<Worktree> {
-	return (seams.createWorktree ?? (await import('./git-worktree.ts')).createWorktree)(o);
+/** Allocate a new worktree at wf's shared destination; the machine chooses only how to create/setup it. */
+export async function createWorktree(o: Omit<Parameters<NonNullable<Seams['createWorktree']>>[0], 'path'>): Promise<Worktree> {
+	const path = `${worktreesHome(listWorktrees())}/${slugForBranch(o.branch)}`;
+	return (seams.createWorktree ?? (await import('./git-worktree.ts')).createWorktree)({ ...o, path });
 }
 export async function removalPlan(o: Parameters<NonNullable<Seams['removalPlan']>>[0]): Promise<RemovalStep[]> {
 	return (seams.removalPlan ?? (await import('./git-worktree.ts')).removalPlan)(o);

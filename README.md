@@ -93,8 +93,11 @@ and resume rather than claiming to run after exit.
     normal project commands through their harness; final review judges the evidence. Supervised
     execution and isolated baseline helpers retain resource ownership without assertion/proof policy.
   - `src/worktrees/`: `worktree.ts` is the one interface to worktrees: list, ports and slugs
-    (`ports.ts`), create (`wf new`), remove (`wf reap`). Where no env plugs its own in,
-    `git-worktree.ts` makes them in `<repo>/.claude/worktrees/`. No worktree is served from its
+    (`ports.ts`), create (`wf new`), remove (`wf reap`). wf chooses `<repo>/.claude/worktrees/`
+    for every allocator; envs may plug in allocation mechanics, not a different host's workspace.
+    Native sessions bind to this existing checkout; `session-workspace.ts` refuses mismatched round
+    work and cleanup of the calling session's workspace. Existing rounds keep their paths.
+    No worktree is served from its
     creation: `wf serve` (`serve.ts`) runs the stack in the background (pid and logs in the
     worktree's `.wf/`), started by the phases that use it (`wf brief assess`, `wf review`, or a
     person running `wf serve` for the repro or a live check). `wf next`/`wf step` release

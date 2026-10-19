@@ -12,19 +12,19 @@ import { plug } from '../seams.ts';
 import { contractPaths } from '../project.ts';
 import { WF_ROOT } from '../paths.ts';
 import { addWorktree } from './git-worktree.ts';
-import { excludeWfFolder, slugForBranch } from './worktree.ts';
+import { excludeFromGit, excludeWfFolder, slugForBranch } from './worktree.ts';
 
 // Exercise the real creation command and git worktrees, without a project's dependency setup.
 // A child contains runNew's CLI exits, so a refusal still lets the parent clean up its fixture.
 const [, , mode, repo, branch] = process.argv;
 if (mode === 'new-round' && repo && branch) {
 	process.chdir(repo);
-	plug({ createWorktree: ({ branch, base }) => {
-		const path = join(repo, 'trees', slugForBranch(branch));
+	plug({ createWorktree: ({ branch, base, path }) => {
 		addWorktree({ branch, base, path });
 		excludeWfFolder(path);
+		excludeFromGit(path, '/.claude/worktrees/');
 		return { path, branch };
-	} });
+	}, workspaceHandoff: process.argv.includes('--bound-host') ? (path) => `BIND_EXISTING:${path}` : null });
 	await runNew([branch, '--base', 'HEAD', '--class', 'A', ...(process.argv.includes('--reopen') ? ['--id', 'X-1', '--reopen'] : [])]);
 	process.exit(0);
 }
@@ -96,10 +96,12 @@ try {
 		return { path, before: readFileSync(join(path, '.wf/state.json'), 'utf8') };
 	});
 	for (const branch of ['round/third', 'round/fourth']) {
-		const result = spawnSync(process.execPath, [fileURLToPath(import.meta.url), 'new-round', fixture, branch], { encoding: 'utf8' });
-		const path = join(fixture, 'trees', slugForBranch(branch));
+		const host = branch === 'round/third' ? ['--bound-host'] : [];
+		const result = spawnSync(process.execPath, [fileURLToPath(import.meta.url), 'new-round', fixture, branch, ...host], { encoding: 'utf8' });
+		const path = join(fixture, '.claude', 'worktrees', slugForBranch(branch));
 		const state = existsSync(join(path, '.wf/state.json')) ? readState(path) : null;
 		check(`${branch} starts without --force while the earlier rounds remain live`, result.status === 0 && state?.round === branch && state.step === 'classify', `${result.stdout}\n${result.stderr}`);
+		check(`${branch}: only a configured host receives an existing-checkout binding handoff`, host.length ? result.stdout.replaceAll('\\', '/').includes(`BIND_EXISTING:${path.replaceAll('\\', '/')}`) : !result.stdout.includes('BIND_EXISTING:'), result.stdout);
 	}
 	check('starting more rounds preserves the existing rounds', existing.every(({ path, before }) => readFileSync(join(path, '.wf/state.json'), 'utf8') === before));
 
@@ -114,7 +116,7 @@ try {
 	execFileSync('git', ['update-ref', 'refs/remotes/origin/dev', 'HEAD'], { cwd: fixture });
 	const original = readFileSync(join(fixture, earlierFolder, 'ASSESSMENT.md'), 'utf8');
 	const result = spawnSync(process.execPath, [fileURLToPath(import.meta.url), 'new-round', fixture, 'round/reopened', '--reopen'], { encoding: 'utf8' });
-	const path = join(fixture, 'trees', slugForBranch('round/reopened'));
+	const path = join(fixture, '.claude', 'worktrees', slugForBranch('round/reopened'));
 	const fresh = readState(path);
 	const earlier = readFileSync(join(path, fresh?.folder ?? '', 'EARLIER.md'), 'utf8');
 	check('reopen starts a fresh round, never inherits assessment, approval or phase history', result.status === 0 && fresh?.step === 'classify' && fresh.delivery === undefined && fresh.assessment_baseline === undefined && fresh.folder !== earlierFolder && fresh.history?.every((visit) => visit.step === 'classify') === true, `${result.stdout}\n${result.stderr}`);

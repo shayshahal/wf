@@ -15,13 +15,14 @@ it links before creating a worktree.
    known implementation paths as `paths: <repo-relative paths>` in `## Scope`.
 4. **Prepare the workspace.** Run `wf new <branch> --class <A|B|C> --id <id>` (or `--check` for a repro
    investigation). Keep any intake draft outside the protected base checkout until the command gives
-   you the round folder. Write `TICKET.md` there: title, source/thread in order, attachment descriptions,
+   you the round folder. Follow the workspace binding rules linked by `wf notes` before working in
+   that checkout. Write `TICKET.md` there: title, source/thread in order, attachment descriptions,
    scope answers and missing inputs. `## Intent` holds the requesters' exact words with attribution;
    your interpretation and image descriptions go below, not in those quotations.
 5. **Begin from the saved request.** For a normal task, update the tracker to its started status as
    `wf notes` directs. For a check, leave the tracker unchanged. Run `wf next` from the new worktree.
 
-Done when intake is on disk, the workspace setup succeeded, and the next action has all required
+Done when intake is on disk, workspace setup and session binding succeeded, and the next action has all required
 inputs. A failed setup is an environment blocker, not evidence of a product defect.
 
 ## Reproduction-only work

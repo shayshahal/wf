@@ -6,7 +6,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { addWorktree, removalPlan } from './git-worktree.ts';
+import { addWorktree, createWorktree, removalPlan } from './git-worktree.ts';
 import { hiddenHop } from './serve.ts';
 
 let failures = 0;
@@ -39,6 +39,15 @@ const add = (branch: string) => { try { addWorktree({ branch, path: join(repo, '
 check('a failed checkout throws and takes the branch it made with it', add('round/new') === 'threw' && branches() === '', branches());
 git(['branch', 'round/mine']);
 check('a branch that was there before survives the failed add', add('round/mine') === 'threw' && branches() === 'round/mine', branches());
+const cwd = process.cwd();
+try {
+	process.chdir(repo);
+	const destination = join(repo, 'explicit destination');
+	let failure = '';
+	try { await createWorktree({ branch: 'round/explicit', base: 'missing-base', path: destination, log: join(repo, 'setup.log') }); }
+	catch (e) { failure = e instanceof Error ? e.message : String(e); }
+	check('kit allocator passes the supplied destination to real Git, before setup', failure.includes(destination) && !failure.includes('.claude/worktrees') && !branches().includes('round/explicit'), failure);
+} finally { process.chdir(cwd); }
 rmSync(repo, { recursive: true, force: true });
 
 const hop = hiddenHop('win32', { PATH: 'x' })!;
