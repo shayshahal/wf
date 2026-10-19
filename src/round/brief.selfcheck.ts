@@ -1,12 +1,12 @@
 // brief.selfcheck.ts — node brief.selfcheck.ts → exit 0 when green.
 // The handoff a brief ends with, the stale-packet guard, and a real `wf brief build` in a temp
 // round: no token, no per-commit bookkeeping.
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { briefGap, handoffText, runBrief } from './brief.ts';
-import { wfCommand } from '../paths.ts';
+import { wfCommand, WF_ROOT } from '../paths.ts';
 import { seams } from '../seams.ts';
 
 let failures = 0;
@@ -27,6 +27,11 @@ check('a brief for a phase wf next is not working is refused out of turn', (brie
 check('the current work packet is accepted', briefGap(['build'], 'work build: run `wf brief build`') === null && briefGap(['assess'], 'work assess: run `wf brief assess`') === null);
 check('the old dispatch/model line is refused, not read as a packet', (briefGap(['build'], 'dispatch build (model: m): run `wf brief build`') ?? '').includes('no longer dispatches'));
 check('an assess brief ends by requiring a fresh independent context', handoffText('assess', 'bug-reports/r', 'A').includes('fresh independent context'));
+
+// ── real: the CLI refuses a missing phase with its usage, not with `undefined`
+const noPhase = spawnSync(process.execPath, [join(WF_ROOT, 'src', 'round', 'brief.ts')], { encoding: 'utf8' });
+check('wf brief with no phase says the usage', noPhase.status === 2 && noPhase.stderr.includes(`wf brief: usage: <agree | build | assess>`) && !noPhase.stderr.includes('undefined'), JSON.stringify({ status: noPhase.status, stderr: noPhase.stderr }));
+check('wf brief with a phase that does not exist says the usage', spawnSync(process.execPath, [join(WF_ROOT, 'src', 'round', 'brief.ts'), 'buidl'], { encoding: 'utf8' }).stderr.includes('usage:'));
 
 // ── real: runBrief build in a temp round
 const dir = realpathSync(mkdtempSync(join(tmpdir(), 'wf-brief-')));

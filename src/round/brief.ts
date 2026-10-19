@@ -14,6 +14,7 @@ import { agreementFile, consequential } from './agreement.ts';
 import { ensureServers } from '../worktrees/serve.ts';
 import { readState, toplevelOf } from './state.ts';
 import { correctionStateSha } from './corrections.ts';
+import { PHASES, USAGE } from './prompt.ts';
 import { wfCommand } from '../paths.ts';
 import { seams } from '../seams.ts';
 
@@ -42,6 +43,13 @@ export function briefGap(argv: string[], say: string): string | null {
 
 export async function runBrief(argv: string[], { stack = ensureServers }: { stack?: typeof ensureServers } = {}): Promise<void> {
 	const phase = argv[0];
+	// A bare `wf brief` used to reach the stale-packet guard and report "wf next is not working ``"
+	// about a phase nobody asked for; the usage is the honest answer (2026-10-19).
+	if (!PHASES.includes(phase)) {
+		console.error(`wf brief: usage: <${USAGE}>`);
+		process.exitCode = 2;
+		return;
+	}
 	let composed: ReturnType<typeof composePrompt>;
 	let blockedAnswer = '';
 	let workReason = '';
