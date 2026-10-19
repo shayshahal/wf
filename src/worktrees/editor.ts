@@ -5,9 +5,15 @@
 // failed with ENOENT while this still said it had opened.
 import { execFileSync, spawn } from 'node:child_process';
 
-/** Suppress external windows with WF_NO_OPEN=1; retain Claude Code's existing UI ownership default. */
+// A harness that owns the panes beside the session owns these windows too. T3 Code sets
+// T3CODE_PROJECT_ROOT on every process it starts, and its own preview pane is where the person is
+// already looking; opening Explorer or VS Code there put a second window beside the one that matters
+// (2026-10-19, read in a T3 thread: T3CODE_PROJECT_ROOT present, T3_MCP_URL not — the MCP endpoint
+// belongs to the agent's own process, not to a shell, so wf names the artifact and lets the session
+// show it instead of speaking T3's protocol).
+/** Suppress external windows with WF_NO_OPEN=1; a UI-owning harness (Claude Code, T3 Code) does too. */
 export function opensWindows(env = process.env) {
-	return env.WF_NO_OPEN !== '1' && !env.CLAUDECODE;
+	return env.WF_NO_OPEN !== '1' && !env.CLAUDECODE && !env.T3CODE_PROJECT_ROOT;
 }
 
 function resolvable(bin: string) {

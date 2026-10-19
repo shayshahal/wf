@@ -44,7 +44,8 @@ Missing capabilities produce an explicit blocker/handover, not a silently weaker
 
 A configured machine launcher is still useful for machine-specific infrastructure. Keep using the
 entry that created an existing task: changing harnesses does not authorize changing its environment.
-`WF_NO_OPEN=1` suppresses external editor/browser windows for a remote or UI-owning harness. Inbox,
+`WF_NO_OPEN=1` suppresses external editor/browser windows for a remote or UI-owning harness; Claude
+Code and T3 Code are recognised without it. Inbox,
 review UI, delegation, wakeups and durable execution are optional conveniences; plain sessions save
 and resume rather than claiming to run after exit.
 

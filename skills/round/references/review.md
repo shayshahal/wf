@@ -1,8 +1,9 @@
 # Independent and human review
 
 Use the entry and cwd rules in `../SKILL.md`. Read the review-format and agreement guidance linked
-by `wf notes` when writing those records. Set `WF_NO_OPEN=1` when this harness owns the UI or
-runs remotely; the commands still print their artifacts without opening separate windows.
+by `wf notes` when writing those records. A harness that owns the UI (Claude Code, T3 Code) gets no
+separate windows from wf: the commands print their artifacts for the session's own pane. Set
+`WF_NO_OPEN=1` for any other harness that owns its UI or runs remotely.
 
 ## Independent assessment
 
