@@ -16,11 +16,9 @@ that establishes the same outcome, and identify its limits.
 | Project test/runtime prerequisite | Use authorized project setup, or save the exact blocker and rerun command | Required verification stays unmeasured; unrelated infrastructure repair is not implicit scope |
 | Delivery credentials / network | Retain the approved work and remote-effect records; reconcile on resume | No guessed push/PR/merge/post result, duplicate blind mutation, or premature cleanup |
 
-A harness with its own browser or review pane comes first, not last: the pane beside the session is
-where the person is already looking. T3 Code shows it through `mcp__t3-code__preview_open` or
-`preview_navigate` (the round's stack: `{target:{kind:'environment-port',port:<n>}}`), and renders a
-view inline with `html_render` after `html_preview` checks it; an external browser or an editor window
-is the fallback.
+Use the session's native presentation tools first. `process/SHOW-ME.md` (from the wf root) owns the
+decision-sheet and generated-UI rules; a configured presentation adapter supplies tool guidance.
+If a tool is missing, show the exact files and name the limitation.
 
 Discover the project's existing tools before calling a capability absent. Prefer a known executable
 check or disposable fixture within scope over a new platform integration. A failed runner is not a

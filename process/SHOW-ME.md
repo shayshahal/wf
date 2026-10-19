@@ -1,55 +1,73 @@
-# Show me — the views an agreement carries
+# Decision sheets and views
 
-An agreement's `## Agreed` (and a candidate view in the session), say what changes as a **view**: the smallest
-shape that makes the point. `CALL-STACK-FORMAT.md` is the view when the change travels a call
-path. This file is the rest, and the rules all of them follow.
+Use this format for agreements, assessments, reviews, questions and handovers. Lead with what the
+person must decide or know. Show relationships as a view; use prose for the reason it matters.
 
-## The views
+## Read less
 
-| view | use it when | form |
-|---|---|---|
-| call stack | the change runs: handlers, hops, error landings | `CALL-STACK-FORMAT.md` |
-| file-tree diff | files are added, removed, moved, or change owner | a tree in a `diff` block, `+ ~ -` on the lines |
-| shape diff | a data structure, a SQL table, a config block changes | a `diff` block of the fields, not the whole shape |
-| contract diff | an API request or response changes | a `diff` block: method, path, request, response |
-| signature block | a function is new or changes | one line per function (`CALL-STACK-FORMAT.md`) |
-| mermaid | control flow or data flow with branches a stack flattens | a ` ```mermaid ` block |
-| HTML artifact | a layout, a screen, or a state comparison — a static block cannot carry it | one file in the round folder |
+- **Decision first.** One line: proposed change, result, or question. Name the person's next action.
+- **One claim per bullet.** Concrete subject + action. Use short labels and ordinary words; no new
+  controlled-language parser or mandatory response tokens.
+- **Change, proof, limits.** A small before/after or evidence table beats a narrative of the work.
+  Link commands, logs and captures; say `NOT MEASURED — <why>` where evidence is missing.
+- **Progressive detail.** Put supporting logs and routine implementation detail behind references or
+  expandable sections. Keep behavior, exclusions, consequential choices, unrequested additions,
+  material risks and the approval question visible.
+- **Same authority.** Preserve the requester's exact words and the complete agreed scope. A shorter
+  presentation must not silently drop a condition, turn a proposal into proof, or imply approval.
 
-## The rules
+An agreement answers: **Now → Change · Keep/exclude · Choice/why · Proof · Your decision**.
+A review answers: **Result · Changed · Evidence · Limits/risks · Your action**.
+These are reading prompts, not new headings or workflow state. Keep the existing file sections,
+identity headers, comments and verdict syntax. Aim for one screen of decision material; split a
+large decision into named views rather than clipping it to fit.
 
-- **The smallest view that answers the reader's question.** Drop unchanged paths, fields and
-  branches; a reader who wanted the rest reads the diff.
-- **One view per point**, with a line of prose between views saying why the next shape matters and
-  how it connects. The prose is the thread; the views are the beads.
-- **Order the views to tell the change's story**, not to fill the table above: files first when
-  ownership is the question, a shape first when it explains the rest.
-- **Choose views for uncertainty, not completeness.** A plan with no call stack is a plan
-  (`CALL-STACK-FORMAT.md`, "no diff"); a presentation change has no stack at all. When a consequential
-  change alters controls or layout, T1 sees the proposed screen beside the current capture, including
-  affected widths and directions. A prototype is enough; textual placement alone hid JX-1239's
-  narrowed pickers until T2 (2026-10-12).
-- **`diff` blocks**: `+` added, `-` removed, `~` changed, a leading space unchanged — the same
-  markers as the call stack, so a reader learns one grammar.
-- **An HTML artifact is a view, not a second document.** One focused file, in the round folder, for
-  the one question text cannot carry. The markdown stays what binds; `wf agree` and `wf review`
-  render the artifact beside the agreement (`.wf/AGREEMENT-T1.html`; `.wf/AGREEMENT.html`,
-  `.wf/before-after.html`), and a reader
-  who never opens it loses nothing the agreement does not say. A session with its own viewer also puts
-  it in front of the person there — T3 Code renders it inline with `html_render`, after `html_preview`
-  checks it — so the artifact is not a file left waiting to be opened.
-- **A prototype shows proposed behavior, not implementation proof.** A runtime capture shows
-  observed behavior only for the code revision, state and conditions captured.
-- **`NOT MEASURED — <why>` is always acceptable. Silence is not** (`PRACTICES.md`): a view asserts a
-  shape; a shape nobody measured says so.
+## Choose a view
 
-## Where they go
+For each human-facing handoff, choose the smallest form that makes the decision clear. Prefer a
+view over a paragraph describing a relationship; a simple fact may remain one line.
 
-- A candidate: `CALL-STACK-FORMAT.md` for the stack, and a view here for every shape the stack
-  cannot carry (`AGREEMENT-TEMPLATE.md`).
-- `## Agreed`: the same views, against `## Observed`'s as-is.
-- The agreed material: the views of the chosen candidate, whole — it is what T1 approves and what the
-  round is built against (`AGREEMENT-TEMPLATE.md` § T1).
+| Question | View |
+|---|---|
+| What changes, and what stays? | Before/after table or shape diff |
+| Where does behavior travel? | Call stack (`CALL-STACK-FORMAT.md`) |
+| Who owns which files? | File-tree diff |
+| What contract or data shape changes? | Request/response, fields or function signatures in a diff |
+| Which branches or dependencies matter? | Mermaid flow or sequence |
+| What does the person see? | Current capture beside a proposed screen, with widths and directions |
+| What depends on a selection, width or state? | One generated HTML view with useful controls |
 
-*Views from HumanLayer's `show-me` and `create-structure-outline` skills (dexhorthy, 2026-10-06),
-kept to wf's sizes: a view replaces prose, it does not add a section.*
+## Generated UI
+
+Use generated UI beyond screen mockups: compare alternatives, reveal a dependency path, switch
+before/after states, or inspect evidence. Each control should answer a real reading question.
+
+- Save one focused HTML artifact in the round folder. The markdown records every agreed condition;
+  the view explains it. `wf agree` and `wf review` embed these artifacts beside the agreement.
+- Start with the decision and relevant state visible. Use controls for exploration and supporting
+  detail, not for hiding exclusions or risks.
+- Label **observed**, **proposed**, and **not measured** distinctly. A simulated interaction is not
+  evidence that the product implements it. A runtime capture names revision, setup and conditions.
+- Keep prototypes local and side-effect-free. Interactive controls change the view, not product
+  data, approval records or workflow state. The person's actual ruling uses the normal review path.
+- Check the widths, direction, console and interactions relevant to the claim. Report failures or
+  limitations; a tool returning successfully does not prove the view is readable.
+
+## Deliver the view
+
+Use the session's native rendering, document, diff or browser tools when available; the configured
+presentation adapter supplies their guidance. Discover the actual tools and schemas in that session.
+Show the saved artifact faithfully, resolving local images/views or showing them separately. If the
+native surface cannot carry it, show the exact markdown and artifact paths and name the limitation.
+External UI is the fallback. A printed handoff is an instruction to present, not evidence it opened.
+
+At T1 show the complete `## Observed` + `## Agreed` material; at T2 show what changed against it,
+the assessment, evidence and remaining limits. Keep the current content identity and the person's
+actual comments/verdict in the existing review record. Generated UI adds no approval authority.
+
+## View notation
+
+`diff`: `+` added, `-` removed, `~` changed, leading space unchanged. Keep only relevant paths and
+fields. One view per point; one line of prose connects it to the next. A consequential control/layout
+change needs the proposed screen beside the current capture: textual placement hid JX-1239's narrowed
+pickers until T2 (2026-10-12).

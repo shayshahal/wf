@@ -426,7 +426,7 @@ const approve = async (repo: string, branch: string) => {
 		const reopened = await runCli(repo, ['review', branch]);
 		check('re-opening after a committed change records the new content', reopened.status === 0 && readFileSync(reviewFile, 'utf8').split('head-sha: ').at(-1)!.startsWith('tree:'), reopened.out);
 		const staleAgain = await runCli(repo, ['review', branch, '--done']);
-		check('the old approval is not reused for the changed content', staleAgain.status === 2 && staleAgain.out.includes('after T2 approved it'), staleAgain.out);
+		check('a reopened review awaits a fresh verdict, not the old approval', staleAgain.status === 2 && staleAgain.out.includes('no verdict yet'), staleAgain.out);
 		writeFileSync(reviewFile, `${readFileSync(reviewFile, 'utf8')}\nverdict: approved\n`);
 		const again = await runCli(repo, ['review', branch, '--done']);
 		check('a fresh verdict on the changed content is eligible', again.status === 0, again.out);

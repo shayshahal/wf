@@ -15,7 +15,7 @@ import { join } from 'node:path';
 import { refuseCaller } from '../refusal.ts';
 import { CLASSIFY } from '../paths.ts';
 import { agreementGap, agreementPath, agreementSha, AGREEMENT_REVIEW_FILE, ASSESSMENT_FILE, consequential } from './agreement.ts';
-import { lastField, readVerdict } from '../gates/review-format.ts';
+import { agreementApprovalBinding } from '../gates/review-format.ts';
 import { people, proofNamingGap } from '../project.ts';
 import { roundFile, readState, writeState, WF_STATE_VERSION } from './state.ts';
 import type { RoundClass, State } from './state.ts';
@@ -64,9 +64,8 @@ export function t1Gap(toplevel: string, state: State | null): string | null {
 	if (!current) return `no ${agreementPath(toplevel, klass, state?.folder ?? null)}`;
 	let text: string;
 	try { text = readFileSync(roundFile(toplevel, AGREEMENT_REVIEW_FILE), 'utf8'); } catch { return `no ${AGREEMENT_REVIEW_FILE}`; }
-	const reviewed = lastField(text, 'agreement-sha');
+	const { agreementSha: reviewed, verdict } = agreementApprovalBinding(text);
 	if (reviewed !== current) return `${AGREEMENT_REVIEW_FILE} is of ${reviewed ?? 'no sha'}, the agreement is now ${current}`;
-	const verdict = readVerdict(text);
 	if (verdict !== 'approved') return `${AGREEMENT_REVIEW_FILE} verdict is ${verdict ?? 'pending'}`;
 	return null;
 }

@@ -44,8 +44,11 @@ Missing capabilities produce an explicit blocker/handover, not a silently weaker
 
 A configured machine launcher is still useful for machine-specific infrastructure. Keep using the
 entry that created an existing task: changing harnesses does not authorize changing its environment.
-`WF_NO_OPEN=1` suppresses external editor/browser windows for a remote or UI-owning harness; Claude
-Code and T3 Code are recognised without it. Inbox,
+`WF_NO_OPEN=1` suppresses external editor/browser windows for a remote or UI-owning harness.
+Shay's entry detects T3 Code and supplies native-tool handoffs ahead of external review UI; the
+session executes those tools and records the person's actual ruling. Claude Code retains its
+no-external-window default. Human-facing documents use compact decision sheets and visual views
+(`process/SHOW-ME.md`); generated UI presents the files, never replaces their approval identity. Inbox,
 review UI, delegation, wakeups and durable execution are optional conveniences; plain sessions save
 and resume rather than claiming to run after exit.
 

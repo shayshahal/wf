@@ -30,6 +30,19 @@ export type QuestionInbox = {
 	post: (o: { worktree: string; key: string; subject: string; body: string }) => Promise<{ ref: string; url: string }>;
 	read: (o: { worktree: string; ref: string }) => Promise<QuestionReply | null>;
 };
+/** A native review handoff names exact artifacts; the session, not wf, invokes its UI tools. */
+export type ReviewPresentation = {
+	readonly kind: 'agreement' | 'review';
+	readonly worktree: string;
+	readonly document: string;
+	readonly pages: readonly string[];
+	readonly reviewFile: string;
+};
+/** Presentation instructions carry no verdict and never claim a native tool was executed. */
+export type NativePresentation = {
+	readonly guidance: string;
+	readonly reviewHandoff: (review: ReviewPresentation) => string;
+};
 export type Command = (argv: string[]) => unknown;
 // One `gh` call for the remote wf delivers to: argv, the folder to run it in, and what it printed.
 // The kit's default shells out to gh; a delivery test plugs a faithful fake so a retry can be proven
@@ -44,6 +57,7 @@ export type Seams = {
 	createWorktree: ((o: { branch: string; base: string; log: string }) => Worktree | Promise<Worktree>) | null;
 	removalPlan: ((o: { branch: string; path: string; slug: string; pid: number }) => RemovalStep[] | Promise<RemovalStep[]>) | null;
 	reviewUI: ReviewUI | null;
+	presentation: NativePresentation | null;
 	inbox: QuestionInbox | null;
 	commands: Record<string, Command>;
 	models: Models;
@@ -71,6 +85,8 @@ export const seams: Seams = {
 	// { available(), annotate({ worktree, file, since }), reviewDiff({ worktree, base, diffType, since }) }
 	// → the one feedback line T1/T2 fold, or null. Without one, T1/T2 open the file in an editor.
 	reviewUI: null,
+	// Native tool instructions take precedence over an external review UI; null keeps kit defaults.
+	presentation: null,
 	// Optional async question transport. Replies are saved by `wf inbox`, ruled on by `wf decide`.
 	inbox: null,
 	// wf subcommands the env adds: name → (argv) => void.

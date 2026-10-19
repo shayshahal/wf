@@ -82,6 +82,13 @@ export async function runAgree(argv: string[]) {
 	// Name each one where the person reads first, so T1 decides it on its own.
 	const unasked = consequential(klass) ? notAskedFor(text) : [];
 	if (unasked.length) console.log([`not asked for — decide each at T1:`, ...unasked.map((item) => `  - ${item}`)].join('\n'));
+	if (seams.presentation) {
+		// Native tools belong to the calling session. Prepare the bound record without inventing a verdict.
+		appendDatedSection(file, renderSkeleton({ round, klass, agreementSha: sha, urls: devUrlsFor(worktree) }));
+		console.log(seams.presentation.guidance);
+		console.log(seams.presentation.reviewHandoff({ kind: 'agreement', worktree, document: toAnnotate, pages: [pageFile], reviewFile: file }));
+		return;
+	}
 	if (seams.reviewUI?.available()) {
 		const line = seams.reviewUI.annotate({ worktree, file: pageFile, since: new Date().toISOString() });
 		appendDatedSection(file, `${header()}${line ? foldFeedbackLine(line) : 'verdict: dismissed'}`);

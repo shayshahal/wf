@@ -1,7 +1,9 @@
 # {{round}} — the working agreement
 
 Write `{{folder}}/{{file}}`: what will change, what is excluded, the consequential choice and
-how the result will be checked. Keep it small enough for a fresh builder and reviewer.
+how the result will be checked. Use the compact decision-sheet and visual rules in
+`{{wf}}/process/SHOW-ME.md`: short facts, one claim per bullet, and a view instead of relationship
+prose. Keep all agreed conditions visible; link supporting detail.
 
 ## The requester's words (verbatim)
 

@@ -166,7 +166,7 @@ export function reviewTarget(roundBase: string, checkpoint: boolean, checkpointB
   return { kind: 'final', reviewFile: REVIEW_FILE, assessmentFiles: [ASSESSMENT_FILE], base: roundBase, expectedBase: roundBase, scope: null };
 }
 
-export async function runReview(argv: string[]) {
+export async function runReview(argv: string[], { stack = ensureServers }: { stack?: typeof ensureServers } = {}) {
   const round = argv.find((a) => !a.startsWith('-'));
   if (!round) usage();
   const { path: worktree } = resolveWorktree(round);
@@ -214,7 +214,7 @@ export async function runReview(argv: string[]) {
   if (!checkpoint) await inWorktree(worktree, round, 'review');
   // T2 opens the round's pages: the stack is started for it, since nothing serves a worktree from its
   // creation (2026-10-04, serve.ts). A stack that will not start leaves the diff to review, and says so.
-  try { console.log(await ensureServers(worktree, { wait: true })); } catch (e) { /* the diff is still reviewable: the line says why there are no pages */ console.error((e as Error).message); }
+  try { console.log(await stack(worktree, { wait: true })); } catch (e) { /* the diff is still reviewable: the line says why there are no pages */ console.error((e as Error).message); }
   const beforeAfter = writeBeforeAfter(worktree, round, target.assessmentFiles);
   if (beforeAfter) {
     console.log(`before/after: ${beforeAfter}`);
@@ -239,10 +239,16 @@ export async function runReview(argv: string[]) {
   // its own header): a fresh dated header with the new shas, so the person writes the verdict under
   // it. Both shas are compared (needsFreshReviewHeader): a commit that changed only HEAD, with the
   // worktree restored, must still force a fresh header, or a valid new review cannot recover a stale
-  // HEAD (#106 final review). Same worktree and HEAD: nothing, the verdict stands.
+  // HEAD (#106 final review). A checkpoint's range may change without changing either identity;
+  // its requested base must still be the one the native handoff tells the person to review.
   const previousBinding = previous === null ? null : { contentSha: lastField(previous, 'content-sha'), headSha: lastField(previous, 'head-sha') };
-  if (previous === null || (!seams.reviewUI?.available() && needsFreshReviewHeader(previousBinding, contentSha, headSha))) {
+  if (previous === null || ((seams.presentation || !seams.reviewUI?.available()) && (needsFreshReviewHeader(previousBinding, contentSha, headSha) || lastField(previous, 'base') !== base))) {
     appendDatedSection(file, renderSkeleton({ round, klass, base, contentSha, headSha, scope: target.scope, urls: devUrlsFor(worktree), files, beforeAfter, assessment, manual }));
+  }
+  if (seams.presentation) {
+    console.log(seams.presentation.guidance);
+    console.log(seams.presentation.reviewHandoff({ kind: 'review', worktree, document: file, pages: [agreementHtml, beforeAfter].filter((page): page is string => page !== null), reviewFile: file }));
+    return;
   }
   // The machine's review screen when it has one (seams.reviewUI: plannotator on Shay's), else an editor.
   if (!seams.reviewUI?.available()) {

@@ -235,8 +235,7 @@ const diffRow = (line: string) => {
 
 // Pure: an agreement's markdown → the small part of it wf writes. Fenced blocks keep their shape:
 // a `diff` block and a bare one (where the call stacks live) are coloured by marker, `mermaid` is left
-// for the script `agreementPage` adds, and a table is shown as it is because an agreement's tables are
-// read as text.
+// for the script `agreementPage` adds. Tables render as cells, with each row keeping its source line.
 export function agreementBody(md: string, base = 0): string {
 	const out: string[] = [];
 	const lines = md.replace(/\r\n/g, '\n').split('\n');
@@ -248,14 +247,12 @@ export function agreementBody(md: string, base = 0): string {
 	// third-party's string builder is how a fold silently stops finding lines. The styling class follows.
 	const openTag = (name: string, i: number, cls = '') => `<${name} class="${[`wf-src-${base + i + 1}`, cls].filter(Boolean).join(' ')}" id="wf-src-${base + i + 1}">`;
 	let list = false;
-	let table = false;
 	// The indentation of each open nested <ul>, innermost last: a nested bullet is its own list inside
 	// the open <li>, so a comment on it folds onto its own line instead of flattening into the parent
 	// (#114 closure, F7). A plain indented line (no bullet) is still a wrapped continuation.
 	const nest: number[] = [];
 	const close = () => {
 		if (list) { while (nest.length) { out.push('</ul></li>'); nest.pop(); } out.push('</ul>'); list = false; }
-		if (table) { out.push('</pre>'); table = false; }
 	};
 	for (let i = 0; i < lines.length; i++) {
 		const line = lines[i];
@@ -271,11 +268,21 @@ export function agreementBody(md: string, base = 0): string {
 			continue;
 		}
 		if (/^\|/.test(line)) {
-			if (!table) { close(); out.push(openTag('pre', i, 'table')); table = true; }
-			out.push(escapeHtml(line));
+			close();
+			const start = i;
+			const rows = [line];
+			while (i + 1 < lines.length && /^\|/.test(lines[i + 1])) rows.push(lines[++i]);
+			const cells = (row: string) => row.trim().replace(/^\||\|$/g, '').split(/(?<!\\)\|/).map((cell) => cell.trim().replace(/\\\|/g, '|'));
+			const header = cells(rows[0]);
+			if (rows.length < 2 || cells(rows[1]).length !== header.length || !cells(rows[1]).every((cell) => /^:?-{3,}:?$/.test(cell))) {
+				out.push(`${openTag('pre', start, 'table')}${escapeHtml(rows.join('\n'))}</pre>`);
+				continue;
+			}
+			out.push(`<div class="table-scroll"><table><thead>${openTag('tr', start)}${header.map((cell) => `<th scope="col">${inline(cell)}</th>`).join('')}</tr></thead><tbody>`);
+			for (let row = 2; row < rows.length; row++) out.push(`${openTag('tr', start + row)}${cells(rows[row]).map((cell) => `<td>${inline(cell)}</td>`).join('')}</tr>`);
+			out.push('</tbody></table></div>');
 			continue;
 		}
-		if (table) close();
 		const head = /^(#{1,3})\s+(.*)$/.exec(line);
 		if (head) { close(); out.push(`${openTag(`h${head[1].length}`, i)}${inline(head[2])}</h${head[1].length}>`); continue; }
 		const item = /^[-*]\s+(.*)$/.exec(line);
@@ -329,7 +336,7 @@ export function agreementPage({ title, meta, section, artifacts = [], base = 0 }
 	const body = agreementBody(section, base);
 	const hasClass = (cls: string) => new RegExp(`class="[^"]*\\b${cls}\\b`).test(body);
 	return `<!doctype html>
-<meta charset="utf-8"><title>${escapeHtml(title)}</title>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escapeHtml(title)}</title>
 <style>
 :root{color-scheme:light dark}
 body{font:15px/1.55 system-ui,sans-serif;margin:0 auto;padding:24px;max-width:1100px}
@@ -338,6 +345,11 @@ h2{font-size:17px;margin:28px 0 8px;border-bottom:1px solid #8884;padding-bottom
 h3{font-size:15px;margin:20px 0 6px}
 .meta{color:#777;font-size:13px;margin-bottom:20px}
 pre{background:#8881;border:1px solid #8883;border-radius:6px;padding:10px 12px;overflow:auto;font:13px/1.45 ui-monospace,Consolas,monospace}
+.table-scroll{max-width:100%;overflow-x:auto;margin:12px 0}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{text-align:start;vertical-align:top;padding:8px 12px;border:1px solid #8884;overflow-wrap:break-word}
+th{background:#8882;font-weight:600}
+@media(max-width:600px){body{padding:12px}th,td{padding:6px}}
 pre.diff span{display:block;white-space:pre}
 pre.diff .add{color:#187a3c;background:#2e7d3218}
 pre.diff .del{color:#a32323;background:#c6282818}
@@ -363,8 +375,7 @@ ${hasClass('copy') ? COPY_ASK : ''}
 
 // Last `verdict: <v>` line wins; anything but a real verdict (e.g. pending) → null.
 export function readVerdict(text: string) {
-  let found: string | null = null;
-  for (const m of text.matchAll(/^verdict:\s*(\S+)\s*$/gm)) found = m[1];
+  const found = [...text.matchAll(/^verdict:[ \t]*(.*)$/gm)].at(-1)?.[1].trim() ?? null;
   return (VERDICTS as (string | null)[]).includes(found) ? found : null;
 }
 
@@ -390,6 +401,12 @@ function verdictSection(text: string): { verdict: string; field: (key: string) =
   }
   return null;
 }
+/** The latest T1 verdict (including pending) binds only the sha in its own dated section. */
+export function agreementApprovalBinding(text: string): { verdict: string | null; agreementSha: string | null } {
+  const found = reviewSections(text).reverse().find((section) => /^verdict:/m.test(section));
+  return { verdict: found ? readVerdict(found) : null, agreementSha: found ? lastField(found, 'agreement-sha') : null };
+}
+
 export function approvalBinding(text: string): { verdict: string | null; contentSha: string | null; headSha: string | null } {
   const found = verdictSection(text);
   return found ? { verdict: found.verdict, contentSha: found.field('content-sha'), headSha: found.field('head-sha') } : { verdict: null, contentSha: null, headSha: null };

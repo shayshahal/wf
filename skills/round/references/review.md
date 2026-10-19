@@ -1,9 +1,10 @@
 # Independent and human review
 
 Use the entry and cwd rules in `../SKILL.md`. Read the review-format and agreement guidance linked
-by `wf notes` when writing those records. A harness that owns the UI (Claude Code, T3 Code) gets no
-separate windows from wf: the commands print their artifacts for the session's own pane. Set
-`WF_NO_OPEN=1` for any other harness that owns its UI or runs remotely.
+by `wf notes` when writing those records. Use `process/SHOW-ME.md` from the wf root for compact
+reading and visual presentation. A configured native presentation adapter takes precedence over
+external review UI and prints a handoff for the session to execute. Set `WF_NO_OPEN=1` for an
+unconfigured UI-owning or remote harness.
 
 ## Independent assessment
 
@@ -28,8 +29,9 @@ assessment is needed after repair even if only the evidence changed and HEAD sta
 
 ## T1: consequential agreement
 
-For B/C work, run `wf agree <branch>` after the agreement is ready. Use the rendered page or available
-review UI to show observed facts, agreed behavior, exclusions, consequential choice and verification.
+For B/C work, run `wf agree <branch>` after the agreement is ready. Lead with the decision and use
+short facts plus a relevant view. Show all observed facts, agreed behavior, exclusions, consequential
+choices and verification; supporting logs can remain linked.
 The person's verdict is bound to the agreed material's sha in `AGREEMENT-REVIEW.md`.
 
 With a configured review UI, the command folds their response. Without one, show the files/page
@@ -43,11 +45,10 @@ returned to agreement. Working-detail edits need not renew unchanged material; c
 ## T2 and agreed checkpoints
 
 1. Inspect the current agreement, implementation diff and independent assessment. Run the project's
-   preview/walk command from `wf notes` and the agreement's setup recipe, and open it where the person
-   already is: a harness with its own browser pane uses it (T3 Code: `mcp__t3-code__preview_open`, or
-   `preview_navigate` with `{target:{kind:'environment-port',port:<n>}}` for the round's stack);
-   otherwise an available external UI, or the exact URL and setup. Missing required live verification
-   stays visible, not silently satisfied by a screenshot or code reading.
+   preview/walk command from `wf notes` and the agreement's setup recipe. Use the session's native
+   browser tools, or an external UI/exact URL and setup if unavailable. Start the presentation with
+   result, change, evidence, limits and the person's next action. Missing live verification stays
+   visible; a screenshot or code reading is not an automatic substitute.
 2. Run `wf review <branch>`. It prepares the bound review record and inspection artifacts. Use the
    configured UI, or show the person the named files and record their comments and actual verdict.
    Preserve the reviewed identity header. It is not approval of later product/test changes.

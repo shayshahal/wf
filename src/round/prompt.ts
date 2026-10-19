@@ -147,6 +147,7 @@ ${vars.answers}`;
 	const notes = join(WF_ROOT, 'projects', projectName, 'prompts', `${phase}.md`);
 	if (existsSync(notes)) template += `\n${readFileSync(notes, 'utf8')}`;
 	if (phase === 'assess') vars.agreementFile = vars.file;
+	if (seams.presentation) template += `\n${seams.presentation.guidance}\n`;
 	const wf = wfCommand(seams.entry);
 	// #126/#130: anchor template instructions before inserting people's verbatim rulings.
 	// Recorded answers are inserted after anchoring for the same reason.

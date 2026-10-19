@@ -38,9 +38,10 @@ Write `{{folder}}/{{assessmentFile}}` whole:
   repair for addressable findings within scope; blocked only for a decision or authority the person
   must supply.
 - `head: <git rev-parse HEAD>` and `assessed-at: <current ISO timestamp>`.
-- Explain intent, evidence, design/standards findings, limitations and any required decision in
-  readable sections. Cite concrete files, commands and observations. No per-line verdict or repair
-  response grammar is required.
+- Lead with result and the next action. Use short findings or an evidence table: claim, observed
+  result, source, limitation. Keep intent and design/standards distinguishable; link supporting logs
+  instead of narrating the investigation. Follow `{{wf}}/process/SHOW-ME.md` for views and generated
+  UI when they clarify the finding. No per-line verdict or repair response grammar is required.
 
 A renewed assessment is a new judgment, even if HEAD is unchanged. Choose the outcome explicitly:
 wf checks the outcome and implementation identity; it does not infer correctness from your prose.

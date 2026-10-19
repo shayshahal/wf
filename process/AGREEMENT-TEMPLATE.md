@@ -5,6 +5,11 @@ The requester's words remain verbatim in the ticket's `## Intent`.
 T1 binds `## Observed` + `## Agreed`; verification details and implementation notes can evolve
 without renewing unchanged direction.
 
+Use the decision-sheet style in `SHOW-ME.md`: short sourced facts, one claim per bullet, and a
+before/after, diagram or generated view where it replaces explanation. Keep the whole agreed scope
+visible; put logs and routine implementation detail behind references. The labels below are prompts
+for concise content, not an invitation to write a paragraph under each.
+
 ```markdown
 # AGREEMENT — <ID> · <ticket title>
 

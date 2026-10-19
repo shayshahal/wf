@@ -16,7 +16,7 @@ import { join as pjoin } from 'node:path';
 function t1GapFor(review: string | null) {
   const d = mkdtempSync(pjoin(tmpdir(), 'wf-t1-'));
   writeFileSync(pjoin(d, 'AGREEMENT.md'), '## Observed\n- x — `a.ts:1`\n\n## Agreed\n- behavior\n');
-  if (review !== null) writeFileSync(pjoin(d, 'AGREEMENT-REVIEW.md'), review.replace('<real>', agreementSha(d, 'B', null)!));
+  if (review !== null) writeFileSync(pjoin(d, 'AGREEMENT-REVIEW.md'), review.replaceAll('<real>', agreementSha(d, 'B', null)!));
   const out = t1Gap(d, { class: 'B' });
   rmSync(d, { recursive: true });
   return out;
@@ -89,6 +89,12 @@ check('agreedSection extracts Observed + Agreed, not the verification cases', ag
 check('agreedSection for class A is the Intent', agreedSection('# T\n## Intent\ni\n\n## Thread\nx\n', 'A') === '## Intent\ni');
 check('agreedOffset: `## Observed` starts at line 3, so a page block carries its agreement line', agreedOffset('# A\n\n## Observed\n\nthe fact\n', 'B') === 2, String(agreedOffset('# A\n\n## Observed\n\nthe fact\n', 'B')));
 check('t1Gap names a missing review', t1GapFor(null) === 'no AGREEMENT-REVIEW.md');
+check('a native T1 draft cannot lend its new sha to an older approval', t1GapFor('agreement-sha: old\nverdict: approved\n\n## 2026-10-19\nagreement-sha: <real>\nverdict: pending (await the person)\n')?.includes('pending') === true);
+for (const pending of ['pending', 'pending (set one of: approved | changes-requested | dismissed)']) {
+  check(`reopening the same T1 material does not resurrect approval: ${pending}`, t1GapFor(`agreement-sha: <real>\nverdict: approved\n\n## 2026-10-19\nagreement-sha: <real>\nverdict: ${pending}\n`)?.includes('pending') === true);
+  check(`a pending line in the same T1 section supersedes an earlier verdict: ${pending}`, t1GapFor(`agreement-sha: <real>\nverdict: approved\nverdict: ${pending}\n`)?.includes('pending') === true);
+}
+check('a fresh native T1 ruling binds its own sha', t1GapFor('agreement-sha: old\nverdict: approved\n\n## 2026-10-19\nagreement-sha: <real>\nverdict: changes-requested\n')?.includes('changes-requested') === true);
 check('last verdict line wins', readVerdict(`${skel}\n## 2026-09-18\n\nc.ts:1 — x\nverdict: approved`) === 'approved');
 
 assert.throws(() => resolveWorktree('no-such-round-xyz'), /candidates:/);
@@ -133,7 +139,19 @@ check('a bare fence is coloured like a diff: the call stacks live there', bare.i
 const indented = agreementBody('```\n  entry\n    run\n  +    handle\n    ~ changed\n    - gone\n```');
 check('an indented hop keeps its marker: a stack indents, so the marker is not at column 0', indented.includes('class="add">  +    handle') && indented.includes('class="chg">    ~ changed') && indented.includes('class="del">    - gone') && indented.includes('class="ctx">  entry'), indented);
 const table = agreementBody('| a | b |\n|---|---|\n');
-check('a table is kept as text', table.includes('<pre class="wf-src-1 table" id="wf-src-1">'), table);
+check('a decision table renders as cells with a source-tagged header', table.includes('<table><thead><tr class="wf-src-1" id="wf-src-1">') && table.includes('<th scope="col">a</th>'), table);
+const decisionTable = agreementBody('| Change | Evidence |\n|:---|---:|\n| **Restore** | `<unsafe>` |\n| a\\|b | <script>bad()</script> |', 10);
+check('table rows retain their source lines for annotation', decisionTable.includes('<tr class="wf-src-13" id="wf-src-13"><td><strong>Restore</strong>') && decisionTable.includes('id="wf-src-14"'), decisionTable);
+check('table cells escape HTML and render inline code', decisionTable.includes('<code>&lt;unsafe&gt;</code>') && !decisionTable.includes('<script>') && decisionTable.includes('&lt;script&gt;'), decisionTable);
+check('escaped table pipes stay inside one cell', decisionTable.includes('<td>a|b</td><td>&lt;script&gt;bad()&lt;/script&gt;</td>'), decisionTable);
+check('a malformed pipe block stays readable rather than disappearing', agreementBody('| not a table |').includes('<pre class="wf-src-1 table"'));
+for (const base of [0, 1, 10, 99]) {
+  for (const count of [1, 2, 7]) {
+    const md = ['| Change | Proof |', '|---|---|', ...Array.from({ length: count }, (_, n) => `| change-${n} | proof-${n} |`)].join('\n');
+    const html = agreementBody(md, base);
+    check(`table source offsets survive ${count} rows at base ${base}`, Array.from({ length: count }, (_, n) => html.includes(`id="wf-src-${base + n + 3}"`)).every(Boolean) && (html.match(/<td>/g) ?? []).length === count * 2);
+  }
+}
 const offset = agreementBody('## H\n\np\n', 10);
 check('with a base the tag is the line in the document the section was cut from', offset.includes('<h2 class="wf-src-11" id="wf-src-11">H</h2>') && offset.includes('<p class="wf-src-13" id="wf-src-13">p</p>'), offset);
 const withAsk = agreementPage({ title: 'P', meta: [], section: '> **ASK-1 — which?**\n' });

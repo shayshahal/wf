@@ -4,6 +4,7 @@
 // through env/wf.mjs; the team's plugin runs the kit's own ../wf.mjs (kit and env plan, 2026-09-27).
 import { run } from '../src/run.ts';
 import { herdrOpener } from './adapters/herdr.ts';
+import { t3Presentation } from './adapters/t3code.ts';
 import { processCwds } from './adapters/processes.ts';
 import { annotateFile, isPlannotatorPresent, reviewDiff } from './adapters/plannotator.ts';
 import { questionInbox } from './adapters/plannotator-inbox.ts';
@@ -28,6 +29,7 @@ export async function runEnvWf(entry: string, argv: string[]) {
 		createWorktree,
 		removalPlan,
 		reviewUI: { available: isPlannotatorPresent, annotate: annotateFile, reviewDiff },
+		presentation: t3Presentation(process.env),
 		inbox: questionInbox,
 		opener: herdrOpener,
 		processCwds,
