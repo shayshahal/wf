@@ -125,6 +125,17 @@ try {
 	const movedNotes = nodeRun([join(moved, 'scripts', 'wf.mjs'), 'notes'], moved);
 	check('the copy runs from its new path', movedNotes.status === 0 && movedNotes.stdout.includes(forward(moved)), tail(movedNotes));
 	check('nothing points back at the path it was exported to', !movedNotes.stdout.includes(forward(copy)), tail(movedNotes));
+	// #184: a relocated kit must be able to start agreement before its class A ticket exists.
+	const movedEntry = join(moved, 'scripts', 'wf.mjs');
+	rmSync(join(fixture, 'task-record', 'TICKET.md'));
+	writeFileSync(join(fixture, '.wf', 'state.json'), `${JSON.stringify({ wf_version: 2, round: 'task-1', id: 'TASK-1', folder: 'task-record', class: 'A', base: 'HEAD', step: 'classify', entry: forward(movedEntry) })}\n`);
+	const freshNext = nodeRun([movedEntry, 'next'], fixture);
+	check('a relocated export routes a fresh class A round to agreement', freshNext.status === 0 && freshNext.stdout.startsWith('work agree:') && freshNext.stdout.includes('TICKET.md') && !namesSourceCheckout(freshNext.stdout), tail(freshNext));
+	const freshBrief = nodeRun([movedEntry, 'brief', 'agree'], fixture);
+	check('a relocated export serves the missing-ticket agreement brief from its own runtime', freshBrief.status === 0 && freshBrief.stdout.includes('## Intent') && freshBrief.stdout.includes('do not invent it') && freshBrief.stdout.includes(forward(moved)) && !namesSourceCheckout(freshBrief.stdout), tail(freshBrief));
+	writeFileSync(join(fixture, 'task-record', 'TICKET.md'), '# TASK-1\n\n## Intent\n- "the slider jumps" — reporter, 2026-10-01\n');
+	const readyNext = nodeRun([movedEntry, 'next'], fixture);
+	check('a relocated export starts class A build after intent is recorded', readyNext.status === 0 && readyNext.stdout.startsWith('work build:'), tail(readyNext));
 
 	// Re-export from a copy, through the copy's own wrapper: the skill source is the copy itself, two
 	// levels above its runtime folder.

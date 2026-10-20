@@ -159,13 +159,15 @@ export function revisionSha(toplevel: string, klass: RoundClass | null | undefin
 	return createHash('sha256').update([section(text, 'Agreed'), section(text, 'Verification')].map((x) => (x ?? '').trim()).join('\n---\n')).digest('hex');
 }
 
-// Pure: null when `text` is an agreement a build can start from, else why not. Class A: the ticket
-// needs `## Intent` (composePrompt enforces that) and nothing else — no AGREEMENT.md, no extra
-// artifact to record the repro (#110). Class B/C: the observed facts and the agreed behavior are the
-// two halves a T1 decision needs; the verification cases are what `wf check` runs. A readable
-// T2 walk or an explicit no-walk reason is required before that approval.
+/** Return the agreement gap before build: class A needs a ticket with intent; B/C also needs
+ * observed facts, agreed behavior, verification cases and a T2 walk before approval. */
 export function agreementGap(text: string | null | undefined, klass: RoundClass | null | undefined, branch: string | null = null): string | null {
-	if (!consequential(klass)) return null;
+	// #184 (2026-10-20): next skipped the ticket and step build refused it. Share the minimum here
+	// so dispatch and direct build cannot disagree about a missing ticket or empty intent.
+	if (!consequential(klass)) {
+		if (text == null) return `no ${TICKET_FILE}`;
+		return section(text, 'Intent')?.trim() ? null : `${TICKET_FILE} has no \`## Intent\` — the requester's words, verbatim and attributed`;
+	}
 	if (text == null) return `no ${AGREEMENT_FILE}`;
 	const observed = (section(text, 'Observed') ?? '').split('\n').filter((l) => l.trim() && !l.trim().startsWith('<!--')).length;
 	if (!observed) return `${AGREEMENT_FILE} has no \`## Observed\` facts — each with its source (path:line or a command)`;

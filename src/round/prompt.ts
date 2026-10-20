@@ -90,12 +90,12 @@ export function composePrompt(argv: string[]) {
 	let ticket = '';
 	try { ticket = readFileSync(join(toplevel, folder!, TICKET_FILE), 'utf8'); } catch { /* reported below */ }
 	const intent = ticketIntent(ticket);
-	if (!intent) throw new Error(`${phase}: ${folder}/TICKET.md has no \`## Intent\` — the requester's words, verbatim and attributed`);
+	if (!intent && (phase !== 'agree' || consequential(klass))) throw new Error(`${phase}: ${folder}/TICKET.md has no \`## Intent\` — the requester's words, verbatim and attributed`);
 	const agreementText = existsSync(agreementPath(toplevel, klass, folder)) ? readFileSync(agreementPath(toplevel, klass, folder), 'utf8') : '';
 	// Owner feedback (`## Decisions`, wf decide) reaches the build and the assessment through
 	// `agreedMaterial` in the `{{agreement}}` of both templates — one projection, so the text is not
 	// duplicated (#114 closure, F2).
-	const vars: PromptVars = { presentation: `${decisionSheetGuidance()}\n${seams.presentation?.guidance ?? ''}`, round: id, folder, base: state?.base ?? `origin/${baseBranch}`, intent, agreement: agreedMaterial(agreementText, klass), file: agreementFile(klass), assessment: '', review: '', answers: '', assessmentFile: ASSESSMENT_FILE, assessmentBase: state?.base ?? `origin/${baseBranch}` };
+	const vars: PromptVars = { presentation: `${decisionSheetGuidance()}\n${seams.presentation?.guidance ?? ''}`, round: id, folder, base: state?.base ?? `origin/${baseBranch}`, intent: intent ?? `No requester intent is recorded yet. Write \`${folder}/TICKET.md\` with \`## Intent\`: the requester's words, verbatim and attributed, from the current task or its linked source. If that source is unavailable, ask the person for the request before proceeding; do not invent it.`, agreement: agreedMaterial(agreementText, klass), file: agreementFile(klass), assessment: '', review: '', answers: '', assessmentFile: ASSESSMENT_FILE, assessmentBase: state?.base ?? `origin/${baseBranch}` };
 	const assessmentFile = ASSESSMENT_FILE;
 	// The project's direct URLs, {{<app>}}: Node on Windows cannot resolve *.localhost.
 	try {
