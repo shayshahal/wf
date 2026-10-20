@@ -1,11 +1,11 @@
 // projects/jewelryx/checks.ts — wf check's commands for a JewelryX diff (index.ts checks):
 //   backend  — ruff check + ruff format --check, pytest for the changed tests
-//   frontend — svelte-check for the touched packages, vitest for the changed tests
+//   frontend — check:fast (prep + svelte-check) for touched packages, vitest for changed tests
 //   pre-commit — the repo's own lefthook pre-commit hook on the changed files, first, when it has one
 //              (prettier, eslint and oxlint with --fix, ruff --fix: it rewrites and stages what it fixes)
 //   oracle-guard — refused outright when the round's diff against the base touches the oracle (below)
 //   pre-push — the repo's own lefthook pre-push hook on the changed files, when it has one (it runs
-//              the stricter svelte-check, so the --tsgo one above is dropped then)
+//              the stricter prepared check, so check:fast above is dropped then)
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import type { CheckTask } from '../../src/gates/check.ts';
@@ -91,7 +91,7 @@ function affectedTasks({ changed, pkgFor, pushHook, onDisk }: { changed: string[
 		if (isJsTest(f) && onDisk(f)) pkgs.get(pkg.name)!.tests.push(relative(pkg.dir, f).replace(/\\/g, '/'));
 	}
 	for (const pkg of pkgs.values()) {
-		if (pkg.svelte && !pushHook) add({ label: `svelte-check ${pkg.name}`, cmd: 'pnpm', args: ['--filter', pkg.name, 'exec', 'svelte-check', '--threshold', 'error', '--incremental', '--tsgo'], cwd: '.' });
+		if (pkg.svelte && !pushHook) add({ label: `check:fast ${pkg.name}`, cmd: 'pnpm', args: ['--filter', pkg.name, 'check:fast'], cwd: '.' });
 		if (pkg.tests.length) add({ label: `vitest ${pkg.name} ${pkg.tests.join(' ')}`, cmd: 'pnpm', args: ['--filter', pkg.name, 'exec', 'vitest', 'run', ...pkg.tests], cwd: '.' });
 	}
 

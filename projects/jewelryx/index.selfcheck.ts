@@ -25,6 +25,8 @@ check('direct: B2B on P, admin P+20000, API on 127.0.0.1 at P+10000', direct.b2b
 check('with no machine names, a person gets the direct addresses, B2B first (wf status probes it)', JSON.stringify(stackUrls({ slug: 's', port: 12345 })) === JSON.stringify(direct) && Object.keys(direct)[0] === 'b2b');
 check('setup steps in wt order: env node verify tools db', Object.keys(setup).join(' ') === 'env node verify tools db', Object.keys(setup).join(' '));
 
+check('node setup prepares both frontend checks after the shared builds in one serial chain', setup.node === 'pnpm install --frozen-lockfile && pnpm build:types && pnpm build:data && pnpm build:filters && pnpm --filter jewelryx-admin-dashboard check:prep && pnpm --filter jewelryx-frontend check:prep', String(setup.node));
+
 // ── the bare control-jewelryx: a shim that runs the cwd's worktree's own copy
 {
   const home = mkdtempSync(join(tmpdir(), 'wf-shim-'));

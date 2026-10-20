@@ -48,6 +48,15 @@ try {
  assert.equal(logs().at(-1).result, 'changed');
  const invalid = cli(['--case', '1']);
  assert.equal(invalid.status, 1); assert.match(invalid.stderr, /take no arguments/);
+ mkdirSync(join(repo, 'packages/frontend/b2b/src'), { recursive: true });
+ writeFileSync(join(repo, 'packages/frontend/b2b/package.json'), JSON.stringify({ name: 'jewelryx-frontend' }));
+ writeFileSync(join(repo, 'packages/frontend/b2b/svelte.config.js'), 'export default {};\n');
+ writeFileSync(join(repo, 'packages/frontend/b2b/src/page.svelte'), '<p>changed</p>\n');
+ writeFileSync(join(bin, process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm'), process.platform === 'win32' ? '@node "%~dp0stub.cjs" %*\r\n' : '#!/bin/sh\nexec node "$(dirname "$0")/stub.cjs" "$@"\n', { mode: 0o755 });
+ const frontend = cli();
+ assert.equal(frontend.status, 0, frontend.stdout + frontend.stderr);
+ assert.equal(logs().at(-1).tasks.at(-1).label, 'check:fast jewelryx-frontend');
+ assert.deepEqual(JSON.parse(readFileSync(calls, 'utf8').trim().split('\n').at(-1)!), ['--filter', 'jewelryx-frontend', 'check:fast']);
  const before = readFileSync(calls, 'utf8');
  git('switch', '-qc', 'fix/protected');
  mkdirSync(join(repo, 'verification'));

@@ -13,6 +13,11 @@ request, 500 or blank screen, inspect `control-jewelryx errors` (or `.wf/logs/de
 guessing.
 Measure the promised behavior, not just a new CSS/accessibility attribute.
 
+For frontend type checks, run the affected package's `pnpm --filter <package-name> check:fast`,
+not a bare `svelte-check`: the package script prepares paraglide and `.svelte-kit` output first.
+Missing generated output is an environment failure (`NOT MEASURED`), not evidence of a product
+failure. Restore prep and rerun before interpreting the diagnostics.
+
 For T2, record the live recipe in the working document:
 ```
 - **T2 walk.** open: <b2b|admin> /<path> as <buyer|seller|admin> [mobile]

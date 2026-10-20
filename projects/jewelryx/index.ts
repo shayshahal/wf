@@ -199,7 +199,8 @@ export const setup: Record<string, SetupStep> = {
 		const dir = installShim([join(homedir(), 'bin'), join(homedir(), '.local', 'bin')].filter((d) => onPath.includes(norm(d))));
 		if (!dir) console.warn('wf: no ~/bin or ~/.local/bin on PATH, so `control-jewelryx` is not a bare command; run it as node docs/agents/verify-jewelryx/control-jewelryx.mjs');
 	},
-	node: 'pnpm install --frozen-lockfile && pnpm build:types && pnpm build:data && pnpm build:filters',
+	// #185 (JX-1427): ignored paraglide/.svelte-kit output must exist before a fresh check.
+	node: 'pnpm install --frozen-lockfile && pnpm build:types && pnpm build:data && pnpm build:filters && pnpm --filter jewelryx-admin-dashboard check:prep && pnpm --filter jewelryx-frontend check:prep',
 	verify: 'pnpm --dir verification install --ignore-workspace',
 	tools: 'node scripts/link-tools.mjs',
 	async db({ worktree, slug, port }: { worktree: string } & Stack) {
