@@ -71,7 +71,7 @@ check('stranded: a dead run\'s database and its suffixed one; not a running run\
 // ── the tracker note
 const note = trackerNote({ ids: ['JX-1112', 'JX-1113'], url: 'https://github.com/x/y/pull/7' });
 check('the note is JIRA.md', note.file === 'JIRA.md');
-check('one section per id, each with the PR url', note.text.includes('## JX-1112\nתוקן ✅') && note.text.includes('## JX-1113\nתוקן ✅') && note.text.split('PR: https://github.com/x/y/pull/7').length === 3, note.text);
+check('one section per id, each with the PR url', note.text.includes('## JX-1112\nהשינוי מוכן ב-PR וממתין למיזוג.') && note.text.includes('## JX-1113\nהשינוי מוכן ב-PR וממתין למיזוג.') && note.text.split('PR: https://github.com/x/y/pull/7').length === 3, note.text);
 check('the scaffold carries no code: it is filled for the reporter, in Hebrew', !/Cause|Approach|\.py|\.ts|:\d/.test(note.text.replace(/https:\/\/\S+/g, '')) && note.text.includes('מה היה:') && note.text.includes('לבדיקה:'), note.text);
 
 // ── the worktree's .env (cases from the project's sanitize-worktree-env test)

@@ -74,6 +74,7 @@ export type Snapshot = {
 	corrections?: State['corrections'];
 	mergeAttempt?: State['merge_attempt'];
 	delivery?: State['delivery'];
+	prHandoff?: State['pr_handoff'];
 	id?: string;
 	ids?: string[];
 	/** A merged round cannot post/reap on the old delivery while carrying new product work. */
@@ -124,7 +125,12 @@ export function nextAction(s: Snapshot, purpose: 'next' | 'brief' = 'next'): { s
 		if (s.mergedGap) return act(`wait user: ${s.mergedGap.reason}`);
 		return act(`done: \`${wf} reap ${s.branch}\``);
 	}
-	if (s.step === 'pr' && !corrections.length) return act(`deliver: T2 approved — \`${wf} deliver\` (push, PR, merge, the tracker note), then \`${wf} next\``);
+	if (s.step === 'pr' && s.prHandoff && !corrections.length && s.head === s.prHandoff.head) {
+		const left = unpostedSections(s.note?.text ?? null);
+		if (left.length) return act(`post: ${left.join(', ')} — fill and post ${s.note!.file} using the project command (ROUND.md), stating the work is in the open PR awaiting merge. Then \`${wf} next\``);
+		return act(`wait user: PR ${s.prHandoff.url} remains open for human merge; after it merges run \`${wf} deliver\` to reconcile, then \`${wf} next\``);
+	}
+	if (s.step === 'pr' && !corrections.length) return act(`deliver: T2 approved — \`${wf} deliver\` (push, open PR, tracker note; leave the PR open), then \`${wf} next\``);
 
 	// The class is measured from what the round actually does — a declared `Class:` line, a verification
 	// case, or a changed file that reaches a contract path. It runs at every working step, so an A round
@@ -336,6 +342,7 @@ export function snapshotOf(toplevel: string): Snapshot {
 		corrections: state.corrections,
 		mergeAttempt: state.merge_attempt,
 		delivery: state.delivery,
+		prHandoff: state.pr_handoff,
 		id: state.id,
 		ids: state.ids,
 		repairs: state.repairs ?? 0,

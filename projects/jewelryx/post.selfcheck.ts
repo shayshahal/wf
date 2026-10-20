@@ -27,9 +27,9 @@ check('JX-11 does not mark JX-1112', markPosted(filled, 'JX-11') === filled);
 // JX-268 (2026-10-07): the pictures go up with the comment, named under the PR so a re-run knows them.
 const pics = picturesOf('7', ['after-1.png', 'before-1.png', 'after-2.png', 'trace.zip']);
 check('pictures pair by number, named under the PR', JSON.stringify(pics) === JSON.stringify([{ before: { file: 'before-1.png', as: '7-before-1.png' }, after: { file: 'after-1.png', as: '7-after-1.png' } }, { after: { file: 'after-2.png', as: '7-after-2.png' } }]), JSON.stringify(pics));
-const body = commentBody('תוקן ✅\nPR: u', pics);
-check('the comment shows each picture in it, before then after', body === 'תוקן ✅\nPR: u\n\nלפני:\n!7-before-1.png|thumbnail!\nאחרי:\n!7-after-1.png|thumbnail!\nאחרי:\n!7-after-2.png|thumbnail!', body);
-check('no pictures: the text alone', commentBody('תוקן ✅', []) === 'תוקן ✅');
+const body = commentBody('השינוי מוכן ב-PR וממתין למיזוג.\nPR: u', pics);
+check('the comment shows each picture in it, before then after', body === 'השינוי מוכן ב-PR וממתין למיזוג.\nPR: u\n\nלפני:\n!7-before-1.png|thumbnail!\nאחרי:\n!7-after-1.png|thumbnail!\nאחרי:\n!7-after-2.png|thumbnail!', body);
+check('no pictures: the text alone', commentBody('השינוי מוכן ב-PR וממתין למיזוג.', []) === 'השינוי מוכן ב-PR וממתין למיזוג.');
 
 // JX-1239: a round shot named after-only screenshots; the post attached zero, silently.
 const incident = ['after-he-1280-assess.png', 'after-he-1024-assess.png', 'after-start-now-checked.png', 'listing.png', 'trace.zip'];
@@ -42,7 +42,7 @@ check('nothing attached is said too', pictureNotes([]) === 'attached 0: none sel
 // JX-1392 (2026-10-14, #148): proof/ held 15 labeled captures, superseded states among them; the note meant
 // after-1.png and after-2.png, and the post took all 15. Only the section's pictures: line goes up.
 const superseded = ['before-1.png', 'after-1.png', 'after-2.png', 'after-3.png', 'after-empty-list.png', 'after-old-labels.png', 'after-he-1280-assess.png', 'listing.png', 'trace.zip'];
-const sec = (pictures: string | null) => ({ key: 'JX-1392', posted: false, text: ['תוקן ✅', ...(pictures === null ? [] : [pictures]), 'PR: https://github.com/x/y/pull/7'].join('\n') });
+const sec = (pictures: string | null) => ({ key: 'JX-1392', posted: false, text: ['השינוי מוכן ב-PR וממתין למיזוג.', ...(pictures === null ? [] : [pictures]), 'PR: https://github.com/x/y/pull/7'].join('\n') });
 const files = (pictures: string | null, names = superseded) => { const r = selectedPictures(sec(pictures), names); return 'files' in r ? r.files.join() : `GAP ${r.gap}`; };
 check('selection: only the named pictures, never the rest of proof/', files('pictures: after-1.png after-2.png') === 'after-1.png,after-2.png', files('pictures: after-1.png after-2.png'));
 check('selection: a picture named twice (with or without proof/, comma or space) is taken once', files('pictures: after-2.png, proof/after-2.png after-2.png') === 'after-2.png');
@@ -54,9 +54,9 @@ check('selection: two pictures: lines are refused', files('pictures: after-1.png
 check('selection: an empty line, or none with files, is refused', files('pictures:').startsWith('GAP') && files('pictures: none after-1.png').startsWith('GAP'));
 check('selection: a file not in proof/ is refused, by name', files('pictures: after-9.png') === 'GAP JX-1392: pictures: after-9.png not in proof/', files('pictures: after-9.png'));
 check('selection: internal evidence not named before-/after- cannot be selected', files('pictures: listing.png').includes('listing.png not named before-<label> or after-<label>'), files('pictures: listing.png'));
-check('the comment text leaves out the pictures: line', commentText(sec('pictures: after-1.png')) === 'תוקן ✅\nPR: https://github.com/x/y/pull/7');
+check('the comment text leaves out the pictures: line', commentText(sec('pictures: after-1.png')) === 'השינוי מוכן ב-PR וממתין למיזוג.\nPR: https://github.com/x/y/pull/7');
 const preview = previewOf(sec('pictures: after-1.png after-2.png'), ['after-1.png', 'after-2.png'], superseded);
-check('the preview shows the comment, the exact files, and what stays in the round', preview === 'JX-1392: comment:\n  תוקן ✅\n  PR: https://github.com/x/y/pull/7\nJX-1392: pictures (2): after-1.png, after-2.png\nJX-1392: not posted, kept as round evidence (6): before-1.png, after-3.png, after-empty-list.png, after-old-labels.png, after-he-1280-assess.png, listing.png', preview);
+check('the preview shows the comment, the exact files, and what stays in the round', preview === 'JX-1392: comment:\n  השינוי מוכן ב-PR וממתין למיזוג.\n  PR: https://github.com/x/y/pull/7\nJX-1392: pictures (2): after-1.png, after-2.png\nJX-1392: not posted, kept as round evidence (6): before-1.png, after-3.png, after-empty-list.png, after-old-labels.png, after-he-1280-assess.png, listing.png', preview);
 check('the preview says when no picture is selected', previewOf(sec('pictures: none'), [], []).includes('JX-1392: pictures: none selected, the comment goes up with no picture'));
 
 // The real boundary: node post.ts against a git checkout holding the note and proof/, with a Jira that is a
@@ -71,26 +71,27 @@ globalThis.fetch = async (url, init = {}) => {
   if (u.includes('/changelog')) return json({ values: JSON.parse(process.env.STUB_HISTORIES ?? '[]'), isLast: true });
   if (u.includes('/attachments')) { const f = init.body.get('file'); log({ attach: f.name, type: f.type }); return json([]); }
   if (u.endsWith('/comment')) { log({ comment: JSON.parse(init.body).body }); return json({}); }
+  if (u.includes('/transitions')) log({ transition: method });
   if (u.includes('/transitions')) return method === 'POST' ? new Response(null, { status: 204 }) : json({ transitions: [{ id: '31', to: { name: 'Fixed in Local' } }] });
-  return json({ fields: { attachment: JSON.parse(process.env.STUB_ATTACHED ?? '[]').map((filename) => ({ filename })), comment: { comments: [...(process.env.STUB_ALREADY ? [{ body: 'תוקן ✅\nPR: https://github.com/x/y/pull/7', created: '2026-10-12T14:00:00.000+0300', updated: '2026-10-12T14:00:00.000+0300' }] : []), ...JSON.parse(process.env.STUB_COMMENTS ?? '[]')] } } });
+  return json({ fields: { attachment: JSON.parse(process.env.STUB_ATTACHED ?? '[]').map((filename) => ({ filename })), comment: { comments: [...(process.env.STUB_ALREADY ? [{ body: 'השינוי מוכן ב-PR וממתין למיזוג.\nPR: https://github.com/x/y/pull/7', created: '2026-10-12T14:00:00.000+0300', updated: '2026-10-12T14:00:00.000+0300' }] : []), ...JSON.parse(process.env.STUB_COMMENTS ?? '[]')] } } });
 };`);
 // The round began at 12:00:03 +0300 (its first step); `changed` is what the ticket got since.
-type Changed = { histories?: object[]; comments?: object[]; ticketWrittenAt?: string; ticketRead?: string; args?: string[]; pictures?: string | null; attached?: string[] };
+type Changed = { merged?: boolean; histories?: object[]; comments?: object[]; ticketWrittenAt?: string; ticketRead?: string; args?: string[]; pictures?: string | null; attached?: string[] };
 function runPostIn(names: string[], already = false, changed: Changed = {}) {
   const repo = mkdtempSync(join(work, 'repo-'));
   spawnSync('git', ['init', '-q'], { cwd: repo });
   mkdirSync(join(repo, '.wf'));
   mkdirSync(join(repo, 'bug-reports/x/proof'), { recursive: true });
-  writeFileSync(join(repo, '.wf/state.json'), JSON.stringify({ note: 'bug-reports/x/JIRA.md', folder: 'bug-reports/x', id: 'JX-1239', history: [{ step: 'classify', at: '2026-10-12T09:00:03.000Z' }], ...(changed.ticketRead ? { ticket_read: changed.ticketRead } : {}) }));
+  writeFileSync(join(repo, '.wf/state.json'), JSON.stringify({ ...(changed.merged ? { step: 'merged', delivery: { url: 'https://github.com/x/y/pull/7', head: 'a'.repeat(40), contentSha: 'tree:' + 'b'.repeat(40) } } : {}), note: 'bug-reports/x/JIRA.md', folder: 'bug-reports/x', id: 'JX-1239', history: [{ step: 'classify', at: '2026-10-12T09:00:03.000Z' }], ...(changed.ticketRead ? { ticket_read: changed.ticketRead } : {}) }));
   writeFileSync(join(repo, 'bug-reports/x/TICKET.md'), '## Intent\n');
   if (changed.ticketWrittenAt) utimesSync(join(repo, 'bug-reports/x/TICKET.md'), new Date(changed.ticketWrittenAt), new Date(changed.ticketWrittenAt));
   const pictures = changed.pictures === undefined ? 'pictures: none' : changed.pictures;
-  writeFileSync(join(repo, 'bug-reports/x/JIRA.md'), `## JX-1239\nתוקן ✅\n${pictures === null ? '' : `${pictures}\n`}PR: https://github.com/x/y/pull/7\n`);
+  writeFileSync(join(repo, 'bug-reports/x/JIRA.md'), `## JX-1239\nהשינוי מוכן ב-PR וממתין למיזוג.\n${pictures === null ? '' : `${pictures}\n`}PR: https://github.com/x/y/pull/7\n`);
   for (const n of names) writeFileSync(join(repo, 'bug-reports/x/proof', n), 'img');
   const log = join(repo, 'stub.log');
   writeFileSync(log, '');
   const run = spawnSync(process.execPath, ['--import', pathToFileURL(stub).href, fileURLToPath(new URL('./post.ts', import.meta.url)), ...(changed.args ?? [])], { cwd: repo, encoding: 'utf8', env: { ...process.env, JIRA_EMAIL: 'a@b', JIRA_TOKEN: 't', STUB_LOG: log, STUB_HISTORIES: JSON.stringify(changed.histories ?? []), STUB_COMMENTS: JSON.stringify(changed.comments ?? []), STUB_ATTACHED: JSON.stringify(changed.attached ?? []), ...(already ? { STUB_ALREADY: '1' } : {}) } });
-  const calls: { attach?: string; type?: string; comment?: string }[] = readFileSync(log, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
+  const calls: { attach?: string; type?: string; comment?: string; transition?: string }[] = readFileSync(log, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
   return { run, calls, repo, state: JSON.parse(readFileSync(join(repo, '.wf/state.json'), 'utf8')), note: readFileSync(join(repo, 'bug-reports/x/JIRA.md'), 'utf8') };
 }
 const namedPictures = { pictures: 'pictures: after-he-1280-assess.png after-he-1024-assess.png after-start-now-checked.png' };
@@ -99,6 +100,9 @@ check('wf post: the named screenshots are attached to the issue, by their type',
 check('wf post: the comment shows them, and no before', cli.calls.some((c) => c.comment?.includes('!7-after-he-1280-assess.png|thumbnail!') && !c.comment.includes('לפני:')), JSON.stringify(cli.calls));
 check('wf post: its last line names what was attached', /posted with 3 picture\(s\).*attached 3: /.test(cli.run.stdout) && cli.note.includes('## JX-1239 (posted)'), cli.run.stdout + cli.run.stderr);
 check('wf post: the comment carries no pictures: line', cli.calls.some((c) => c.comment && !c.comment.includes('pictures:')), JSON.stringify(cli.calls));
+check('open PR post states awaiting merge and never changes Jira status', cli.calls.some((c) => c.comment?.includes('ממתין למיזוג')) && !cli.calls.some((c) => c.transition), JSON.stringify(cli.calls));
+const mergedPost = runPostIn([], false, { merged: true });
+check('confirmed merged delivery can still mark the issue Fixed in Local', mergedPost.run.status === 0 && mergedPost.calls.some((c) => c.transition === 'POST'), mergedPost.run.stderr);
 const jpg = runPostIn(['before-a.jpg', 'after-a.webp'], false, { pictures: 'pictures: before-a.jpg after-a.webp' });
 check('wf post: jpg and webp go up with their own type', jpg.calls.filter((c) => c.attach).map((c) => c.type).sort().join() === 'image/jpeg,image/webp', JSON.stringify(jpg.calls));
 const again = runPostIn(incident, true, namedPictures);
@@ -123,7 +127,7 @@ const resumed = runPostIn(superseded, false, { pictures: 'pictures: after-1.png 
 check('wf post: a retry after a partial upload attaches only the missing selected picture, comments once', attachedOf(resumed) === '7-after-2.png' && resumed.calls.filter((c) => c.comment).length === 1 && resumed.calls.find((c) => c.comment)!.comment!.includes('!7-after-1.png|thumbnail!'), JSON.stringify(resumed.calls));
 
 // JX-810 (2026-10-12): the requirement was corrected in a comment and the description rewritten while the round ran;
-// wf post said "תוקן ✅" and set Fixed in Local against the old text. It refuses now, and says what changed.
+// wf post said "השינוי מוכן ב-PR וממתין למיזוג." and set Fixed in Local against the old text. It refuses now, and says what changed.
 const edited = [{ created: '2026-10-12T13:43:02.638+0300', author: { displayName: 'Einat Shahal' }, items: [{ field: 'description' }] }];
 const commented = [{ body: 'תיקון דרישה', created: '2026-10-12T13:18:34.637+0300', updated: '2026-10-12T13:18:34.637+0300', author: { displayName: 'Einat Shahal' } }];
 const stale = runPostIn(incident, false, { histories: edited, comments: commented });

@@ -59,8 +59,9 @@ not a finding about the product.
 | `wait … q<n>` / blocked work | Follow [questions and blockers](references/questions.md). Continue only independent authorized work while the blocking question remains open. |
 | `wait user: T1 …` / `review:` | Follow [human review](references/review.md). Record the person's actual verdict on the material shown; an agent cannot supply approval. |
 | `wait user: harness …` | Record the exact missing capability and rerun command. Use [capability fallbacks](references/capabilities.md); preserve the work rather than repeatedly rebuilding or repairing unrelated infrastructure. |
-| `deliver:` | Run `wf deliver`. It reconciles interrupted remote effects and refuses stale approval. T2 authorizes this delivery, not deployment. |
-| `post:` | Follow `wf notes` to fill and post the delivered note using the project's command. Mark each section ` (posted)` at once so a resumed round does not post it twice. |
+| `deliver:` | Run `wf deliver`. It reconciles interrupted remote effects and refuses stale approval. T2 authorizes publishing the PR; leave it open for human merge. |
+| `wait user: PR …` | Leave the PR, branch and worktree intact for human merge. After the person merges, run `wf deliver` to reconcile, then `wf next`. |
+| `post:` | Follow `wf notes` to fill and post the note saying the work is in the linked PR awaiting merge using the project's command. Mark each section ` (posted)` at once so a resumed round does not post it twice. |
 | `done:` | Leave the round's bound session; run the named `wf reap` from a surviving checkout/session, then report the delivered PR and cleanup result. |
 
 **Corrections.** A clear round-linked instruction that arrives from the person in chat, review, Inbox,
@@ -111,7 +112,7 @@ Preserve these guarantees on every harness:
   report; answer findings in the working document rather than rewriting their verdict.
 - Keep `NOT MEASURED`, environment failures and product failures distinguishable. A substitute check
   counts only for the behavior it actually proves.
-- Merge only through `wf deliver` after the person's T2. Deploy remains the person's authority.
+- `wf deliver` publishes the approved PR and leaves it open. Post the project note stating the work is in the PR awaiting merge. Merge and deploy remain the person's authority.
   Restrict repository permissions/credentials when an enforcement boundary stronger than instructions
   and local checks is required.
 - Keep scope, unanswered questions, corrections, evidence references and remote-effect receipts on
