@@ -6,6 +6,7 @@ import { plug, seams } from './seams.ts';
 import type { Command, Seams } from './seams.ts';
 import { refusalKind, refuseCaller } from './refusal.ts';
 import { deliveredCommandGap } from './round/delivered-round.ts';
+import { t3SessionSeams } from './plugin/t3code.ts';
 
 // A wf command that exits non-zero inside a round goes to .wf/events.log, for the line reap prints
 // (friction.ts): a refusal was only in the session's scrollback until 2026-09-28. Its message is the
@@ -44,7 +45,8 @@ async function usage() {
 }
 
 export async function run(argv: string[], pieces: Partial<Seams> = {}) {
-	plug(pieces);
+	// JX-1433: the skill enters the kit, not the machine entry. Host capabilities belong to both.
+	plug({ ...t3SessionSeams({ ...process.env }), ...pieces });
 	const [cmd, ...rest] = argv;
 	if (wantsHelp(argv)) {
 		console.log(`${await usage()}\nPortable skill: wf skill export <new-directory>\nStart by reading the round SKILL.md; wf notes prints project guidance and workflow references.`);

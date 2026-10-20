@@ -1,5 +1,7 @@
 # {{round}} — build
 
+{{presentation}}
+
 Implement the agreement at `{{folder}}/{{file}}`.
 
 {{agreement}}

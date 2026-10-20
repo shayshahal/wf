@@ -45,8 +45,9 @@ Missing capabilities produce an explicit blocker/handover, not a silently weaker
 A configured machine launcher is still useful for machine-specific infrastructure. Keep using the
 entry that created an existing task: changing harnesses does not authorize changing its environment.
 `WF_NO_OPEN=1` suppresses external editor/browser windows for a remote or UI-owning harness.
-Shay's entry detects T3 Code and supplies native-tool handoffs ahead of external review UI; the
-session executes those tools and records the person's actual ruling. Claude Code retains its
+Both the kit (including installed/exported skill bootstraps) and machine entries detect authenticated
+T3 Code sessions and supply native-tool handoffs ahead of external review UI. This keeps the round's
+entry and machine identity unchanged; the session executes the tools and records the actual ruling. Claude Code retains its
 no-external-window default. Human-facing documents use compact decision sheets and visual views
 (`process/SHOW-ME.md`); generated UI presents the files, never replaces their approval identity. Inbox,
 review UI, delegation, wakeups and durable execution are optional conveniences; plain sessions save
@@ -109,7 +110,7 @@ and resume rather than claiming to run after exit.
     its action; an explicit stop refuses and preserves the record.
   - `src/skill/skill-export.ts`: exports the self-contained skill from the canonical instructions and kit;
   - `src/plugin/`: `plugin.ts` writes `claude/agents/` from `agents/`; `anchor.ts` fills the paths
-    in text (below)
+    in text (below); `t3code.ts` + `t3-workspace.ts` supply portable native presentation and workspace binding
   - `src/selfcheck.ts` runs every selfcheck and tsc; `src/boundary.selfcheck.ts` fails if the kit
     reaches into `env/`
 - `env/`: Shay's machine, which the kit never imports: worktrunk and its hooks (`env/hook.ts`,
@@ -130,8 +131,10 @@ and resume rather than claiming to run after exit.
 
 Runtime templates name wf's files as `{{wf}}/…` and project notes as `{{project}}/…`.
 `wf prompt` / `wf brief` and `wf notes` fill in the current paths when read (`anchor.ts`); installation
-keeps those templates relocatable. Skill references are relative. Only machine-installed optional
-helper profiles have their installed location filled in ahead of time.
+keeps those templates relocatable. Phase briefs inline the canonical decision-sheet rules from
+`process/SHOW-ME.md` before ticket context, rather than relying on the agent to follow a style link.
+Skill references are relative. Only machine-installed optional helper profiles have their installed
+location filled in ahead of time.
 
 ## Install (the team: the Claude Code plugin)
 

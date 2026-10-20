@@ -1,5 +1,7 @@
 # {{round}} — independent final assessment
 
+{{presentation}}
+
 Read the agreement, the diff since `{{assessmentBase}}`, prior findings, recorded decisions and
 the builder's actual verification evidence. Judge whether the implementation meets the agreement;
 do not change product code.

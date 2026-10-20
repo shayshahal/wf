@@ -6,6 +6,9 @@ person must decide or know. Show relationships as a view; use prose for the reas
 ## Read less
 
 - **Decision first.** One line: proposed change, result, or question. Name the person's next action.
+- **Plain language.** Explain what the person sees or what changes, then the engineering reason
+  only where it affects their decision. Keep file names, workflow bookkeeping and logs in supporting
+  references.
 - **One claim per bullet.** Concrete subject + action. Use short labels and ordinary words; no new
   controlled-language parser or mandatory response tokens.
 - **Change, proof, limits.** A small before/after or evidence table beats a narrative of the work.

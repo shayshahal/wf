@@ -5,10 +5,10 @@ import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSyn
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { WF_ROOT } from '../../src/paths.ts';
-import { agreementSha } from '../../src/round/agreement.ts';
-import { approvalIdentity, trackerNotePath } from '../../src/gates/content-identity.ts';
-import { lastField, readVerdict } from '../../src/gates/review-format.ts';
+import { WF_ROOT } from '../paths.ts';
+import { agreementSha } from '../round/agreement.ts';
+import { approvalIdentity, trackerNotePath } from '../gates/content-identity.ts';
+import { lastField, readVerdict } from '../gates/review-format.ts';
 import { t3Presentation, t3WorkspaceHandoff } from './t3code.ts';
 
 assert.equal(t3Presentation({}), null);
@@ -55,15 +55,15 @@ const checkpoint = join(repo, folder, 'CHECKPOINT-REVIEW.md');
 const moduleUrl = (path: string) => JSON.stringify(pathToFileURL(join(WF_ROOT, path)).href);
 const includesPath = (text: string, path: string) => text.replaceAll('\\', '/').includes(path.replaceAll('\\', '/'));
 const git = (...args: string[]) => execFileSync('git', ['-C', repo, '-c', 'core.autocrlf=false', '-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { encoding: 'utf8' }).trim();
-// A separate process uses env/wf.ts's real adapter wiring against a local HTTP MCP server. Only
+// A separate process exercises host adapters against a local HTTP MCP server. Only
 // the native server and product stack are fixtures; binding reads, Git and review records are real.
 const invoke = (operation: 'agree' | 'prompt' | 'review' | 'done', insideT3 = true, base = 'main', binding = repo) => {
 	const code = `
 import { run } from ${moduleUrl('src/run.ts')};
 import { plug } from ${moduleUrl('src/seams.ts')};
 import { runReview } from ${moduleUrl('src/gates/review.ts')};
-import { t3Presentation, t3WorkspaceHandoff } from ${moduleUrl('env/adapters/t3code.ts')};
-import { readT3BoundWorkspace } from ${moduleUrl('env/adapters/t3-workspace.ts')};
+import { t3Presentation, t3WorkspaceHandoff } from ${moduleUrl('src/plugin/t3code.ts')};
+import { readT3BoundWorkspace } from ${moduleUrl('src/plugin/t3-workspace.ts')};
 import { createServer } from 'node:http';
 let nativeServer = null;
 if (${insideT3}) {
@@ -122,7 +122,7 @@ try {
 
 	const prompt = invoke('prompt');
 	assert.equal(prompt.status, 0, prompt.stderr);
-	assert.match(prompt.stdout, /compact decision-sheet/);
+	assert.match(prompt.stdout, /Decision first/);
 	assert.match(prompt.stdout, /Native presentation — T3 Code/);
 	assert.match(prompt.stdout, /html_preview.*html_render/s);
 	assert.match(prompt.stdout, /Workspace binding:.*worktree_status.*round checkout/);

@@ -31,7 +31,9 @@ if (requested.length) console.log(`selfcheck: focused (${selected.length} of ${f
 // on this one (2026-10-06, a push from a worktree: git-worktree.selfcheck.ts's `git init` set the
 // clone's core.bare, its `base` commit landed on the pushed branch, its `round/mine` in the clone).
 // Without them each check's git finds its repo from its cwd, as when it is run by hand.
-const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('GIT_')));
+// Fixture checkouts are not the calling T3 thread's workspace. Native checks supply their own
+// local MCP credentials; inheriting the live host's would query it for every throwaway round.
+const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('GIT_') && !k.startsWith('T3_') && !k.startsWith('T3CODE_')));
 const run = (label: string, args: string[]) => new Promise<Result>((resolve) => {
 	const started = performance.now();
 	const child = spawn(process.execPath, args, { cwd: root, env });
