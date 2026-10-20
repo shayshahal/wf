@@ -85,8 +85,10 @@ verification, one independent final assessment and final T2. Agents own steps an
 Optional human-agreed checkpoints use `wf review --checkpoint`; approval resumes build and never
 permits delivery. Verification plans remain working guidance, not executable case/unit state.
 
-One round is one PR to the base branch: CI runs on it, T2 approves it, and it merges with
-`gh pr merge <n> --merge` (a merge commit, not a squash). The round folder merges with it and stays: it is the round's memory.
+One round is one PR to the base branch. After T2, `wf deliver` publishes it and leaves it open,
+then the project tracker note says the work is in the linked PR awaiting merge. The worktree and
+branch remain until the person merges. Run `wf deliver` again after that merge to record the
+confirmed receipt and unlock normal reap. The round folder merges with it and stays: it is the round's memory.
 Further product work starts a fresh branch through `wf new <new-branch> --reopen --class A|B|C
 --id <id>`, with earlier deliveries/rulings linked in `EARLIER.md` and fresh agreement, assessment and
 T2. A merged round refuses workflow mutations, and post/reap is not its next action when product

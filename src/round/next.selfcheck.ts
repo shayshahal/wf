@@ -141,6 +141,10 @@ check('clean material prose does not create an escalation', say(material).starts
 // ── T2 / delivery
 check('an open question holds the round before anything else', say(base({ step: 'assess', questions: [{ n: 3, to: 'einat', text: 'which label?', asked: 't' }] })) === 'wait einat: q3 which label?');
 check('a review dismissed without a verdict waits on the user', say(base({ step: 'review', files: { agreement: null, assessment: ASSESS(), review: 'verdict: dismissed\n', blocked: null } })).startsWith('wait user: T2 was closed'), say(base({ step: 'review' })));
+const handedOff = base({ step: 'pr', head: 'h1', prHandoff: { url: 'https://github.com/o/r/pull/1', head: 'h1', contentSha: 'tree:' + 'a'.repeat(40) }, note: { file: 'NOTE.md', text: '## JX-1 (posted)\n' } });
+check('posted open PR waits for human merge without reap', say(handedOff).startsWith('wait user: PR') && !say(handedOff).includes('reap'), say(handedOff));
+check('unposted open PR posts before waiting', say({ ...handedOff, note: { file: 'NOTE.md', text: '## JX-1\n' } }).startsWith('post:'));
+check('changed HEAD cannot reuse the open handoff', say({ ...handedOff, head: 'h2' }).startsWith('deliver:'));
 check('pr → deliver', say(base({ step: 'pr' })).startsWith('deliver: T2 approved'));
 check('merged with no note sections left → done and reap', say(base({ step: 'merged', note: { file: 'bug-reports/r/NOTE.md', text: '## JX-1 (posted)\n' } })) === 'done: `node "C:/wf/wf.mjs" reap fix/r`');
 check('merged with an unposted section → post it first', say(base({ step: 'merged', note: { file: 'bug-reports/r/NOTE.md', text: '## JX-1\n' } })).startsWith('post: JX-1'));

@@ -90,6 +90,8 @@ export type State = {
 	note?: string;
 	/** The remote PR, exact merged head and product identity; follow-ups get a fresh round. */
 	delivery?: DeliveryReceipt;
+	/** Published open PR, separate from confirmed merge evidence. */
+	pr_handoff?: DeliveryReceipt;
 	// When a person last re-read the ticket against the round's paperwork after it changed
 	// (`wf post --ticket-reread`): changes before it are read; the round's first step is the baseline
 	// until then (projects/jewelryx/ticket-changes.ts).
@@ -202,6 +204,10 @@ export function readState(toplevel: string): State | null {
 	if ('merge_attempt' in parsed && parsed.merge_attempt !== null) {
 		const attempt = parsed.merge_attempt;
 		if (typeof attempt !== 'object' || Array.isArray(attempt) || !('url' in attempt) || typeof attempt.url !== 'string' || !/^https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/pull\/\d+$/.test(attempt.url) || !('head' in attempt) || typeof attempt.head !== 'string' || !/^[a-f0-9]{40}$/.test(attempt.head) || !('contentSha' in attempt) || typeof attempt.contentSha !== 'string' || !/^tree:[a-f0-9]{40}$/.test(attempt.contentSha) || !('correctionsSha' in attempt) || typeof attempt.correctionsSha !== 'string' || !/^[a-f0-9]{64}$/.test(attempt.correctionsSha) || !('at' in attempt) || typeof attempt.at !== 'string' || !Number.isFinite(Date.parse(attempt.at))) throw new CorruptStateError(file, 'invalid merge_attempt');
+	}
+	if ('pr_handoff' in parsed) {
+		const gap = deliveryReceiptGap(parsed.pr_handoff);
+		if (gap) throw new CorruptStateError(file, `invalid PR handoff: ${gap}`);
 	}
 	if ('delivery' in parsed) {
 		const gap = deliveryReceiptGap(parsed.delivery);

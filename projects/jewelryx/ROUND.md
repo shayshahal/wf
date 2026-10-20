@@ -44,7 +44,8 @@ before *Start*.
 | when | status |
 |---|---|
 | `wf new` made the worktree; a check's, when the user says go | *In Progress* |
-| `wf deliver` merged the PR (after T2) | *Fixed in Local*, with the tracker note: the last thing a round does before reap. Shay sets the QA statuses himself when he moves `dev` to QA |
+| `wf deliver` opens the PR (after T2) | Keep *In Progress*; post that the change is in the linked PR awaiting merge |
+| Human merged the PR; `wf deliver` reconciled it | *Fixed in Local*, with the tracker note: the last thing a round does before reap. Shay sets the QA statuses himself when he moves `dev` to QA |
 
 - The tracker note is `JIRA.md` in the round folder (`wf deliver` writes it): one `## <id>` section
   per issue. Fill each section's lines in plain Hebrew from `TICKET.md` and what the round changed, with
@@ -55,7 +56,7 @@ before *Start*.
   the user that. Then `wf post` from the worktree posts it, the same way every round: it prints the
   same preview, then for each section not yet ` (posted)` attaches the files its `pictures:` line
   names to the issue, posts the section (without its `##` and `pictures:` lines) as a comment with
-  those pictures shown in it, sets *Fixed in Local*, and marks the heading itself. Run again, it skips
+  those pictures shown in it, keeps the status while the PR is open (sets *Fixed in Local* only for a confirmed merged delivery), and marks the heading itself. Run again, it skips
   what is already done (a comment with the PR's url, a picture already attached under the PR's
   number). Never post a note or a picture by hand (JX-268,
   2026-10-07: posted without its pictures, the user told to attach them, and the reap after it

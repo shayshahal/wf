@@ -1,15 +1,15 @@
 #!/usr/bin/env node
 import { stopWorktreeServers } from '../worktrees/serve.ts';
 // deliver.ts — wf deliver: after T2 approved (skills/round/SKILL.md). T2 is local and comes first: the
-// approval is the merge, and nothing leaves the machine before it (Shay, 2026-09-27).
+// approval permits publishing the PR; merge remains human-owned (Shay, 2026-10-20).
 //   1. `wf check` with the agreement's verification case (the repro)
 //   2. the PR: the round's own sections in the order a reviewer reads them, the commits, and
 //      ASSESSMENT.md's verdict (the assess agent's check; a word heuristic
 //      here printed "missing: loop" — TJEW-700). Not the agreement verbatim — see prBody.
-//   3. the merge, and the branch deleted
+//   3. leave the PR and branch open for human merge
 //   4. the project's tracker note in the round folder (the round skill posts it last; wf never calls the
 //      tracker), its path in .wf/state.json for `wf next`
-//   5. `wf step merged`
+//   5. retain step pr until a later invocation confirms human merge
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -19,7 +19,7 @@ import { seams } from '../seams.ts';
 import { baseBranch, protectedFilesGap, trackerNote } from '../project.ts';
 import { agreementPath, agreementT2WalkLines, assessmentGap, ASSESSMENT_FILE, TICKET_FILE, verificationCases } from '../round/agreement.ts';
 import { randomUUID } from 'node:crypto';
-import { captureCorrection, correctionGate, correctionStateSha, outstandingCorrections } from '../round/corrections.ts';
+import { captureCorrection, correctionGate, outstandingCorrections } from '../round/corrections.ts';
 import { openQuestionGate } from '../round/ask.ts';
 import { stepHistory } from '../round/friction.ts';
 import { acquireProcessLock } from '../process-lock.ts';
@@ -217,9 +217,9 @@ export function prBody({ ticket, agreement, commitLines, assessment, agreementPa
 export function t2Gap(state: State | null, reviewText: string | null, current?: ContentIdentity) {
 	const corrections = correctionGate(state);
 	if (corrections) return corrections;
-	if (state?.step !== 'pr' || readVerdict(reviewText ?? '') !== 'approved') return 'T2 has not approved this round. deliver merges, so it comes after `wf review <branch> --done` with verdict: approved';
+	if (state?.step !== 'pr' || readVerdict(reviewText ?? '') !== 'approved') return 'T2 has not approved this round. deliver publishes the PR, so it comes after `wf review <branch> --done` with verdict: approved';
 	const boundScope = reviewScopeBinding(reviewText ?? '').scope;
-	if (boundScope) return `REVIEW.md's verdict is scoped ${boundScope} — only the final review (no scope) approves delivery; a checkpoint approval is not the merge`;
+	if (boundScope) return `REVIEW.md's verdict is scoped ${boundScope} — only the final review (no scope) approves delivery; a checkpoint approval does not authorize publishing`;
 	// The binding is the same check `wf review --done` made; `current` absent is the pure verdict-only
 	// arm a caller not at the delivery boundary uses.
 	return current ? approvalContentGap(reviewText ?? '', current) : null;
@@ -257,7 +257,7 @@ const gitPushUrls = (toplevel: string) =>
 		.filter(Boolean);
 
 // ── the remote half: what a retry finds, and what it may do about it ─────────────────────────────
-// `wf deliver` merges on GitHub; the tracker note and the step are local and can be reached after the
+// `wf deliver` publishes on GitHub; the tracker note and the step are local and can be reached after the
 // merge (issue 108). A retry asks the remote what its branch already has instead of trusting that a
 // local step says everything: a PR that is already merged means only the note and the step are left,
 // and a gh that cannot be asked is not proof there is no PR.
@@ -500,7 +500,7 @@ export function existingNoteAction(text: string, noteText: string, ids: string[]
 // refused, not overwritten — those sections may be the only posted copy. A note that is a prefix of
 // the one deliver would write is deliver's own interrupted write and is completed. A failed branch
 // delete is ignored: the branch may already be gone, and the step and the note must still be finished.
-async function finishDelivery({ toplevel, state, folder, ids, url, head, because }: { toplevel: string; state: State | null; folder: string; ids: string[]; url: string; head: string; because: string }) {
+async function finishDelivery({ toplevel, state, folder, ids, url, head, because, open = false }: { toplevel: string; state: State | null; folder: string; ids: string[]; url: string; head: string; because: string; open?: boolean }) {
 	const note = trackerNote({ ids, url });
 	const rel = `${folder}/${note.file}`;
 	const recorded = state?.note && existsSync(join(toplevel, state.note)) ? state.note : null;
@@ -522,6 +522,17 @@ async function finishDelivery({ toplevel, state, folder, ids, url, head, because
 		kept = existing;
 	} else {
 		writeAtomic(join(toplevel, rel), note.text);
+	}
+	if (open) {
+		const contentSha = commitContentSha(toplevel, head, folder, rel, 'row');
+		writeState(toplevel, (current) => {
+			if (correctionGate(current) || openQuestionGate(current) || current.step !== 'pr') throw new Error('wf deliver: round changed before PR handoff; run wf next');
+			return { note: kept, pr_handoff: { url, head, contentSha } };
+		});
+		console.log(`${url} remains open; tracker note: ${kept}; run wf next`);
+		const released = await stopWorktreeServers(toplevel);
+		if (released.kind === 'refused') { console.error(released.why); process.exitCode = 1; }
+		return;
 	}
 	const branch = git(toplevel, ['rev-parse', '--abbrev-ref', 'HEAD']);
 	// Not --delete-branch: gh would then check out the base branch in this worktree, and it is checked
@@ -758,7 +769,6 @@ async function runLockedDelivery(toplevel: string) {
 	// An open PR is this delivery's own: edit its body, never create a second one (issue 108).
 	const url = resume.do === 'resume' ? resume.url : null;
 	requireApprovedContent('before PR create/edit');
-	const consumedCorrectionsSha = correctionStateSha(readState(toplevel));
 	const pr = url
 		? seams.gh(['pr', 'edit', url, '--body-file', body], toplevel)
 		: seams.gh(['pr', 'create', '--repo', repoName, '--base', baseBranch, '--title', title, '--body-file', body], toplevel);
@@ -777,16 +787,14 @@ async function runLockedDelivery(toplevel: string) {
 	// The paperwork commit above moved HEAD since the pre-push lookup, and a create or an OPEN PR can
 	// record a different head than the branch now has (a force-push, or a stale PR answer). Read the PR
 	// again at the commit the branch now carries, and refuse unless it is an open PR for this url whose
-	// head is that commit. `--match-head-commit` then makes the merge itself conditional on the commit,
-	// so a push between this read and the merge cannot land code this round did not review (gh 2.96's
-	// `gh pr merge --help` documents the flag; a gh without it fails the merge rather than merging).
+	// head is that commit before recording the open PR handoff.
 	const headNow = git(toplevel, ['rev-parse', 'HEAD']);
 	const fresh = prLookup(
 		seams.gh(['pr', 'list', '--repo', repoName, '--head', branch, '--base', baseBranch, '--state', 'all', '--json', 'url,state,headRefOid,headRefName,baseRefName,isCrossRepository'], toplevel),
 		{ headRefName: branch, baseRefName: baseBranch, repo },
 	);
 	if (fresh.kind === 'unknown') {
-		console.error(`wf deliver: the remote could not be asked about PR ${prUrl} before the merge (${fresh.why}); nothing was merged`);
+		console.error(`wf deliver: the remote could not be asked about PR ${prUrl} before the PR handoff (${fresh.why}); nothing was merged`);
 		process.exit(1);
 	}
 	// A concurrent actor merged this exact commit: finish, as the pre-push lookup would have.
@@ -799,49 +807,16 @@ async function runLockedDelivery(toplevel: string) {
 		process.exit(1);
 	}
 	if (fresh.headRefOid !== headNow) {
-		console.error(`wf deliver: PR ${prUrl} is open at ${(fresh.headRefOid ?? 'no commit').slice(0, 12)}, but HEAD is ${headNow.slice(0, 12)} — merging it would land a commit this round did not push; nothing was merged`);
+		console.error(`wf deliver: PR ${prUrl} is open at ${(fresh.headRefOid ?? 'no commit').slice(0, 12)}, but HEAD is ${headNow.slice(0, 12)} — it is not the commit this round pushed; nothing was merged`);
 		process.exit(1);
 	}
-	// The final approval recheck, after the push and the PR create/edit and lookup roundtrip: assert
-	// HEAD still carries the approved content, and that the commit the merge is pinned to is the one
-	// read as HEAD above — a hook or concurrent commit that moved HEAD since that read fails closed
-	// rather than merging a commit whose approval was never re-verified (#106/#108).
-	requireApprovedContent('the merge');
-	const headAtMerge = git(toplevel, ['rev-parse', 'HEAD']);
-	if (headAtMerge !== headNow) {
-		console.error(`wf deliver: HEAD moved to ${headAtMerge.slice(0, 12)} after the merge was pinned to ${headNow.slice(0, 12)}; nothing was merged`);
+	// T2 publishes the approved PR; merging remains a separate human action.
+	requireApprovedContent('the PR handoff');
+	if (git(toplevel, ['rev-parse', 'HEAD']) !== headNow) {
+		console.error('wf deliver: HEAD moved after the PR lookup; retry delivery');
 		process.exit(1);
 	}
-	// No network request or human wait holds this authorization lock.
-	writeState(toplevel, (current) => {
-		const gap = correctionGate(current) ?? openQuestionGate(current);
-		if (gap || current.step !== 'pr' || current.merge_attempt || correctionStateSha(current) !== consumedCorrectionsSha) {
-			console.error(`wf deliver: merge authorization refused: ${gap ?? 'round or correction state changed'}`); process.exit(2);
-		}
-		requireApprovedContent('merge authorization');
-		if (git(toplevel, ['rev-parse', 'HEAD']) !== headNow || readFileSync(reviewFile, 'utf8') !== reviewText) {
-			console.error('wf deliver: merge authorization refused: HEAD or approval changed'); process.exit(2);
-		}
-		return { merge_attempt: { url: prUrl, head: headNow, contentSha: binding.contentSha!, correctionsSha: consumedCorrectionsSha, at: new Date().toISOString() } };
-	});
-	// Not --delete-branch: gh would then check out the base branch in this worktree, and it is checked
-	// out in the person's clone (finishDelivery does the delete).
-	const merged = seams.gh(['pr', 'merge', prUrl, '--merge', '--match-head-commit', headNow], toplevel);
-	if (merged.status !== 0) {
-		console.error(`FAILED: gh pr merge ${prUrl}\n${(merged.stdout ?? '') + (merged.stderr ?? '')}`.trimEnd());
-		const outcome = prLookup(seams.gh(['pr', 'list', '--repo', repoName, '--head', branch, '--base', baseBranch, '--state', 'all', '--json', 'url,state,headRefOid,headRefName,baseRefName,isCrossRepository'], toplevel), { headRefName: branch, baseRefName: baseBranch, repo });
-		if (outcome.kind === 'found' && outcome.url === prUrl) {
-			if (outcome.state === 'MERGED' && outcome.headRefOid === headNow) {
-				await finishDelivery({ toplevel, state, folder, ids: state?.ids ?? [id], url: prUrl, head: headNow, because: 'confirmed merged despite failed request' });
-				return;
-			}
-			if (outcome.state !== 'MERGED') writeState(toplevel, unmergedAttemptPatch);
-		}
-		console.error('wf deliver: merge request failed; unresolved outcome retains its attempt. Retry deliver to reconcile before repair.');
-		process.exit(1);
-	}
-	// Every --id the round was made with: a round on subitems has one note per subitem (TJEW-670).
-	await finishDelivery({ toplevel, state, folder, ids: state?.ids ?? [id], url: prUrl, head: headNow, because: 'merged' });
+	await finishDelivery({ toplevel, state, folder, ids: state?.ids ?? [id], url: prUrl, head: headNow, because: 'opened', open: true });
 }
 
 if (process.argv[1]?.endsWith('deliver.ts')) await runDeliver();

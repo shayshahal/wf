@@ -45,7 +45,8 @@ identities and the intended diff base; changed implementation requires a new app
 An assessment of an earlier HEAD needs fresh independent review. Checkpoint approval cannot
 substitute for final T2.
 
-Approved final T2 permits `wf deliver`: push, PR, confirmed merge and delivery receipt.
+Approved final T2 permits `wf deliver`: push and an open PR, followed by the project tracker note saying the work awaits merge.
+The person merges separately; a later `wf deliver` confirms the merge and records its receipt.
 Delivery does not choose or rerun engineering tests after approval. It preserves project hooks,
 protected-file guards, approval freshness and interrupted-delivery recovery.
 

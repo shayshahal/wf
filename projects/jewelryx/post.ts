@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // wf post — post the round's filled tracker note (JIRA.md) to Jira: per `## <key>` section not yet
 // `(posted)`, attach the proof/ pictures its `pictures:` line names to the issue, post the section as a
-// comment with those pictures shown in it, set *Fixed in Local*, and mark the heading. The round skill
+// comment with those pictures shown in it, and mark the heading. Only a confirmed merged delivery
+// sets Fixed in Local. The round skill
 // fills the Hebrew text and shows it to the user first; this does the rest, the same way every round.
 // JX-268 (BJEW-562, 2026-10-07): the post was hand-made from MCP calls, the pictures were left for
 // the user to attach, and the reap after it deleted them. Atlassian's MCP cannot put a picture in a
@@ -239,14 +240,17 @@ export async function runPost(argv: string[] = []): Promise<void> {
 			}
 			await jira(auth, `2/issue/${s.key}/comment`, { method: 'POST', body: JSON.stringify({ body: commentBody(commentText(s), pictures) }), headers: { 'content-type': 'application/json' } });
 		}
-		const { transitions } = await jira(auth, `3/issue/${s.key}/transitions`);
-		const to = transitions.find((t: { to: { name: string } }) => t.to.name === DELIVERED);
-		if (!to) throw new Error(`wf post: ${s.key} has no transition to ${DELIVERED}`);
-		await jira(auth, `3/issue/${s.key}/transitions`, { method: 'POST', body: JSON.stringify({ transition: { id: to.id } }), headers: { 'content-type': 'application/json' } });
+		// An open PR is awaiting merge, not fixed in the shared branch (Shay, 2026-10-20).
+		if (state?.delivery && state.step === 'merged') {
+			const { transitions } = await jira(auth, `3/issue/${s.key}/transitions`);
+			const to = transitions.find((t: { to: { name: string } }) => t.to.name === DELIVERED);
+			if (!to) throw new Error(`wf post: ${s.key} has no transition to ${DELIVERED}`);
+			await jira(auth, `3/issue/${s.key}/transitions`, { method: 'POST', body: JSON.stringify({ transition: { id: to.id } }), headers: { 'content-type': 'application/json' } });
+		}
 		note = markPosted(note, s.key);
 		writeFileSync(notePath, note);
 		const count = pictures.flatMap((p) => [p.before, p.after]).filter(Boolean).length;
-		console.log(`${s.key}: ${already ? 'already posted, pictures not re-attached' : `posted with ${count} picture(s) — ${pictureNotes(pictures)}`}, ${DELIVERED} — ${SITE}/browse/${s.key}`);
+		console.log(`${s.key}: ${already ? 'already posted, pictures not re-attached' : `posted with ${count} picture(s) — ${pictureNotes(pictures)}`}, ${state?.delivery && state.step === 'merged' ? DELIVERED : 'in PR, awaiting merge'} — ${SITE}/browse/${s.key}`);
 	}
 }
 

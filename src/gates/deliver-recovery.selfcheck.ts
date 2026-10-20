@@ -231,19 +231,19 @@ function attempt(f: Fixture, mode = 'ok') {
 	check('…and deletes the merged branch it left behind', !remoteBranches(f.work).includes(BRANCH), remoteBranches(f.work).join(','));
 }
 
-// The interruption itself, not a hand-set remote state (issue 108): a real run reaches gh's merge,
-// the remote records it, and the process dies before the note and the step are written. The retry
-// then starts from what that run actually left.
+// Publishing and retrying must never invoke merge, even when its adapter would crash.
 {
-	const f = makeRepo('crash-after-merge');
-	setRemote(f, empty());
-	const first = attempt(f, 'crash-merge');
-	const landed = must(['rev-parse', 'HEAD'], f.work);
-	check('a run killed right after the remote merge dies before the local records', first.code !== 0 && readRemote(f).merge === 1 && readState(f).step === 'pr' && !readState(f).note && !existsSync(join(f.work, NOTE)), `${first.code}: ${first.out}`);
-	check('…the real run\u2019s merge was constrained to the pushed head', (readRemote(f).merges ?? []).some((a) => a[a.indexOf('--match-head-commit') + 1] === landed), JSON.stringify(readRemote(f).merges));
-	const second = attempt(f);
-	check('the retry finishes the interrupted delivery', second.code === 0 && readState(f).step === 'merged' && readState(f).note === NOTE && readFileSync(join(f.work, NOTE), 'utf8').includes(`## BJEW-1`), `${second.code}: ${second.out}`);
-	check('…without a second merge or a second PR', readRemote(f).merge === 1 && readRemote(f).create === 1, JSON.stringify(readRemote(f)));
+ const f = makeRepo('open-handoff-retry');
+ setRemote(f, empty());
+ const first = attempt(f, 'crash-merge');
+ check('delivery leaves the PR and branch open with a durable handoff', first.code === 0 && readRemote(f).merge === 0 && readState(f).step === 'pr' && !!readState(f).pr_handoff && !readState(f).delivery && remoteBranches(f.work).includes(BRANCH), first.out);
+ const next = spawnSync(process.execPath, [join(WF_ROOT, 'wf.mjs'), 'next'], { cwd: f.work, env: ENV, encoding: 'utf8' });
+ check('open handoff routes to tracker posting', next.stdout.startsWith('post:'), next.stdout + next.stderr);
+ const second = attempt(f);
+ check('retry retains one open PR without merging', second.code === 0 && readRemote(f).create === 1 && readRemote(f).merge === 0 && !!readState(f).pr_handoff, second.out);
+ setRemote(f, mergedAt(must(['rev-parse', 'HEAD'], f.work)));
+ const reconciled = attempt(f);
+ check('human merge is reconciled into the existing merged lifecycle', reconciled.code === 0 && readState(f).step === 'merged' && !!readState(f).delivery, reconciled.out);
 }
 
 // ── an open PR was created but not merged: resume it, do not create a second one ──────────────────
@@ -255,8 +255,8 @@ function attempt(f: Fixture, mode = 'ok') {
 	check('a retry with an open PR exits clean', r.code === 0, `${r.code}: ${r.out}`);
 	check('…edits the existing PR, never creates a second', readRemote(f).create === 0 && readRemote(f).edit === 1, JSON.stringify(readRemote(f)));
 	check('…names the selected PR url on the edit, not the current branch default', (readRemote(f).edits ?? []).some((a) => a[1] === 'edit' && a.includes(PR_URL) && a.includes('--body-file')), JSON.stringify(readRemote(f).edits));
-	check('…the lookups are pinned to the repository and the merge to the URL and pushed head', (readRemote(f).lists ?? []).every((a) => a.includes('--repo') && a.includes('o/r')) && (readRemote(f).merges ?? []).some((a) => a.includes(PR_URL) && a[a.indexOf('--match-head-commit') + 1] === landed), JSON.stringify(readRemote(f)));
-	check('…merges it once and finishes the note and step', readRemote(f).merge === 1 && readState(f).step === 'merged' && readState(f).note === NOTE, JSON.stringify(readRemote(f)));
+	check('…the lookups are pinned to the repository and the handoff to the pushed head', (readRemote(f).lists ?? []).every((a) => a.includes('--repo') && a.includes('o/r')) && !!readState(f).pr_handoff && must(['rev-parse', 'HEAD'], f.work) === landed, JSON.stringify(readRemote(f)));
+	check('…keeps it open and writes the note without claiming a merge', readRemote(f).merge === 0 && readState(f).step === 'pr' && readState(f).note === NOTE, JSON.stringify(readRemote(f)));
 }
 
 // The push was done and the task died before the PR existed: the retry creates exactly one.
@@ -266,8 +266,8 @@ function attempt(f: Fixture, mode = 'ok') {
 	setRemote(f, empty());
 	const r = attempt(f);
 	const landed = must(['rev-parse', 'HEAD'], f.work);
-	check('a retry after push, before PR, creates exactly one PR', r.code === 0 && readRemote(f).create === 1 && readRemote(f).merge === 1, `${r.code}: ${r.out}`);
-	check('…the create is pinned to the repository and the merge to the pushed head', (readRemote(f).creates ?? []).some((a) => a.includes('--repo') && a.includes('o/r')) && (readRemote(f).merges ?? []).some((a) => a[a.indexOf('--match-head-commit') + 1] === landed), JSON.stringify(readRemote(f)));
+	check('a retry after push, before PR, creates exactly one PR', r.code === 0 && readRemote(f).create === 1 && readRemote(f).merge === 0, `${r.code}: ${r.out}`);
+	check('…the create is pinned to the repository and the handoff to the pushed head', (readRemote(f).creates ?? []).some((a) => a.includes('--repo') && a.includes('o/r')) && !!readState(f).pr_handoff && must(['rev-parse', 'HEAD'], f.work) === landed, JSON.stringify(readRemote(f)));
 }
 
 // A prior run got as far as deliver's own round-folder commit and died before the PR: HEAD now carries
@@ -280,7 +280,7 @@ function attempt(f: Fixture, mode = 'ok') {
 	must(['push', '-q', 'origin', `HEAD:refs/heads/${BRANCH}`], f.work);
 	setRemote(f, empty());
 	const r = attempt(f);
-	check('a retry after the round-folder commit resumes without a fresh review', r.code === 0 && readState(f).step === 'merged' && readRemote(f).create === 1 && readRemote(f).merge === 1, `${r.code}: ${r.out}`);
+	check('a retry after the round-folder commit resumes without a fresh review', r.code === 0 && readState(f).step === 'pr' && readRemote(f).create === 1 && readRemote(f).merge === 0, `${r.code}: ${r.out}`);
 }
 
 // ── the round's own base, not the project's base branch ───────────────────────────────────────────
@@ -293,21 +293,21 @@ function attempt(f: Fixture, mode = 'ok') {
 	const f = makeRepo('round-base-main', { base: 'main', dropOriginDev: true });
 	setRemote(f, empty());
 	const r = attempt(f);
-	check('a round whose base is main (origin/dev absent) delivers', r.code === 0 && readState(f).step === 'merged' && readRemote(f).create === 1 && readRemote(f).merge === 1, `${r.code}: ${r.out}`);
-	check('…the merged branch is deleted, not left pushed', !remoteBranches(f.work).includes(BRANCH), remoteBranches(f.work).join(','));
+	check('a round whose base is main (origin/dev absent) delivers', r.code === 0 && readState(f).step === 'pr' && readRemote(f).create === 1 && readRemote(f).merge === 0, `${r.code}: ${r.out}`);
+	check('…the open PR branch stays pushed', remoteBranches(f.work).includes(BRANCH), remoteBranches(f.work).join(','));
 	// A worker died after signalling cleanup but before clearing ownership. Delivery is already
-	// merged; a fresh worker must finish that release without another remote mutation (#154).
+	// open; a fresh worker must finish that release without merging (#154).
 	writeFileSync(join(f.work, '.wf', 'serve.pid'), '2000000000');
 	writeFileSync(join(f.work, '.wf', 'serve-owner.json'), JSON.stringify({ token: 'interrupted-delivery', state: 'releasing', processes: [{ pid: 2000000000, parent: 1, born: '2026-10-15T10:00:00Z' }] }));
 	const again = attempt(f);
 	check('a fresh delivery worker confirms an interrupted cleanup and clears its ownership', !existsSync(join(f.work, '.wf', 'serve.pid')) && !existsSync(join(f.work, '.wf', 'serve-owner.json')), `${again.code}: ${again.out}`);
-	check('…a retry neither creates a second PR nor merges again', again.code === 2 && readRemote(f).create === 1 && readRemote(f).merge === 1 && /already merged/.test(again.out), `${again.code}: ${again.out}`);
+	check('…a retry neither creates a second PR nor merges again', again.code === 0 && readRemote(f).create === 1 && readRemote(f).merge === 0 && /remains open/.test(again.out), `${again.code}: ${again.out}`);
 }
 {
 	const f = makeRepo('round-base-origin-dev');
 	setRemote(f, empty());
 	const r = attempt(f);
-	check('control: a round whose base is origin/dev, with origin/dev present, delivers', r.code === 0 && readState(f).step === 'merged' && readRemote(f).create === 1 && readRemote(f).merge === 1, `${r.code}: ${r.out}`);
+	check('control: a round whose base is origin/dev, with origin/dev present, delivers', r.code === 0 && readState(f).step === 'pr' && readRemote(f).create === 1 && readRemote(f).merge === 0, `${r.code}: ${r.out}`);
 }
 {
 	const f = makeRepo('round-base-unresolved', { base: 'no-such-base' });
@@ -523,10 +523,10 @@ for (const [mode, why] of [['fail', 'a gh failure'], ['garbage', 'a gh answer th
 // #150: replay the crash boundary after a real receipt write but before the final step write.
 // One case admits during merge; the other admits only after the receipt exists. Recovery must be
 // local-only: a failing remote adapter proves it cannot accidentally authorize another merge.
-for (const timing of ['during-merge', 'after-receipt']) {
+for (const timing of ['after-receipt']) {
 	const f = makeRepo(`receipt-interrupted-${timing}`);
-	setRemote(f, empty());
-	const initial = attempt(f, timing === 'during-merge' ? 'correct-during-merge' : 'ok');
+	setRemote(f, mergedAt(f.head));
+	const initial = attempt(f);
 	check(`${timing}: real delivery established the receipt prerequisite`, initial.code === 0 && !!readState(f).delivery, initial.out);
 	// Preserve the receipt/note produced by actual delivery, replaying just the incomplete step.
 	setState(f, { step: 'pr', history: [], merge_attempt: null });
@@ -562,27 +562,6 @@ for (const mode of ['correct-create', 'correct-edit', 'correct-before-merge']) {
 	const retry = attempt(f);
 	check(`${mode}: direct retry cannot bypass the instruction`, retry.code !== 0 && readRemote(f).merge === 0, retry.out);
 }
-for (const mode of ['correct-during-merge', 'correct-open-merge', 'correct-unknown-merge']) {
-	const f = makeRepo(mode);
-	setRemote(f, empty());
-	const review = readFileSync(join(f.work, FOLDER, 'REVIEW.md'), 'utf8');
-	const r = attempt(f, mode);
-	const state = readState(f);
-	check(`${mode}: the incoming instruction remains durable`, Array.isArray(state.corrections) && state.corrections.length === 1 && readFileSync(join(f.work, FOLDER, 'REVIEW.md'), 'utf8') === review, r.out);
-	if (mode === 'correct-during-merge') {
-		check('instruction during successful merge retains receipt, not reopened approval', r.code === 0 && state.step === 'merged' && !!state.delivery && !state.merge_attempt && /fresh follow-up/.test(r.out), r.out);
-	} else if (mode === 'correct-open-merge') {
-		check('definite unmerged result clears attempt and routes correction to build', r.code !== 0 && state.step === 'build' && !state.merge_attempt && !state.delivery, r.out);
-	} else {
-		check('unknown merge result retains attempt without premature build routing', r.code !== 0 && state.step === 'pr' && !!state.merge_attempt && !state.delivery, r.out);
-		const retry = attempt(f, 'fail');
-		check('unknown retry reconciles remotely before pending-correction gate', /merge outcome remains uncertain/.test(retry.out) && !!readState(f).merge_attempt, retry.out);
-		// Even an externally changed step cannot skip reconciliation of the authorized attempt.
-		setState(f, { step: 'build' });
-		const reconciled = attempt(f);
-		check('known open retry clears attempt and routes retained instruction', reconciled.code !== 0 && readState(f).step === 'build' && !readState(f).merge_attempt && readRemote(f).merge === 0, reconciled.out);
-	}
-}
 {
 	const f = makeRepo('system-hook-correction');
 	setRemote(f, empty());
@@ -596,17 +575,7 @@ for (const mode of ['correct-during-merge', 'correct-open-merge', 'correct-unkno
 	if (!Array.isArray(corrections) || typeof corrections[0]?.id !== 'string') throw new Error('hook correction missing');
 	const disposed = disposeCorrection(f.work, corrections[0].id, { kind: 'addressed', note: 'Transient hook environment repaired; reviewed implementation unchanged.' });
 	const retry = attempt(f);
-	check('unchanged transient hook recovery reuses original approval', disposed.kind === 'recorded' && retry.code === 0 && readState(f).step === 'merged' && readFileSync(join(f.work, FOLDER, 'REVIEW.md'), 'utf8') === review, retry.out);
-}
-{
-	const f = makeRepo('uncertain-then-confirmed-merged');
-	setRemote(f, empty());
-	attempt(f, 'correct-unknown-merge');
-	const head = must(['rev-parse', 'HEAD'], f.work);
-	setRemote(f, mergedAt(head));
-	setState(f, { step: 'build' });
-	const retry = attempt(f);
-	check('confirmed remote merge wins over local build and pending correction', retry.code === 0 && readState(f).step === 'merged' && !!readState(f).delivery && !readState(f).merge_attempt && /fresh follow-up/.test(retry.out), retry.out);
+	check('unchanged transient hook recovery reuses original approval', disposed.kind === 'recorded' && retry.code === 0 && readState(f).step === 'pr' && !!readState(f).pr_handoff && readFileSync(join(f.work, FOLDER, 'REVIEW.md'), 'utf8') === review, retry.out);
 }
 {
 	const f = makeRepo('network-push-retry');
@@ -621,7 +590,7 @@ for (const mode of ['correct-during-merge', 'correct-open-merge', 'correct-unkno
 	must(['config', '--unset-all', `url.${unavailable}.insteadOf`], f.work);
 	must(['config', `url.${local}.insteadOf`, GITHUB], f.work);
 	const retry = attempt(f);
-	check('unchanged network retry retains approval', retry.code === 0 && readState(f).step === 'merged' && readFileSync(join(f.work, FOLDER, 'REVIEW.md'), 'utf8') === review, retry.out);
+	check('unchanged network retry retains approval', retry.code === 0 && readState(f).step === 'pr' && !!readState(f).pr_handoff && readFileSync(join(f.work, FOLDER, 'REVIEW.md'), 'utf8') === review, retry.out);
 }
 
 rmSync(ROOT, { recursive: true, force: true });
