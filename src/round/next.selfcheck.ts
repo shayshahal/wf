@@ -59,8 +59,17 @@ const steps = (s: Snapshot) => nextAction(s).effects.filter((e) => e.step).map((
 const asks = (s: Snapshot) => nextAction(s).effects.filter((e) => e.ask).map((e) => e.ask!);
 const repairs = (s: Snapshot) => nextAction(s).effects.filter((e) => e.repair).length;
 
-// ── ordinary (class A): the ticket is the agreement, no T1, straight to build
-check('class A: the ticket is the agreement → step build and dispatch build', steps(base()) .join() === 'build' && say(base()).startsWith('work build'), say(base()));
+// ── ordinary (class A): record the ticket before building, without a T1 vote (#184).
+for (const step of [null, 'classify', 'agree']) {
+	for (const agreement of [null, '', '# r\n', '# r\n### Intent\n- x\n', '# r\n## Intent\n \t\n## Notes\n- x\n']) {
+		const snapshot = base({ step, files: { agreement, assessment: null, review: null, blocked: null } });
+		check(`class A at ${step}: absent intent returns to agree (${JSON.stringify(agreement)})`, say(snapshot).startsWith('work agree:') && say(snapshot).includes('TICKET.md') && !steps(snapshot).includes('build'), say(snapshot));
+	}
+	for (const agreement of [TICKET, TICKET.replace(/\n/g, '\r\n')]) {
+		const snapshot = base({ step, files: { agreement, assessment: null, review: null, blocked: null } });
+		check(`class A at ${step}: a ticket with intent builds without T1`, steps(snapshot).join() === 'build' && say(snapshot).startsWith('work build:'), say(snapshot));
+	}
+}
 check('class A build: one phase, resumed in place (no per-commit dispatch)', say(base({ step: 'build' })) === 'work build: run `node "C:/wf/wf.mjs" brief build` in this worktree and do exactly what it prints (again: implement and verify the current agreement)', say(base({ step: 'build' })));
 
 // ── portability: the packet is model-free; the current session may work agree/build, and only the
@@ -235,11 +244,32 @@ const cli = (repo: string, ...args: string[]) => {
 	git(repo, 'commit', '-q', '-m', 'base');
 	git(repo, 'checkout', '-q', '-b', 'fix/r');
 	mkdirSync(join(repo, 'bug-reports/r'), { recursive: true });
-	writeFileSync(join(repo, 'bug-reports/r/TICKET.md'), TICKET);
 	mkdirSync(join(repo, '.wf'), { recursive: true });
 	writeFileSync(join(repo, '.wf', 'state.json'), `${JSON.stringify({ wf_version: WF_STATE_VERSION, round: "r", id: "r", folder: "bug-reports/r", base: "main", step: "classify", class: "A" }, null, 2)}\n`);
+	const stateFile = join(repo, '.wf', 'state.json');
+	const initialState = readFileSync(stateFile, 'utf8');
+	for (let attempt = 1; attempt <= 2; attempt++) {
+		const fresh = cli(repo, 'next');
+		check(`CLI: fresh class A next ${attempt} offers agreement without advancing to build`, fresh.code === 0 && fresh.out.startsWith('work agree:') && fresh.out.includes('TICKET.md') && readFileSync(stateFile, 'utf8') === initialState, fresh.out);
+	}
+	const agree = cli(repo, 'brief', 'agree');
+	check('CLI: the fresh agreement packet is executable and tells the worker to record sourced intent', agree.code === 0 && agree.out.includes('bug-reports/r/TICKET.md') && agree.out.includes('## Intent') && agree.out.includes('verbatim') && agree.out.includes('## Handoff'), agree.out);
+	const missing = cli(repo, 'step', 'build');
+	check('CLI: direct build still refuses a missing ticket without advancing', missing.code === 2 && missing.out.includes('TICKET.md') && readFileSync(stateFile, 'utf8') === initialState, missing.out);
+	writeFileSync(join(repo, 'bug-reports/r/TICKET.md'), '# r\n## Intent\n \t\n## Notes\n- unrelated\n');
+	const incomplete = cli(repo, 'next');
+	check('CLI: an empty intent returns to agreement without advancing', incomplete.code === 0 && incomplete.out.startsWith('work agree:') && incomplete.out.includes('## Intent') && readFileSync(stateFile, 'utf8') === initialState, incomplete.out);
+	const noIntent = cli(repo, 'step', 'build');
+	check('CLI: direct build refuses an empty intent without rewriting state', noIntent.code === 2 && noIntent.out.includes('## Intent') && readFileSync(stateFile, 'utf8') === initialState, noIntent.out);
+	for (const phase of ['build', 'assess']) {
+		const prompt = cli(repo, 'prompt', phase);
+		check(`CLI: ${phase} prompt still refuses an empty intent`, prompt.code !== 0 && prompt.out.includes('has no `## Intent`'), prompt.out);
+	}
+	writeFileSync(join(repo, 'bug-reports/r/TICKET.md'), TICKET);
 	const next = cli(repo, 'next');
 	check('CLI: an ordinary class A round steps to build and dispatches it', next.code === 0 && next.out.includes('work build') && readState(repo)?.step === 'build', next.out);
+	const build = cli(repo, 'brief', 'build');
+	check('CLI: after recording intent, the build brief consumes the original request', build.code === 0 && build.out.includes('the modal keeps its scroll position') && build.out.includes('## Handoff'), build.out);
 	// the class is measured: a ticket declaring Class: B upgrades the round before any build
 	writeFileSync(join(repo, 'bug-reports/r/TICKET.md'), `${TICKET}\nClass: B\n`);
 	mkdirSync(join(repo, 'docs', 'agents'), { recursive: true });

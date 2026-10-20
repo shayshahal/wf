@@ -27,7 +27,7 @@ export const USES_STACK = new Set(['assess']);
 export function handoffText(phase: string, folder: string | null, klass: string | null, assessmentFile = 'ASSESSMENT.md'): string {
 	if (phase === 'build') return `\n## Handoff\n\nAfter recording a correction's disposition, run \`wf next\`: unchanged approved delivery may resume without another vote. Otherwise, when the agreement's behavior is implemented and you have run the checks that matter for this change, commit, then run \`wf step assess\`. If a check cannot run (stack, git, a missing runner), do not retry blind: write \`${folder}/BLOCKED.md\` with a \`Question:\` naming what could not run. Write it too if you cannot proceed.\n`;
 	if (phase === 'assess') return `\n## Handoff\n\nWrite \`${folder}/${assessmentFile}\` whole, with its \`Verdict:\` line and \`head:\` line; this must be a fresh independent context, never the session that built the work. Then \`wf next\`.\n`;
-	return `\n## Handoff\n\nWrite \`${folder}/${agreementFile(klass as 'A' | 'B' | 'C')}\` (class ${klass}: ${consequential(klass as 'A' | 'B' | 'C') ? 'the agreement with `## Observed`, `## Agreed` and `## Verification`' : 'the ticket, with `## Repro` for a check round'}); then \`wf next\`.\n`;
+	return `\n## Handoff\n\nWrite \`${folder}/${agreementFile(klass as 'A' | 'B' | 'C')}\` (class ${klass}: ${consequential(klass as 'A' | 'B' | 'C') ? 'the agreement with `## Observed`, `## Agreed` and `## Verification`' : 'the ticket with `## Intent` (the requester\'s words, verbatim and attributed), plus `## Repro` for a check round'}); then \`wf next\`.\n`;
 }
 
 // Pure: null when `wf next` is working exactly this brief, else why not. A brief read out of turn

@@ -189,9 +189,9 @@ export function nextAction(s: Snapshot, purpose: 'next' | 'brief' = 'next'): { s
 			if (!/^## Repro[ \t]*$/m.test((s.files.agreement ?? '').replace(/\r\n/g, '\n'))) return work('agree', `no \`## Repro\` in ${consequential(s.klass) ? 'AGREEMENT.md' : 'TICKET.md'} yet — write it and run the project's repro, recording its real output`);
 			return act(`wait user: the repro result is in the agreement — the person decides. Go on: \`${wf} step build\` and set the started status; stop: \`WF_FORCE_REAP=1 ${wf} reap ${s.branch}\``);
 		}
+		const gap = agreementGap(s.files.agreement, s.klass, s.branch);
+		if (gap) return work('agree', gap);
 		if (consequential(s.klass)) {
-			const gap = agreementGap(s.files.agreement, s.klass, s.branch);
-			if (gap) return work('agree', gap);
 			// T1 approves the agreement's agreed material. A progress update to `## Verification` does
 			// not change the material sha and so does not invalidate an approved direction (#111.5).
 			if (!t1Approved) {
