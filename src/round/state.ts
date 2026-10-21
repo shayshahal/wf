@@ -83,7 +83,7 @@ export type State = {
 	/** Final merge authorization survives uncertain remote outcomes and racing corrections. */
 	merge_attempt?: MergeAttempt | null;
 	last_question?: number;
-	// The agreement material sha whose project T2 setup `wf show` already ran.
+	// Legacy setup token retained for reading older state; show now verifies the live scenario.
 	t2_setup?: string;
 	// The tracker note `wf deliver` wrote, from the worktree's top: `wf next` reads which of its
 	// sections are posted (src/round/next.ts, unpostedSections).

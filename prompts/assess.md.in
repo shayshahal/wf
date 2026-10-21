@@ -48,3 +48,10 @@ Write `{{folder}}/{{assessmentFile}}` whole:
 A renewed assessment is a new judgment, even if HEAD is unchanged. Choose the outcome explicitly:
 wf checks the outcome and implementation identity; it does not infer correctness from your prose.
 Then run `wf next`.
+
+Revalidate the T2 walk against the current scenario, including work done after an earlier build.
+If live verification made a formerly unavailable page demonstrable, replace stale `none` with the
+project's replayable open/setup/readback recipe. A capture alone does not require a browser walk:
+a continuing `none` must explain the concrete current limitation or why the work has no live walk.
+Use the recorded project-owned scenario preparation and full reset during verification; helper
+cleanup alone is not rollback. Report a setup/readback gap as repair before handing off T2.
