@@ -77,6 +77,13 @@ check('the T2 walk and the assessment verdict/head/intent/evidence/design/standa
 check('the agreement’s working notes (repro) are folded, not in what the reviewer reads first', body.includes('<summary>Working notes — repro</summary>') && body.includes('1. capture the result') && !visible.includes('1. capture the result'));
 check('no legacy plan/validation machinery survives: no Approach, Not doing, Build, Suites or Plan history', !body.includes('## Approach') && !body.includes('## Not doing') && !body.includes('## Build') && !body.includes('## Suites') && !body.includes('## Unplanned') && !body.includes('Plan history') && !body.includes('Revision ('));
 check('a body under the budget is not called shortened', !body.includes('Shortened:') && body.trimEnd().endsWith('</details>'));
+const uiEvidence = '### Login — 1280px, LTR, signed out\n\n| Before | After |\n|---|---|\n| ![Before: login](https://example.com/before-login.png) | ![After: login](https://example.com/after-login.png) |';
+const uiSection = `## UI evidence\n\n${uiEvidence}\n`;
+const uiBody = prBody({ ticket, agreement: `${agreement}\n${uiSection}`, commitLines, assessment, agreementPath: 'bug-reports/bjew-1/AGREEMENT.md' });
+check('UI PRs carry the complete before/after image section before optional notes', uiBody.includes(uiSection) && uiBody.indexOf(uiSection) < uiBody.indexOf('<details>'));
+const uiTicket = `${ticket}\n\n${uiSection}`;
+check('class A UI evidence comes from its working ticket', prBody({ ticket: uiTicket, agreement: uiTicket, commitLines, assessment, agreementPath: 'bug-reports/bjew-1/TICKET.md' }).includes(uiSection));
+check('non-UI PRs need no image section', !body.includes('## UI evidence'));
 check('an empty agreement gives a commits table of the pushed commits alone', JSON.stringify(commitRows(['- abc1234 one'])) === JSON.stringify(['| abc1234 | one |']) && JSON.stringify(commitRows(['not a commit line'])) === '[]');
 
 // Over the budget the working-notes fold goes first, then the assessment’s detail, then the oldest
@@ -91,6 +98,8 @@ const fit = prBody({ ticket: bigTicket, agreement: bigAgreement, commitLines: bi
 check('a 70k working-notes fold gives a body under the GitHub limit', bigAgreement.length > 65536 && fit.length < 65536, `${bigAgreement.length} -> ${fit.length}`);
 check('the shortened body keeps Intent, the agreed behavior, the commits, Verification, T2 walk and the verdict', fit.includes('- the ask') && fit.includes('**Behavior.** a') && fit.includes('| c17abcd | feat(x): case 18 |') && fit.includes('## Verification') && fit.includes('open: /users/1') && fit.includes('Verdict: clean'));
 check('the working notes go first, and the body says where the agreement is', !fit.includes('uuuuuuuuuu') && fit.includes('`bug-reports/jx-1/AGREEMENT.md`') && !fit.includes('<details>'));
+const uiFit = prBody({ ticket: bigTicket, agreement: `${bigAgreement}\n${uiSection}`, commitLines: bigCommits, assessment: bigAssessment, agreementPath: 'bug-reports/jx-1/AGREEMENT.md' });
+check('shortening optional PR detail keeps both UI images and their conditions', uiFit.length < 65536 && uiFit.includes(uiSection) && !uiFit.includes('uuuuuuuuuu'));
 
 // Still over with the notes gone: the assessment’s detail is cut, least consequential first, and the
 // marker names the file. The verdict and the intent judgement stay.

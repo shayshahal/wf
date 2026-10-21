@@ -112,6 +112,8 @@ Preserve these guarantees on every harness:
   report; answer findings in the working document rather than rewriting their verdict.
 - Keep `NOT MEASURED`, environment failures and product failures distinguishable. A substitute check
   counts only for the behavior it actually proves.
+- UI changes require before/after images in the PR description. Follow
+  `process/SHOW-ME.md#ui-changes-required-pr-images` from the wf root during build and review.
 - `wf deliver` publishes the approved PR and leaves it open. Post the project note stating the work is in the PR awaiting merge. Merge and deploy remain the person's authority.
   Restrict repository permissions/credentials when an enforcement boundary stronger than instructions
   and local checks is required.
