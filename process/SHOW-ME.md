@@ -40,6 +40,36 @@ view over a paragraph describing a relationship; a simple fact may remain one li
 | What does the person see? | Current capture beside a proposed screen, with widths and directions |
 | What depends on a selection, width or state? | One generated HTML view with useful controls |
 
+## UI changes: required PR images
+
+Every PR that changes UI must show before and after screenshots for each affected view or state.
+Capture the base behavior before implementation and the final behavior with matching scenario,
+viewport, direction and data. For a new or removed view, show the corresponding baseline or final
+state (such as the page without that view), and label it. Use actual product captures.
+
+Keep originals in the round's `proof/` folder as `before-<label>` / `after-<label>`. Record the
+pairs under `## UI evidence` in the working document (`TICKET.md` for A, `AGREEMENT.md` for B/C),
+with a short caption naming the scenario and conditions:
+
+```markdown
+## UI evidence
+
+### <view or state> — <viewport, direction, scenario>
+| Before | After |
+|---|---|
+| ![Before: <view>](<durable image URL>) | ![After: <view>](<durable image URL>) |
+```
+
+Use image URLs accessible to the PR's reviewers after the worktree is removed: uploaded attachments
+or committed images linked at an immutable revision. Verify that both images render on GitHub.
+Local paths and ignored `proof/` files alone do not meet the requirement. `wf deliver` copies this
+section into the PR description, including on retry; keep it current in the working document.
+
+The builder supplies the pairs before assessment; the independent reviewer checks their coverage
+against the actual UI diff and treats missing, stale or inaccessible images as repair findings.
+An unavailable capture or upload capability leaves the requirement unmet: record the limitation
+and recovery owner and keep the work pending. Non-UI changes need no image section.
+
 ## Generated UI
 
 Use generated UI beyond screen mockups: compare alternatives, reveal a dependency path, switch

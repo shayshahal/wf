@@ -92,10 +92,11 @@ export function commitRows(commitLines: string[]) {
 // verbatim. JX-1221's body was 46,275 characters: 41% of it the commit table's file lists, a preamble
 // of 14 `Revision (…)` paragraphs, and `## Build` — the call stack, the one section that says how —
 // the section the budget cut first, because it sits after the first `## ` and the preamble does not.
-// Intent, the agreement's agreed material, the actual commits and verification cases, the T2 walk and
+// Intent, the agreement's agreed material, UI evidence, the actual commits and verification cases, the T2 walk and
 // ASSESSMENT.md's verdict are the reviewer's minimum and are never cut. The agreement's working notes
 // (units, rulings, a repro) fold under `<details>`; over the budget they go first, then the
 // assessment's detail, then the oldest commits — and the body says where the rest is.
+/** Preserve the working document's UI evidence in the PR description, outside optional notes. */
 export function prBody({ ticket, agreement, commitLines, assessment, agreementPath: agreementFilePath, folder: roundFolder, budget = PR_BODY_BUDGET }: PrSources) {
 	const folder = roundFolder ?? agreementFilePath.replace(/\/[^/]+$/, '');
 	const A = sectionsOf(agreement);
@@ -155,6 +156,7 @@ export function prBody({ ticket, agreement, commitLines, assessment, agreementPa
 			`Round folder: \`${folder}/\`\n`,
 			section('Intent', K.Intent),
 			section('Agreement', agreementBody),
+			section('UI evidence', A['UI evidence']),
 			commitsBlock(),
 			verificationBlock,
 			section('T2 walk', t2Walk),

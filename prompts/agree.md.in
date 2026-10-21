@@ -26,6 +26,8 @@ how the result will be checked. Use `{{wf}}/process/SHOW-ME.md` to choose and de
   visual chunk before propagating a new pattern.
 - Record the `**T2 walk.**` bullet with the project's `open:` / `setup:` recipe, or
   `none — <why>`. The builder may refine the recipe without changing the agreed behavior.
+- For UI changes, plan the required before/after PR images in
+  `{{wf}}/process/SHOW-ME.md#ui-changes-required-pr-images`; capture the baseline before editing.
 
 For a check-only round, run the repro using normal project commands before handing back. Start the
 round stack with `wf serve --wait` if needed; restore disposable fixtures with project tools between

@@ -49,6 +49,9 @@ returned to agreement. Working-detail edits need not renew unchanged material; c
    browser tools, or an external UI/exact URL and setup if unavailable. Start the presentation with
    result, change, evidence, limits and the person's next action. Missing live verification stays
    visible; a screenshot or code reading is not an automatic substitute.
+   For UI changes, check the required before/after PR images against the actual diff using
+   `process/SHOW-ME.md#ui-changes-required-pr-images`. Complete missing pairs before T2 handoff;
+   after delivery, verify both images render in the PR description.
 2. Run `wf review <branch>`. It prepares the bound review record and inspection artifacts. Use the
    configured UI, or show the person the named files and record their comments and actual verdict.
    Preserve the reviewed identity header. It is not approval of later product/test changes.

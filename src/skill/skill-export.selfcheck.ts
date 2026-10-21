@@ -136,6 +136,10 @@ try {
 	writeFileSync(join(fixture, 'task-record', 'TICKET.md'), '# TASK-1\n\n## Intent\n- "the slider jumps" — reporter, 2026-10-01\n');
 	const readyNext = nodeRun([movedEntry, 'next'], fixture);
 	check('a relocated export starts class A build after intent is recorded', readyNext.status === 0 && readyNext.stdout.startsWith('work build:'), tail(readyNext));
+	const uiBrief = nodeRun([movedEntry, 'brief', 'build'], fixture);
+	check('the relocated build brief requires before/after PR images and its own guidance', uiBrief.status === 0 && uiBrief.stdout.includes('before/after PR images are required') && uiBrief.stdout.includes(`${forward(moved)}/scripts/runtime/process/SHOW-ME.md#ui-changes-required-pr-images`) && !namesSourceCheckout(uiBrief.stdout), tail(uiBrief));
+	const uiGuidance = readFileSync(join(moved, 'scripts/runtime/process/SHOW-ME.md'), 'utf8');
+	check('the relocated kit carries the complete PR image requirement', uiGuidance.includes('Every PR that changes UI must show before and after screenshots') && uiGuidance.includes('## UI evidence') && uiGuidance.includes('Verify that both images render on GitHub'));
 
 	// Re-export from a copy, through the copy's own wrapper: the skill source is the copy itself, two
 	// levels above its runtime folder.

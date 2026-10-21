@@ -42,6 +42,9 @@ Implement the agreement at `{{folder}}/{{file}}`.
 - Record the review's live demonstration in the working document's `**T2 walk.**` bullet:
   the project's `open:` and any `setup:` lines, or `none — <why>`. Keep useful captures under
   `{{folder}}/proof/` with descriptive `before-<label>` / `after-<label>` names.
+- For UI changes, before/after PR images are required. Follow
+  `{{wf}}/process/SHOW-ME.md#ui-changes-required-pr-images`: capture the baseline before editing
+  and supply the final pairs under `## UI evidence` in `{{folder}}/{{file}}` before assessment.
 
 When the agreed work and your verification are ready for independent review, commit and run
 `wf step assess`.

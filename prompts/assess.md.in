@@ -23,6 +23,9 @@ do not change product code.
   a product failure from setup/runner failure, an unexecuted check, or a test that measures a proxy.
   Inspect important assertions and live evidence where appropriate. Existing usable evidence does
   not need repeating solely because a fresh reviewer is reading it.
+- UI changes require before/after PR images under the working document's `## UI evidence`.
+  Apply `{{wf}}/process/SHOW-ME.md#ui-changes-required-pr-images` to the actual UI diff;
+  missing, stale, incomplete or inaccessible pairs are repair findings.
 - Design and standards: identify consequential maintainability issues and applicable project rules.
   Keep these findings distinguishable from behavior and intent.
 

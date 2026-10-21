@@ -88,6 +88,7 @@ const gh = (args, cwd) => {
   }
   if (args[0] === 'pr' && args[1] === 'create') {
     r.create++;
+    r.bodies = (r.bodies ?? []).concat([readFileSync(args[args.indexOf('--body-file') + 1], 'utf8')]);
     if (mode === 'correct-create') correct(cwd, mode);
     r.creates = (r.creates ?? []).concat([args]);
     if ((r.prs[branch] ?? []).length) { writeRemote(r); return { status: 1, stdout: '', stderr: 'a pull request for branch already exists' }; }
@@ -99,6 +100,7 @@ const gh = (args, cwd) => {
     return { status: 0, stdout: 'https://github.com/o/r/pull/108\\n', stderr: '' };
   }
   if (args[0] === 'pr' && args[1] === 'edit') {
+    r.bodies = (r.bodies ?? []).concat([readFileSync(args[args.indexOf('--body-file') + 1], 'utf8')]);
     if (mode === 'correct-edit') correct(cwd, mode);
     r.edit++; r.edits = (r.edits ?? []).concat([args]);
     // An edit that commits a new HEAD: the merge must be refused because the approved commit is no
@@ -137,9 +139,10 @@ await run(['deliver'], { gh });
 writeFileSync(join(ROOT, 'harness.mjs'), HARNESS);
 
 type RemotePr = { number: number; url: string; state: string; headRefOid: string | null; headRefName: string; baseRefName: string; isCrossRepository: boolean };
-type Remote = { prs: Record<string, RemotePr[]>; create: number; edit: number; merge: number; lists?: string[][]; creates?: string[][]; edits?: string[][]; merges?: string[][] };
+type Remote = { prs: Record<string, RemotePr[]>; create: number; edit: number; merge: number; lists?: string[][]; creates?: string[][]; edits?: string[][]; merges?: string[][]; bodies?: string[] };
 
-const TICKET = ['# BJEW-1 — the thing', '## Intent', '', '- the thing', '', '## Verification', '| # | case | files | check |', '|---|---|---|---|', '| 1 | fix(x): y | a.ts | — |'].join('\n');
+const UI_EVIDENCE = '## UI evidence\n\n### The changed view — 1280px, LTR\n\n| Before | After |\n|---|---|\n| ![Before](https://example.com/before.png) | ![After](https://example.com/after.png) |\n';
+const TICKET = ['# BJEW-1 — the thing', '## Intent', '', '- the thing', '', '## Verification', '| # | case | files | check |', '|---|---|---|---|', '| 1 | fix(x): y | a.ts | — |', '', UI_EVIDENCE].join('\n');
 const ASSESSMENT = ['# BJEW-1 — assessment', 'Verdict: clean', '', '## Intent', '- the thing: met: a.ts:1 \u00b7 before: broken \u00b7 after: fixed'].join('\n');
 
 // A temporary repository with a local bare origin, on the round's branch, its folder and its state at
@@ -241,6 +244,8 @@ function attempt(f: Fixture, mode = 'ok') {
  check('open handoff routes to tracker posting', next.stdout.startsWith('post:'), next.stdout + next.stderr);
  const second = attempt(f);
  check('retry retains one open PR without merging', second.code === 0 && readRemote(f).create === 1 && readRemote(f).merge === 0 && !!readState(f).pr_handoff, second.out);
+ const bodies = readRemote(f).bodies ?? [];
+ check('delivery publishes both UI images on create and retry', bodies.length === 2 && bodies.every((body) => body.includes(UI_EVIDENCE)), JSON.stringify(bodies));
  setRemote(f, mergedAt(must(['rev-parse', 'HEAD'], f.work)));
  const reconciled = attempt(f);
  check('human merge is reconciled into the existing merged lifecycle', reconciled.code === 0 && readState(f).step === 'merged' && !!readState(f).delivery, reconciled.out);
