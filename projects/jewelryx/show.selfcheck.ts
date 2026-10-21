@@ -137,13 +137,14 @@ assert.deepEqual(setupLinesOf('- **T2 walk.** open: b2b / as buyer\n\n## Facts\n
 		mkdirSync(control, { recursive: true });
 		writeFileSync(join(control, 'control-jewelryx.mjs'), `import fs from 'node:fs';
 const args = process.argv.slice(2);
+if (args[0] === 'api' && args[1] === 'checkScenario') process.exit(fs.existsSync('scenario.json') && JSON.parse(fs.readFileSync('scenario.json')).label === JSON.parse(args[2]).body.label ? 0 : 1);
 if (args[0] !== 'api' || args[1] !== 'makeScenario') process.exit(1);
 const calls = fs.existsSync('control-calls.json') ? JSON.parse(fs.readFileSync('control-calls.json', 'utf8')) : [];
 fs.writeFileSync('control-calls.json', JSON.stringify([...calls, args]));
 fs.writeFileSync('scenario.json', JSON.stringify(JSON.parse(args[2]).body));
 console.log('HTTP 200');
 `);
-		const ticketWalk = (label: string) => `# t\n## Intent\n- x\n\n## Notes\n- **T2 walk.** open: b2b /catalog/necklaces as buyer\n  setup: api makeScenario {"body":{"label":"${label}"}} as seller\n`;
+		const ticketWalk = (label: string) => `# t\n## Intent\n- x\n\n## Notes\n- **T2 walk.** open: b2b /catalog/necklaces as buyer\n  ready: api checkScenario {"body":{"label":"${label}"}} as seller\n  setup: api makeScenario {"body":{"label":"${label}"}} as seller\n`;
 		writeFileSync(join(repo, 'scenario.json'), '{"label":"build scenario"}');
 		rmSync(join(repo, 'scenario.json')); // The build reset its scenario before T2.
 		writeFileSync(join(repo, folder, 'TICKET.md'), ticketWalk('variants'));
@@ -162,7 +163,73 @@ console.log('HTTP 200');
 		assert.equal(JSON.parse(readFileSync(join(repo, 'scenario.json'), 'utf8')).label, 'corrected scenario');
 		const calls = JSON.parse(readFileSync(join(repo, 'control-calls.json'), 'utf8'));
 		assert.equal(calls.length, 2);
+		rmSync(join(repo, 'scenario.json'));
+		show();
+		assert.equal(JSON.parse(readFileSync(join(repo, 'scenario.json'), 'utf8')).label, 'corrected scenario');
+		show();
+		assert.equal(JSON.parse(readFileSync(join(repo, 'control-calls.json'), 'utf8')).length, 3);
 		assert.deepEqual(calls[0], ['api', 'makeScenario', '{"body":{"label":"variants"}}', '--as', 'seller']);
+		// A project-owned script supplies the same prepare/reset/readback for assessment and T2.
+		writeFileSync(join(repo, 'scenario.mjs'), `import fs from 'node:fs';
+const mode = process.argv[2];
+if (mode === 'ready') process.exit(fs.existsSync('scenario.json') && JSON.parse(fs.readFileSync('scenario.json')).label === 'script scenario' ? 0 : 1);
+if (mode === 'reset') { fs.rmSync('scenario.json', { force: true }); process.exit(0); }
+const calls = fs.existsSync('script-calls.json') ? JSON.parse(fs.readFileSync('script-calls.json')) : [];
+fs.writeFileSync('script-calls.json', JSON.stringify([...calls, mode]));
+fs.writeFileSync('scenario.json', JSON.stringify({label:'script scenario'}));
+`);
+		const scriptWalk = '# t\n## Intent\n- x\n## Notes\n- **T2 walk.** open: b2b /orders as buyer\n  ready: script ["node","scenario.mjs","ready"]\n  reset: script ["node","scenario.mjs","reset"]\n  setup: script ["node","scenario.mjs","prepare"]\n';
+		writeFileSync(join(repo, folder, 'TICKET.md'), scriptWalk);
+		show();
+		assert.equal(JSON.parse(readFileSync(join(repo, 'scenario.json'), 'utf8')).label, 'script scenario');
+		show();
+		assert.equal(JSON.parse(readFileSync(join(repo, 'script-calls.json'), 'utf8')).length, 1);
+		execFileSync(process.execPath, ['scenario.mjs', 'reset'], { cwd: repo });
+		show();
+		assert.equal(JSON.parse(readFileSync(join(repo, 'scenario.json'), 'utf8')).label, 'script scenario');
+		assert.equal(JSON.parse(readFileSync(join(repo, 'script-calls.json'), 'utf8')).length, 2);
+		// A continuing limitation is allowed; later live work replaces it without cached none.
+		writeFileSync(join(repo, folder, 'TICKET.md'), '# t\n## Intent\n- x\n- **T2 walk.** none — external payment credentials unavailable; local captures do not reproduce settlement\n');
+		assert.match(show(), /none — external payment credentials unavailable/);
+		writeFileSync(join(repo, folder, 'TICKET.md'), scriptWalk);
+		assert.match(show(), /b2b\/orders/);
+		// B/C use the same live readback/reset owner, preserving their agreement and approval path.
+		for (const klass of ['B', 'C']) {
+			writeFileSync(join(repo, '.wf', 'state.json'), JSON.stringify({ wf_version: 3, round: 't-1', class: klass, step: 'build', folder }));
+			writeFileSync(join(repo, folder, 'AGREEMENT.md'), scriptWalk.replace('## Notes', '## Agreed'));
+			execFileSync(process.execPath, ['scenario.mjs', 'reset'], { cwd: repo });
+			assert.match(show(), /b2b\/orders/);
+			assert.equal(JSON.parse(readFileSync(join(repo, 'scenario.json'), 'utf8')).label, 'script scenario');
+		}
+		writeFileSync(join(repo, '.wf', 'state.json'), JSON.stringify({ wf_version: 3, round: 't-1', class: 'A', step: 'build', folder }));
+		// Old completion tokens cannot authorize opening a scenario without readback.
+		writeFileSync(join(repo, folder, 'TICKET.md'), scriptWalk.replace(/  ready:.*\n/, ''));
+		const missingReady = spawnSync(process.execPath, [run, 'show'], { cwd: repo, encoding: 'utf8', env: { ...process.env, CLAUDECODE: '1' } });
+		assert.equal(missingReady.status, 1);
+		assert.match(missingReady.stderr, /requires ready readback/);
+		// Successful setup alone cannot certify readiness.
+		writeFileSync(join(repo, folder, 'TICKET.md'), scriptWalk.replace('"ready"]', '"missing"]'));
+		writeFileSync(join(repo, 'scenario.mjs'), "process.exit(process.argv[2] === 'missing' ? 1 : 0);");
+		const unreadable = spawnSync(process.execPath, [run, 'show'], { cwd: repo, encoding: 'utf8', env: { ...process.env, CLAUDECODE: '1' } });
+		assert.equal(unreadable.status, 1);
+		assert.match(unreadable.stderr, /scenario readback failed/);
+		assert.doesNotMatch(unreadable.stdout, /Browser pane/);
+		writeFileSync(join(repo, 'scenario.mjs'), "process.exit(process.argv[2] === 'missing' ? 2 : 0);");
+		const unavailable = spawnSync(process.execPath, [run, 'show'], { cwd: repo, encoding: 'utf8', env: { ...process.env, CLAUDECODE: '1' } });
+		assert.equal(unavailable.status, 1);
+		assert.match(unavailable.stderr, /no reset attempted/);
+		assert.doesNotMatch(unavailable.stdout, /setup:/);
+		writeFileSync(join(repo, 'scenario.mjs'), "process.exit(process.argv[2] === 'missing' ? 1 : 3);");
+		const failedSetup = spawnSync(process.execPath, [run, 'show'], { cwd: repo, encoding: 'utf8', env: { ...process.env, CLAUDECODE: '1' } });
+		assert.equal(failedSetup.status, 1);
+		assert.match(failedSetup.stderr, /setup .*failed/);
+		assert.doesNotMatch(failedSetup.stdout, /Browser pane/);
+		writeFileSync(join(repo, folder, 'TICKET.md'), scriptWalk.replace('["node","scenario.mjs","prepare"]', '["node",42]'));
+		const malformed = spawnSync(process.execPath, [run, 'show'], { cwd: repo, encoding: 'utf8', env: { ...process.env, CLAUDECODE: '1' } });
+		assert.equal(malformed.status, 1);
+		assert.match(malformed.stderr, /setup is not/);
+		assert.doesNotMatch(malformed.stdout, /setup:/);
+
 		writeFileSync(join(repo, '.wf', 'state.json'), JSON.stringify({ wf_version: 3, round: 't-1', class: 'B', step: 'build', folder }));
 		// A genuine malformed `setup:` inside the walk still fails, with the actionable message: the
 		// scoping must not swallow real walk setups (only facts outside `## Agreed`).

@@ -9,15 +9,14 @@
 // The login and the page are the project's verification skill (round.ts VERIFY_SKILL): its CLI
 // holds how JewelryX logs in, which this file used to repeat in a spec of its own.
 import { spawnSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { opensWindows } from '../../src/worktrees/editor.ts';
 import { ensureServers } from '../../src/worktrees/serve.ts';
 import { writeCloneLaunch } from '../../src/worktrees/new.ts';
-import { readState, roundOf, toplevelOf, writeState } from '../../src/round/state.ts';
+import { readState, roundOf, toplevelOf } from '../../src/round/state.ts';
 import { browserPidFromOutput, recordShowBrowser } from '../../src/worktrees/show-browser.ts';
-import { agreementPath, agreementSha, agreementT2WalkLines, consequential } from '../../src/round/agreement.ts';
+import { agreementPath, agreementT2WalkLines, consequential } from '../../src/round/agreement.ts';
 import { basePortForBranch, slugForBranch } from '../../src/worktrees/worktree.ts';
 import { logins, stackUrls } from './index.ts';
 import type { Origins, SeedRole } from './index.ts';
@@ -97,6 +96,18 @@ export function setupArgs(line: string): string[] | null {
 	return m ? [`${VERIFY_SKILL}/control-jewelryx.mjs`, 'api', m[1], m[2], '--as', m[3]] : null;
 }
 
+// Script recipes carry argv, never shell text; admission belongs to the round's walk.
+function walkCommand(line: string): { executable: string; args: string[] } | null {
+	if (line.startsWith('script ')) {
+		let value: unknown;
+		try { value = JSON.parse(line.slice(7)); } catch { return null; /* Report malformed recipes before execution. */ }
+		if (!Array.isArray(value) || !value.length || !value.every((arg): arg is string => typeof arg === 'string' && arg.length > 0)) return null;
+		return { executable: value[0] === 'node' ? process.execPath : value[0], args: value.slice(1) };
+	}
+	const args = setupArgs(line);
+	return args ? { executable: process.execPath, args } : null;
+}
+
 // Pure: the CLI's arguments for a parsed `open:` line, in its own headed window ("show" session),
 // apart from the browser the round's agents drive.
 export function showArgs(open: Open): string[] {
@@ -106,19 +117,18 @@ export function showArgs(open: Open): string[] {
 export async function runShow(argv: string[]): Promise<void> {
 	const toplevel = toplevelOf();
 	let line: string | null = argv.map((a) => unMsys(a, process.env)).join(' ').trim();
-	let setups: { cmd: string; token: string }[] = [];
+	let setups: string[] = [];
+	let ready: string[] = [];
+	let resets: string[] = [];
 	if (!line) {
 		const state = readState(toplevel);
 		const { folder } = roundOf(state, toplevel);
 		const agreement = folder && agreementPath(toplevel, state?.class ?? null, folder);
 		const text = agreement && existsSync(agreement) ? readFileSync(agreement, 'utf8') : null;
 		line = text && openLineOf(text);
-		// Once per recipe: a second show must not create the data twice. Class A's walk sits outside
-		// Intent (its agreement sha), so correcting its setup must invalidate the replay token (#139).
-		const token = consequential(state?.class ?? null)
-			? agreementSha(toplevel, state?.class ?? null, folder) ?? 'agreement'
-			: createHash('sha256').update(agreementT2WalkLines(text).join('\n')).digest('hex');
-		if (state?.t2_setup !== token) setups = setupLinesOf(text).map((cmd) => ({ cmd, token }));
+		ready = matchWalkLines(text, /ready:/i);
+		resets = matchWalkLines(text, /reset:/i);
+		setups = setupLinesOf(text);
 		if (!line) {
 			// A round with nothing visible says `none — <why>`; print its own reason, never the fallback.
 			const none = text ? noneLineOf(text) : null;
@@ -136,16 +146,52 @@ export async function runShow(argv: string[]): Promise<void> {
 		console.error(`wf show: cannot read "${line}" — want: <b2b|admin> <path> [as buyer|seller|admin] [mobile]`);
 		process.exit(2);
 	}
-	for (const { cmd } of setups) {
-		const args = setupArgs(cmd);
-		const r = args && spawnSync(process.execPath, args, { cwd: toplevel, encoding: 'utf8' });
-		if (!r || r.status !== 0) {
-			console.error(`wf show: setup "${cmd}" ${r ? `failed:\n${`${r.stdout}${r.stderr}`.trim().slice(0, 600)}` : 'is not `api <fn> <json> as <buyer|seller|admin>`'}\nFix it in the agreement's T2 walk bullet, then wf show again.`);
+	// #139: a recipe token cannot prove that live data survived reset. Check before and after
+	// preparation, using the same project-owned readback/reset that assessment can run.
+	const commands = [...ready, ...resets, ...setups];
+	if (((resets.length || setups.length) && !ready.length) || commands.some((cmd) => !walkCommand(cmd))) {
+		console.error("wf show: setup is not `api <fn> <json> as <buyer|seller|admin>` or `script [\"executable\",\"arg\",...]`; setup/reset requires ready readback. Fix it in the agreement's T2 walk bullet, then wf show again.");
+		process.exit(1);
+	}
+	// API setup/readback needs the stack too; starting it only before browser open was too late.
+	if (opensWindows()) {
+		if (!existsSync(join(toplevel, VERIFY_SKILL))) {
+			console.error(`wf show: this worktree has no ${VERIFY_SKILL} — its base predates the verification skill`);
 			process.exit(1);
 		}
-		console.log(`setup: ${cmd} → ${/HTTP \d+/.exec(r.stdout)?.[0] ?? 'ok'}`);
+		// wf step/next release an idle stack, so by T2 nothing may be listening: start it first, as brief does.
+		try { console.error(await ensureServers(toplevel, { wait: true })); } catch (e) { console.error((e as Error).message); process.exit(1); }
 	}
-	if (setups.length) writeState(toplevel, () => ({ t2_setup: setups[0].token }));
+	const execute = (cmd: string) => {
+		const command = walkCommand(cmd);
+		if (!command) return null;
+		return spawnSync(command.executable, command.args, { cwd: toplevel, encoding: 'utf8', timeout: 120_000 });
+	};
+	const scenarioReady = () => {
+		let present = true;
+		for (const cmd of ready) {
+			const result = execute(cmd);
+			if (result?.status === 0) continue;
+			if (result?.status === 1) { present = false; continue; }
+			console.error(`wf show: scenario readback could not run: ${result?.error?.message ?? result?.stderr ?? cmd}; no reset attempted`);
+			process.exit(1);
+		}
+		return present;
+	};
+	if (!ready.length || !scenarioReady()) {
+		for (const cmd of [...resets, ...setups]) {
+			const result = execute(cmd);
+			if (!result || result.status !== 0) {
+				console.error(`wf show: setup "${cmd}" failed: ${result?.error?.message ?? `${result?.stdout ?? ''}${result?.stderr ?? ''}`.trim().slice(0, 600)}\nFix it in the agreement's T2 walk bullet, then wf show again.`);
+				process.exit(1);
+			}
+			console.log(`setup: ${cmd} → ${/HTTP \d+/.exec(result.stdout)?.[0] ?? 'ok'}`);
+		}
+		if (ready.length && !scenarioReady()) {
+			console.error('wf show: scenario readback failed after setup; repair the admitted ready/reset/setup recipe before T2.');
+			process.exit(1);
+		}
+	}
 	if (!opensWindows()) {
 		const branch = spawnSync('git', ['-C', toplevel, 'rev-parse', '--abbrev-ref', 'HEAD'], { encoding: 'utf8' }).stdout.trim();
 		const slug = slugForBranch(branch);
@@ -155,12 +201,7 @@ export async function runShow(argv: string[]): Promise<void> {
 		console.log(paneText(open, urls, slug));
 		return;
 	}
-	if (!existsSync(join(toplevel, VERIFY_SKILL))) {
-		console.error(`wf show: this worktree has no ${VERIFY_SKILL} — its base predates the verification skill`);
-		process.exit(1);
-	}
-	// wf step/next release an idle stack, so by T2 nothing may be listening: start it first, as brief does.
-	try { console.error(await ensureServers(toplevel, { wait: true })); } catch (e) { console.error((e as Error).message); process.exit(1); }
+
 	// Capture rather than inherit: the browser pid is in this CLI's first output line, and the window
 	// it leaves behind keeps the worktree on Windows until reap releases it (#180).
 	const r = spawnSync(process.execPath, showArgs(open), { cwd: toplevel, encoding: 'utf8' });

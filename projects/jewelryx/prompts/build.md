@@ -23,8 +23,23 @@ For T2, record the live recipe in the working document:
 - **T2 walk.** open: <b2b|admin> /<path> as <buyer|seller|admin> [mobile]
   setup: api <SDK function> <one-line JSON options> as <buyer|seller|admin>
 ```
-Use a setup line for each state the seed lacks; `wf show` replays the recipe. For nonvisual work,
-write `none — <reason>`. Keep useful named before/after captures under `{{folder}}/proof/`.
+Use a setup line for each state the seed lacks. For scenarios beyond SDK calls, record explicit argv:
+```
+  ready: script ["node","<round>/scenario.mjs","ready"]
+  reset: script ["node","<round>/scenario.mjs","reset"]
+  setup: script ["node","<round>/scenario.mjs","prepare"]
+```
+`ready` must read back the actual scenario (including intended values/counts), exit zero only when
+it is present, exit one for absent/incorrect state, and exit two or greater for an unavailable
+service or failed read. Make no changes in readback; unavailable reads stop without reset.
+`wf show` checks it every time, including after setup. A failed readback runs the admitted reset and setup in order; a repeated show of a ready scenario writes
+nothing. A `ready:` readback is required for every setup/reset recipe, including existing API recipes;
+text-only completion tokens are ignored because they cannot detect external resets. Scripts must
+be idempotent and recover from partial execution; reset restores the entire round-owned scenario, not just helper files, and must never touch shared data. Use the same script
+commands during build and assessment, including reset after verification. Commands run from the
+worktree root without a shell; use `uv` argv for Python if needed. Only record operations authorized
+for this round; a recipe does not grant broader database or external-service authority.
+For nonvisual work, write `none — <reason>`. Keep useful named before/after captures under `{{folder}}/proof/`.
 
 Product branches (`fix/*`, `feat/*`) cannot edit `verification/` or `JewelryX-Tools/`.
 If verification needs a protected-asset change, record the exact path, needed change and rerun
