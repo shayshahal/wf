@@ -70,7 +70,9 @@ Original final run at a1fc529 completed: lifecycle and delivery-recovery PASS, t
 
 `evidence/focused-repaired-final.log`: 14 selected files/85 plus tsc/eslint at 6f42099. Twelve PASS (tsc, eslint, deliver, boundary, both completion files, ticket-changes, state, reap, skill-export, correction-fences, next, post, delivered-round). Two red: post-lifecycle 764.0s and deliver-recovery 762.2s.
 
-Diagnosis before any rerun: both reds produced *empty* child output, and deliver-recovery's failure was a git subprocess with no stderr in a freshly created temp repo. They finished at the same time after a 16-child parallel run, so the runner oversubscribed the machine and child spawns failed — not product assertions. Neither file's failing path involves the week's code delta: lifecycle's `race-after-transition` clone has both sections already posted, so `todo` is empty and the changed own-comment predicate is never evaluated.
+What the log actually shows: lifecycle printed `FAIL race-after-transition: stale lookup cannot mutate status or acknowledge another subject` with an empty *detail* — that detail is the spawned command's stdout+stderr, so the child produced no output; deliver-recovery printed a real `git config core.autocrlf false` stack trace from `makeRepo`, whose captured stderr was empty. Both finished at ~762–764 s of a 16-child parallel run.
+
+That both are child-spawn failures is an inference, not an instrumented measurement: the evidence is the empty captured streams, the freshly created temp repo whose `git init` had already succeeded, and both files passing alone at the same head afterwards. R2's review objected to my earlier wording here (E1) and it was right. The repair delta is also not exonerated by that inference and does not need to be: `race-after-transition` is itself new #191 coverage, but the changed own-comment predicate is not on its path, because that clone's sections are already marked posted, so `todo` is empty before the predicate is ever evaluated. The honest statement is: cause inferred as contention, behavior green when measured alone, and one red case that the delta does not touch.
 
 Isolated re-measurement at the same head, one file per run: `evidence/lifecycle-repaired-alone.log` PASS 508.2s (includes the three new wrong-comment continuous cases), `evidence/deliver-recovery-repaired-alone.log` PASS 557.6s (includes #190 recovery). Combined selection is therefore covered by 14 green in one run plus two green reruns; a single all-green aggregate log does NOT exist. Full suite NOT RUN; real Jira/GitHub, production publication and real reap remain unmeasured.
 
@@ -89,3 +91,11 @@ R4 documentation delta validated with the cheapest checks its files touch: `evid
 5. Launch accepted: `pi_pipersonal` / `opencode-go/deepseek-v4.1-flash`, `thinking=max`, fresh child context with no parent history.
 
 Disclosure: business 5 runs the same model family as this builder. Per this repo's AGENTS.md the independent-context requirement is about a fresh context that did not build the change; harness/model choice is an execution convenience, not the independence. If its report is thin or it cannot measure, the fallback is to rerun on a stronger model once the ChatGPT quota resets rather than accept a weaker verdict.
+
+## R2 assessment landed: clean, with E1 corrected
+
+`docs/reviews/191/ASSESSMENT-R2.md`, verdict clean at head `19de395` (product/test `6f42099`), agreement sha independently recomputed and matching. The reviewer re-measured R1 itself (prefix `1910`, foreign repository, human quote each posted and completed; genuine own post and post-crash retry did not duplicate), the three R2 routes, the crash/unknown/race completion cases, R3's delivered-round fixture (PASS 49.3 s), and the R4/S1 wording.
+
+Its one objection, E1 (low, non-blocking), was to this file's contention wording. Accepted and corrected above: the lifecycle line carried an empty detail rather than being empty output, deliver-recovery's failure was a real `git config` stack trace, and the contention cause is inferred rather than instrumented. The reviewer's assessment of the coverage claim stands: no all-green aggregate log exists and the full suite was not run.
+
+Nothing here authorizes publication; T2 does, and it is still owed.
