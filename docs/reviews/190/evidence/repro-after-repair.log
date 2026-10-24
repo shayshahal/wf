@@ -1,0 +1,15 @@
+  ok   publish reaches durable open handoff
+CAPTURE: 0 wf correct: recorded c-c1ad27739e4e23221c13 (pending) — source test:190-human-feedback
+wf correct: instruction retained; published PR outcome needs reconciliation before repair. Run wf deliver.
+ 
+  ok   instruction is durable
+  ok   published candidate is not routed to old-round build
+NEXT: 0 deliver: reconcile the published PR before correction repair — `node "C:/Users/Shay/.t3/worktrees/wf/fix-190-correction-merge-reconciliation/wf.mjs" deliver`; instruction and candidate retained
+ 
+  ok   next does not authorize old-round repair
+DELIVER: 0 https://github.com/o/r/pull/108 confirmed merged from published handoff; tracker note: bug-reports/bjew-1/JIRA.md
+{"wf_version":5,"round":"fix/108","class":"A","id":"BJEW-1","ids":["BJEW-1"],"folder":"bug-reports/bjew-1","base":"dev","step":"merged","made_by":"kit","note":"bug-reports/bjew-1/JIRA.md","pr_handoff":{"url":"https://github.com/o/r/pull/108","head":"04a3c46ac369d7a5fc4c8dc6a7d29d6e31a5e36c","contentSha":"tree:cc1bdfa1894337da8480f5a64a42dbde30c80912"},"pr_repair":null,"corrections":[{"kind":"human","author":"Shay","source":"test:190-human-feedback","relay":null,"text":"Keep this late instruction verbatim.","scope":"round","reason":"late instruction","id":"c-c1ad27739e4e23221c13","at":"2026-10-24T13:04:04.243Z","outcome":{"kind":"pending"}}],"delivery":{"url":"https://github.com/o/r/pull/108","head":"04a3c46ac369d7a5fc4c8dc6a7d29d6e31a5e36c","contentSha":"tree:cc1bdfa1894337da8480f5a64a42dbde30c80912"},"merge_attempt":null,"build_reason":null,"since":"2026-10-24T13:04:11.289Z","waiting_on":null,"history":[{"step":"merged","at":"2026-10-24T13:04:11.289Z"}]}
+wf deliver: merged with retained corrections; a fresh follow-up is required, not reopening this approval.
+
+  ok   merged candidate recovers receipt despite pending correction
+  ok   one instruction, one publication

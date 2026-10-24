@@ -1,0 +1,36 @@
+// A push whose handoff write never lands leaves the PR carrying this round's own later head while the
+// recorded handoff names the earlier one. That is stale bookkeeping, not an ambiguous remote: the retry
+// must converge, and it must not release repair on a stale claim (#190 review).
+{
+	const f = clonePublished();
+	attempt(f, 'no-remote', lateInstruction());
+	const open = await inFixture(f, () => withGh(() => rowsAnswer([handoffRow()]), () => reconcilePublishedDelivery(f.work)));
+	if (open.kind !== 'open') throw new Error(`#190 interrupted-push setup: ${JSON.stringify(open)}`);
+	writeFileSync(join(f.work, 'README.md'), 'repair\n');
+	must(['add', 'README.md'], f.work); must(['commit', '-qm', 'repair the instruction'], f.work);
+	const repairedHead = must(['rev-parse', 'HEAD'], f.work);
+	const interrupted = attempt(f, 'crash-edit');
+	check('#190 an interrupted push leaves the PR carrying a head the handoff does not name',
+		interrupted.code !== 0 && repairedHead !== publishedBase.head && (readState(f).pr_handoff as { head: string }).head === publishedBase.head,
+		interrupted.out);
+	setRemote(f, { ...empty(), create: 1, edit: 1, prs: { [BRANCH]: [handoffRow({ headRefOid: repairedHead })] } });
+	const retry = attempt(f);
+	check('#190 a retry adopts the head the PR actually carries instead of refusing its own later commit',
+		(readState(f).pr_handoff as { head: string }).head === repairedHead && /approved/.test(retry.out),
+		retry.out);
+	const cleaned = attempt(f, 'no-remote', ['next']);
+	check('#190 the adopted candidate is not reported as an unreconciled remote', !cleaned.out.startsWith('deliver:'), cleaned.out);
+}
+
+// A failed refresh cannot leave the earlier OPEN answer standing: the authorization goes first, and a
+// refusal writes nothing back.
+{
+	const f = clonePublished();
+	attempt(f, 'no-remote', lateInstruction());
+	const first = await inFixture(f, () => withGh(() => rowsAnswer([handoffRow()]), () => reconcilePublishedDelivery(f.work)));
+	const before = JSON.stringify(readState(f).pr_repair);
+	const failed = await inFixture(f, () => withGh(() => ({ status: 1, stdout: '', stderr: 'connection lost' }), () => reconcilePublishedDelivery(f.work)));
+	check('#190 a failed refresh clears the earlier OPEN authorization',
+		first.kind === 'open' && JSON.parse(before) !== null && failed.kind === 'refused' && readState(f).pr_repair == null && !attempt(f, 'no-remote', ['next']).out.startsWith('work build'),
+		JSON.stringify(failed));
+}

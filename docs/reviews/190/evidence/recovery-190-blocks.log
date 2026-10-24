@@ -1,0 +1,40 @@
+  ok   #190 publishes a real open handoff
+  ok   #190 admits without remote work and does not route published work to build
+  ok   #190 duplicate intake keeps exact durable identity and bytes
+  ok   #190 fences repair/disposition before reconciliation: next
+  ok   #190 fences repair/disposition before reconciliation: brief build
+  ok   #190 fences repair/disposition before reconciliation: step build
+  ok   #190 fences repair/disposition before reconciliation: correct --address
+  ok   #190 merge recovers receipt and routes retained words to fresh follow-up
+  ok   #190 recovery never republishes or merges
+  ok   #190 post-receipt correction remains fresh follow-up
+  ok   #190 OPEN setup publishes
+  ok   #190 OPEN setup retains instruction
+  ok   #190 matching OPEN releases ordinary scoped repair
+  ok   #190 refuses fail without losing candidate/instruction or stale OPEN authority
+  ok   #190 refuses garbage without losing candidate/instruction or stale OPEN authority
+  ok   #190 refuses junk-list without losing candidate/instruction or stale OPEN authority
+  ok   #190 refuses absent without losing candidate/instruction or stale OPEN authority
+  ok   #190 refuses mismatch-head without losing candidate/instruction or stale OPEN authority
+  ok   #190 refuses mismatch-url without losing candidate/instruction or stale OPEN authority
+  ok   #190 refuses ambiguous without losing candidate/instruction or stale OPEN authority
+  ok   #190 refuses closed without losing candidate/instruction or stale OPEN authority
+  ok   #190 refuses wrong-repo without losing candidate/instruction or stale OPEN authority
+  ok   #190 refuses wrong-base without losing candidate/instruction or stale OPEN authority
+  ok   #190 retry OPEN restores scoped repair
+  ok   #190 a correction after confirmed OPEN routes to ordinary build without another lookup
+  ok   #190 disposition after OPEN keeps instruction history and stays in ordinary repair
+  ok   #190 changed subject still requires fresh approval
+  ok   #190 later human merge recovers published head, never substitutes changed local HEAD
+  ok   #190 concurrent setup publishes
+  ok   #190 concurrent setup retains instruction
+  ok   #190 stale lookup cannot authorize repair: race-correction
+  ok   #190 concurrently admitted words survive stale lookup
+  ok   #190 stale lookup cannot authorize repair: race-subject
+  ok   #190 stale lookup cannot authorize repair: race-candidate
+  ok   #190 stale lookup cannot authorize repair: race-hold
+  ok   #190 stale lookup cannot authorize repair: race-index
+  ok   #190 crash setup publishes
+  ok   #190 crash setup retains instruction
+  ok   #190 crash after recognition retains candidate and instruction before receipt
+  ok   #190 crash retry finishes once without republishing

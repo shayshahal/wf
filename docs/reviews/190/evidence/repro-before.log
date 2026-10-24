@@ -1,0 +1,14 @@
+  FAIL publish reaches durable open handoff — wf: native session workspace does not match the round workspace (session: C:\Users\Shay\.t3\worktrees\wf\fix-190-correction-merge-reconciliation); open or resume a session bound to this exact round path: C:/Users/Shay/AppData/Local/Temp/wf-deliver-recovery-2WP5yK/190-continuous/work. Changing the shell directory does not rebind the chat workspace
+
+CAPTURE: 1  wf: native session workspace does not match the round workspace (session: C:\Users\Shay\.t3\worktrees\wf\fix-190-correction-merge-reconciliation); open or resume a session bound to this exact round path: C:/Users/Shay/AppData/Local/Temp/wf-deliver-recovery-2WP5yK/190-continuous/work. Changing the shell directory does not rebind the chat workspace
+
+  FAIL instruction is durable
+  ok   published candidate is not routed to old-round build
+NEXT: 1  wf: native session workspace does not match the round workspace (session: C:\Users\Shay\.t3\worktrees\wf\fix-190-correction-merge-reconciliation); open or resume a session bound to this exact round path: C:/Users/Shay/AppData/Local/Temp/wf-deliver-recovery-2WP5yK/190-continuous/work. Changing the shell directory does not rebind the chat workspace
+
+  ok   next does not authorize old-round repair
+DELIVER: 1 wf: native session workspace does not match the round workspace (session: C:\Users\Shay\.t3\worktrees\wf\fix-190-correction-merge-reconciliation); open or resume a session bound to this exact round path: C:/Users/Shay/AppData/Local/Temp/wf-deliver-recovery-2WP5yK/190-continuous/work. Changing the shell directory does not rebind the chat workspace
+
+  FAIL merged candidate recovers receipt despite pending correction — wf: native session workspace does not match the round workspace (session: C:\Users\Shay\.t3\worktrees\wf\fix-190-correction-merge-reconciliation); open or resume a session bound to this exact round path: C:/Users/Shay/AppData/Local/Temp/wf-deliver-recovery-2WP5yK/190-continuous/work. Changing the shell directory does not rebind the chat workspace
+
+  FAIL one instruction, one publication

@@ -1,0 +1,15 @@
+  ok   publish reaches durable open handoff
+CAPTURE: 0 wf correct: recorded c-c1ad27739e4e23221c13 (pending) — source test:190-human-feedback
+wf next carries the current instruction; a recorded correction is not approval.
+ 
+  ok   instruction is durable
+  FAIL published candidate is not routed to old-round build — {"wf_version":4,"round":"fix/108","class":"A","id":"BJEW-1","ids":["BJEW-1"],"folder":"bug-reports/bjew-1","base":"dev","step":"build","made_by":"kit","note":"bug-reports/bjew-1/JIRA.md","pr_handoff":{"url":"https://github.com/o/r/pull/108","head":"158064b67f4372fc9760885b4647130b6c722391","contentSha":"tree:cc1bdfa1894337da8480f5a64a42dbde30c80912"},"corrections":[{"kind":"human","author":"Shay","source":"test:190-human-feedback","relay":"pi:01a16d27-0082-7133-a90e-19236f3c9e4d","text":"Keep this late instruction verbatim.","scope":"round","reason":"late instruction","id":"c-c1ad27739e4e23221c13","at":"2026-10-24T09:06:29.558Z","outcome":{"kind":"pending"}}],"since":"2026-10-24T09:06:29.558Z","waiting_on":null,"history":[{"step":"build","at":"2026-10-24T09:06:29.558Z"}],"build_reason":{"kind":"work","text":"address recorded correction c-c1ad27739e4e23221c13: Keep this late instruction verbatim."},"correction_return_to":"pr"}
+NEXT: 0 work build: run `node "C:/Users/Shay/.t3/worktrees/wf/fix-190-correction-merge-reconciliation/wf.mjs" brief build` in this worktree and do exactly what it prints (again: address recorded corrections: c-c1ad27739e4e23221c13: Keep this late instruction verbatim.; record each disposition with evidence or a concrete blocker, not merely a transport acknowledgement)
+ 
+  FAIL next does not authorize old-round repair — work build: run `node "C:/Users/Shay/.t3/worktrees/wf/fix-190-correction-merge-reconciliation/wf.mjs" brief build` in this worktree and do exactly what it prints (again: address recorded corrections: c-c1ad27739e4e23221c13: Keep this late instruction verbatim.; record each disposition with evidence or a concrete blocker, not merely a transport acknowledgement)
+
+DELIVER: 2 wf deliver: unresolved corrections: c-c1ad27739e4e23221c13 (pending): Keep this late instruction verbatim. — run wf next; transport or dispatch is not resolution
+
+  FAIL merged candidate recovers receipt despite pending correction — wf deliver: unresolved corrections: c-c1ad27739e4e23221c13 (pending): Keep this late instruction verbatim. — run wf next; transport or dispatch is not resolution
+
+  ok   one instruction, one publication

@@ -1,0 +1,13 @@
+  FAIL #190 publishes a real open handoff
+  FAIL #190 admits without remote work and does not route published work to build — wf: native session workspace does not match the round workspace (session: C:\Users\Shay\.t3\worktrees\wf\fix-190-correction-merge-reconciliation); open or resume a session bound to this exact round path: C:/Users/Shay/AppData/Local/Temp/wf-deliver-recovery-U2Q5sG/190-human-merge-correction/work. Changing the shell directory does not rebind the chat workspace
+
+  FAIL #190 duplicate intake keeps exact durable identity and bytes — wf: native session workspace does not match the round workspace (session: C:\Users\Shay\.t3\worktrees\wf\fix-190-correction-merge-reconciliation); open or resume a session bound to this exact round path: C:/Users/Shay/AppData/Local/Temp/wf-deliver-recovery-U2Q5sG/190-human-merge-correction/work. Changing the shell directory does not rebind the chat workspace
+
+file:///C:/Users/Shay/.t3/worktrees/wf/fix-190-correction-merge-reconciliation/src/gates/deliver-recovery.selfcheck.ts:227
+ for (const args of [['next'], ['brief', 'build'], ['step', 'build'], ['correct', '--address', (JSON.parse(bytes).corrections[0].id), '--note', 'not yet reconciled']]) {
+                                                                                                                             ^
+
+TypeError: Cannot read properties of undefined (reading '0')
+    at file:///C:/Users/Shay/.t3/worktrees/wf/fix-190-correction-merge-reconciliation/src/gates/deliver-recovery.selfcheck.ts:227:126
+
+Node.js v26.10.0

@@ -1,0 +1,178 @@
+  ok   #190 publishes a real open handoff
+  FAIL #190 admits without remote work and does not route published work to build — wf correct: recorded c-c44d01bbfe02b1086ebf (pending) — source test:190
+wf next carries the current instruction; a recorded correction is not approval.
+
+  ok   #190 duplicate intake keeps exact durable identity and bytes
+  FAIL #190 fences repair/disposition before reconciliation: next — work build: run `node "C:/Users/Shay/.t3/worktrees/wf/fix-190-correction-merge-reconciliation/wf.mjs" brief build` in this worktree and do exactly what it prints (again: address recorded corrections: c-c44d01bbfe02b1086ebf: Keep this late instruction verbatim.; record each disposition with evidence or a concrete blocker, not merely a transport acknowledgement)
+
+  ok   #190 fences repair/disposition before reconciliation: brief build
+  FAIL #190 fences repair/disposition before reconciliation: step build — {"wf_version":4,"round":"fix/108","class":"A","id":"BJEW-1","ids":["BJEW-1"],"folder":"bug-reports/bjew-1","base":"dev","step":"build","made_by":"kit","note":"bug-reports/bjew-1/JIRA.md","pr_handoff":{"url":"https://github.com/o/r/pull/108","head":"47d199d353c60a7156f2a8566925693c6160b37f","contentSha":"tree:cc1bdfa1894337da8480f5a64a42dbde30c80912"},"corrections":[{"kind":"human","author":"Shay","source":"test:190","relay":"selfcheck","text":"Keep this late instruction verbatim.","scope":"round","reason":"late feedback","id":"c-c44d01bbfe02b1086ebf","at":"2026-10-24T10:15:42.939Z","outcome":{"kind":"pending"}}],"since":"2026-10-24T10:15:48.140Z","waiting_on":null,"history":[{"step":"build","at":"2026-10-24T10:15:42.939Z"}],"build_reason":{"kind":"work","text":"address recorded corrections: c-c44d01bbfe02b1086ebf: Keep this late instruction verbatim.; record each disposition with evidence or a concrete blocker, not merely a transport acknowledgement"},"correction_return_to":"pr"}
+
+  FAIL #190 fences repair/disposition before reconciliation: correct --address — wf correct: recorded c-c44d01bbfe02b1086ebf (addressed) — source test:190
+wf next carries the current instruction; a recorded correction is not approval.
+
+  FAIL #190 merge recovers receipt and routes retained words to fresh follow-up — https://github.com/o/r/pull/108 was already merged; tracker note: bug-reports/bjew-1/JIRA.md
+{"wf_version":4,"round":"fix/108","class":"A","id":"BJEW-1","ids":["BJEW-1"],"folder":"bug-reports/bjew-1","base":"dev","step":"merged","made_by":"kit","note":"bug-reports/bjew-1/JIRA.md","pr_handoff":{"url":"https://github.com/o/r/pull/108","head":"47d199d353c60a7156f2a8566925693c6160b37f","contentSha":"tree:cc1bdfa1894337da8480f5a64a42dbde30c80912"},"corrections":[{"kind":"human","author":"Shay","source":"test:190","relay":"selfcheck","text":"Keep this late instruction verbatim.","scope":"round","reason":"late feedback","id":"c-c44d01bbfe02b1086ebf","at":"2026-10-24T10:15:42.939Z","outcome":{"kind":"addressed","note":"not yet reconciled","at":"2026-10-24T10:15:48.292Z","contentSha":"tree:cc1bdfa1894337da8480f5a64a42dbde30c80912"},"history":[{"kind":"pending"}]}],"since":"2026-10-24T10:15:52.582Z","waiting_on":null,"history":[{"step":"build","at":"2026-10-24T10:15:42.939Z"},{"step":"pr","at":"2026-10-24T10:15:48.292Z"},{"step":"merged","at":"2026-10-24T10:15:52.582Z"}],"build_reason":null,"correction_return_to":null,"delivery":{"url":"https://github.com/o/r/pull/108","head":"47d199d353c60a7156f2a8566925693c6160b37f","contentSha":"tree:cc1bdfa1894337da8480f5a64a42dbde30c80912"},"merge_attempt":null}
+post: BJEW-1 — each section of bug-reports/bjew-1/JIRA.md on its own item, with the delivered status (ROUND.md); right after each, its heading gets ` (posted)`. Then `node "C:/Users/Shay/.t3/worktrees/wf/fix-190-correction-merge-reconciliation/wf.mjs" next`
+
+  ok   #190 recovery never republishes or merges
+  ok   #190 post-receipt correction remains fresh follow-up
+  ok   #190 OPEN setup publishes
+  ok   #190 OPEN setup retains instruction
+  FAIL #190 matching OPEN releases ordinary scoped repair — wf deliver: unresolved corrections: c-c44d01bbfe02b1086ebf (pending): Keep this late instruction verbatim. — run wf next; transport or dispatch is not resolution
+
+  FAIL #190 refuses fail without losing candidate/instruction or stale OPEN authority — wf deliver: unresolved corrections: c-c44d01bbfe02b1086ebf (pending): Keep this late instruction verbatim. — run wf next; transport or dispatch is not resolution
+work build: run `node "C:/Users/Shay/.t3/worktrees/wf/fix-190-correction-merge-reconciliation/wf.mjs" brief build` in this worktree and do exactly what it prints (again: address recorded corrections: c-c44d01bbfe02b1086ebf: Keep this late instruction verbatim.; record each disposition with evidence or a concrete blocker, not merely a transport acknowledgement)
+
+  FAIL #190 refuses garbage without losing candidate/instruction or stale OPEN authority — wf deliver: unresolved corrections: c-c44d01bbfe02b1086ebf (pending): Keep this late instruction verbatim. — run wf next; transport or dispatch is not resolution
+work build: run `node "C:/Users/Shay/.t3/worktrees/wf/fix-190-correction-merge-reconciliation/wf.mjs" brief build` in this worktree and do exactly what it prints (again: address recorded corrections: c-c44d01bbfe02b1086ebf: Keep this late instruction verbatim.; record each disposition with evidence or a concrete blocker, not merely a transport acknowledgement)
+
+  FAIL #190 refuses junk-list without losing candidate/instruction or stale OPEN authority — wf deliver: unresolved corrections: c-c44d01bbfe02b1086ebf (pending): Keep this late instruction verbatim. — run wf next; transport or dispatch is not resolution
+work build: run `node "C:/Users/Shay/.t3/worktrees/wf/fix-190-correction-merge-reconciliation/wf.mjs" brief build` in this worktree and do exactly what it prints (again: address recorded corrections: c-c44d01bbfe02b1086ebf: Keep this late instruction verbatim.; record each disposition with evidence or a concrete blocker, not merely a transport acknowledgement)
+
+  FAIL #190 refuses absent without losing candidate/instruction or stale OPEN authority — wf deliver: unresolved corrections: c-c44d01bbfe02b1086ebf (pending): Keep this late instruction verbatim. — run wf next; transport or dispatch is not resolution
+work build: run `node "C:/Users/Shay/.t3/worktrees/wf/fix-190-correction-merge-reconciliation/wf.mjs" brief build` in this worktree and do exactly what it prints (again: address recorded corrections: c-c44d01bbfe02b1086ebf: Keep this late instruction verbatim.; record each disposition with evidence or a concrete blocker, not merely a transport acknowledgement)
+
+  FAIL #190 refuses mismatch-head without losing candidate/instruction or stale OPEN authority — wf deliver: unresolved corrections: c-c44d01bbfe02b1086ebf (pending): Keep this late instruction verbatim. — run wf next; transport or dispatch is not resolution
+work build: run `node "C:/Users/Shay/.t3/worktrees/wf/fix-190-correction-merge-reconciliation/wf.mjs" brief build` in this worktree and do exactly what it prints (again: address recorded corrections: c-c44d01bbfe02b1086ebf: Keep this late instruction verbatim.; record each disposition with evidence or a concrete blocker, not merely a transport acknowledgement)
+
+  FAIL #190 refuses mismatch-url without losing candidate/instruction or stale OPEN authority — wf deliver: unresolved corrections: c-c44d01bbfe02b1086ebf (pending): Keep this late instruction verbatim. — run wf next; transport or dispatch is not resolution
+work build: run `node "C:/Users/Shay/.t3/worktrees/wf/fix-190-correction-merge-reconciliation/wf.mjs" brief build` in this worktree and do exactly what it prints (again: address recorded corrections: c-c44d01bbfe02b1086ebf: Keep this late instruction verbatim.; record each disposition with evidence or a concrete blocker, not merely a transport acknowledgement)
+
+  FAIL #190 refuses ambiguous without losing candidate/instruction or stale OPEN authority — wf deliver: unresolved corrections: c-c44d01bbfe02b1086ebf (pending): Keep this late instruction verbatim. — run wf next; transport or dispatch is not resolution
+work build: run `node "C:/Users/Shay/.t3/worktrees/wf/fix-190-correction-merge-reconciliation/wf.mjs" brief build` in this worktree and do exactly what it prints (again: address recorded corrections: c-c44d01bbfe02b1086ebf: Keep this late instruction verbatim.; record each disposition with evidence or a concrete blocker, not merely a transport acknowledgement)
+
+  FAIL #190 refuses closed without losing candidate/instruction or stale OPEN authority — wf deliver: unresolved corrections: c-c44d01bbfe02b1086ebf (pending): Keep this late instruction verbatim. — run wf next; transport or dispatch is not resolution
+work build: run `node "C:/Users/Shay/.t3/worktrees/wf/fix-190-correction-merge-reconciliation/wf.mjs" brief build` in this worktree and do exactly what it prints (again: address recorded corrections: c-c44d01bbfe02b1086ebf: Keep this late instruction verbatim.; record each disposition with evidence or a concrete blocker, not merely a transport acknowledgement)
+
+  FAIL #190 refuses wrong-repo without losing candidate/instruction or stale OPEN authority — wf deliver: unresolved corrections: c-c44d01bbfe02b1086ebf (pending): Keep this late instruction verbatim. — run wf next; transport or dispatch is not resolution
+work build: run `node "C:/Users/Shay/.t3/worktrees/wf/fix-190-correction-merge-reconciliation/wf.mjs" brief build` in this worktree and do exactly what it prints (again: address recorded corrections: c-c44d01bbfe02b1086ebf: Keep this late instruction verbatim.; record each disposition with evidence or a concrete blocker, not merely a transport acknowledgement)
+
+  FAIL #190 refuses wrong-base without losing candidate/instruction or stale OPEN authority — wf deliver: unresolved corrections: c-c44d01bbfe02b1086ebf (pending): Keep this late instruction verbatim. — run wf next; transport or dispatch is not resolution
+work build: run `node "C:/Users/Shay/.t3/worktrees/wf/fix-190-correction-merge-reconciliation/wf.mjs" brief build` in this worktree and do exactly what it prints (again: address recorded corrections: c-c44d01bbfe02b1086ebf: Keep this late instruction verbatim.; record each disposition with evidence or a concrete blocker, not merely a transport acknowledgement)
+
+  FAIL #190 retry OPEN restores scoped repair
+  ok   #190 disposition after OPEN preserves instruction history but not stale approval
+  ok   #190 changed subject still requires fresh approval
+  FAIL #190 later human merge recovers published head, never substitutes changed local HEAD — wf deliver: T2 has not approved this round. deliver publishes the PR, so it comes after `wf review <branch> --done` with verdict: approved
+
+  ok   #190 concurrent setup publishes
+  ok   #190 concurrent setup retains instruction
+  FAIL #190 stale lookup cannot authorize repair: race-correction — wf deliver: unresolved corrections: c-c44d01bbfe02b1086ebf (pending): Keep this late instruction verbatim. — run wf next; transport or dispatch is not resolution
+work build: run `node "C:/Users/Shay/.t3/worktrees/wf/fix-190-correction-merge-reconciliation/wf.mjs" brief build` in this worktree and do exactly what it prints (again: address recorded corrections: c-c44d01bbfe02b1086ebf: Keep this late instruction verbatim.; record each disposition with evidence or a concrete blocker, not merely a transport acknowledgement)
+
+  FAIL #190 concurrently admitted words survive stale lookup
+  FAIL #190 stale lookup cannot authorize repair: race-subject — wf deliver: unresolved corrections: c-c44d01bbfe02b1086ebf (pending): Keep this late instruction verbatim. — run wf next; transport or dispatch is not resolution
+work build: run `node "C:/Users/Shay/.t3/worktrees/wf/fix-190-correction-merge-reconciliation/wf.mjs" brief build` in this worktree and do exactly what it prints (again: address recorded corrections: c-c44d01bbfe02b1086ebf: Keep this late instruction verbatim.; record each disposition with evidence or a concrete blocker, not merely a transport acknowledgement)
+
+  FAIL #190 stale lookup cannot authorize repair: race-candidate — wf deliver: unresolved corrections: c-c44d01bbfe02b1086ebf (pending): Keep this late instruction verbatim. — run wf next; transport or dispatch is not resolution
+work build: run `node "C:/Users/Shay/.t3/worktrees/wf/fix-190-correction-merge-reconciliation/wf.mjs" brief build` in this worktree and do exactly what it prints (again: address recorded corrections: c-c44d01bbfe02b1086ebf: Keep this late instruction verbatim.; record each disposition with evidence or a concrete blocker, not merely a transport acknowledgement)
+
+  FAIL #190 stale lookup cannot authorize repair: race-hold — wf deliver: unresolved corrections: c-c44d01bbfe02b1086ebf (pending): Keep this late instruction verbatim. — run wf next; transport or dispatch is not resolution
+work build: run `node "C:/Users/Shay/.t3/worktrees/wf/fix-190-correction-merge-reconciliation/wf.mjs" brief build` in this worktree and do exactly what it prints (again: address recorded corrections: c-c44d01bbfe02b1086ebf: Keep this late instruction verbatim.; record each disposition with evidence or a concrete blocker, not merely a transport acknowledgement)
+
+  FAIL #190 stale lookup cannot authorize repair: race-index — wf deliver: unresolved corrections: c-c44d01bbfe02b1086ebf (pending): Keep this late instruction verbatim. — run wf next; transport or dispatch is not resolution
+work build: run `node "C:/Users/Shay/.t3/worktrees/wf/fix-190-correction-merge-reconciliation/wf.mjs" brief build` in this worktree and do exactly what it prints (again: address recorded corrections: c-c44d01bbfe02b1086ebf: Keep this late instruction verbatim.; record each disposition with evidence or a concrete blocker, not merely a transport acknowledgement)
+
+  ok   #190 crash setup publishes
+  ok   #190 crash setup retains instruction
+  ok   #190 crash after recognition retains candidate and instruction before receipt
+  FAIL #190 crash retry finishes once without republishing — wf deliver: unresolved corrections: c-c44d01bbfe02b1086ebf (pending): Keep this late instruction verbatim. — run wf next; transport or dispatch is not resolution
+
+  ok   a retry after a completed merge exits clean
+  ok   …finishes the local step at merged
+  ok   …records the actual remote PR, merged head and product content for follow-up detection
+  ok   …writes the tracker note and records it
+  ok   …does not merge a merged PR again
+  ok   …does not push the merged branch back
+  ok   …does not create a second PR
+  ok   …the lookup that recognized the merge was pinned to the repository
+    (stdout) https://github.com/o/r/pull/108 was already merged; tracker note: bug-reports/bjew-1/JIRA.md | {"wf_version":4,"round":"fix/108","class":"A","id":"BJEW-1","ids":["BJEW-1"],"folder":"bug-reports/bjew-1","base":"dev","step":"merged","made_by":"kit","note":"bug-reports/bjew-1/JIRA.md","delivery":{"url":"https://github.com/o/r/pull/108","head":"fc885a55d30414d6d8ea1cfafd82d11258a81590","contentSha":"tree:cc1bdfa1894337da8480f5a64a42dbde30c80912"},"merge_attempt":null,"build_reason":null,"since":"2026-10-24T10:18:33.786Z","waiting_on":null,"history":[{"step":"merged","at":"2026-10-24T10:18:33.786Z"}]}
+  ok   a retry with the merged branch still there finishes
+  ok   …and deletes the merged branch it left behind
+  ok   delivery leaves the PR and branch open with a durable handoff
+  ok   open handoff routes to tracker posting
+  ok   retry retains one open PR without merging
+  ok   delivery publishes both UI images on create and retry
+  ok   human merge is reconciled into the existing merged lifecycle
+  ok   a retry with an open PR exits clean
+  ok   …edits the existing PR, never creates a second
+  ok   …names the selected PR url on the edit, not the current branch default
+  ok   …the lookups are pinned to the repository and the handoff to the pushed head
+  ok   …keeps it open and writes the note without claiming a merge
+  ok   a retry after push, before PR, creates exactly one PR
+  ok   …the create is pinned to the repository and the handoff to the pushed head
+  ok   a retry after the round-folder commit resumes without a fresh review
+  ok   a round whose base is main (origin/dev absent) delivers
+  ok   …the open PR branch stays pushed
+  ok   a fresh delivery worker confirms an interrupted cleanup and clears its ownership
+  ok   …a retry neither creates a second PR nor merges again
+  ok   control: a round whose base is origin/dev, with origin/dev present, delivers
+  ok   an unresolved round base refuses before the push
+  ok   …the refusal is one actionable line naming the base
+  ok   a product change during gh pr create is refused before the merge
+  ok   …the refusal names the implementation the approval no longer covers
+  ok   a commit during gh pr edit is refused before the merge
+  ok   a retry does not overwrite a filled, posted note
+  ok   a note that is not this round's is refused, not overwritten
+  ok   …the refusal says the note is truncated or another round's
+  ok   a truncated note (an interrupted write) is refused, not treated as complete
+  ok   a section heading with no body is refused, not treated as filled
+  ok   a legacy cut-off note is completed on retry, not refused forever
+  ok   a stale OPEN head is refused, not merged
+  ok   …the branch was pushed, only the merge was stopped
+  ok   …the refusal names the stale head and the current one
+  ok   a pushurl naming another repository refuses before any mutation
+  ok   …nothing reached the fetch remote or the fork
+  ok   …the refusal names both repositories
+  ok   two url values naming different repositories refuse before any mutation
+  ok   …nothing reached either remote
+  ok   a pushInsteadOf to another github.com repository refuses before any mutation
+  ok   …the refusal names the other repository and hides the credential
+  ok   a github origin remapped to a local bare transport is accepted
+  ok   an unsupported remote is refused before any mutation
+  ok   …the diagnostic names the host but no credential
+  ok   a merged PR from another repository is refused, not finished here
+  ok   …the refusal names both the other PR and the repository deliver asked for
+  ok   a gh failure refuses instead of guessing
+  ok   …names the remote it could not ask
+  ok   …writes no note and pushes nothing
+  ok   a gh answer that is not JSON refuses instead of guessing
+  ok   …names the remote it could not ask
+  ok   …writes no note and pushes nothing
+  ok   a nonempty list deliver cannot read refuses instead of guessing
+  ok   …names the remote it could not ask
+  ok   …writes no note and pushes nothing
+  ok   a merged PR for another commit is surfaced, not completed
+  ok   …the refusal says the merge is not this commit
+  ok   …and the branch is not pushed back
+  ok   a merged PR with no head commit is refused, not completed
+  ok   …the refusal says the merge cannot be proven to be this commit
+  ok   a PR closed without merging is surfaced, not merged
+  ok   …the refusal names the closed PR
+  ok   an old merged PR beside a fresh open one is refused, not selected
+  ok   …the refusal says the branch's PRs cannot be told apart
+  ok   …nothing was pushed, created, edited, merged or noted
+  ok   after-receipt: real delivery established the receipt prerequisite
+  ok   late admission after receipt stays durable without reopening build
+  ok   after-receipt: incomplete local step calls for receipt reconciliation
+  ok   after-receipt: receipt recovery completes despite pending correction and unavailable remote
+  ok   after-receipt: receipt, original approval, note and pending instruction remain exact
+  ok   after-receipt: recovery makes no remote request or branch recreation
+  ok   after-receipt: next directs the untouched instruction into a fresh round
+  ok   after-receipt: repeated delivery remains completed, not a new merge
+  ok   correct-create: state-only instruction blocks merge
+  ok   correct-create: original approval bytes survive
+  ok   correct-create: direct retry cannot bypass the instruction
+  ok   correct-edit: state-only instruction blocks merge
+  ok   correct-edit: original approval bytes survive
+  ok   correct-edit: direct retry cannot bypass the instruction
+  ok   correct-before-merge: state-only instruction blocks merge
+  ok   correct-before-merge: original approval bytes survive
+  ok   correct-before-merge: direct retry cannot bypass the instruction
+  ok   actual pre-push refusal becomes system correction without verdict mutation
+  ok   unchanged transient hook recovery reuses original approval
+  ok   network-only push failure does not manufacture product repair
+  ok   unchanged network retry retains approval
+
+25 FAILURE(S)

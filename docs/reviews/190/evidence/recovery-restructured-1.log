@@ -1,0 +1,45 @@
+  ok   #190 verdict: merged at the published head → merged
+  ok   #190 verdict: open at the published head → open
+  ok   #190 verdict: merged at another head → refused
+  ok   #190 verdict: open at another head → refused
+  ok   #190 verdict: merged with no head recorded → refused
+  ok   #190 verdict: another PR on the branch → refused
+  ok   #190 verdict: closed → refused
+  ok   #190 verdict: the known candidate absent → refused
+  ok   #190 verdict: gh failed → refused
+  ok   #190 admits without remote work and does not route published work to build
+  ok   #190 duplicate intake keeps exact durable identity and bytes
+  ok   #190 fences repair/disposition before reconciliation: next
+  ok   #190 fences repair/disposition before reconciliation: brief build
+  ok   #190 fences repair/disposition before reconciliation: step build
+  ok   #190 fences repair/disposition before reconciliation: correct --address
+  ok   #190 gh failed: reconciliation refuses and retains candidate, instruction and no repair authority
+  ok   #190 not JSON: reconciliation refuses and retains candidate, instruction and no repair authority
+  ok   #190 unreadable row: reconciliation refuses and retains candidate, instruction and no repair authority
+  ok   #190 the candidate absent: reconciliation refuses and retains candidate, instruction and no repair authority
+  ok   #190 another head: reconciliation refuses and retains candidate, instruction and no repair authority
+  ok   #190 another PR: reconciliation refuses and retains candidate, instruction and no repair authority
+  ok   #190 two PRs: reconciliation refuses and retains candidate, instruction and no repair authority
+  ok   #190 closed: reconciliation refuses and retains candidate, instruction and no repair authority
+  ok   #190 another repository: reconciliation refuses and retains candidate, instruction and no repair authority
+  ok   #190 another base: reconciliation refuses and retains candidate, instruction and no repair authority
+https://github.com/o/r/pull/108 confirmed merged from published handoff; tracker note: bug-reports/bjew-1/JIRA.md
+{"build_reason":null,"wf_version":5,"round":"fix/190-correction-merge-reconciliation","class":null,"base":null,"step":"merged","since":"2026-10-24T11:43:46.727Z","waiting_on":null,"history":[{"step":"merged","at":"2026-10-24T11:43:46.727Z"}]}
+wf deliver: merged with retained corrections; a fresh follow-up is required, not reopening this approval.
+  FAIL #190 merge recovers the published delivery and routes the retained words to a fresh follow-up — {"kind":"finished"}deliver: reconcile the recorded merge outcome before repair or follow-up — `node "C:/Users/Shay/.t3/worktrees/wf/fix-190-correction-merge-reconciliation/wf.mjs" deliver`; do not assume the merge was prevented
+
+node:fs:620
+    return binding.readFileUtf8(path, stringToFlags(options.flag));
+                   ^
+
+Error: ENOENT: no such file or directory, open 'C:\Users\Shay\AppData\Local\Temp\wf-deliver-recovery-xFa82m\190-clone-12.remote.json'
+    at readFileSync (node:fs:620:20)
+    at readRemote (file:///C:/Users/Shay/.t3/worktrees/wf/fix-190-correction-merge-reconciliation/src/gates/deliver-recovery.selfcheck.ts:209:55)
+    at file:///C:/Users/Shay/.t3/worktrees/wf/fix-190-correction-merge-reconciliation/src/gates/deliver-recovery.selfcheck.ts:320:45 {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: 'C:\\Users\\Shay\\AppData\\Local\\Temp\\wf-deliver-recovery-xFa82m\\190-clone-12.remote.json'
+}
+
+Node.js v26.10.0

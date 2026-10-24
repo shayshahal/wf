@@ -1,0 +1,37 @@
+// A push whose handoff write never lands leaves the PR carrying this round's own later head while the
+// recorded handoff names the earlier one. That is stale bookkeeping, not an ambiguous remote: the round
+// must converge through a fresh approval, without ever adopting unapproved bytes as "awaiting merge".
+// The fixture's remote is seeded OPEN at the published head so the interrupted attempt really reaches
+// the push; `crash-edit` dies inside `gh pr edit`, exactly the boundary under test (#190 review R1/R2).
+{
+	const f = clonePublished();
+	setRemote(f, { ...empty(), create: 1, prs: { [BRANCH]: [handoffRow()] } });
+	attempt(f, 'no-remote', lateInstruction());
+	const open = await inFixture(f, () => withGh(() => rowsAnswer([handoffRow()]), () => reconcilePublishedDelivery(f.work)));
+	if (open.kind !== 'open') throw new Error(`#190 interrupted-push setup: ${JSON.stringify(open)}`);
+	writeFileSync(join(f.work, 'README.md'), 'repair\n');
+	must(['add', 'README.md'], f.work); must(['commit', '-qm', 'repair the instruction'], f.work);
+	const repairedHead = must(['rev-parse', 'HEAD'], f.work);
+	for (const id of pendingOf(f)) attempt(f, 'no-remote', ['correct', '--address', id, '--note', 'repaired in the fixture']);
+	const interrupted = attempt(f, 'crash-edit');
+	const pushed = must(['ls-remote', '--heads', 'origin'], f.work).split('\n').some((line) => line.startsWith(repairedHead));
+	check('#190 an interrupted push leaves the branch moved and the handoff still naming the earlier head',
+		interrupted.code !== 0 && pushed && (readState(f).pr_handoff as { head: string }).head === publishedBase.head && !readState(f).delivery,
+		interrupted.out);
+	// The published path is the only writer of a handoff at the newer head, and it re-asserts the approval
+	// first: the repair was never reviewed, so the retry must ask for that, not adopt the head.
+	const staleApproval = attempt(f);
+	check('#190 a retry after an interrupted push refuses the unreviewed bytes instead of adopting them',
+		staleApproval.code === 2 && /approved/.test(staleApproval.out) && (readState(f).pr_handoff as { head: string }).head === publishedBase.head,
+		staleApproval.out);
+	// T2 on the repaired bytes: the same identity makeRepo records, rewritten over the round folder.
+	const identity = approvalIdentity(f.work, FOLDER, trackerNotePath(FOLDER));
+	writeFileSync(join(f.work, FOLDER, 'REVIEW.md'), `round: ${BRANCH}\nbase: dev\ncontent-sha: ${identity.worktree}\nhead-sha: ${identity.head}\n\nverdict: approved\n`);
+	const delivered = attempt(f);
+	check('#190 a fresh approval lets the retry rewrite the handoff at the head the PR carries',
+		delivered.code === 0 && (readState(f).pr_handoff as { head: string }).head === repairedHead && readRemote(f).create === 1 && readRemote(f).edit === 1,
+		delivered.out);
+	const cleaned = attempt(f, 'no-remote', ['next']);
+	check('#190 the reconciled candidate is not reported as an unreconciled remote', !cleaned.out.startsWith('deliver:'), cleaned.out);
+}
+

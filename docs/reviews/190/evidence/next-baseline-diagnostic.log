@@ -1,0 +1,166 @@
+exit=1
+  ok   class A at null: absent intent returns to agree (null)
+  ok   class A at null: absent intent returns to agree ("")
+  ok   class A at null: absent intent returns to agree ("# r\n")
+  ok   class A at null: absent intent returns to agree ("# r\n### Intent\n- x\n")
+  ok   class A at null: absent intent returns to agree ("# r\n## Intent\n \t\n## Notes\n- x\n")
+  ok   class A at null: a ticket with intent builds without T1
+  ok   class A at null: a ticket with intent builds without T1
+  ok   class A at classify: absent intent returns to agree (null)
+  ok   class A at classify: absent intent returns to agree ("")
+  ok   class A at classify: absent intent returns to agree ("# r\n")
+  ok   class A at classify: absent intent returns to agree ("# r\n### Intent\n- x\n")
+  ok   class A at classify: absent intent returns to agree ("# r\n## Intent\n \t\n## Notes\n- x\n")
+  ok   class A at classify: a ticket with intent builds without T1
+  ok   class A at classify: a ticket with intent builds without T1
+  ok   class A at agree: absent intent returns to agree (null)
+  ok   class A at agree: absent intent returns to agree ("")
+  ok   class A at agree: absent intent returns to agree ("# r\n")
+  ok   class A at agree: absent intent returns to agree ("# r\n### Intent\n- x\n")
+  ok   class A at agree: absent intent returns to agree ("# r\n## Intent\n \t\n## Notes\n- x\n")
+  ok   class A at agree: a ticket with intent builds without T1
+  ok   class A at agree: a ticket with intent builds without T1
+  ok   class A build: one phase, resumed in place (no per-commit dispatch)
+  ok   a work packet names no model and no forced delegation
+  ok   the current session may work the build: the packet is the whole instruction
+  ok   the assess packet requires a fresh independent reviewer context and names no model
+  ok   the build effects are exactly the step transition, no repair or question
+  ok   a blocked build waits on the user with the question
+  ok   a check round with no ## Repro: dispatch agree to write and run the repro
+  ok   a check round with ## Repro: wait on the person decision, no wf check dispatch
+  ok   B/C with no agreement: dispatch agree with the gap
+  ok   B/C agreement not yet approved: wait on the user for T1 with wf agree
+  ok   B/C T1 approved: step build and dispatch build
+  ok   B/C T1 changes-requested: dispatch agree again
+  ok   JX-1367: no Not asked for bullet goes back to agree before T1, not to the person
+  ok   JX-1367: an agreement approved before the rule is not reopened for the bullet
+  ok   B/C a new agreement sha (material changed): T1 again, not approved
+  ok   no ASSESSMENT.md: dispatch assess
+  ok   an assessment of an earlier HEAD is re-run
+  ok   clean assessment → T2 review
+  ok   A: a cleared handoff re-evaluates the current clean assessment
+  ok   A: an unresolved handoff returns its current reason
+  ok   A: an unchanged pre-handoff report still needs assessment
+  ok   A: a cleared handoff cannot ignore a repair verdict
+  ok   A: ordinary work is not mistaken for a transient gap
+  ok   B: a cleared handoff re-evaluates the current clean assessment
+  ok   B: an unresolved handoff returns its current reason
+  ok   B: an unchanged pre-handoff report still needs assessment
+  ok   B: a cleared handoff cannot ignore a repair verdict
+  ok   B: ordinary work is not mistaken for a transient gap
+  ok   class A with no T2 walk: T2 refuses and dispatches the build to record it
+  ok   class A with an explicit none reaches T2
+  ok   class A with an open: walk reaches T2 (with or without setup lines)
+  ok   class A at review with no T2 walk refuses too, dispatching the build
+  ok   a B/C agreement still uses agreementGap, not the class A walk gate (unchanged)
+  ok   a clean verdict ignores prose: only verdict and head are read
+  ok   a repair assessment returns to build, counted
+  ok   a repair needs no finding grammar: it returns to build, counted
+  ok   repair prose of a capability gap does not stop the build on the harness
+  ok   two unsuccessful repairs: one contextual escalation, not another build
+  ok   a blocked verdict asks one durable ruling, not T2
+  ok   an explicit accept goes to T2 with the ruling recorded
+  ok   a fix ruling returns to build, not an endless question
+  ok   clean material prose does not create an escalation
+  ok   an open question holds the round before anything else
+  ok   a review dismissed without a verdict waits on the user
+  ok   posted open PR waits for human merge without reap
+  ok   unposted open PR posts before waiting
+  ok   changed HEAD cannot reuse the open handoff
+  ok   pr → deliver
+  ok   merged with no note sections left → done and reap
+  ok   merged with an unposted section → post it first
+  ok   an A round whose agreement declares Class: B steps classify --class B before any build
+  ok   a case on a contract path upgrades A→B without a Class: line
+  ok   R-4: a changed file on a contract path upgrades A→B with no case and no Class: line
+  ok   R-4: the actual diff is measured at step build too, not only at classify/agree
+  ok   R-4: a round-paperwork-only change is not a contract-path change (control)
+  ok   a B round with an approved agreement stays B (never downgrades)
+  ok   B/C build: a changed ## Agreed sends back to T1, not build
+  ok   B/C assess: a changed ## Agreed sends back to T1 too
+  ok   B/C review: a changed ## Agreed sends back to T1 too
+  ok   B/C build: an approved agreement at the same sha builds (progress does not renew T1)
+  ok   a recorded revision dispatches a fresh agreement before build
+  ok   a revision whose material sha moved is answered (no re-dispatch)
+  ok   R-3: an unchanged agreement after --revise cannot build on the old T1
+  ok   R-3: an unchanged agreement after --revise also refuses at assess
+  ok   a revision on a class A round also dispatches a fresh agreement
+  ok   class A: a revision stays open while the agreed sections are unchanged
+  ok   class A: a revision closes once the agreed sections change (JX-1096)
+  ok   a blocked build with no answer waits on the user
+  ok   an answered BLOCKED.md resumes the build once
+  ok   the same answer does not resume a second time
+  ok   an assessment with no head: line is refused
+  ok   a clean verdict owns the call despite unmet prose, and reaches T2
+  ok   a bounded-repair ruling question carries the reason and the whole assessment
+  ok   an answered repair-cap ruling does not repeat and reaches T2
+  ok   a repair-cap fix ruling returns to build
+  ok   R-6: the blocked question carries the whole assessment, including the unmet finding
+  ok   #127: a missing assessment at review dispatches assess, not T2
+  ok   #127: an assessment of an earlier HEAD at review dispatches assess
+  ok   unpostedSections names the sections without (posted)
+  ok   a state with no wf_version is refused with an actionable line
+  ok   a versionless state at a shared step (classify/review/pr/held/merged) is refused too
+  ok   a versionless state with no step is refused too
+  ok   a state at the current version is accepted
+  ok   a version-2 round without unit progress is accepted, so a protocol cut does not strand it
+  ok   a newer version is refused, so an old runtime cannot misread new state
+  ok   no state is not a legacy round
+  ok   CLI: fresh class A next 1 offers agreement without advancing to build
+  ok   CLI: fresh class A next 2 offers agreement without advancing to build
+  ok   CLI: the fresh agreement packet is executable and tells the worker to record sourced intent
+DIAGNOSTIC after brief: initial= {
+  "wf_version": 4,
+  "round": "r",
+  "id": "r",
+  "folder": "bug-reports/r",
+  "base": "main",
+  "step": "classify",
+  "class": "A"
+}
+ current= {
+  "wf_version": 4,
+  "round": "r",
+  "id": "r",
+  "folder": "bug-reports/r",
+  "base": "main",
+  "step": "classify",
+  "class": "A",
+  "session": {
+    "harness": "pi",
+    "id": "01a16d27-0082-7133-a90e-19236f3c9e4d",
+    "transcript": "C:\\Users\\Shay\\.pi\\agent\\sessions\\--C--Users-Shay-.t3-worktrees-wf-fix-190-correction-merge-reconciliation--\\2026-10-24T09-03-55-011Z_01a16d27-0082-7133-a90e-19236f3c9e4d.jsonl",
+    "step": "classify",
+    "at": "2026-10-24T09:18:40.548Z"
+  }
+}
+
+  FAIL CLI: direct build still refuses a missing ticket without advancing — wf step build: no C:\Users\Shay\AppData\Local\Temp\wf-next-AGC78j\bug-reports\r\TICKET.md — the agreement is what the build works from
+
+  FAIL CLI: an empty intent returns to agreement without advancing — work agree: run `node "C:/Users/Shay/.t3/worktrees/wf/fix-190-correction-merge-reconciliation/wf.mjs" brief agree` in this worktree and do exactly what it prints (again: TICKET.md has no `## Intent` — the requester's words, verbatim and attributed)
+
+  FAIL CLI: direct build refuses an empty intent without rewriting state — wf step build: TICKET.md has no `## Intent` — the requester's words, verbatim and attributed
+
+  ok   CLI: build prompt still refuses an empty intent
+  ok   CLI: assess prompt still refuses an empty intent
+  ok   CLI: an ordinary class A round steps to build and dispatches it
+  ok   CLI: after recording intent, the build brief consumes the original request
+  ok   CLI: an agreement declaring Class: B upgrades the round and takes T1
+  ok   CLI: a legacy state refuses a mutating command before it writes
+  ok   CLI: the refused legacy state was not rewritten
+  ok   CLI: wf next refuses a versionless state parked at review
+  ok   CLI: wf step assess refuses an uncommitted tree
+  ok   CLI: a committed implementation hands off with no wf check required
+  ok   CLI: a clean assessment at this HEAD passes to review
+  ok   CLI: a product change after the assessment is refused at review
+
+3 FAILURE(S)
+wf step build: no C:\Users\Shay\AppData\Local\Temp\wf-next-AGC78j\bug-reports\r\TICKET.md — the agreement is what the build works from
+wf step build: TICKET.md has no `## Intent` — the requester's words, verbatim and attributed
+wf prompt build: bug-reports/r/TICKET.md has no `## Intent` — the requester's words, verbatim and attributed
+wf prompt assess: bug-reports/r/TICKET.md has no `## Intent` — the requester's words, verbatim and attributed
+wf step classify: paths measure A, keeping asserted B (a class never downgrades)
+wf: this round's state is from an older wf (no wf_version (step "implement")): finish it on the installed wf that made it, then start a new round — this wf refuses to reinterpret old state (finish-before-release, #110)
+wf: this round's state is from an older wf (no wf_version): finish it on the installed wf that made it, then start a new round — this wf refuses to reinterpret old state (finish-before-release, #110)
+wf step assess: commit the implementation before handoff: a.txt
+wf step review: work assess: run `node "C:/Users/Shay/.t3/worktrees/wf/fix-190-correction-merge-reconciliation/wf.mjs" brief assess` in this worktree and do exactly what it prints — a fresh independent reviewer context is required: another session, harness or subagent, never the session that built the work (again: ASSESSMENT.md is of b86be174ec…, HEAD is 174efa5434…) — run wf next to record or resolve it before T2
