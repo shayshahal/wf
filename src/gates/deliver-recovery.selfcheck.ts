@@ -5,14 +5,19 @@
 // was asked to create, edit and merge, so a retry that duplicates work is visible in its records, and
 // the bare origin shows a branch a retry pushed back. Nothing here contacts GitHub or a tracker.
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { trackerNote } from '../project.ts';
 import { captureCorrection, disposeCorrection } from '../round/corrections.ts';
 import { WF_ROOT } from '../paths.ts';
+import { seams, plug } from '../seams.ts';
 import { approvalIdentity, headContentSha, trackerNotePath } from './content-identity.ts';
+import { publishedDeliveryVerdict, reconcilePublishedDelivery } from './deliver.ts';
+import { writeState } from '../round/state.ts';
+import type { GhResult } from '../seams.ts';
+import type { PrLookup } from './deliver.ts';
 
 const ROOT = mkdtempSync(join(tmpdir(), 'wf-deliver-recovery-'));
 const BRANCH = 'fix/108';
@@ -26,8 +31,10 @@ const GITHUB = 'https://github.com/o/r.git';
 const GITHUB_FORK = 'https://github.com/o/r-fork.git';
 const GITHUB_OTHER = 'https://github.com/o/r-other.git';
 // Git runs a hook with GIT_DIR absolute and it would point every command here at the invoked clone;
-// selfcheck.ts strips GIT_* already, this keeps a by-hand run honest too.
-const ENV = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('GIT_')));
+// selfcheck.ts strips GIT_* already, this keeps a by-hand run honest too. A2A/T3 credentials are
+// stripped for the same reason (#190): a fixture is not the thread's workspace, so the live session
+// identity must not reach a disposable round's CLI.
+const ENV = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('GIT_') && !k.startsWith('T3_') && !k.startsWith('T3CODE_')));
 ENV.GIT_CONFIG_GLOBAL = join(ROOT, 'empty-gitconfig');
 ENV.GIT_CONFIG_SYSTEM = join(ROOT, 'empty-gitconfig');
 writeFileSync(ENV.GIT_CONFIG_GLOBAL, '');
@@ -55,6 +62,7 @@ const headsOf = (remote: string, work: string) => must(['ls-remote', '--heads', 
 const HARNESS = `
 import { run } from ${JSON.stringify(pathToFileURL(fileURLToPath(new URL('../run.ts', import.meta.url))).href)};
 import { captureCorrection } from ${JSON.stringify(pathToFileURL(fileURLToPath(new URL('../round/corrections.ts', import.meta.url))).href)};
+import { writeState } from ${JSON.stringify(pathToFileURL(fileURLToPath(new URL('../round/state.ts', import.meta.url))).href)};
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 
@@ -83,6 +91,11 @@ const gh = (args, cwd) => {
     r.lists = (r.lists ?? []).concat([args]);
     if (mode === 'correct-before-merge' && r.lists.length === 2) correct(cwd, mode);
     if (mode === 'correct-unknown-merge' && r.uncertain) return { status: 1, stdout: '', stderr: 'connection lost' };
+    if (mode === 'race-correction') correct(cwd, mode);
+    if (mode === 'race-subject') writeFileSync('README.md', 'changed during lookup\\n');
+    if (mode === 'race-candidate') writeState(cwd, (s) => ({ pr_handoff: { ...s.pr_handoff, url: 'https://github.com/o/r/pull/999' } }));
+    if (mode === 'race-hold') writeState(cwd, () => ({ step: 'held' }));
+    if (mode === 'race-index') { writeFileSync('INDEX.md', 'staged during lookup\\n'); execFileSync('git', ['add', 'INDEX.md'], { cwd }); }
     writeRemote(r);
     return { status: 0, stdout: JSON.stringify((r.prs[branch] ?? []).map((p) => ({ ...p, headRefOid: effectiveHead(p, cwd) }))), stderr: '' };
   }
@@ -134,7 +147,8 @@ const gh = (args, cwd) => {
   return { status: 1, stdout: '', stderr: 'fake gh: unhandled ' + args.join(' ') };
 };
 
-await run(['deliver'], { gh });
+process.env.WF_TEST_DELIVER_PID = String(process.pid);
+await run(JSON.parse(process.env.WF_TEST_ARGS || '["deliver"]'), { gh });
 `;
 writeFileSync(join(ROOT, 'harness.mjs'), HARNESS);
 
@@ -192,16 +206,216 @@ const setState = (f: Fixture, patch: Record<string, unknown>) => {
 	writeFileSync(file, JSON.stringify({ ...JSON.parse(readFileSync(file, 'utf8')), ...patch }, null, 2) + '\n');
 };
 const setRemote = (f: Fixture, remote: Remote) => writeFileSync(f.remote, JSON.stringify(remote, null, 2));
-const readRemote = (f: Fixture): Remote => JSON.parse(readFileSync(f.remote, 'utf8'));
+const readRemote = (f: Fixture): Remote => (existsSync(f.remote) ? JSON.parse(readFileSync(f.remote, 'utf8')) : empty());
 const readState = (f: Fixture): Record<string, unknown> => JSON.parse(readFileSync(join(f.work, '.wf', 'state.json'), 'utf8'));
 const empty = (): Remote => ({ prs: {}, create: 0, edit: 0, merge: 0 });
 const pr = (state: string, oid: string | null): RemotePr => ({ number: 108, url: PR_URL, state, headRefOid: oid, headRefName: BRANCH, baseRefName: 'dev', isCrossRepository: false });
 const mergedAt = (head: string): Remote => ({ prs: { [BRANCH]: [pr('MERGED', head)] }, create: 1, edit: 0, merge: 1 });
 
 // One delivery attempt through the real CLI. `mode` drives the fake gh's answer.
-function attempt(f: Fixture, mode = 'ok') {
-	const r = spawnSync(process.execPath, [join(ROOT, 'harness.mjs')], { cwd: f.work, env: { ...ENV, WF_TEST_REMOTE: f.remote, WF_TEST_BRANCH: BRANCH, WF_TEST_GH_MODE: mode }, encoding: 'utf8' });
+function attempt(f: Fixture, mode = 'ok', args = ['deliver']) {
+	const r = spawnSync(process.execPath, [join(ROOT, 'harness.mjs')], { cwd: f.work, env: { ...ENV, WF_TEST_REMOTE: f.remote, WF_TEST_BRANCH: BRANCH, WF_TEST_GH_MODE: mode, WF_TEST_ARGS: JSON.stringify(args) }, encoding: 'utf8' });
 	return { code: r.status, out: `${r.stdout ?? ''}${r.stderr ?? ''}` };
+}
+
+// #190: continuous publish -> human merge -> pre-receipt correction -> reconcile, and the remote
+// answers that must keep repair fenced. One real publish is cloned per scenario: publishing costs ~90
+// git children, reconciling does not, so the remote matrix and the races run in-process through the
+// exported seam with wf's own `gh` seam plugged. Two scenarios still drive the real CLI end to end.
+const publishedBase = (() => {
+	const f = makeRepo('190-base');
+	setRemote(f, empty());
+	const r = attempt(f);
+	check('#190 CLI publishes a real open handoff', r.code === 0 && !!readState(f).pr_handoff && !readState(f).delivery, r.out);
+	if (r.code !== 0) throw new Error(`#190 base publish failed: ${r.out}`);
+	return { work: f.work, remote: f.remote, head: must(['rev-parse', 'HEAD'], f.work) };
+})();
+let cloneSeq = 0;
+function clonePublished(): Fixture {
+	const name = `190-clone-${++cloneSeq}`;
+	const dir = join(ROOT, name);
+	cpSync(publishedBase.work, dir, { recursive: true });
+	const clone: Fixture = { work: dir, remote: join(ROOT, `${name}.remote.json`), head: publishedBase.head };
+	setRemote(clone, empty());
+	return clone;
+}
+const handoffRow = (over: Partial<RemotePr> = {}): RemotePr => ({ number: 108, url: PR_URL, state: 'OPEN', headRefOid: publishedBase.head, headRefName: BRANCH, baseRefName: 'dev', isCrossRepository: false, ...over });
+// wf's own seam: the reconciliation asks whatever gh is plugged in, so a scenario never captures it.
+// Commands inside the seam resolve their round from the working directory (runStep does), so the run
+// happens inside the fixture — never in this checkout, which is a round of its own.
+async function withGh<T>(answer: () => GhResult, body: () => Promise<T>): Promise<T> {
+	const held = seams.gh;
+	const cwd = process.cwd();
+	plug({ gh: (args) => (args[0] === 'pr' && args[1] === 'list' ? answer() : { status: 1, stdout: '', stderr: `unexpected gh call ${args.join(' ')}` }) });
+	try { process.chdir(fixtureCwd()); return await body(); } finally { process.chdir(cwd); plug({ gh: held }); }
+}
+let fixtureDirectory = process.cwd();
+const fixtureCwd = () => fixtureDirectory;
+/** Run an in-process seam call with the fixture as the working directory it resolves its round from. */
+async function inFixture<T>(f: Fixture, body: () => Promise<T>): Promise<T> {
+	const held = fixtureDirectory;
+	fixtureDirectory = f.work;
+	try { return await body(); } finally { fixtureDirectory = held; }
+}
+const rowsAnswer = (rows: unknown[]): GhResult => ({ status: 0, stdout: JSON.stringify(rows), stderr: '' });
+const lateInstruction = (source = 'test:190') => ['correct', '--source', source, '--author', 'Shay', '--relay', 'selfcheck', '--scope', 'round', '--reason', 'late feedback', 'Keep this late instruction verbatim.'];
+const pendingOf = (f: Fixture) => ((readState(f).corrections ?? []) as Array<{ id: string; outcome: { kind: string } }>).filter((c) => c.outcome.kind === 'pending').map((c) => c.id);
+
+// The remote's answer as a decision: pure, so every variant is one table row and no fixture.
+{
+	const handoff = { url: PR_URL, head: publishedBase.head, contentSha: 'tree:' + 'c'.repeat(40) };
+	const cases: Array<[string, PrLookup, string, string]> = [
+		['merged at the published head', { kind: 'found', url: PR_URL, state: 'MERGED', headRefOid: publishedBase.head }, 'merged', ''],
+		['open at the published head', { kind: 'found', url: PR_URL, state: 'OPEN', headRefOid: publishedBase.head }, 'open', ''],
+		['merged at another head', { kind: 'found', url: PR_URL, state: 'MERGED', headRefOid: 'f'.repeat(40) }, 'refused', 'not the published head'],
+		['open at another head', { kind: 'found', url: PR_URL, state: 'OPEN', headRefOid: 'f'.repeat(40) }, 'refused', 'not the published head'],
+		['merged with no head recorded', { kind: 'found', url: PR_URL, state: 'MERGED', headRefOid: null }, 'refused', 'no commit'],
+		['another PR on the branch', { kind: 'found', url: 'https://github.com/o/r/pull/999', state: 'OPEN', headRefOid: publishedBase.head }, 'refused', 'not the published candidate'],
+		['closed', { kind: 'found', url: PR_URL, state: 'CLOSED', headRefOid: publishedBase.head }, 'refused', 'not open or merged'],
+		['the known candidate absent', { kind: 'none' }, 'refused', 'was not found'],
+		['gh failed', { kind: 'unknown', why: 'gh pr list exited 1' }, 'refused', 'could not be asked'],
+	];
+	for (const [name, lookup, kind, why] of cases) {
+		const verdict = publishedDeliveryVerdict(lookup, handoff);
+		check(`#190 verdict: ${name} → ${kind}`, verdict.kind === kind && (why === '' || ('why' in verdict && verdict.why.includes(why))), JSON.stringify(verdict));
+	}
+}
+
+// Intake is durable and local; only reconciliation can release repair, and it never guesses.
+{
+	const f = clonePublished();
+	const captured = attempt(f, 'no-remote', lateInstruction());
+	const bytes = readFileSync(join(f.work, '.wf/state.json'), 'utf8');
+	check('#190 admits without remote work and does not route published work to build', captured.code === 0 && readState(f).step === 'pr' && bytes.includes('Keep this late instruction verbatim.'), captured.out);
+	const duplicate = attempt(f, 'no-remote', lateInstruction());
+	check('#190 duplicate intake keeps exact durable identity and bytes', duplicate.code === 0 && duplicate.out.includes('duplicate') && readFileSync(join(f.work, '.wf/state.json'), 'utf8') === bytes, duplicate.out);
+	for (const args of [['next'], ['brief', 'build'], ['step', 'build'], ['correct', '--address', (JSON.parse(bytes).corrections[0].id), '--note', 'not yet reconciled']]) {
+		const r = attempt(f, 'no-remote', args);
+		check('#190 fences repair/disposition before reconciliation: ' + args.slice(0, 2).join(' '), !r.out.startsWith('work build') && r.out.includes('reconcil'), r.out);
+	}
+}
+
+// The remote answers that cannot settle the candidate leave every durable fact where it was.
+{
+	const variants: Array<[string, () => GhResult]> = [
+		['gh failed', () => ({ status: 1, stdout: '', stderr: 'error connecting to api.github.com' })],
+		['not JSON', () => ({ status: 0, stdout: 'not json', stderr: '' })],
+		['unreadable row', () => rowsAnswer([{}])],
+		['the candidate absent', () => rowsAnswer([])],
+		['another head', () => rowsAnswer([handoffRow({ headRefOid: 'f'.repeat(40) })])],
+		['another PR', () => rowsAnswer([handoffRow({ url: 'https://github.com/o/r/pull/999' })])],
+		['two PRs', () => rowsAnswer([handoffRow(), handoffRow()])],
+		['closed', () => rowsAnswer([handoffRow({ state: 'CLOSED' })])],
+		['another repository', () => rowsAnswer([handoffRow({ url: 'https://github.com/other/repo/pull/108' })])],
+		['another base', () => rowsAnswer([handoffRow({ baseRefName: 'wrong' })])],
+	];
+	// One fixture: a refusal leaves the round exactly as it found it, so the next variant starts where
+	// the last one did. A variant that changed anything would have to earn its own clone.
+	const f = clonePublished();
+	attempt(f, 'no-remote', lateInstruction());
+	for (const [name, answer] of variants) {
+		const before = { handoff: JSON.stringify(readState(f).pr_handoff), corrections: JSON.stringify(readState(f).corrections) };
+		const result = await inFixture(f, () => withGh(answer, () => reconcilePublishedDelivery(f.work)));
+		const after = readState(f);
+		check(`#190 ${name}: reconciliation refuses and retains candidate, instruction and no repair authority`,
+			result.kind === 'refused' && after.pr_repair == null && after.delivery == null && JSON.stringify(after.pr_handoff) === before.handoff && JSON.stringify(after.corrections) === before.corrections,
+			JSON.stringify(result));
+	}
+	check('#190 no refusal released repair: wf next still asks for reconciliation', attempt(f, 'no-remote', ['next']).out.startsWith('deliver:'), '');
+}
+
+// The two answers that do settle it: a merge recovers the published delivery, an open candidate
+// permits ordinary scoped repair under the existing approval rules.
+{
+	const f = clonePublished();
+	attempt(f, 'no-remote', lateInstruction());
+	const merged = await inFixture(f, () => withGh(() => rowsAnswer([handoffRow({ state: 'MERGED' })]), () => reconcilePublishedDelivery(f.work)));
+	const next = attempt(f, 'no-remote', ['next']);
+	check('#190 merge recovers the published delivery and routes the retained words to a fresh follow-up',
+		merged.kind === 'finished' && readState(f).step === 'merged' && JSON.stringify(readState(f).delivery).includes(publishedBase.head) && next.out.startsWith('follow-up:') && next.out.includes('Keep this late instruction verbatim.'),
+		JSON.stringify(merged) + ' STEP ' + String(readState(f).step) + ' ' + next.out);
+	check('#190 recovery republishes nothing', readRemote(f).create === 0 && readRemote(f).edit === 0, JSON.stringify(readRemote(f)));
+	const post = attempt(f, 'no-remote', lateInstruction('test:190-after-receipt'));
+	check('#190 post-receipt correction stays a fresh follow-up', post.code === 0 && readState(f).step === 'merged' && attempt(f, 'no-remote', ['next']).out.startsWith('follow-up:'), post.out);
+}
+{
+	const f = clonePublished();
+	attempt(f, 'no-remote', lateInstruction());
+	const open = await inFixture(f, () => withGh(() => rowsAnswer([handoffRow()]), () => reconcilePublishedDelivery(f.work)));
+	check('#190 a matching OPEN candidate permits ordinary scoped repair', open.kind === 'open' && readState(f).step === 'build' && JSON.stringify(readState(f).pr_repair).includes(publishedBase.head) && attempt(f, 'no-remote', ['next']).out.startsWith('work build'), JSON.stringify(open));
+	// OPEN is an observation, not a lease: a later instruction rides the confirmed candidate.
+	const later = attempt(f, 'no-remote', lateInstruction('test:190-open-later'));
+	check('#190 a correction after confirmed OPEN routes to ordinary build without another lookup', later.code === 0 && readState(f).step === 'build', later.out);
+	writeFileSync(join(f.work, 'README.md'), 'scoped repair\n');
+	let addressed = true;
+	const ids = pendingOf(f);
+	for (const id of ids) addressed = attempt(f, 'no-remote', ['correct', '--address', id, '--note', 'measured scoped repair']).code === 0 && addressed;
+	check('#190 disposition after OPEN keeps the instruction history and stays in ordinary repair', addressed && ids.length === 2 && JSON.stringify(readState(f).corrections).includes('measured scoped repair'), JSON.stringify(readState(f).corrections));
+	setRemote(f, { ...empty(), create: 1, prs: { [BRANCH]: [handoffRow()] } });
+	const staleApproval = attempt(f, 'stale-open');
+	check('#190 a changed reviewed subject still needs fresh approval', staleApproval.code === 2 && readRemote(f).edit === 0 && /approved/.test(staleApproval.out), staleApproval.out);
+	must(['add', 'README.md'], f.work); must(['commit', '-qm', 'later local repair'], f.work);
+	const merged = await inFixture(f, () => withGh(() => rowsAnswer([handoffRow({ state: 'MERGED' })]), () => reconcilePublishedDelivery(f.work)));
+	check('#190 a later human merge recovers the published head, never the changed local HEAD',
+		merged.kind === 'finished' && JSON.stringify(readState(f).delivery).includes(publishedBase.head) && (readState(f).delivery as { head: string }).head !== must(['rev-parse', 'HEAD'], f.work) && readRemote(f).edit === 0,
+		JSON.stringify(merged));
+}
+
+// A lookup is not a lease: anything that changes the round, the instructions or the subject while gh
+// is being asked makes the answer stale, and a stale answer authorizes nothing.
+{
+	type Race = [string, (f: Fixture) => void];
+	const races: Race[] = [
+		['a new instruction', (f) => { const r = captureCorrection(f.work, { kind: 'human', author: 'Shay', source: 'test:race', relay: 'selfcheck', text: 'Admitted during the lookup.', scope: 'round', reason: 'concurrent intake' }); if (r.kind === 'refused') throw new Error(r.reason); }],
+		['an uncommitted product edit', (f) => writeFileSync(join(f.work, 'README.md'), 'changed during lookup\n')],
+		['a staged product edit', (f) => { writeFileSync(join(f.work, 'INDEX.md'), 'staged during lookup\n'); must(['add', 'INDEX.md'], f.work); }],
+		['a moved candidate', (f) => writeState(f.work, (s) => ({ pr_handoff: { ...s.pr_handoff!, url: 'https://github.com/o/r/pull/999' } }))],
+		['a held round', (f) => writeState(f.work, () => ({ step: 'held' }))],
+	];
+	for (const [name, change] of races) {
+		const f = clonePublished();
+		attempt(f, 'no-remote', lateInstruction());
+		const result = await inFixture(f, () => withGh(() => { change(f); return rowsAnswer([handoffRow()]); }, () => reconcilePublishedDelivery(f.work)));
+		const after = readState(f);
+		check(`#190 stale lookup authorizes no repair after ${name}`,
+			result.kind === 'refused' && after.pr_repair == null && after.delivery == null && !attempt(f, 'no-remote', ['next']).out.startsWith('work build'),
+			JSON.stringify(result));
+		if (name === 'a new instruction') check('#190 words admitted during a stale lookup survive it', JSON.stringify(readState(f).corrections).includes('Admitted during the lookup.'));
+	}
+}
+
+// End to end through the real CLI: publish, a human merge, a correction before the receipt, recovery.
+{
+	const f = clonePublished();
+	const publishedHead = publishedBase.head;
+	setRemote(f, mergedAt(publishedHead));
+	check('#190 CLI retains the instruction', attempt(f, 'no-remote', lateInstruction()).code === 0);
+	check('#190 CLI fences repair before reconciliation', attempt(f, 'no-remote', ['next']).out.startsWith('deliver:'));
+	const recovered = attempt(f);
+	const next = attempt(f, 'no-remote', ['next']);
+	check('#190 CLI recovers the merged delivery and keeps the instruction for follow-up',
+		recovered.code === 0 && readState(f).step === 'merged' && JSON.stringify(readState(f).delivery).includes(publishedHead) && next.out.startsWith('follow-up:') && next.out.includes('Keep this late instruction verbatim.'),
+		recovered.out + next.out);
+	check('#190 CLI recovery creates no second PR and merges nothing', readRemote(f).create === 1 && readRemote(f).merge === 1 && readRemote(f).edit === 0, JSON.stringify(readRemote(f)));
+}
+
+// A crash after the merge is recognized but before the receipt is written retries from that identity.
+{
+	const f = clonePublished();
+	const publishedHead = publishedBase.head;
+	check('#190 crash setup retains the instruction', attempt(f, 'no-remote', lateInstruction()).code === 0);
+	setRemote(f, mergedAt(publishedHead));
+	// The receipt write follows the merged-branch delete, so the published branch must be there for the
+	// hook to run. This disposable hook kills its own fixture's delivery worker at that boundary.
+	must(['push', '-q', '-f', 'origin', `HEAD:refs/heads/${BRANCH}`], f.work);
+	const hook = join(f.work, '.git/hooks/pre-push');
+	writeFileSync(hook, '#!/bin/sh\nnode -e "process.kill(Number(process.env.WF_TEST_DELIVER_PID))"\n');
+	must(['update-index', '--refresh'], f.work);
+	const interrupted = attempt(f);
+	unlinkSync(hook);
+	check('#190 a crash after recognition keeps the candidate and the instruction before the receipt', interrupted.code !== 0 && !readState(f).delivery && !!readState(f).pr_handoff && JSON.stringify(readState(f).corrections).includes('test:190'), interrupted.out);
+	const retry = attempt(f);
+	check('#190 the retry finishes once without republishing', retry.code === 0 && readState(f).step === 'merged' && !!readState(f).delivery && readRemote(f).create === 1 && readRemote(f).edit === 0, retry.out);
 }
 
 // ── the merge completed remotely, before the note and the step were written ──────────────────────

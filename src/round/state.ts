@@ -92,6 +92,8 @@ export type State = {
 	delivery?: DeliveryReceipt;
 	/** Published open PR, separate from confirmed merge evidence. */
 	pr_handoff?: DeliveryReceipt;
+	/** An observed OPEN published candidate; its presence alone permits repair of that candidate. */
+	pr_repair?: { readonly url: string; readonly head: string } | null;
 	// When a person last re-read the ticket against the round's paperwork after it changed
 	// (`wf post --ticket-reread`): changes before it are read; the round's first step is the baseline
 	// until then (projects/jewelryx/ticket-changes.ts).
@@ -121,7 +123,8 @@ export function resolveRoundBase(toplevel: string, state: State | null): { ref: 
 // mid-T2 at version 2 when this cut shipped); one that holds `slices` is refused by readState.
 // 4 adds correction/merge authority that older runtimes would ignore. New readers accept 2/3
 // without removed unit state; writers carrying the new facts mark 4 so old readers fail closed.
-export const WF_STATE_VERSION = 4;
+// 5 fences published-candidate corrections; version 4 would route them to build without reconciliation.
+export const WF_STATE_VERSION = 5;
 // The steps the smaller route removed (#111/#112/#113). A round parked at one is an old round: it must
 // finish on the installed wf that made it, and this wf refuses to reinterpret it.
 const OLD_ROUTE_STEPS = ['research', 'plan', 'design', 'implement'];
@@ -132,7 +135,7 @@ export function legacyStateGap(state: State | null): string | null {
 	// protocol cut does not strand rounds that hold no removed progress. A newer or hand-edited version
 	// is refused before a mutating command touches it, as is a versionless old round (even parked at a
 	// step the two routes share, like classify or review).
-	if (state.wf_version === 2 || state.wf_version === 3) return null;
+	if (state.wf_version === 2 || state.wf_version === 3 || state.wf_version === 4) return null;
 	if (typeof state.wf_version === 'number') return `this round's state names wf version ${state.wf_version}, not ${WF_STATE_VERSION} — finish it on that wf, then start a new round`;
 	const at = state.step && OLD_ROUTE_STEPS.includes(state.step) ? ` (step "${state.step}")` : '';
 	return `this round's state is from an older wf (no wf_version${at}): finish it on the installed wf that made it, then start a new round — this wf refuses to reinterpret old state (finish-before-release, #110)`;
@@ -208,6 +211,10 @@ export function readState(toplevel: string): State | null {
 	if ('pr_handoff' in parsed) {
 		const gap = deliveryReceiptGap(parsed.pr_handoff);
 		if (gap) throw new CorruptStateError(file, `invalid PR handoff: ${gap}`);
+	}
+	if ('pr_repair' in parsed && parsed.pr_repair !== null) {
+		const repair = parsed.pr_repair;
+		if (typeof repair !== 'object' || Array.isArray(repair) || !('url' in repair) || typeof repair.url !== 'string' || !/^https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/pull\/\d+$/.test(repair.url) || !('head' in repair) || typeof repair.head !== 'string' || !/^[a-f0-9]{40}$/.test(repair.head)) throw new CorruptStateError(file, 'invalid published repair observation');
 	}
 	if ('delivery' in parsed) {
 		const gap = deliveryReceiptGap(parsed.delivery);
@@ -454,7 +461,7 @@ export function writeState(toplevel: string, update: StateUpdater): State {
 			const state: State = { ...current, ...patch };
 			// The capability boundary is the write of durable authority, not a later step command:
 			// old wf must refuse a correction admitted before the agent has run next (#150).
-			if ((state.corrections?.length || state.merge_attempt) && (state.wf_version === undefined || state.wf_version === 2 || state.wf_version === 3)) state.wf_version = WF_STATE_VERSION;
+			if ((state.corrections?.length || state.merge_attempt || state.pr_repair) && (state.wf_version === undefined || state.wf_version === 2 || state.wf_version === 3 || state.wf_version === 4)) state.wf_version = WF_STATE_VERSION;
 			writeStateFileAtomically(toplevel, state);
 
 			return state;

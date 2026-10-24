@@ -41,7 +41,9 @@ try {
 	const before = correctionStateSha(readState(dir));
 	assert.equal(captureCorrection(dir, instruction).kind, 'recorded');
 	assert.equal(readState(dir)?.wf_version, WF_STATE_VERSION, 'authority must upgrade before next, so an old runtime cannot ignore the new instruction');
-	assert.equal(WF_STATE_VERSION, 4);
+	// #190 raised it to 5: a version-4 runtime reads a published handoff with corrections and routes
+	// them to build, so the fenced state must be marked unreadable to that runtime.
+	assert.equal(WF_STATE_VERSION, 5);
 	const authority = readFileSync(join(dir, '.wf/state.json'), 'utf8');
 	const stale = spawnSync(process.execPath, [fileURLToPath(import.meta.url), 'stale-step', before], { cwd: dir, encoding: 'utf8' });
 	assert.equal(stale.status, 2, stale.stdout + stale.stderr);

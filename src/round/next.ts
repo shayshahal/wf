@@ -32,7 +32,7 @@ import { stepHistory } from './friction.ts';
 import { assessmentHandoffGap, higherClass, runStep } from './step.ts';
 import { assessmentContentSha, assessmentRulingSource } from './agreement.ts';
 import { followupRoundLine, mergedImplementationGap } from './delivered-round.ts';
-import { correctionStateSha, outstandingCorrections } from './corrections.ts';
+import { correctionStateSha, outstandingCorrections, publishedCorrectionGate } from './corrections.ts';
 import { shouldStopRoundServers } from './round-servers.ts';
 import { stopWorktreeServers } from '../worktrees/serve.ts';
 import type { MergedImplementationGap } from './delivered-round.ts';
@@ -75,6 +75,7 @@ export type Snapshot = {
 	mergeAttempt?: State['merge_attempt'];
 	delivery?: State['delivery'];
 	prHandoff?: State['pr_handoff'];
+	prRepair?: State['pr_repair'];
 	id?: string;
 	ids?: string[];
 	/** A merged round cannot post/reap on the old delivery while carrying new product work. */
@@ -116,6 +117,7 @@ export function nextAction(s: Snapshot, purpose: 'next' | 'brief' = 'next'): { s
 	// The tracker hears last, one section per item; a session can die between two posts, so the note
 	// says which are posted and a resumed round posts the rest, never one twice.
 	const corrections = outstandingCorrections({ corrections: s.corrections });
+	if (publishedCorrectionGate({ pr_handoff: s.prHandoff, pr_repair: s.prRepair, corrections: s.corrections, delivery: s.delivery })) return act(`deliver: reconcile the published PR before correction repair — \`${wf} deliver\`; instruction and candidate retained`);
 	if (s.mergeAttempt || (s.delivery && s.step !== 'merged')) return act(`deliver: reconcile the recorded merge outcome before repair or follow-up — \`${wf} deliver\`; do not assume the merge was prevented`);
 	if (s.step === 'merged') {
 		if (corrections.length) return act(`follow-up: instructions arrived after delivery: ${corrections.map((c) => `${c.id}: ${c.text}`).join(' | ')}. ${followupRoundLine({ round: s.branch, id: s.id, ids: s.ids })}. Carry the exact source and instruction to the fresh round before recording its transfer here; never reuse this approval.`);
@@ -343,6 +345,7 @@ export function snapshotOf(toplevel: string): Snapshot {
 		mergeAttempt: state.merge_attempt,
 		delivery: state.delivery,
 		prHandoff: state.pr_handoff,
+		prRepair: state.pr_repair,
 		id: state.id,
 		ids: state.ids,
 		repairs: state.repairs ?? 0,
