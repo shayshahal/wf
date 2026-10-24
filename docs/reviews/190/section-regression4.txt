@@ -1,0 +1,52 @@
+// A push whose handoff write never lands leaves the PR carrying this round's own later head while the
+// recorded handoff names the earlier one. That is stale bookkeeping, not an ambiguous remote: the head
+// T2 approved is adopted, repair continues, and unreviewed bytes are never announced as awaiting merge.
+// The fixture's remote is seeded OPEN at the published head so the interrupted attempt really reaches
+// the push; `crash-edit` records the push and dies inside `gh pr edit` (#190 review R1/R4/R5).
+{
+	const f = clonePublished();
+	setRemote(f, { ...empty(), create: 1, prs: { [BRANCH]: [handoffRow()] } });
+	attempt(f, 'no-remote', lateInstruction());
+	const open = await inFixture(f, () => withGh(() => rowsAnswer([handoffRow()]), () => reconcilePublishedDelivery(f.work)));
+	if (open.kind !== 'open') throw new Error(`#190 interrupted-push setup: ${JSON.stringify(open)}`);
+	writeFileSync(join(f.work, 'README.md'), 'repair\n');
+	must(['add', 'README.md'], f.work); must(['commit', '-qm', 'repair the instruction'], f.work);
+	for (const id of pendingOf(f)) attempt(f, 'no-remote', ['correct', '--address', id, '--note', 'repaired in the fixture']);
+	// The repaired round goes back through wf's own assess/review steps in real use; this case is about
+	// the push boundary, so the fixture records only the step those steps would have reached.
+	setState(f, { step: 'pr' });
+	const identity = approvalIdentity(f.work, FOLDER, trackerNotePath(FOLDER));
+	writeFileSync(join(f.work, FOLDER, 'REVIEW.md'), ['round: ' + BRANCH, 'base: dev', 'content-sha: ' + identity.worktree, 'head-sha: ' + identity.head, '', 'verdict: approved', ''].join(String.fromCharCode(10)));
+	const interrupted = attempt(f, 'crash-edit');
+	// Deliver commits the round folder before it pushes, so the pushed commit is the branch's HEAD.
+	const pushedHead = must(['rev-parse', 'HEAD'], f.work);
+	const onOrigin = must(['ls-remote', '--heads', 'origin'], f.work).split(String.fromCharCode(10)).some((line) => line.startsWith(pushedHead));
+	check('#190 an interrupted push moves the branch while the handoff still names the earlier head',
+		interrupted.code === 137 && onOrigin && pushedHead !== publishedBase.head && (readState(f).pr_handoff as { head: string }).head === publishedBase.head && !readState(f).delivery,
+		`code=${interrupted.code} onOrigin=${onOrigin} pushed=${pushedHead} handoff=${(readState(f).pr_handoff as { head: string }).head} ${interrupted.out}`);
+	// A later instruction needs the published outcome again; the PR carries the head T2 approved, so the
+	// round repairs instead of refusing its own pushed branch.
+	attempt(f, 'no-remote', lateInstruction('test:190-after-interrupt'));
+	const reconciled = attempt(f);
+	const next = attempt(f, 'no-remote', ['next']);
+	check('#190 a new instruction after an interrupted push adopts the approved head and repairs',
+		reconciled.code === 0 && (readState(f).pr_handoff as { head: string }).head === pushedHead && next.out.startsWith('work build'),
+		reconciled.out + next.out);
+}
+
+// The same stale handoff over bytes T2 never saw must not be adopted: repairing is allowed, publishing
+// still asks for the review (#190 review R2).
+{
+	const f = clonePublished();
+	writeFileSync(join(f.work, 'README.md'), 'unreviewed\n');
+	must(['add', 'README.md'], f.work); must(['commit', '-qm', 'unreviewed change'], f.work);
+	const headNow = must(['rev-parse', 'HEAD'], f.work);
+	setRemote(f, { ...empty(), create: 1, prs: { [BRANCH]: [handoffRow({ headRefOid: headNow })] } });
+	const reconciled = await inFixture(f, () => withGh(() => rowsAnswer([handoffRow({ headRefOid: headNow })]), () => reconcilePublishedDelivery(f.work)));
+	check('#190 a PR at this round’s own head over unreviewed bytes is refused, not recorded',
+		reconciled.kind === 'refused' && /not approved/.test(reconciled.why) && (readState(f).pr_handoff as { head: string }).head === publishedBase.head,
+		JSON.stringify(reconciled));
+	const refused = attempt(f);
+	check('#190 unreviewed bytes are never announced as awaiting merge', refused.code === 2 && /approved/.test(refused.out) && (readState(f).pr_handoff as { head: string }).head === publishedBase.head && readRemote(f).edit === 0, refused.out);
+}
+

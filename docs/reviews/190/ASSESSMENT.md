@@ -459,3 +459,132 @@ Two things are T1's rather than mine, and I am not settling them:
 2. **The MERGED sentence** ("not a later local HEAD as a substitute identity") versus a receipt recorded
    at a later head the remote proved. I judge the code's reading right; T1 should confirm that is what the
    approved wording meant, or the wording should be revised.
+
+
+---
+
+## 2026-10-24 — round 3 (c2a52cb)
+Verdict: findings
+head: c2a52cb
+
+A fresh reviewer for the repair `93531fa → c2a52cb`. I read the brief, both sections above,
+`REVIEW-RESPONSES.md` (rounds 1 and 2), `AGREEMENT.md`, `AGREEMENT-REVIEW.md` (T1 approved
+`sha256:d74a1e69…`), `TICKET.md` and root `AGENTS.md`, then `git diff 93531fa..c2a52cb` (4 files,
++73/−33) and `git diff 08f43f5..c2a52cb` (9 files, +477/−19). Read-only for product code, tests and the
+agreement; throwaway probes only under the system temp folder; no `wf new`/`serve`/hook/global
+configuration; nothing pushed.
+
+| ran | result |
+|---|---|
+| `env -u PI_SESSION_ID -u PI_SESSION_FILE node src/selfcheck.ts` over `deliver-recovery`, `corrections`, `step`, `next`, `delivered-round`, `state`, `correction-fences` | PASS — 9 green including tsc and eslint, 787.7 s (focused, 7 of 82 files) |
+| `npx tsc --noEmit --noUnusedLocals` (not part of the runner) | 13 hits: 12 pre-existing, one introduced here (`repairedHead`) |
+| throwaway probes in `C:\tmp\a190-r3`: the *flow* (interrupt → new instruction → forced reconcile → repair commit → retry) run against this head and against `93531fa` extracted with `git archive`, then the reached state's own commands | differential quoted in R4 |
+
+Not verified by me: any real GitHub PR, the other 75 selfcheck files, `wf new`/`serve`/hooks. Full suite
+not run.
+
+### Round 2's findings
+
+| # | status | why |
+|---|---|---|
+| R1 | **answered** | The fixture seeds a real OPEN row at the published head, so the attempt reaches the push and dies inside `gh pr edit` (`crash-edit` → `process.exit(137)`, selfcheck:116). The check is a five-part conjunction — exit 137, the pushed commit present in `ls-remote`, the pushed head ≠ the published one, `pr_handoff` still naming the earlier head, no receipt — so a "PR was not found" refusal can no longer satisfy it, and the file is green in my run. The builder's correction of its own earlier claim (deliver commits the round folder before pushing, so the pushed commit is `HEAD`) is accurate. |
+| R2 | **answered**, and the answer introduced R4 | The newer-head arm no longer writes `pr_handoff` (deliver.ts:658-668): it records the observation and returns `none`, so the publication path re-asserts the approval. The new case proves it — reconcile returns `none` with the handoff unchanged, and `wf deliver` on that state exits 2 on the approval with 0 PR edits. But dropping adoption entirely re-opens a state round 2's code handled; see R4. |
+| D1 | **answered** | The `step.ts` fence and its wrong comment are gone and nothing lost the gate: `deliveredCommandGap(current, ['step', ...argv])` runs in the same updater at step.ts:151 with the identical `held` / `merged`+receipt exemptions; `completeDeliveryStep` is `runStep(['merged'])` with a receipt present (exempt by that rule); `wf next`'s in-process effect is `runStep` too (next.ts:389), and `nextAction` returns the reconcile line before it. |
+| S4 | **answered** | Seven pure cases: no handoff, delivered, unobserved, observed-at-this-candidate, another head, another URL, and the gate with and without an instruction. They assert decisions rather than the functions' shape; the least meaningful is the fence case, which matches two regexes on the same string — the wording, twice. |
+| B3 (low half) | **answered** | The clear is now unconditional (deliver.ts:626) and the reasoning holds: `writeState` applies `{ pr_repair: null }` as a patch to the state it reads under the lock, so a concurrent writer's other fields survive and the only possible loss is a concurrently written *observation*, which fails closed (one more lookup) and can never leave a stale answer standing. Two reconciles cannot race anyway — both hold the delivery lock. |
+| B2, MERGED wording | **declined / for T1 — honest** | Both are restated with the agreement sentence quoted, neither is settled in code, and both read as questions for the person rather than silent decisions. I could not check the T2 question itself (it is not written yet), so "surfaced to Shay" is on the record, not verified by me. |
+
+### Intent
+
+The repair does what round 2 asked and nothing else: one arm of `reconcilePublishedDelivery` changed, the
+clear made unconditional, the `step.ts` fence deleted, the rest tests. No new command, state field,
+export, dependency, `env/` or hook change. One intent note, not an objection: the new comment's premise
+("the publication path … rewrites the handoff") holds only if the next delivery runs at the same head —
+that premise is what R4 breaks.
+
+### Behavior and evidence
+
+**R4 (Behavior — medium; regression against `93531fa`). Removing the adoption re-creates a round-1-B1-class
+dead end whenever the round commits again after the interrupted push, and `wf next` then names a command
+that can never succeed.**
+
+Measured, and the same flow run against `93531fa` for contrast (extracted with `git archive` into temp,
+same probe and same fixture):
+
+```
+flow: publish H0 → push H1 (the interrupted push) → new instruction → the reconcile `wf next` forces
+      (HEAD still H1) → repair commit H2 → deliver
+93531fa: reconcile at H1 -> open, handoff ADOPTED at H1; reconcile at H2 -> open;  wf deliver -> exit 0
+c2a52cb: reconcile at H1 -> open, handoff still H0, pr_repair H0; reconcile at H2 -> refused
+         "PR is at H1, which is neither the published head H0 nor this round's HEAD H2"; wf deliver exit 2 twice
+```
+
+The state is reached by wf's own commands, in the order they force: after the crash `wf next` says
+`deliver: reconcile…`; that reconcile runs while HEAD is still the pushed head, so it takes the
+`superseded` arm, records the observation and returns `open` with the handoff untouched; the round then
+repairs (a retained instruction is why it must), and the repair commit makes the PR's head a third head.
+In the reached state (`handoff H0, PR at H1, HEAD H2, step pr`):
+
+```
+wf next    -> "deliver: T2 approved — run wf deliver (push, open PR, tracker note…)"
+wf deliver -> exit 2: "… is at H1, which is neither the published head H0 nor this round's HEAD H2;
+                retain candidate and instructions, fix the remote and retry wf deliver"  (identical on retry)
+wf step build -> allowed;  wf correct -> retained, then "Run wf deliver"
+```
+
+The remedy the refusal prints ("fix the remote") is wrong — the remote is exactly right and the local
+branch is behind it. The exits are all outside wf: a hand edit of `.wf/state.json`, a manual push of H2, a
+destructive `git reset --hard` back to H1, or `WF_FORCE_REAP=1 wf reap`. The trigger is ordinary and
+inside #190's own territory (a published round taking late instructions), and the event that opens it — an
+instruction after the crash — is this change's own subject.
+
+Closing R2 does not require removing the adoption. Round 2's reviewer already named the narrower shape:
+adopt only a head the approval covers (`headContentSha` at `verdict.head` against REVIEW.md's `head-sha`),
+which refuses R2's unapproved bytes and keeps this flow converging — a head `wf deliver` itself pushed is
+necessarily approval-bound. Direction, not implemented, not mine to settle.
+
+Evidence gap behind it: the new scenario cannot catch this, because the fake `gh` derives an OPEN PR's
+head from the clone's own HEAD (`effectiveHead`, deliver-recovery.selfcheck.ts:79); a PR the branch has
+outrun exists only in `stale-open` mode, which the interrupted-push scenario does not use. So the fixture
+answers `superseded` for a retry that real GitHub would answer with the older pushed head.
+
+**R5 (Behavior/evidence — low). The superseded arm records and reports the wrong head.** It writes
+`pr_repair` at `candidate.head`, the published head (deliver.ts:660-664), although the PR is at
+`verdict.head`, and `wf deliver` then prints "published PR is OPEN at the expected head" (deliver.ts:708).
+Neither is true of that remote. Same root as R4; the fix there removes this too.
+
+Everything else I attacked holds: `superseded` is one arm of an 11-row pure decision table; a third head
+is still refused with both heads named; `merged` still decides before `superseded`; the unconditional
+clear can only remove authority; and `waiting ? open : none` is behaviourally equivalent to the old `open`
+for the `open` verdict (the early exit at deliver.ts:707 needs an outstanding instruction anyway), so the
+only reachable difference is the `superseded` arm — R4.
+
+### Design
+
+The seam is unchanged and still the smallest one; nothing new is exported and no state field is added. The
+`superseded` outcome now means "stale bookkeeping, converge on a later delivery at this head", and
+`reconcilePublishedDelivery` returns `none` for a state that did have something to reconcile — that
+wobble is what hides R4, because `none` reads as "nothing here" while the handoff is still stale. R4's
+direction keeps the arm and narrows the condition; that also removes R5.
+
+### Standards
+
+Compliant on what `AGENTS.md` fixes: erased TypeScript, `.ts` specifiers, `src/gates|round/` placement, no
+runtime dependency, no project or `env/` name in core, expected failures as values, no network under the
+state lock (the new clear is a local write, and `seams.gh` is still called with no state lock held), and
+comments that cite the issue and the review.
+
+- **S5 (Standards — low).** `const repairedHead` (deliver-recovery.selfcheck.ts:406) is dead: the
+  assertions now use `pushedHead`. Neither project gate catches it (`tsc --noUnusedLocals` does) — the
+  same class as round 1's S1, reintroduced by this commit.
+- The new `corrections.selfcheck.ts` cases are otherwise honest; S4's fence case is the one place they
+  test prose rather than a decision.
+
+### Summary
+
+Round 2's R1, R2, D1, S4 and B3-low are answered on evidence I re-ran, and the builder corrected its own
+earlier false claim accurately. Not clean: **R4**, a new regression — removing the adoption makes an
+interrupted push followed by another local commit (a late instruction is the ordinary cause) an
+unrecoverable state whose only instruction is `wf deliver`, which refuses it forever; **R5**, the same
+arm's head bookkeeping and message; **S5**, a dead local. B2 and the MERGED wording remain the person's to
+rule on, and leaving them there is honest.
