@@ -79,3 +79,13 @@ Isolated re-measurement at the same head, one file per run: `evidence/lifecycle-
 Inbox reply `msg_01M5QB505GS0HQ7D8YB3RHT8G7` to my question `q-9de1a887`, as written: "Updated-runtime guarantee; require using it for cleanup (your recommendation)". Recorded verbatim in AGREEMENT-REVIEW.md with the scope it fixes. Documentation/comment-only commit `d5fb6f0`: state version 6's comment now states exactly what the version fences and what it cannot, and the portable skill's `done:` row requires cleanup with the wf that wrote the round's state. No behavior, test or reap-path change; nothing destructive was measured or attempted for old copies.
 
 R4 documentation delta validated with the cheapest checks its files touch: `evidence/r4-doc-delta-focused.log` PASS boundary, state, skill-export, tsc, eslint in 19.3 s. Not a rerun of the full focused selection; the product/test head for R2 assessment stays 6f42099, with 6e5069c adding only comments, the skill's `done:` row and review records.
+
+## R2 assessment delegation attempts (recorded, no product change)
+
+1. `pi_pipersonal` / `openai/gpt-6.1-sol` (the R1 model): task failed during the run with "The ChatGPT user has reached their Subscription Sharing usage limit"; it wrote no report. `git status` stayed clean and no ASSESSMENT-R2.md was created.
+2. `claudeAgent` / `claude-opus-5-5`: rejected before starting — "Provider instance claudeAgent is disabled for project …".
+3. `pi` / `anthropic/claude-opus-5-5`: rejected — same, disabled for this project.
+4. `opencode` / `opencode-go/gemini-4-argon`: rejected — same, disabled for this project.
+5. Launch accepted: `pi_pipersonal` / `opencode-go/deepseek-v4.1-flash`, `thinking=max`, fresh child context with no parent history.
+
+Disclosure: business 5 runs the same model family as this builder. Per this repo's AGENTS.md the independent-context requirement is about a fresh context that did not build the change; harness/model choice is an execution convenience, not the independence. If its report is thin or it cannot measure, the fallback is to rerun on a stronger model once the ChatGPT quota resets rather than accept a weaker verdict.
