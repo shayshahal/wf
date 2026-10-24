@@ -20,11 +20,11 @@ Two old assertions assumed `(posted)` alone permitted cleanup, now intentionally
 
 First repair run exposed an unterminated test literal and a no-op scripted fixture replacement (fixture still had the old note): `evidence/r1-repairs-focused.log`. Fixed by targeted exact edits, then isolated next/delivered-round + project completion/ticket-changes + tsc/eslint all PASS, 47.6 s (`evidence/r1-repairs-focused2.log`). These are focused repair diagnostics, not full final-head evidence.
 
-## R4 — shipped older-copy safety: explicit human ruling requested; not silently expanded
+## R4 — shipped older-copy safety: resolved by T1 ruling (updated-runtime guarantee)
 
 Accepted the limitation. An old runtime may check caller version but omit the target check when reaping from a surviving checkout; no new state version can retrofit that shipped path. Corrected the source comment's excessive implication. Updated-runtime routing/direct cleanup enforce pending completion; the state version still fences older caller-bound consumers that actually run their version predicate.
 
-Requested Shay's ruling via Inbox `msg_01M5QB4PMYHZ0HAEM4N02P5FPZ`, question `q-9de1a887`: guarantee updated-runtime cleanup safety and require using it, or pause for a stronger older-copy protection design. No cleanup/migration redesign implemented. No destructive old-runtime experiment. Final compatibility disposition and handoff await actual ruling.
+Shay ruled on the actual question (Inbox `msg_01M5QB505GS0HQ7D8YB3RHT8G7`, `q-9de1a887`): "Updated-runtime guarantee; require using it for cleanup (your recommendation)". #191 therefore guarantees cleanup safety on the runtime that wrote state 6, requires that runtime for cleanup, and documents the shipped-older-copy limit instead of claiming a fence it cannot provide. Applied in `src/round/state.ts` (version comment states exactly what 6 fences and what it cannot) and `skills/round/SKILL.md` (`done:` requires cleanup with the wf that wrote the round's state). No migration, cleanup interlock or reap redesign was added, and no destructive old-runtime experiment was run; that work is not authorized here.
 
 ## S1 — contained legacy command error convention: rationale recorded
 
