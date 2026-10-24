@@ -26,6 +26,7 @@ import { acquireProcessLock } from '../process-lock.ts';
 import { readVerdict, approvalBinding, approvalContentGap, lastField, reviewScopeBinding } from './review-format.ts';
 import { commitContentSha, headContentSha, trackerNotePath, worktreeContentSha } from './content-identity.ts';
 import type { ContentIdentity } from './content-identity.ts';
+import type { DeliveryReceipt } from '../round/delivered-round.ts';
 import { readState, resolveRoundBase, roundOf, toplevelOf, writeState } from '../round/state.ts';
 import { runStep } from '../round/step.ts';
 import type { GhResult } from '../seams.ts';
@@ -283,6 +284,32 @@ export type DeliveryResume =
 	| { do: 'finish'; url: string }
 	| { do: 'refuse'; why: string };
 
+// What the remote's answer proves about a retained published candidate (#190): the merge landed a
+// head this round produced, the same PR is still open, this round's own later commit is what the PR
+// now carries (a push whose handoff write never landed), or the answer cannot settle it.
+export type PublishedVerdict =
+	| { kind: 'merged'; head: string }
+	| { kind: 'open' }
+	| { kind: 'superseded'; head: string }
+	| { kind: 'refused'; why: string };
+
+// Pure: the outcome a retained published handoff can read from the remote's answer. Only the same PR
+// decides anything: another URL, a closed or absent PR, and a gh that could not answer all keep the
+// candidate uncertain, because a merge cannot be inferred from absence. Two heads are this round's
+// own — the published one and `headNow` — because a push whose handoff write was interrupted leaves
+// the PR at a commit this worktree still holds; any third head is someone else's and settles nothing.
+export function publishedDeliveryVerdict(lookup: PrLookup, handoff: DeliveryReceipt, headNow: string): PublishedVerdict {
+	if (lookup.kind === 'unknown') return { kind: 'refused', why: `the remote could not be asked about published PR ${handoff.url} (${lookup.why})` };
+	if (lookup.kind === 'none') return { kind: 'refused', why: `published PR ${handoff.url} was not found for this branch, so neither a merge nor an open candidate can be confirmed` };
+	if (lookup.url !== handoff.url) return { kind: 'refused', why: `the branch's PR is ${lookup.url}, not the published candidate ${handoff.url}` };
+	if (lookup.state === 'CLOSED') return { kind: 'refused', why: `published PR ${handoff.url} is CLOSED, not open or merged` };
+	if (!lookup.headRefOid || (lookup.headRefOid !== handoff.head && lookup.headRefOid !== headNow)) {
+		return { kind: 'refused', why: `published PR ${handoff.url} is at ${lookup.headRefOid ?? 'no commit'}, which is neither the published head ${handoff.head} nor this round's HEAD ${headNow}` };
+	}
+	if (lookup.state === 'MERGED') return { kind: 'merged', head: lookup.headRefOid };
+	return lookup.headRefOid === handoff.head ? { kind: 'open' } : { kind: 'superseded', head: lookup.headRefOid };
+}
+
 // A GitHub head commit id: a full SHA-1. gh reports the 40-hex OID of the PR's head commit, and a
 // value that is not one cannot prove which commit a merge landed.
 const commitOid = /^[0-9a-f]{40}$/i;
@@ -502,7 +529,7 @@ export function existingNoteAction(text: string, noteText: string, ids: string[]
 // refused, not overwritten — those sections may be the only posted copy. A note that is a prefix of
 // the one deliver would write is deliver's own interrupted write and is completed. A failed branch
 // delete is ignored: the branch may already be gone, and the step and the note must still be finished.
-async function finishDelivery({ toplevel, state, folder, ids, url, head, because, open = false }: { toplevel: string; state: State | null; folder: string; ids: string[]; url: string; head: string; because: string; open?: boolean }) {
+async function finishDelivery({ toplevel, state, folder, ids, url, head, because, open = false, revalidate }: { toplevel: string; state: State | null; folder: string; ids: string[]; url: string; head: string; because: string; open?: boolean; revalidate?: (current: State) => void }) {
 	const note = trackerNote({ ids, url });
 	const rel = `${folder}/${note.file}`;
 	const recorded = state?.note && existsSync(join(toplevel, state.note)) ? state.note : null;
@@ -529,13 +556,15 @@ async function finishDelivery({ toplevel, state, folder, ids, url, head, because
 		const contentSha = commitContentSha(toplevel, head, folder, rel, 'row');
 		writeState(toplevel, (current) => {
 			if (correctionGate(current) || openQuestionGate(current) || current.step !== 'pr') throw new Error('wf deliver: round changed before PR handoff; run wf next');
-			return { note: kept, pr_handoff: { url, head, contentSha } };
+			return { note: kept, pr_handoff: { url, head, contentSha }, pr_repair: null };
 		});
 		console.log(`${url} remains open; tracker note: ${kept}; run wf next`);
 		const released = await stopWorktreeServers(toplevel);
 		if (released.kind === 'refused') { console.error(released.why); process.exitCode = 1; }
 		return;
 	}
+	// No effect on a lookup's stale claim: the note above is harmless to repeat, the branch delete is not.
+	revalidate?.(readState(toplevel) ?? {});
 	const branch = git(toplevel, ['rev-parse', '--abbrev-ref', 'HEAD']);
 	// Not --delete-branch: gh would then check out the base branch in this worktree, and it is checked
 	// out in the person's clone (deliver.ts, the merge). The delete is ignored: the branch may already
@@ -544,7 +573,10 @@ async function finishDelivery({ toplevel, state, folder, ids, url, head, because
 	// Bind the receipt to the remotely merged commit, never a concurrent local HEAD. A retry after
 	// the receipt but before step merged reasserts this same identity from the remote (#129).
 	const contentSha = commitContentSha(toplevel, head, folder, rel, 'row');
-	writeState(toplevel, () => ({ note: kept, delivery: { url, head, contentSha }, merge_attempt: null }));
+	writeState(toplevel, (current) => {
+		revalidate?.(current);
+		return { note: kept, delivery: { url, head, contentSha }, merge_attempt: null, pr_repair: null };
+	});
 	console.log(`${url} ${because}; tracker note: ${kept}`);
 	await completeDeliveryStep(toplevel);
 }
@@ -567,6 +599,87 @@ export async function runDeliver() {
 	process.once('exit', lock.release);
 	try { await runLockedDelivery(toplevel); }
 	finally { process.removeListener('exit', lock.release); lock.release(); }
+}
+
+// A lookup is not a lease. Bind its answer to the exact round, candidate, instructions and local
+// subject that were queried (#190); intake stays available while gh runs outside the state lock.
+class PublishedReconciliationRefused extends Error {}
+
+/**
+ * Reconcile a retained published candidate against the remote before any repair or republish (#190).
+ *
+ * Intake never calls this: a human's instruction is retained without waiting for the network. This is
+ * the independently callable seam `wf deliver` reaches from the same repository it pins every query to.
+ * A lookup that cannot prove this exact candidate's outcome leaves the candidate, the instructions and
+ * the round untouched and returns `refused` with a retry that names the remote. `merged` finishes the
+ * delivery at the merged head, so published work is never rebuilt. Callers must already hold the
+ * delivery process lock (`runDeliver` takes it); this function serializes only its own state writes.
+ */
+export async function reconcilePublishedDelivery(toplevel: string): Promise<{ kind: 'none' | 'open' | 'finished' } | { kind: 'refused'; why: string }> {
+	let state = readState(toplevel);
+	if (!state?.pr_handoff || state.delivery) return { kind: 'none' };
+	const candidate = state.pr_handoff;
+	try {
+		// A failed refresh must not leave an earlier OPEN answer authorizing repair. Clearing only removes
+		// authority, so it needs no precondition: a concurrent writer cannot make it unsafe, and refusing
+		// to clear would leave the stale answer standing exactly when the round is moving (#190 review).
+		if (state.pr_repair) state = writeState(toplevel, () => ({ pr_repair: null }));
+		const snapshot = state;
+		const stateIdentity = JSON.stringify(state);
+		const subject = () => JSON.stringify({
+			head: git(toplevel, ['rev-parse', 'HEAD']), branch: git(toplevel, ['rev-parse', '--abbrev-ref', 'HEAD']),
+			index: git(toplevel, ['write-tree']),
+			worktree: worktreeContentSha(toplevel, snapshot.folder ?? null, trackerNotePath(snapshot.folder ?? null), 'approval'),
+			urls: gitConfigAll(toplevel, 'remote.origin.url'), pushurls: gitConfigAll(toplevel, 'remote.origin.pushurl'), effective: gitPushUrls(toplevel),
+		});
+		const expectedSubject = subject();
+		const revalidate = (current: State) => {
+			if (JSON.stringify(current) !== stateIdentity || subject() !== expectedSubject) throw new PublishedReconciliationRefused('round, candidate, instructions or local subject changed during published PR lookup; retained identity, retry wf deliver before repair');
+		};
+		const branch = git(toplevel, ['rev-parse', '--abbrev-ref', 'HEAD']);
+		const target = originTarget(gitConfigAll(toplevel, 'remote.origin.url'), gitConfigAll(toplevel, 'remote.origin.pushurl'), gitPushUrls(toplevel));
+		if (target.kind === 'refuse') return { kind: 'refused', why: target.why };
+		const repo = target.repo;
+		const lookup = prLookup(seams.gh(['pr', 'list', '--repo', `${repo.owner}/${repo.name}`, '--head', branch, '--base', baseBranch, '--state', 'all', '--json', 'url,state,headRefOid,headRefName,baseRefName,isCrossRepository'], toplevel), { headRefName: branch, baseRefName: baseBranch, repo });
+		const headNow = git(toplevel, ['rev-parse', 'HEAD']);
+		const verdict = publishedDeliveryVerdict(lookup, candidate, headNow);
+		if (verdict.kind === 'refused') return { kind: 'refused', why: `${verdict.why}; retain candidate and instructions, fix the remote and retry wf deliver` };
+		revalidate(readState(toplevel) ?? {});
+		if (verdict.kind === 'merged') {
+			const { id, folder } = roundOf(state, toplevel);
+			if (!id || !folder) return { kind: 'refused', why: 'published PR has no identified round/folder; restore its identity before reconciliation' };
+			await finishDelivery({ toplevel, state, folder, ids: state.ids ?? [id], url: candidate.url, head: verdict.head, because: 'confirmed merged from published handoff', revalidate });
+			return { kind: 'finished' };
+		}
+		// The PR already carries this round's own later head: stale bookkeeping from a push whose handoff
+		// write was interrupted, not an ambiguous remote. Adopt it only when T2 approved the bytes it
+		// carries — the same comparison the publication path makes before every mutation — so an
+		// unreviewed commit is never announced as awaiting merge, and a round that pushed a repair and
+		// then took one more instruction is not left refusing its own branch (#190 review 2/3).
+		const superseded = verdict.kind === 'superseded';
+		const waiting = outstandingCorrections(state).length > 0;
+		if (superseded) {
+			const folder = state.folder ?? null;
+			const reviewFile = folder ? join(toplevel, folder, 'REVIEW.md') : null;
+			const binding = approvalBinding(reviewFile && existsSync(reviewFile) ? readFileSync(reviewFile, 'utf8') : '');
+			const carried = folder ? commitContentSha(toplevel, verdict.head, folder, trackerNotePath(folder), 'approval') : null;
+			if (binding.verdict !== 'approved' || carried === null || (carried !== binding.headSha && carried !== binding.contentSha)) {
+				return { kind: 'refused', why: `published PR ${candidate.url} carries ${verdict.head.slice(0, 12)}, which T2 has not approved; review that implementation, then retry wf deliver` };
+			}
+			writeState(toplevel, (current) => {
+				revalidate(current);
+				return { ...unmergedAttemptPatch(current), pr_handoff: { url: candidate.url, head: verdict.head, contentSha: commitContentSha(toplevel, verdict.head, folder ?? '', trackerNotePath(folder), 'row') }, pr_repair: { url: candidate.url, head: verdict.head } };
+			});
+		} else if (waiting) {
+			writeState(toplevel, (current) => {
+				revalidate(current);
+				return { ...unmergedAttemptPatch(current), pr_repair: { url: candidate.url, head: candidate.head } };
+			});
+		}
+		return waiting || superseded ? { kind: 'open' } : { kind: 'none' };
+	} catch (error) {
+		return { kind: 'refused', why: `published PR reconciliation failed: ${error instanceof Error ? error.message : String(error)}; candidate and instructions retained — retry wf deliver` };
+	}
 }
 
 async function runLockedDelivery(toplevel: string) {
@@ -594,6 +707,16 @@ async function runLockedDelivery(toplevel: string) {
 	if (state?.delivery && state.step !== 'merged') {
 		console.log(`${state.delivery.url} confirmed by the retained receipt; completing local delivery bookkeeping`);
 		await completeDeliveryStep(toplevel);
+		return;
+	}
+	// Published recovery precedes new-publication approval/correction gates: a human merge cannot
+	// be undone by a late instruction changing the local route (#190).
+	const published = await reconcilePublishedDelivery(toplevel);
+	if (published.kind === 'refused') { console.error(`wf deliver: ${published.why}`); process.exitCode = 2; return; }
+	if (published.kind === 'finished') return;
+	state = readState(toplevel);
+	if (published.kind === 'open' && outstandingCorrections(state).length) {
+		console.log('wf deliver: published PR is OPEN at the expected head; corrections retained for ordinary scoped repair. Run wf next.');
 		return;
 	}
 	// The step is the delivery's last write; once it is `merged` there is nothing left to finish. A

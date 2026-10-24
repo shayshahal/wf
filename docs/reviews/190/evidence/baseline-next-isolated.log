@@ -1,0 +1,5 @@
+selfcheck: focused (1 of 82 files); full suite not run.
+selfcheck: PASS tsc (1.3s)
+selfcheck: PASS eslint (0.9s)
+selfcheck: PASS src/round/next.selfcheck.ts (30.7s)
+3 selfchecks green (focused; tsc and eslint included) in 30.7s

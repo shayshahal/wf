@@ -1,0 +1,14 @@
+selfcheck: focused (10 of 82 files); full suite not run.
+selfcheck: PASS src/gates/deliver.selfcheck.ts (0.2s)
+selfcheck: PASS src/round/agreement.selfcheck.ts (0.2s)
+selfcheck: PASS tsc (0.3s)
+selfcheck: PASS eslint (1.0s)
+selfcheck: PASS src/round/state.selfcheck.ts (10.3s)
+selfcheck: PASS src/round/brief.selfcheck.ts (12.4s)
+selfcheck: PASS src/round/step.selfcheck.ts (52.6s)
+selfcheck: PASS src/round/correction-fences.selfcheck.ts (65.6s)
+selfcheck: PASS src/round/next.selfcheck.ts (81.7s)
+selfcheck: PASS src/round/delivered-round.selfcheck.ts (86.7s)
+selfcheck: PASS src/round/corrections.selfcheck.ts (201.6s)
+selfcheck: PASS src/gates/deliver-recovery.selfcheck.ts (630.4s)
+12 selfchecks green (focused; tsc and eslint included) in 630.4s

@@ -1,0 +1,57 @@
+selfcheck: focused (10 of 82 files); full suite not run.
+selfcheck: PASS src/gates/deliver.selfcheck.ts (0.2s)
+selfcheck: PASS src/round/agreement.selfcheck.ts (0.2s)
+selfcheck: PASS tsc (0.4s)
+selfcheck: PASS eslint (1.1s)
+selfcheck: PASS src/round/state.selfcheck.ts (4.5s)
+selfcheck: PASS src/round/brief.selfcheck.ts (5.4s)
+selfcheck: PASS src/round/step.selfcheck.ts (38.9s)
+selfcheck: PASS src/round/correction-fences.selfcheck.ts (45.6s)
+selfcheck: PASS src/round/next.selfcheck.ts (57.0s)
+selfcheck: PASS src/round/delivered-round.selfcheck.ts (61.4s)
+selfcheck: PASS src/round/corrections.selfcheck.ts (157.7s)
+selfcheck: FAIL src/gates/deliver-recovery.selfcheck.ts (227.4s)
+
+── FAIL src/gates/deliver-recovery.selfcheck.ts
+https://github.com/o/r/pull/108 confirmed merged from published handoff; tracker note: bug-reports/bjew-1/JIRA.md
+{"wf_version":5,"round":"fix/108","class":"A","id":"BJEW-1","ids":["BJEW-1"],"folder":"bug-reports/bjew-1","base":"dev","step":"merged","made_by":"kit","note":"bug-reports/bjew-1/JIRA.md","pr_handoff":{"url":"https://github.com/o/r/pull/108","head":"078fb26ca3dd357549fdc6731f89f3d1b03f1b6e","contentSha":"tree:cc1bdfa1894337da8480f5a64a42dbde30c80912"},"pr_repair":null,"corrections":[{"kind":"human","author":"Shay","source":"test:190","relay":"selfcheck","text":"Keep this late instruction verbatim.","scope":"round","reason":"late feedback","id":"c-c44d01bbfe02b1086ebf","at":"2026-10-24T15:02:06.949Z","outcome":{"kind":"pending"}}],"delivery":{"url":"https://github.com/o/r/pull/108","head":"078fb26ca3dd357549fdc6731f89f3d1b03f1b6e","contentSha":"tree:cc1bdfa1894337da8480f5a64a42dbde30c80912"},"merge_attempt":null,"build_reason":null,"since":"2026-10-24T15:02:17.014Z","waiting_on":null,"history":[{"step":"merged","at":"2026-10-24T15:02:17.014Z"}]}
+wf deliver: merged with retained corrections; a fresh follow-up is required, not reopening this approval.
+https://github.com/o/r/pull/108 confirmed merged from published handoff; tracker note: bug-reports/bjew-1/JIRA.md
+{"wf_version":5,"round":"fix/108","class":"A","id":"BJEW-1","ids":["BJEW-1"],"folder":"bug-reports/bjew-1","base":"dev","step":"merged","made_by":"kit","note":"bug-reports/bjew-1/JIRA.md","pr_handoff":{"url":"https://github.com/o/r/pull/108","head":"078fb26ca3dd357549fdc6731f89f3d1b03f1b6e","contentSha":"tree:cc1bdfa1894337da8480f5a64a42dbde30c80912"},"pr_repair":null,"corrections":[{"kind":"human","author":"Shay","source":"test:190","relay":"selfcheck","text":"Keep this late instruction verbatim.","scope":"round","reason":"late feedback","id":"c-c44d01bbfe02b1086ebf","at":"2026-10-24T15:02:19.928Z","outcome":{"kind":"addressed","note":"measured scoped repair","at":"2026-10-24T15:02:30.116Z","contentSha":"tree:f4c481f98d550cb8d0fb25f35f9c28408e0edbf0"},"history":[{"kind":"pending"}]},{"kind":"human","author":"Shay","source":"test:190-open-later","relay":"selfcheck","text":"Keep this late instruction verbatim.","scope":"round","reason":"late feedback","id":"c-f466ec9e1cdbcaebfb00","at":"2026-10-24T15:02:29.978Z","outcome":{"kind":"addressed","note":"measured scoped repair","at":"2026-10-24T15:02:30.791Z","contentSha":"tree:f4c481f98d550cb8d0fb25f35f9c28408e0edbf0"},"history":[{"kind":"pending"}]}],"merge_attempt":null,"since":"2026-10-24T15:02:42.498Z","correction_return_to":null,"history":[{"step":"build","at":"2026-10-24T15:02:25.801Z"},{"step":"merged","at":"2026-10-24T15:02:42.498Z"}],"build_reason":null,"waiting_on":null,"delivery":{"url":"https://github.com/o/r/pull/108","head":"078fb26ca3dd357549fdc6731f89f3d1b03f1b6e","contentSha":"tree:cc1bdfa1894337da8480f5a64a42dbde30c80912"}}
+    (stdout) https://github.com/o/r/pull/108 was already merged; tracker note: bug-reports/bjew-1/JIRA.md | {"wf_version":5,"round":"fix/108","class":"A","id":"BJEW-1","ids":["BJEW-1"],"folder":"bug-reports/bjew-1","base":"dev","step":"merged","made_by":"kit","note":"bug-reports/bjew-1/JIRA.md","delivery":{"url":"https://github.com/o/r/pull/108","head":"bcd4e7c07348dfa43ba3a9055ab3d8c8c3e73a00","contentSha":"tree:cc1bdfa1894337da8480f5a64a42dbde30c80912"},"merge_attempt":null,"pr_repair":null,"build_reason":null,"since":"2026-10-24T15:04:37.525Z","waiting_on":null,"history":[{"step":"merged","at":"2026-10-24T15:04:37.525Z"}]}
+  FAIL a retry with the merged branch still there finishes — 1: node:internal/errors:999
+  const err = new Error(message);
+              ^
+
+Error: Command failed: git -C C:/Users/Shay/AppData/Local/Temp/wf-deliver-recovery-DoiNzL/merged-branch-kept/work read-tree 5e48837b407456be29871ddc2d0c9454b0fd2969
+    at genericNodeError (node:internal/errors:999:15)
+    at wrappedFn (node:internal/errors:544:14)
+    at checkExecSyncError (node:child_process:943:11)
+    at execFileSync (node:child_process:979:15)
+    at file:///C:/Users/Shay/.t3/worktrees/wf/fix-190-correction-merge-reconciliation/src/gates/content-identity.ts:193:3
+    at tempTree (file:///C:/Users/Shay/.t3/worktrees/wf/fix-190-correction-merge-reconciliation/src/gates/content-identity.ts:140:3)
+    at commitContentSha (file:///C:/Users/Shay/.t3/worktrees/wf/fix-190-correction-merge-reconciliation/src/gates/content-identity.ts:192:9)
+    at finishDelivery (file:///C:/Users/Shay/.t3/worktrees/wf/fix-190-correction-merge-reconciliation/src/gates/deliver.ts:575:21)
+    at runLockedDelivery (file:///C:/Users/Shay/.t3/worktrees/wf/fix-190-correction-merge-reconciliation/src/gates/deliver.ts:823:9)
+    at async runDeliver (file:///C:/Users/Shay/.t3/worktrees/wf/fix-190-correction-merge-reconciliation/src/gates/deliver.ts:600:8) {
+  status: 3221225794,
+  signal: null,
+  output: [ null, Buffer(0) [Uint8Array] [], Buffer(0) [Uint8Array] [] ],
+  pid: 21564,
+  stdout: Buffer(0) [Uint8Array] [],
+  stderr: Buffer(0) [Uint8Array] []
+}
+
+Node.js v26.10.0
+
+file:///C:/Users/Shay/.t3/worktrees/wf/fix-190-correction-merge-reconciliation/src/gates/deliver-recovery.selfcheck.ts:53
+	if (r.status !== 0) throw new Error(`git ${args.join(' ')} in ${cwd}: ${r.stderr}`);
+	                          ^
+
+Error: git ls-remote --heads origin in C:\Users\Shay\AppData\Local\Temp\wf-deliver-recovery-DoiNzL\merged-branch-kept\work: 
+    at must (file:///C:/Users/Shay/.t3/worktrees/wf/fix-190-correction-merge-reconciliation/src/gates/deliver-recovery.selfcheck.ts:53:28)
+    at remoteBranches (file:///C:/Users/Shay/.t3/worktrees/wf/fix-190-correction-merge-reconciliation/src/gates/deliver-recovery.selfcheck.ts:56:42)
+    at file:///C:/Users/Shay/.t3/worktrees/wf/fix-190-correction-merge-reconciliation/src/gates/deliver-recovery.selfcheck.ts:525:58
+
+Node.js v26.10.0
+1 of 12 selfchecks red (focused; tsc and eslint included) in 227.4s

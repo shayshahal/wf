@@ -92,6 +92,19 @@ export function outstandingCorrections(state: Pick<State, 'corrections'> | null)
 export function correctionStateSha(state: Pick<State, 'corrections'> | null): string {
 	return createHash('sha256').update(JSON.stringify(state?.corrections ?? [])).digest('hex');
 }
+/** An unconfirmed published candidate: repair needs an observed OPEN result, never guessed absence. */
+export function publishedRepairGap(state: Pick<State, 'pr_handoff' | 'pr_repair' | 'delivery'> | null): string | null {
+	if (!state?.pr_handoff || state.delivery) return null;
+	const observed = state.pr_repair;
+	return observed?.url === state.pr_handoff.url && observed.head === state.pr_handoff.head
+		? null : 'published PR outcome needs reconciliation before correction repair; instruction retained — run wf deliver, then wf next';
+}
+
+/** The same fence, for a round that carries an outstanding instruction (repair or disposition). */
+export function publishedCorrectionGate(state: Pick<State, 'pr_handoff' | 'pr_repair' | 'corrections' | 'delivery'> | null): string | null {
+	return outstandingCorrections(state).length ? publishedRepairGap(state) : null;
+}
+
 /** State-only instructions remain delivery blockers even when reviewed file bytes are unchanged. */
 export function correctionGate(state: Pick<State, 'corrections'> | null): string | null {
 	const pending = outstandingCorrections(state);
@@ -149,7 +162,9 @@ export function captureCorrection(toplevel: string, input: CorrectionInput, supe
 				if (!old || old.outcome.kind === 'superseded') throw new CorrectionRefused(`wf correct: ${replaced} is not a current correction to supersede`);
 			}
 			const corrections = [...previous.map((c): RoundCorrection => supersedes.includes(c.id) ? { ...c, history: [...(c.history ?? []), c.outcome], outcome: { kind: 'superseded', by: id, at } } : c), correction];
-			const canRoute = !current.delivery && !current.merge_attempt && ['build', 'assess', 'review', 'pr'].includes(current.step ?? '');
+			// `current` does not hold the instruction being captured, so the candidate identity alone decides
+			// routing here; the captured instruction then needs reconciliation like any other (#190).
+			const canRoute = !current.delivery && !current.merge_attempt && !publishedRepairGap(current) && ['build', 'assess', 'review', 'pr'].includes(current.step ?? '');
 			return {
 				corrections,
 				...(canRoute ? { step: 'build', since: at, waiting_on: current.questions?.[0]?.to ?? null,
@@ -176,6 +191,8 @@ export function disposeCorrection(toplevel: string, id: string, outcome: { kind:
 			const found = current.corrections?.find((c) => c.id === id);
 			if (!found || found.outcome.kind === 'superseded') throw new CorrectionRefused(`wf correct: ${id} is not a current correction`);
 			if (current.merge_attempt) throw new CorrectionRefused('wf correct: merge outcome is uncertain; reconcile delivery before disposing of the instruction');
+			const published = publishedCorrectionGate(current);
+			if (published) throw new CorrectionRefused(`wf correct: ${published}`);
 			const at = new Date().toISOString();
 			const nextOutcome: CorrectionOutcome = outcome.kind === 'addressed' ? { ...outcome, at, contentSha: worktreeContentSha(toplevel, current.folder ?? null, trackerNotePath(current.folder ?? null), 'row') } : outcome.kind === 'pending' ? { kind: 'pending', resumed: { note: outcome.note, at } } : { ...outcome, at };
 			const same = nextOutcome.kind === 'addressed' && found.outcome.kind === 'addressed' ? nextOutcome.note === found.outcome.note && found.outcome.contentSha === nextOutcome.contentSha : nextOutcome.kind === 'blocked' && found.outcome.kind === 'blocked' ? nextOutcome.note === found.outcome.note && nextOutcome.owner === found.outcome.owner : nextOutcome.kind === 'pending' && found.outcome.kind === 'pending' && found.outcome.resumed?.note === nextOutcome.resumed?.note;
@@ -224,7 +241,8 @@ export function runCorrect(argv: string[]): void {
 		if (result.kind === 'refused') { console.error(result.reason); process.exitCode = 2; return; }
 		console.log(`wf correct: ${result.kind} ${result.correction.id} (${result.correction.outcome.kind}) — source ${result.correction.source}`);
 		const current = readState(top);
-		if (current?.merge_attempt) console.log('wf correct: instruction retained; merge outcome needs reconciliation before repair or follow-up. Run wf deliver.');
+		if (publishedCorrectionGate(current)) console.log('wf correct: instruction retained; published PR outcome needs reconciliation before repair. Run wf deliver.');
+		else if (current?.merge_attempt) console.log('wf correct: instruction retained; merge outcome needs reconciliation before repair or follow-up. Run wf deliver.');
 		else if (current?.delivery || current?.step === 'merged') console.log(`wf correct: delivered work is immutable; retain this instruction for a fresh follow-up. ${followupRoundLine(current)}`);
 		else console.log('wf next carries the current instruction; a recorded correction is not approval.');
 	} catch (error) {

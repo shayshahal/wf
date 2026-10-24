@@ -1,0 +1,34 @@
+selfcheck: focused (10 of 82 files); full suite not run.
+selfcheck: PASS eslint (1.9s)
+selfcheck: PASS src/gates/deliver.selfcheck.ts (1.9s)
+selfcheck: PASS tsc (2.4s)
+selfcheck: PASS src/round/agreement.selfcheck.ts (0.2s)
+selfcheck: FAIL src/round/correction-fences.selfcheck.ts (1.0s)
+selfcheck: PASS src/round/state.selfcheck.ts (3.7s)
+selfcheck: PASS src/round/brief.selfcheck.ts (4.2s)
+selfcheck: PASS src/round/step.selfcheck.ts (27.9s)
+selfcheck: PASS src/round/next.selfcheck.ts (48.0s)
+selfcheck: PASS src/round/delivered-round.selfcheck.ts (57.0s)
+selfcheck: PASS src/round/corrections.selfcheck.ts (149.7s)
+selfcheck: PASS src/gates/deliver-recovery.selfcheck.ts (545.2s)
+
+── FAIL src/round/correction-fences.selfcheck.ts
+node:internal/modules/run_main:111
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+5 !== 4
+
+    at file:///C:/Users/Shay/.t3/worktrees/wf/fix-190-correction-merge-reconciliation/src/round/correction-fences.selfcheck.ts:44:9 {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: 5,
+  expected: 4,
+  operator: 'strictEqual',
+  diff: 'simple'
+}
+
+Node.js v26.10.0
+1 of 12 selfchecks red (focused; tsc and eslint included) in 545.2s

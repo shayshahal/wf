@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { approvalBinding } from '../gates/review-format.ts';
 import { approvalPaperworkExcluded, commitContentSha, headContentSha, worktreeContentSha } from '../gates/content-identity.ts';
 import type { State } from './state.ts';
-import { outstandingCorrections } from './corrections.ts';
+import { outstandingCorrections, publishedCorrectionGate } from './corrections.ts';
 
 /** The remote merge and product content delivered; round paperwork may still be filled or posted. */
 export type DeliveryReceipt = { readonly url: string; readonly head: string; readonly contentSha: string };
@@ -29,6 +29,8 @@ export function followupRoundLine(state: State): string {
 /** Refuse workflow mutations that would reuse a merged round's evidence or erase its delivery. */
 export function deliveredCommandGap(state: State | null, argv: readonly string[]): string | null {
 	const [command, ...flags] = argv;
+	const published = publishedCorrectionGate(state);
+	if (published && ['brief', 'check', 'agree', 'review', 'step'].includes(command) && !(command === 'step' && (flags[0] === 'held' || (flags[0] === 'merged' && state?.delivery)))) return published;
 	if (state?.merge_attempt && ['brief', 'check', 'agree', 'review', 'step'].includes(command) && !(command === 'step' && (flags[0] === 'held' || (flags[0] === 'merged' && state.delivery)))) return 'merge outcome is uncertain; run wf deliver to reconcile it before repair or follow-up';
 	if (state?.step !== 'merged' && !state?.delivery) return null;
 	if (command === 'step' && flags[0] === 'merged' && state?.delivery) return null;

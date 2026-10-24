@@ -1,0 +1,28 @@
+selfcheck: focused (5 of 82 files); full suite not run.
+selfcheck: PASS src/gates/deliver.selfcheck.ts (0.1s)
+selfcheck: PASS tsc (0.3s)
+selfcheck: PASS eslint (1.2s)
+selfcheck: PASS src/round/step.selfcheck.ts (28.7s)
+selfcheck: FAIL src/round/next.selfcheck.ts (44.6s)
+selfcheck: PASS src/round/corrections.selfcheck.ts (160.8s)
+selfcheck: PASS src/gates/deliver-recovery.selfcheck.ts (483.1s)
+
+── FAIL src/round/next.selfcheck.ts
+wf step build: no C:\Users\Shay\AppData\Local\Temp\wf-next-s6R1Zt\bug-reports\r\TICKET.md — the agreement is what the build works from
+  FAIL CLI: direct build still refuses a missing ticket without advancing — wf step build: no C:\Users\Shay\AppData\Local\Temp\wf-next-s6R1Zt\bug-reports\r\TICKET.md — the agreement is what the build works from
+
+  FAIL CLI: an empty intent returns to agreement without advancing — work agree: run `node "C:/Users/Shay/.t3/worktrees/wf/fix-190-correction-merge-reconciliation/wf.mjs" brief agree` in this worktree and do exactly what it prints (again: TICKET.md has no `## Intent` — the requester's words, verbatim and attributed)
+
+wf step build: TICKET.md has no `## Intent` — the requester's words, verbatim and attributed
+  FAIL CLI: direct build refuses an empty intent without rewriting state — wf step build: TICKET.md has no `## Intent` — the requester's words, verbatim and attributed
+
+wf prompt build: bug-reports/r/TICKET.md has no `## Intent` — the requester's words, verbatim and attributed
+wf prompt assess: bug-reports/r/TICKET.md has no `## Intent` — the requester's words, verbatim and attributed
+wf step classify: paths measure A, keeping asserted B (a class never downgrades)
+wf: this round's state is from an older wf (no wf_version (step "implement")): finish it on the installed wf that made it, then start a new round — this wf refuses to reinterpret old state (finish-before-release, #110)
+wf: this round's state is from an older wf (no wf_version): finish it on the installed wf that made it, then start a new round — this wf refuses to reinterpret old state (finish-before-release, #110)
+wf step assess: commit the implementation before handoff: a.txt
+wf step review: work assess: run `node "C:/Users/Shay/.t3/worktrees/wf/fix-190-correction-merge-reconciliation/wf.mjs" brief assess` in this worktree and do exactly what it prints — a fresh independent reviewer context is required: another session, harness or subagent, never the session that built the work (again: ASSESSMENT.md is of a3df1d2c4a…, HEAD is 531be652e6…) — run wf next to record or resolve it before T2
+
+3 FAILURE(S)
+1 of 7 selfchecks red (focused; tsc and eslint included) in 483.1s
