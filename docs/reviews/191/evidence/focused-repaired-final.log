@@ -1,0 +1,39 @@
+selfcheck: focused (14 of 85 files); full suite not run.
+selfcheck: PASS src/gates/deliver.selfcheck.ts (0.6s)
+selfcheck: PASS src/boundary.selfcheck.ts (0.6s)
+selfcheck: PASS eslint (1.5s)
+selfcheck: PASS src/round/post-completion.selfcheck.ts (1.4s)
+selfcheck: PASS tsc (1.5s)
+selfcheck: PASS projects/jewelryx/ticket-changes.selfcheck.ts (1.4s)
+selfcheck: PASS projects/jewelryx/post-completion.selfcheck.ts (1.4s)
+selfcheck: PASS src/worktrees/reap.selfcheck.ts (9.6s)
+selfcheck: PASS src/round/state.selfcheck.ts (10.4s)
+selfcheck: PASS src/skill/skill-export.selfcheck.ts (57.9s)
+selfcheck: PASS src/round/correction-fences.selfcheck.ts (67.5s)
+selfcheck: PASS src/round/next.selfcheck.ts (78.1s)
+selfcheck: PASS projects/jewelryx/post.selfcheck.ts (91.1s)
+selfcheck: PASS src/round/delivered-round.selfcheck.ts (110.6s)
+selfcheck: FAIL src/gates/deliver-recovery.selfcheck.ts (762.2s)
+selfcheck: FAIL projects/jewelryx/post-lifecycle.selfcheck.ts (764.0s)
+
+── FAIL projects/jewelryx/post-lifecycle.selfcheck.ts
+  FAIL race-after-transition: stale lookup cannot mutate status or acknowledge another subject
+
+── FAIL src/gates/deliver-recovery.selfcheck.ts
+https://github.com/o/r/pull/108 confirmed merged from published handoff; tracker note: bug-reports/bjew-1/JIRA.md
+{"wf_version":6,"round":"fix/108","class":"A","id":"BJEW-1","ids":["BJEW-1"],"folder":"bug-reports/bjew-1","base":"dev","step":"merged","made_by":"kit","note":"bug-reports/bjew-1/JIRA.md","pr_handoff":{"url":"https://github.com/o/r/pull/108","head":"2e3de55086079761c49136190022bf6d3e4ca898","contentSha":"tree:cc1bdfa1894337da8480f5a64a42dbde30c80912"},"pr_repair":null,"corrections":[{"kind":"human","author":"Shay","source":"test:190","relay":"selfcheck","text":"Keep this late instruction verbatim.","scope":"round","reason":"late feedback","id":"c-c44d01bbfe02b1086ebf","at":"2026-10-24T16:23:55.155Z","outcome":{"kind":"pending"}}],"delivery":{"url":"https://github.com/o/r/pull/108","head":"2e3de55086079761c49136190022bf6d3e4ca898","contentSha":"tree:cc1bdfa1894337da8480f5a64a42dbde30c80912"},"merge_attempt":null,"build_reason":null,"since":"2026-10-24T16:24:03.156Z","waiting_on":null,"history":[{"step":"merged","at":"2026-10-24T16:24:03.156Z"}]}
+wf deliver: merged with retained corrections; a fresh follow-up is required, not reopening this approval.
+https://github.com/o/r/pull/108 confirmed merged from published handoff; tracker note: bug-reports/bjew-1/JIRA.md
+{"wf_version":6,"round":"fix/108","class":"A","id":"BJEW-1","ids":["BJEW-1"],"folder":"bug-reports/bjew-1","base":"dev","step":"merged","made_by":"kit","note":"bug-reports/bjew-1/JIRA.md","pr_handoff":{"url":"https://github.com/o/r/pull/108","head":"2e3de55086079761c49136190022bf6d3e4ca898","contentSha":"tree:cc1bdfa1894337da8480f5a64a42dbde30c80912"},"pr_repair":null,"corrections":[{"kind":"human","author":"Shay","source":"test:190","relay":"selfcheck","text":"Keep this late instruction verbatim.","scope":"round","reason":"late feedback","id":"c-c44d01bbfe02b1086ebf","at":"2026-10-24T16:24:11.361Z","outcome":{"kind":"addressed","note":"measured scoped repair","at":"2026-10-24T16:24:26.765Z","contentSha":"tree:f4c481f98d550cb8d0fb25f35f9c28408e0edbf0"},"history":[{"kind":"pending"}]},{"kind":"human","author":"Shay","source":"test:190-open-later","relay":"selfcheck","text":"Keep this late instruction verbatim.","scope":"round","reason":"late feedback","id":"c-f466ec9e1cdbcaebfb00","at":"2026-10-24T16:24:26.116Z","outcome":{"kind":"addressed","note":"measured scoped repair","at":"2026-10-24T16:24:27.468Z","contentSha":"tree:f4c481f98d550cb8d0fb25f35f9c28408e0edbf0"},"history":[{"kind":"pending"}]}],"merge_attempt":null,"since":"2026-10-24T16:24:49.792Z","correction_return_to":null,"history":[{"step":"build","at":"2026-10-24T16:24:17.300Z"},{"step":"merged","at":"2026-10-24T16:24:49.792Z"}],"build_reason":null,"waiting_on":null,"delivery":{"url":"https://github.com/o/r/pull/108","head":"2e3de55086079761c49136190022bf6d3e4ca898","contentSha":"tree:cc1bdfa1894337da8480f5a64a42dbde30c80912"}}
+    (stdout) https://github.com/o/r/pull/108 was already merged; tracker note: bug-reports/bjew-1/JIRA.md | {"wf_version":6,"round":"fix/108","class":"A","id":"BJEW-1","ids":["BJEW-1"],"folder":"bug-reports/bjew-1","base":"dev","step":"merged","made_by":"kit","note":"bug-reports/bjew-1/JIRA.md","delivery":{"url":"https://github.com/o/r/pull/108","head":"294294ef1833562c9899153fbccf3ac749c8abbf","contentSha":"tree:cc1bdfa1894337da8480f5a64a42dbde30c80912"},"merge_attempt":null,"pr_repair":null,"build_reason":null,"since":"2026-10-24T16:28:22.724Z","waiting_on":null,"history":[{"step":"merged","at":"2026-10-24T16:28:22.724Z"}]}
+file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/gates/deliver-recovery.selfcheck.ts:53
+	if (r.status !== 0) throw new Error(`git ${args.join(' ')} in ${cwd}: ${r.stderr}`);
+	                          ^
+
+Error: git config core.autocrlf false in C:\Users\Shay\AppData\Local\Temp\wf-deliver-recovery-cjMQvA\stale-open\work: 
+    at must (file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/gates/deliver-recovery.selfcheck.ts:53:28)
+    at makeRepo (file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/gates/deliver-recovery.selfcheck.ts:178:2)
+    at file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/gates/deliver-recovery.selfcheck.ts:689:12
+
+Node.js v26.10.0
+2 of 16 selfchecks red (focused; tsc and eslint included) in 764.0s

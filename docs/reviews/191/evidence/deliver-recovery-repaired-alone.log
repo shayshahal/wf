@@ -1,0 +1,5 @@
+selfcheck: focused (1 of 85 files); full suite not run.
+selfcheck: PASS tsc (0.2s)
+selfcheck: PASS eslint (1.0s)
+selfcheck: PASS src/gates/deliver-recovery.selfcheck.ts (557.6s)
+3 selfchecks green (focused; tsc and eslint included) in 557.6s
