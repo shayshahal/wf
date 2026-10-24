@@ -69,6 +69,17 @@ writeFileSync(stateFile(bad), good);
 check('a restored file reads again', readState(bad)?.revisions?.[0]?.text === 'a');
 rmSync(bad, { recursive: true, force: true });
 
+// #190: a published-repair observation is parsed at the persistence boundary like any other authority.
+// A malformed one is corrupt state, never a missing observation that would quietly authorize repair.
+const repairState = tempDir();
+writeState(repairState, () => ({ round: 'r', pr_repair: { url: 'https://github.com/o/r/pull/1', head: 'a'.repeat(40) } }));
+check('a well-formed published-repair observation reads back', readState(repairState)?.pr_repair?.head === 'a'.repeat(40));
+for (const broken of [{ url: 'https://example.com/x', head: 'a'.repeat(40) }, { url: 'https://github.com/o/r/pull/1', head: 'short' }, { url: 'https://github.com/o/r/pull/1' }]) {
+	writeFileSync(stateFile(repairState), JSON.stringify({ round: 'r', pr_repair: broken }));
+	check(`a malformed published-repair observation is corrupt state: ${JSON.stringify(broken)}`, throws(() => readState(repairState)) instanceof CorruptStateError);
+}
+rmSync(repairState, { recursive: true, force: true });
+
 // A version-2 state that holds no executable-unit progress (`slices`) keeps working: it carries only
 // fields this runtime reads. One still carrying `slices` is corrupt, never silently ignored.
 const sliced = tempDir();

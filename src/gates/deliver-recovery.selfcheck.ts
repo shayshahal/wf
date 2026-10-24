@@ -113,6 +113,7 @@ const gh = (args, cwd) => {
     return { status: 0, stdout: 'https://github.com/o/r/pull/108\\n', stderr: '' };
   }
   if (args[0] === 'pr' && args[1] === 'edit') {
+    if (mode === 'crash-edit') { r.edit++; r.edits = (r.edits ?? []).concat([args]); writeRemote(r); process.exit(137); }
     r.bodies = (r.bodies ?? []).concat([readFileSync(args[args.indexOf('--body-file') + 1], 'utf8')]);
     if (mode === 'correct-edit') correct(cwd, mode);
     r.edit++; r.edits = (r.edits ?? []).concat([args]);
@@ -267,8 +268,10 @@ const pendingOf = (f: Fixture) => ((readState(f).corrections ?? []) as Array<{ i
 	const cases: Array<[string, PrLookup, string, string]> = [
 		['merged at the published head', { kind: 'found', url: PR_URL, state: 'MERGED', headRefOid: publishedBase.head }, 'merged', ''],
 		['open at the published head', { kind: 'found', url: PR_URL, state: 'OPEN', headRefOid: publishedBase.head }, 'open', ''],
-		['merged at another head', { kind: 'found', url: PR_URL, state: 'MERGED', headRefOid: 'f'.repeat(40) }, 'refused', 'not the published head'],
-		['open at another head', { kind: 'found', url: PR_URL, state: 'OPEN', headRefOid: 'f'.repeat(40) }, 'refused', 'not the published head'],
+		['merged at this round’s own later HEAD', { kind: 'found', url: PR_URL, state: 'MERGED', headRefOid: 'd'.repeat(40) }, 'merged', ''],
+		['open at this round’s own later HEAD', { kind: 'found', url: PR_URL, state: 'OPEN', headRefOid: 'd'.repeat(40) }, 'superseded', ''],
+		['merged at a third head', { kind: 'found', url: PR_URL, state: 'MERGED', headRefOid: 'f'.repeat(40) }, 'refused', 'neither the published head'],
+		['open at a third head', { kind: 'found', url: PR_URL, state: 'OPEN', headRefOid: 'f'.repeat(40) }, 'refused', 'neither the published head'],
 		['merged with no head recorded', { kind: 'found', url: PR_URL, state: 'MERGED', headRefOid: null }, 'refused', 'no commit'],
 		['another PR on the branch', { kind: 'found', url: 'https://github.com/o/r/pull/999', state: 'OPEN', headRefOid: publishedBase.head }, 'refused', 'not the published candidate'],
 		['closed', { kind: 'found', url: PR_URL, state: 'CLOSED', headRefOid: publishedBase.head }, 'refused', 'not open or merged'],
@@ -276,7 +279,7 @@ const pendingOf = (f: Fixture) => ((readState(f).corrections ?? []) as Array<{ i
 		['gh failed', { kind: 'unknown', why: 'gh pr list exited 1' }, 'refused', 'could not be asked'],
 	];
 	for (const [name, lookup, kind, why] of cases) {
-		const verdict = publishedDeliveryVerdict(lookup, handoff);
+		const verdict = publishedDeliveryVerdict(lookup, handoff, 'd'.repeat(40));
 		check(`#190 verdict: ${name} → ${kind}`, verdict.kind === kind && (why === '' || ('why' in verdict && verdict.why.includes(why))), JSON.stringify(verdict));
 	}
 }
@@ -344,8 +347,11 @@ const pendingOf = (f: Fixture) => ((readState(f).corrections ?? []) as Array<{ i
 	const open = await inFixture(f, () => withGh(() => rowsAnswer([handoffRow()]), () => reconcilePublishedDelivery(f.work)));
 	check('#190 a matching OPEN candidate permits ordinary scoped repair', open.kind === 'open' && readState(f).step === 'build' && JSON.stringify(readState(f).pr_repair).includes(publishedBase.head) && attempt(f, 'no-remote', ['next']).out.startsWith('work build'), JSON.stringify(open));
 	// OPEN is an observation, not a lease: a later instruction rides the confirmed candidate.
+	const idsBefore = pendingOf(f);
 	const later = attempt(f, 'no-remote', lateInstruction('test:190-open-later'));
-	check('#190 a correction after confirmed OPEN routes to ordinary build without another lookup', later.code === 0 && readState(f).step === 'build', later.out);
+	const laterId = pendingOf(f).find((id) => !idsBefore.includes(id));
+	const routed = JSON.stringify(readState(f).build_reason).includes(laterId ?? 'no-id');
+	check('#190 a correction after confirmed OPEN routes to ordinary build without another lookup', later.code === 0 && readState(f).step === 'build' && routed, later.out + JSON.stringify(readState(f).build_reason));
 	writeFileSync(join(f.work, 'README.md'), 'scoped repair\n');
 	let addressed = true;
 	const ids = pendingOf(f);
@@ -382,6 +388,43 @@ const pendingOf = (f: Fixture) => ((readState(f).corrections ?? []) as Array<{ i
 			JSON.stringify(result));
 		if (name === 'a new instruction') check('#190 words admitted during a stale lookup survive it', JSON.stringify(readState(f).corrections).includes('Admitted during the lookup.'));
 	}
+}
+
+// A push whose handoff write never lands leaves the PR carrying this round's own later head while the
+// recorded handoff names the earlier one. That is stale bookkeeping, not an ambiguous remote: the retry
+// must converge, and it must not release repair on a stale claim (#190 review).
+{
+	const f = clonePublished();
+	attempt(f, 'no-remote', lateInstruction());
+	const open = await inFixture(f, () => withGh(() => rowsAnswer([handoffRow()]), () => reconcilePublishedDelivery(f.work)));
+	if (open.kind !== 'open') throw new Error(`#190 interrupted-push setup: ${JSON.stringify(open)}`);
+	writeFileSync(join(f.work, 'README.md'), 'repair\n');
+	must(['add', 'README.md'], f.work); must(['commit', '-qm', 'repair the instruction'], f.work);
+	const repairedHead = must(['rev-parse', 'HEAD'], f.work);
+	const interrupted = attempt(f, 'crash-edit');
+	check('#190 an interrupted push leaves the PR carrying a head the handoff does not name',
+		interrupted.code !== 0 && repairedHead !== publishedBase.head && (readState(f).pr_handoff as { head: string }).head === publishedBase.head,
+		interrupted.out);
+	setRemote(f, { ...empty(), create: 1, edit: 1, prs: { [BRANCH]: [handoffRow({ headRefOid: repairedHead })] } });
+	const retry = attempt(f);
+	check('#190 a retry adopts the head the PR actually carries instead of refusing its own later commit',
+		retry.code === 0 && (readState(f).pr_handoff as { head: string }).head === repairedHead && /OPEN at the expected head/.test(retry.out),
+		retry.out);
+	const cleaned = attempt(f, 'no-remote', ['next']);
+	check('#190 the adopted candidate is not reported as an unreconciled remote', !cleaned.out.startsWith('deliver:'), cleaned.out);
+}
+
+// A failed refresh cannot leave the earlier OPEN answer standing: the authorization goes first, and a
+// refusal writes nothing back.
+{
+	const f = clonePublished();
+	attempt(f, 'no-remote', lateInstruction());
+	const first = await inFixture(f, () => withGh(() => rowsAnswer([handoffRow()]), () => reconcilePublishedDelivery(f.work)));
+	const before = JSON.stringify(readState(f).pr_repair);
+	const failed = await inFixture(f, () => withGh(() => ({ status: 1, stdout: '', stderr: 'connection lost' }), () => reconcilePublishedDelivery(f.work)));
+	check('#190 a failed refresh clears the earlier OPEN authorization',
+		first.kind === 'open' && JSON.parse(before) !== null && failed.kind === 'refused' && readState(f).pr_repair == null && !attempt(f, 'no-remote', ['next']).out.startsWith('work build'),
+		JSON.stringify(failed));
 }
 
 // End to end through the real CLI: publish, a human merge, a correction before the receipt, recovery.
