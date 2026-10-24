@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { WF_ROOT } from '../paths.ts';
 import { approvalIdentity } from '../gates/content-identity.ts';
 import { agreementSha } from './agreement.ts';
-import { correctionContext, correctionGate, correctionStateGap, outstandingCorrections } from './corrections.ts';
+import { correctionContext, correctionGate, correctionStateGap, outstandingCorrections, publishedCorrectionGate, publishedRepairGap } from './corrections.ts';
 import { readState, WF_STATE_VERSION, writeState } from './state.ts';
 import type { State } from './state.ts';
 
@@ -16,6 +16,19 @@ const check = (name: string, cond: boolean, detail = '') => {
  console.log(cond ? `  ok   ${name}` : `  FAIL ${name}${detail ? ` — ${detail}` : ''}`);
  if (!cond) failures++;
 };
+// #190: the published-candidate fences, as pure decisions. Repair needs an OPEN observation for the
+// exact candidate; an observation for any other head or URL is not one.
+const published = { url: 'https://github.com/o/r/pull/7', head: 'a'.repeat(40), contentSha: `tree:${'b'.repeat(40)}` } as const;
+const pending = [{ kind: 'human', author: 'Shay', source: 'chat:1', relay: null, text: 'keep it', scope: 'round', reason: 'explicit', id: 'c-1', at: '2026-10-24T00:00:00Z', outcome: { kind: 'pending' } }] as const;
+const observed = (head = published.head, url = published.url) => ({ url, head });
+check('#190 no published handoff needs no reconciliation', publishedRepairGap({ pr_handoff: null, pr_repair: null, delivery: undefined }) === null && publishedCorrectionGate({ pr_handoff: null, pr_repair: null, corrections: [...pending], delivery: undefined }) === null);
+check('#190 a delivered round needs no published reconciliation', publishedRepairGap({ pr_handoff: published, pr_repair: null, delivery: { url: published.url, head: published.head, contentSha: published.contentSha } }) === null);
+check('#190 a published candidate without an observation is fenced', /reconciliation/.test(publishedRepairGap({ pr_handoff: published, pr_repair: null, delivery: undefined }) ?? '') && /run wf deliver/.test(publishedRepairGap({ pr_handoff: published, pr_repair: null, delivery: undefined }) ?? ''));
+check('#190 an observation of this exact candidate clears the fence', publishedRepairGap({ pr_handoff: published, pr_repair: observed(), delivery: undefined }) === null);
+check('#190 an observation of another head or another URL is not this candidate', publishedRepairGap({ pr_handoff: published, pr_repair: observed('c'.repeat(40)), delivery: undefined }) !== null && publishedRepairGap({ pr_handoff: published, pr_repair: observed(published.head, 'https://github.com/o/r/pull/9'), delivery: undefined }) !== null);
+check('#190 the correction gate does not fence a round with no outstanding instruction', publishedCorrectionGate({ pr_handoff: published, pr_repair: null, corrections: [], delivery: undefined }) === null && publishedCorrectionGate({ pr_handoff: published, pr_repair: null, corrections: [{ ...pending[0], outcome: { kind: 'addressed', note: 'done', at: '2026-10-24T01:00:00Z', contentSha: published.contentSha } }], delivery: undefined }) === null);
+check('#190 the correction gate fences exactly the unconfirmed candidate', publishedCorrectionGate({ pr_handoff: published, pr_repair: null, corrections: [...pending], delivery: undefined }) !== null && publishedCorrectionGate({ pr_handoff: published, pr_repair: observed(), corrections: [...pending], delivery: undefined }) === null);
+
 const folder = 'bug-reports/r';
 const ticket = '# X-150\n\n## Intent\n- retain the scroll position\n\n## Notes\n- **T2 walk.** none — command behavior only\n';
 const agreement = `# X-150 — agreement

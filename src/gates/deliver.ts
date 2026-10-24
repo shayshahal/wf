@@ -620,14 +620,10 @@ export async function reconcilePublishedDelivery(toplevel: string): Promise<{ ki
 	if (!state?.pr_handoff || state.delivery) return { kind: 'none' };
 	const candidate = state.pr_handoff;
 	try {
-		// A failed refresh must not leave an earlier OPEN answer authorizing repair.
-		if (state.pr_repair) {
-			const before = JSON.stringify(state);
-			state = writeState(toplevel, (current) => {
-				if (JSON.stringify(current) !== before) throw new PublishedReconciliationRefused('round changed before published PR lookup; retry wf deliver');
-				return { pr_repair: null };
-			});
-		}
+		// A failed refresh must not leave an earlier OPEN answer authorizing repair. Clearing only removes
+		// authority, so it needs no precondition: a concurrent writer cannot make it unsafe, and refusing
+		// to clear would leave the stale answer standing exactly when the round is moving (#190 review).
+		if (state.pr_repair) state = writeState(toplevel, () => ({ pr_repair: null }));
 		const snapshot = state;
 		const stateIdentity = JSON.stringify(state);
 		const subject = () => JSON.stringify({
@@ -655,19 +651,21 @@ export async function reconcilePublishedDelivery(toplevel: string): Promise<{ ki
 			await finishDelivery({ toplevel, state, folder, ids: state.ids ?? [id], url: candidate.url, head: verdict.head, because: 'confirmed merged from published handoff', revalidate });
 			return { kind: 'finished' };
 		}
-		// The PR already carries this round's own later head: the handoff is stale bookkeeping from a
-		// push whose write was interrupted, not an ambiguous remote. Adopt what the PR carries so a
-		// retry converges instead of refusing the very state it must repair (#190 review).
-		const adopted = verdict.kind === 'superseded'
-			? { pr_handoff: { url: candidate.url, head: verdict.head, contentSha: commitContentSha(toplevel, verdict.head, state.folder ?? '', trackerNotePath(state.folder ?? null), 'row') }, pr_repair: outstandingCorrections(state).length ? { url: candidate.url, head: verdict.head } : null, ...unmergedAttemptPatch(state) }
-			: null;
-		if (adopted || outstandingCorrections(state).length) {
+		// The PR already carries this round's own later head: stale bookkeeping from a push whose handoff
+		// write was interrupted, not an ambiguous remote. The round may repair again, and the publication
+		// path — which re-asserts the approval before every mutation — rewrites the handoff. Adopting it
+		// here instead would announce unapproved bytes as awaiting merge (#190 review).
+		const superseded = verdict.kind === 'superseded';
+		const waiting = outstandingCorrections(state).length > 0;
+		if (superseded || waiting) {
 			writeState(toplevel, (current) => {
 				revalidate(current);
-				return adopted ?? { ...unmergedAttemptPatch(current), pr_repair: { url: candidate.url, head: candidate.head } };
+				return { ...unmergedAttemptPatch(current), pr_repair: { url: candidate.url, head: candidate.head } };
 			});
 		}
-		return { kind: 'open' };
+		// Repair may continue. The handoff at the newer head is written only by the publication path,
+		// which re-asserts the approval before it edits anything (#190 review).
+		return waiting ? { kind: 'open' } : { kind: 'none' };
 	} catch (error) {
 		return { kind: 'refused', why: `published PR reconciliation failed: ${error instanceof Error ? error.message : String(error)}; candidate and instructions retained — retry wf deliver` };
 	}

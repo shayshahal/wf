@@ -392,26 +392,56 @@ const pendingOf = (f: Fixture) => ((readState(f).corrections ?? []) as Array<{ i
 
 // A push whose handoff write never lands leaves the PR carrying this round's own later head while the
 // recorded handoff names the earlier one. That is stale bookkeeping, not an ambiguous remote: the retry
-// must converge, and it must not release repair on a stale claim (#190 review).
+// must converge, and it must never adopt unapproved bytes as "awaiting merge". The fixture's remote is
+// seeded OPEN at the published head so the interrupted attempt really reaches the push; `crash-edit`
+// dies inside `gh pr edit`, exactly the boundary under test (#190 review R1/R2).
 {
 	const f = clonePublished();
+	setRemote(f, { ...empty(), create: 1, prs: { [BRANCH]: [handoffRow()] } });
 	attempt(f, 'no-remote', lateInstruction());
 	const open = await inFixture(f, () => withGh(() => rowsAnswer([handoffRow()]), () => reconcilePublishedDelivery(f.work)));
 	if (open.kind !== 'open') throw new Error(`#190 interrupted-push setup: ${JSON.stringify(open)}`);
 	writeFileSync(join(f.work, 'README.md'), 'repair\n');
 	must(['add', 'README.md'], f.work); must(['commit', '-qm', 'repair the instruction'], f.work);
 	const repairedHead = must(['rev-parse', 'HEAD'], f.work);
+	for (const id of pendingOf(f)) attempt(f, 'no-remote', ['correct', '--address', id, '--note', 'repaired in the fixture']);
+	// The repaired round goes back through wf's own assess/review steps in real use; this case is about
+	// the push boundary, so the fixture records only the step those steps would have reached.
+	setState(f, { step: 'pr' });
+	const approveHere = () => {
+		const identity = approvalIdentity(f.work, FOLDER, trackerNotePath(FOLDER));
+		writeFileSync(join(f.work, FOLDER, 'REVIEW.md'), `round: ${BRANCH}\nbase: dev\ncontent-sha: ${identity.worktree}\nhead-sha: ${identity.head}\n\nverdict: approved\n`);
+	};
+	approveHere();
 	const interrupted = attempt(f, 'crash-edit');
-	check('#190 an interrupted push leaves the PR carrying a head the handoff does not name',
-		interrupted.code !== 0 && repairedHead !== publishedBase.head && (readState(f).pr_handoff as { head: string }).head === publishedBase.head,
-		interrupted.out);
-	setRemote(f, { ...empty(), create: 1, edit: 1, prs: { [BRANCH]: [handoffRow({ headRefOid: repairedHead })] } });
-	const retry = attempt(f);
-	check('#190 a retry adopts the head the PR actually carries instead of refusing its own later commit',
-		retry.code === 0 && (readState(f).pr_handoff as { head: string }).head === repairedHead && /OPEN at the expected head/.test(retry.out),
-		retry.out);
+	// Deliver commits the round folder before it pushes, so the pushed commit is the branch's HEAD.
+	const pushedHead = must(['rev-parse', 'HEAD'], f.work);
+	const onOrigin = must(['ls-remote', '--heads', 'origin'], f.work).split(String.fromCharCode(10)).some((line) => line.startsWith(pushedHead));
+	check('#190 an interrupted push moves the branch while the handoff still names the earlier head',
+		interrupted.code === 137 && onOrigin && pushedHead !== publishedBase.head && (readState(f).pr_handoff as { head: string }).head === publishedBase.head && !readState(f).delivery,
+		`code=${interrupted.code} onOrigin=${onOrigin} pushed=${pushedHead} handoff=${(readState(f).pr_handoff as { head: string }).head} ${interrupted.out}`);
+	const delivered = attempt(f);
+	check('#190 the retry converges: the publication path writes the handoff at the head the PR carries',
+		delivered.code === 0 && (readState(f).pr_handoff as { head: string }).head === pushedHead && readRemote(f).create === 1 && readRemote(f).edit >= 1,
+		delivered.out);
 	const cleaned = attempt(f, 'no-remote', ['next']);
-	check('#190 the adopted candidate is not reported as an unreconciled remote', !cleaned.out.startsWith('deliver:'), cleaned.out);
+	check('#190 the reconciled candidate is not reported as an unreconciled remote', !cleaned.out.startsWith('deliver:'), cleaned.out);
+}
+
+// The same stale handoff over bytes T2 never saw must not be adopted: repairing is allowed, publishing
+// still asks for the review (#190 review R2).
+{
+	const f = clonePublished();
+	writeFileSync(join(f.work, 'README.md'), 'unreviewed\n');
+	must(['add', 'README.md'], f.work); must(['commit', '-qm', 'unreviewed change'], f.work);
+	const headNow = must(['rev-parse', 'HEAD'], f.work);
+	setRemote(f, { ...empty(), create: 1, prs: { [BRANCH]: [handoffRow({ headRefOid: headNow })] } });
+	const reconciled = await inFixture(f, () => withGh(() => rowsAnswer([handoffRow({ headRefOid: headNow })]), () => reconcilePublishedDelivery(f.work)));
+	check('#190 a PR at this round\u2019s own head reconciles without recording it as the published handoff',
+		reconciled.kind === 'none' && (readState(f).pr_handoff as { head: string }).head === publishedBase.head,
+		JSON.stringify(reconciled));
+	const refused = attempt(f);
+	check('#190 unreviewed bytes are never announced as awaiting merge', refused.code === 2 && /approved|not approved/.test(refused.out) && (readState(f).pr_handoff as { head: string }).head === publishedBase.head && readRemote(f).edit === 0, refused.out);
 }
 
 // A failed refresh cannot leave the earlier OPEN answer standing: the authorization goes first, and a

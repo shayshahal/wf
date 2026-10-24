@@ -23,7 +23,7 @@ import { stepHistory } from './friction.ts';
 import { changedFiles, isRoundPaperwork } from '../gates/check.ts';
 import { assessmentContentSha } from './agreement.ts';
 import { deliveredCommandGap } from './delivered-round.ts';
-import { correctionGate, correctionStateSha, outstandingCorrections, publishedCorrectionGate } from './corrections.ts';
+import { correctionGate, correctionStateSha, outstandingCorrections } from './corrections.ts';
 import { shouldStopRoundServers } from './round-servers.ts';
 import { stopWorktreeServers } from '../worktrees/serve.ts';
 
@@ -141,10 +141,6 @@ export async function runStep(argv: string[], { quiet = false, buildReason, resu
 	try {
 		state = writeState(toplevel, (current) => {
 			if (expectedCorrections !== undefined && correctionStateSha(current) !== expectedCorrections) throw new StepGateError('corrections changed since dispatch; run wf next again rather than applying a stale transition');
-			// Same rule as deliveredCommandGap, restated at the durable write because `wf next` and
-			// `completeDeliveryStep` reach runStep in-process, without passing the CLI's own guard (#190).
-			const published = publishedCorrectionGate(current);
-			if (published && step !== 'held' && !(step === 'merged' && current.delivery)) throw new StepGateError(published);
 			if (current.merge_attempt && step !== 'merged' && step !== 'held') throw new StepGateError('merge outcome is uncertain; run wf deliver to reconcile it before changing activity');
 			if (step === 'pr' && current.step === 'held') throw new StepGateError('the round is held; approval completion cannot resume it implicitly');
 			if (step === 'assess' || step === 'review' || step === 'pr') {
