@@ -1,0 +1,39 @@
+$ wf deliver
+exit 0
+https://github.com/o/r/pull/108 remains open; tracker note: bug-reports/bjew-1/JIRA.md; run wf next
+
+  ok   publish records OPEN handoff, not delivery
+$ wf post
+exit 0
+BJEW-1: comment:
+  השינוי מוכן ב-PR וממתין למיזוג.
+  מה היה: filled
+  מה שונה: filled
+  לבדיקה: filled
+  PR: https://github.com/o/r/pull/108
+BJEW-1: pictures: none selected, the comment goes up with no picture
+BJEW-1: posted with 0 picture(s) — attached 0: none selected, in PR, awaiting merge — https://raynw.atlassian.net/browse/BJEW-1
+
+  ok   OPEN notification posts once and never transitions
+CONTROLLED HUMAN MERGE: existing published candidate now MERGED
+$ wf deliver
+exit 0
+https://github.com/o/r/pull/108 confirmed merged from published handoff; tracker note: bug-reports/bjew-1/JIRA.md
+{"wf_version":5,"round":"fix/108","class":"A","id":"BJEW-1","ids":["BJEW-1"],"folder":"bug-reports/bjew-1","base":"dev","step":"merged","made_by":"kit","note":"bug-reports/bjew-1/JIRA.md","pr_handoff":{"url":"https://github.com/o/r/pull/108","head":"6eba5c93528b7a5e4849a0e86b3d3945c8213bf2","contentSha":"tree:cc1bdfa1894337da8480f5a64a42dbde30c80912"},"pr_repair":null,"history":[{"step":"classify","at":"2026-10-01T00:00:00Z"},{"step":"merged","at":"2026-10-24T15:34:24.795Z"}],"delivery":{"url":"https://github.com/o/r/pull/108","head":"6eba5c93528b7a5e4849a0e86b3d3945c8213bf2","contentSha":"tree:cc1bdfa1894337da8480f5a64a42dbde30c80912"},"merge_attempt":null,"build_reason":null,"since":"2026-10-24T15:34:24.795Z","waiting_on":null}
+
+  ok   delivery reconciliation records confirmed merge
+$ wf next
+exit 0
+done: `node "C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/wf.mjs" reap fix/108`
+
+  FAIL next does not offer reap with tracker incomplete — done: `node "C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/wf.mjs" reap fix/108`
+
+$ wf post
+exit 0
+
+  FAIL previously notified ticket reconciles actual delivered status — {"status":"In Progress","comments":[{"body":"השינוי מוכן ב-PR וממתין למיזוג.\nמה היה: filled\nמה שונה: filled\nלבדיקה: filled\nPR: https://github.com/o/r/pull/108"}],"transitions":0,"calls":[{"url":"https://raynw.atlassian.net/rest/api/2/issue/BJEW-1?fields=comment","method":"GET"},{"url":"https://raynw.atlassian.net/rest/api/2/issue/BJEW-1/changelog?startAt=0&maxResults=100","method":"GET"},{"url":"https://raynw.atlassian.net/rest/api/2/issue/BJEW-1?fields=attachment,comment","method":"GET"},{"url":"https://raynw.atlassian.net/rest/api/2/issue/BJEW-1/comment","method":"POST"}]}
+$ wf post
+exit 0
+
+  ok   retries never duplicate notification
+TRACKER FINAL: {"status":"In Progress","comments":[{"body":"השינוי מוכן ב-PR וממתין למיזוג.\nמה היה: filled\nמה שונה: filled\nלבדיקה: filled\nPR: https://github.com/o/r/pull/108"}],"transitions":0,"calls":[{"url":"https://raynw.atlassian.net/rest/api/2/issue/BJEW-1?fields=comment","method":"GET"},{"url":"https://raynw.atlassian.net/rest/api/2/issue/BJEW-1/changelog?startAt=0&maxResults=100","method":"GET"},{"url":"https://raynw.atlassian.net/rest/api/2/issue/BJEW-1?fields=attachment,comment","method":"GET"},{"url":"https://raynw.atlassian.net/rest/api/2/issue/BJEW-1/comment","method":"POST"}]}
