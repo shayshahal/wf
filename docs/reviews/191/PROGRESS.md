@@ -77,3 +77,5 @@ Isolated re-measurement at the same head, one file per run: `evidence/lifecycle-
 ## T1 ruling on the older-copy limit (R4)
 
 Inbox reply `msg_01M5QB505GS0HQ7D8YB3RHT8G7` to my question `q-9de1a887`, as written: "Updated-runtime guarantee; require using it for cleanup (your recommendation)". Recorded verbatim in AGREEMENT-REVIEW.md with the scope it fixes. Documentation/comment-only commit `d5fb6f0`: state version 6's comment now states exactly what the version fences and what it cannot, and the portable skill's `done:` row requires cleanup with the wf that wrote the round's state. No behavior, test or reap-path change; nothing destructive was measured or attempted for old copies.
+
+R4 documentation delta validated with the cheapest checks its files touch: `evidence/r4-doc-delta-focused.log` PASS boundary, state, skill-export, tsc, eslint in 19.3 s. Not a rerun of the full focused selection; the product/test head for R2 assessment stays 6f42099, with 6e5069c adding only comments, the skill's `done:` row and review records.
