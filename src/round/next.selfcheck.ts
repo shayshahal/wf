@@ -155,7 +155,7 @@ check('posted open PR waits for human merge without reap', say(handedOff).starts
 check('unposted open PR posts before waiting', say({ ...handedOff, note: { file: 'NOTE.md', text: '## JX-1\n' } }).startsWith('post:'));
 check('changed HEAD cannot reuse the open handoff', say({ ...handedOff, head: 'h2' }).startsWith('deliver:'));
 check('pr → deliver', say(base({ step: 'pr' })).startsWith('deliver: T2 approved'));
-check('merged with no note sections left → done and reap', say(base({ step: 'merged', note: { file: 'bug-reports/r/NOTE.md', text: '## JX-1 (posted)\n' } })) === 'done: `node "C:/wf/wf.mjs" reap fix/r`');
+check('legacy posted note without confirmed tracker completion stays pending', say(base({ step: 'merged', note: { file: 'bug-reports/r/NOTE.md', text: '## JX-1 (posted)\n' } })).startsWith('post: tracker completion pending'));
 check('merged with an unposted section → post it first', say(base({ step: 'merged', note: { file: 'bug-reports/r/NOTE.md', text: '## JX-1\n' } })).startsWith('post: JX-1'));
 
 // ── the class is measured from the agreement, not assumed: a declared `Class:` line, or a case whose

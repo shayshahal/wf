@@ -56,9 +56,11 @@ before *Start*.
   the user that. Then `wf post` from the worktree posts it, the same way every round: it prints the
   same preview, then for each section not yet ` (posted)` attaches the files its `pictures:` line
   names to the issue, posts the section (without its `##` and `pictures:` lines) as a comment with
-  those pictures shown in it, keeps the status while the PR is open (sets *Fixed in Local* only for a confirmed merged delivery), and marks the heading itself. Run again, it skips
-  what is already done (a comment with the PR's url, a picture already attached under the PR's
-  number). Never post a note or a picture by hand (JX-268,
+  those pictures shown in it, keeps the status while the PR is open, and marks the heading itself.
+  After human merge and `wf deliver` reconciliation, run `wf post` again: even already-notified
+  sections need *Fixed in Local* readback. Completion is recorded separately from `(posted)`; an
+  already-delivered issue needs no new transition. A failed or unknown read stays pending and blocks
+  normal reap. Retries reuse earlier comments and attachments and retain successful ticket completions. Never post a note or a picture by hand (JX-268,
   2026-10-07: posted without its pictures, the user told to attach them, and the reap after it
   deleted them).
 - `wf post` refuses, posting nothing, when a section still has a `<...>` line, has no `pictures:`

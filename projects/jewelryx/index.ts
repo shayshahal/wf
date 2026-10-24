@@ -19,6 +19,7 @@ import { delimiter } from 'node:path';
 import { closeBrowsers, installShim, linkVerifySkill, unlinkCompetingSkills, verifyStackEnv, writeReproConfig } from './round.ts';
 import type { VerificationProfile, VerificationRequirements } from './readiness.ts';
 export { parseVerificationProfile, probeVerificationEndpoint, verificationEndpoints, waitForVerificationReady } from './readiness.ts';
+export { trackerCompletionGap } from './post-completion.ts';
 export type { VerificationProfile, VerificationRequirements } from './readiness.ts';
 
 /** Existing app checks retain shared authentication admission unless the project declares narrower needs. */

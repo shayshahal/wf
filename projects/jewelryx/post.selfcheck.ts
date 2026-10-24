@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { trackerNote } from './index.ts';
+import { headContentSha } from '../../src/gates/content-identity.ts';
 import { commentBody, commentText, markPosted, pictureNotes, picturesOf, previewOf, prNumberOf, sectionsOf, selectedPictures, unfilled } from './post.ts';
 
 let failed = 0;
@@ -66,14 +67,15 @@ const stub = join(work, 'jira-stub.mjs');
 writeFileSync(stub, String.raw`import { appendFileSync } from 'node:fs';
 const log = (o) => appendFileSync(process.env.STUB_LOG, JSON.stringify(o) + '\n');
 const json = (o) => new Response(JSON.stringify(o), { status: 200, headers: { 'content-type': 'application/json' } });
+let status = 'In Progress';
 globalThis.fetch = async (url, init = {}) => {
   const u = String(url), method = init.method ?? 'GET';
   if (u.includes('/changelog')) return json({ values: JSON.parse(process.env.STUB_HISTORIES ?? '[]'), isLast: true });
   if (u.includes('/attachments')) { const f = init.body.get('file'); log({ attach: f.name, type: f.type }); return json([]); }
   if (u.endsWith('/comment')) { log({ comment: JSON.parse(init.body).body }); return json({}); }
   if (u.includes('/transitions')) log({ transition: method });
-  if (u.includes('/transitions')) return method === 'POST' ? new Response(null, { status: 204 }) : json({ transitions: [{ id: '31', to: { name: 'Fixed in Local' } }] });
-  return json({ fields: { attachment: JSON.parse(process.env.STUB_ATTACHED ?? '[]').map((filename) => ({ filename })), comment: { comments: [...(process.env.STUB_ALREADY ? [{ body: 'השינוי מוכן ב-PR וממתין למיזוג.\nPR: https://github.com/x/y/pull/7', created: '2026-10-12T14:00:00.000+0300', updated: '2026-10-12T14:00:00.000+0300' }] : []), ...JSON.parse(process.env.STUB_COMMENTS ?? '[]')] } } });
+  if (u.includes('/transitions')) { if (method === 'POST') { status = 'Fixed in Local'; return new Response(null, {status:204}); } return json({transitions:[{id:'31',to:{name:'Fixed in Local'}}]}); }
+  return json({ fields: { status: {name:status}, attachment: JSON.parse(process.env.STUB_ATTACHED ?? '[]').map((filename) => ({ filename })), comment: { comments: [...(process.env.STUB_ALREADY ? [{ body: 'השינוי מוכן ב-PR וממתין למיזוג.\nPR: https://github.com/x/y/pull/7', created: '2026-10-12T14:00:00.000+0300', updated: '2026-10-12T14:00:00.000+0300' }] : []), ...JSON.parse(process.env.STUB_COMMENTS ?? '[]')] } } });
 };`);
 // The round began at 12:00:03 +0300 (its first step); `changed` is what the ticket got since.
 type Changed = { merged?: boolean; histories?: object[]; comments?: object[]; ticketWrittenAt?: string; ticketRead?: string; args?: string[]; pictures?: string | null; attached?: string[] };
@@ -88,7 +90,15 @@ function runPostIn(names: string[], already = false, changed: Changed = {}) {
   const pictures = changed.pictures === undefined ? 'pictures: none' : changed.pictures;
   writeFileSync(join(repo, 'bug-reports/x/JIRA.md'), `## JX-1239\nהשינוי מוכן ב-PR וממתין למיזוג.\n${pictures === null ? '' : `${pictures}\n`}PR: https://github.com/x/y/pull/7\n`);
   for (const n of names) writeFileSync(join(repo, 'bug-reports/x/proof', n), 'img');
-  const log = join(repo, 'stub.log');
+  if (changed.merged) {
+    spawnSync('git', ['-c', 'user.name=fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '--allow-empty', '-qm', 'base'], {cwd:repo});
+    const statePath = join(repo, '.wf/state.json');
+    const state = JSON.parse(readFileSync(statePath, 'utf8'));
+    const head = spawnSync('git', ['rev-parse', 'HEAD'], {cwd:repo,encoding:'utf8'}).stdout.trim();
+    state.delivery = {url:'https://github.com/x/y/pull/7',head,contentSha:headContentSha(repo,'bug-reports/x',null,'row')};
+    writeFileSync(statePath,JSON.stringify(state));
+  }
+  const log = join(repo, 'bug-reports/x/stub.log');
   writeFileSync(log, '');
   const run = spawnSync(process.execPath, ['--import', pathToFileURL(stub).href, fileURLToPath(new URL('./post.ts', import.meta.url)), ...(changed.args ?? [])], { cwd: repo, encoding: 'utf8', env: { ...process.env, JIRA_EMAIL: 'a@b', JIRA_TOKEN: 't', STUB_LOG: log, STUB_HISTORIES: JSON.stringify(changed.histories ?? []), STUB_COMMENTS: JSON.stringify(changed.comments ?? []), STUB_ATTACHED: JSON.stringify(changed.attached ?? []), ...(already ? { STUB_ALREADY: '1' } : {}) } });
   const calls: { attach?: string; type?: string; comment?: string; transition?: string }[] = readFileSync(log, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l));

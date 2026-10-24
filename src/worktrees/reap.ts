@@ -13,7 +13,7 @@ import { homedir } from 'node:os';
 import { createHash, randomUUID } from 'node:crypto';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { refuseCaller } from '../refusal.ts';
-import { roundsDir } from '../project.ts';
+import { roundsDir, trackerCompletionGap } from '../project.ts';
 import { writeCloneLaunch } from './new.ts';
 import { frictionLine } from '../round/friction.ts';
 import { readState } from '../round/state.ts';
@@ -204,6 +204,12 @@ export async function runReap(argv: string[]) {
 		process.exit(2);
 	}
 	if (mergedGap) console.warn(`wf reap: forcing removal despite ${mergedGap.reason}; product changes are not archived`);
+	const completionGap = trackerCompletionGap(state, state?.note && existsSync(join(path, state.note)) ? readFileSync(join(path, state.note), 'utf8') : null);
+	if (completionGap && process.env.WF_FORCE_REAP !== '1') {
+		console.error(`wf reap: ${completionGap}; nothing removed. WF_FORCE_REAP=1 intentionally discards unfinished tracker work`);
+		process.exitCode = 2;
+		return;
+	}
 	const force = recovering || reapRuns(process.env, state);
 	// Paperwork first: when it cannot be listed, reap stops, and ROUNDS.md gets no line for a round
 	// that is still there (2026-10-04, a broken .git: the line was written, then reap stopped).

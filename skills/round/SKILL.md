@@ -61,7 +61,7 @@ not a finding about the product.
 | `wait user: harness …` | Record the exact missing capability and rerun command. Use [capability fallbacks](references/capabilities.md); preserve the work rather than repeatedly rebuilding or repairing unrelated infrastructure. |
 | `deliver:` | Run `wf deliver`. It reconciles interrupted remote effects and refuses stale approval. T2 authorizes publishing the PR; leave it open for human merge. |
 | `wait user: PR …` | Leave the PR, branch and worktree intact for human merge. After the person merges, run `wf deliver` to reconcile, then `wf next`. |
-| `post:` | Follow `wf notes` to fill and post the note saying the work is in the linked PR awaiting merge using the project's command. Mark each section ` (posted)` at once so a resumed round does not post it twice. |
+| `post:` | Follow `wf notes` and run the project's post command. Before merge, notify that the linked PR awaits human merge; `(posted)` records that notification. After confirmed delivery, use the same command to reconcile remaining tracker obligations, including already-notified sections. Done when the project confirms completion and `wf next` advances; a notification mark alone is not tracker completion. |
 | `done:` | Leave the round's bound session; run the named `wf reap` from a surviving checkout/session, then report the delivered PR and cleanup result. |
 
 **Corrections.** A clear round-linked instruction that arrives from the person in chat, review, Inbox,

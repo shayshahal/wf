@@ -1,0 +1,9 @@
+selfcheck: focused (2 of 83 files); full suite not run.
+selfcheck: PASS tsc (0.3s)
+selfcheck: PASS eslint (1.0s)
+selfcheck: PASS projects/jewelryx/post.selfcheck.ts (65.0s)
+selfcheck: FAIL projects/jewelryx/post-lifecycle.selfcheck.ts (441.2s)
+
+── FAIL projects/jewelryx/post-lifecycle.selfcheck.ts
+  FAIL repeated post/reconcile preserves receipts and one publication
+1 of 4 selfchecks red (focused; tsc and eslint included) in 441.2s

@@ -40,3 +40,20 @@ Proposed Class B agreement in AGREEMENT.md. Existing `agreementSha` computes agr
 Await actual T1 approval of the attached material; starting authorization is not T1. No production implementation authorized yet. May continue independent baseline/test-design inspection while waiting, not change production behavior. After T1: record exact attributed verdict against hash, implement scoped recovery, final-head focused verification and fresh independent assessment. Final human approval required before publication; merge remains Shay's.
 
 T1 Inbox request: `msg_01M5Q92TKK8BJ39Z9SF1M3ZWQV`, question `q-ba78775e`, with exact agreement and repro/progress attachments. Await actual response; no polling or inference from silence.
+
+## T1 received
+Shay approved the attached agreement via Inbox reply `msg_01M5Q946DN1TX3PERKD57VN8KC`, Q1: "Approve the attached agreement (your recommendation)". Recorded against `sha256:e4fb68c9…` in AGREEMENT-REVIEW.md. Production implementation now authorized within that scope; publication still requires T2.
+
+## Implementation and isolated diagnostics (before independent assessment)
+
+Implemented separate bound post-completion receipt, project-owned status readback/retry, offline pending routing and normal reap refusal. New state version 6 preserves reading 2–5; old runtimes must not silently consume the new completion contract. The post command shares delivery's existing process lock, not the state write lock; network hooks assert no state lock is held. Status acknowledgement checks the exact state/note/product subject again inside its atomic state update.
+
+Meaningful owners: core `post-completion.ts` only defines/parses neutral persisted authority; project `post-completion.ts` owns note/section meaning and pure pending policy consumed by post/index/core routing. Existing project index is the only project entry core imports. Extraction earned by next/reap/post consumers and avoids importing the effectful project command into the static project entry. No general tracker adapter/job engine added.
+
+Failures preserved and diagnosed before reruns:
+- `focused-first.log` / `repro-after-first.log`: adding a static index export from effectful post.ts created an import cycle via ask/next/step (`people` TDZ). Moved pure project completion/note parsing behind the project export, leaving effectful post lazy. Also fixed TS's empty match-array `never` inference with a predicate.
+- `focused-second.log`: existing merged post fixture had no real product commit and put its log outside excluded round paperwork. New identity guard correctly refused it. Fixture now binds actual HEAD/product and stores controlled log under the round folder; production guard was not weakened.
+- `lifecycle-first.log`: post + continuous lifecycle file with tsc/eslint. Every lifecycle/crash/unknown/partial/identity/cleanup assertion passed except the combined repeat-deliver assertion: fixture expected exit 0, while existing deliver.ts:722–729 explicitly returns exit 2 with “already merged” after completion. Fixed test to assert that established response, receipt-byte preservation and no remote duplication. This is a test expectation repair, not a delivery behavior change.
+- `receipt-focused.log`: new core/project receipt/pending property checks and state + tsc/eslint all pass. Generated subsets exercise receipt roundtrips and independently pending ticket sets; malformed authority stays byte-for-byte intact.
+
+`repro-after-second.log` is the original continuous repro green against implementation at that point; final-head evidence is still owed after all product/test edits. No complete suite run.
