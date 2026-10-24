@@ -652,20 +652,31 @@ export async function reconcilePublishedDelivery(toplevel: string): Promise<{ ki
 			return { kind: 'finished' };
 		}
 		// The PR already carries this round's own later head: stale bookkeeping from a push whose handoff
-		// write was interrupted, not an ambiguous remote. The round may repair again, and the publication
-		// path — which re-asserts the approval before every mutation — rewrites the handoff. Adopting it
-		// here instead would announce unapproved bytes as awaiting merge (#190 review).
+		// write was interrupted, not an ambiguous remote. Adopt it only when T2 approved the bytes it
+		// carries — the same comparison the publication path makes before every mutation — so an
+		// unreviewed commit is never announced as awaiting merge, and a round that pushed a repair and
+		// then took one more instruction is not left refusing its own branch (#190 review 2/3).
 		const superseded = verdict.kind === 'superseded';
 		const waiting = outstandingCorrections(state).length > 0;
-		if (superseded || waiting) {
+		if (superseded) {
+			const folder = state.folder ?? null;
+			const reviewFile = folder ? join(toplevel, folder, 'REVIEW.md') : null;
+			const binding = approvalBinding(reviewFile && existsSync(reviewFile) ? readFileSync(reviewFile, 'utf8') : '');
+			const carried = folder ? commitContentSha(toplevel, verdict.head, folder, trackerNotePath(folder), 'approval') : null;
+			if (binding.verdict !== 'approved' || carried === null || (carried !== binding.headSha && carried !== binding.contentSha)) {
+				return { kind: 'refused', why: `published PR ${candidate.url} carries ${verdict.head.slice(0, 12)}, which T2 has not approved; review that implementation, then retry wf deliver` };
+			}
+			writeState(toplevel, (current) => {
+				revalidate(current);
+				return { ...unmergedAttemptPatch(current), pr_handoff: { url: candidate.url, head: verdict.head, contentSha: commitContentSha(toplevel, verdict.head, folder ?? '', trackerNotePath(folder), 'row') }, pr_repair: { url: candidate.url, head: verdict.head } };
+			});
+		} else if (waiting) {
 			writeState(toplevel, (current) => {
 				revalidate(current);
 				return { ...unmergedAttemptPatch(current), pr_repair: { url: candidate.url, head: candidate.head } };
 			});
 		}
-		// Repair may continue. The handoff at the newer head is written only by the publication path,
-		// which re-asserts the approval before it edits anything (#190 review).
-		return waiting ? { kind: 'open' } : { kind: 'none' };
+		return waiting || superseded ? { kind: 'open' } : { kind: 'none' };
 	} catch (error) {
 		return { kind: 'refused', why: `published PR reconciliation failed: ${error instanceof Error ? error.message : String(error)}; candidate and instructions retained — retry wf deliver` };
 	}
