@@ -9,7 +9,7 @@ const sections = sectionsOf(text);
 const completed: State = {step:'merged',ids:['X-1','X-2'],delivery,post_completion:{delivery,sections:sections.map((s)=>({key:s.key,sha:sectionSha(s)}))}};
 assert.equal(trackerCompletionGap(completed,text),null);
 assert.match(trackerCompletionGap({...completed,post_completion:undefined},text) ?? '',/pending/);
-assert.match(trackerCompletionGap({...completed,delivery:undefined},text) ?? '',/reconcile/);
+assert.match(trackerCompletionGap({...completed,delivery:undefined},text) ?? '',/receipt missing/);
 assert.match(trackerCompletionGap(completed,null) ?? '',/unknown/);
 assert.match(trackerCompletionGap(completed,note(['X-1'])) ?? '',/missing/);
 assert.match(trackerCompletionGap(completed,note(['X-1','X-1'])) ?? '',/unknown/);

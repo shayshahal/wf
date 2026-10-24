@@ -1,0 +1,1 @@
+selfcheck: unknown selfcheck path: src/skill/export.selfcheck.ts. Use existing paths relative to the wf root; no arguments runs the complete suite.

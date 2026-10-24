@@ -20,7 +20,7 @@ import { readState, roundFile, toplevelOf, writeState, WF_STATE_VERSION } from '
 import type { State } from '../../src/round/state.ts';
 import { baselineOf, changesOf, isOwnPost, jiraTime, refusalText } from './ticket-changes.ts';
 
-import { sectionsOf, sameDelivery, sectionSha, sectionHasDelivery, pendingCompletion } from './post-completion.ts';
+import { sectionsOf, sameDelivery, sectionSha, hasPrUrl, pendingCompletion } from './post-completion.ts';
 import type { Section } from './post-completion.ts';
 export { sectionsOf } from './post-completion.ts';
 export type { Section } from './post-completion.ts';
@@ -156,7 +156,7 @@ export async function ticketRefusal(state: State | null, keys: string[], then: s
 const roundKeys = (state: State | null, sections: Section[]) => [...new Set([...(state?.ids ?? (state?.id ? [state.id] : [])), ...sections.map((s) => s.key)])];
 const ownOf = (sections: Section[]): Own => (key) => {
 	const s = sections.find((n) => n.key === key);
-	return (body) => s !== undefined && isOwnPost(body, commentText(s), prNumberOf(s.text));
+	return (body) => s !== undefined && isOwnPost(body, commentText(s));
 };
 
 // wf post --ticket-reread: a person has read what changed on the ticket and the round's paperwork
@@ -189,6 +189,9 @@ async function runTicketReread(): Promise<void> {
 	console.log(`wf post --ticket-reread: recorded ${seen.checkedAt}; changes before it are read:\n${changes.map((c) => `  - ${c.key}: ${c.who}, ${c.at}: ${c.what}`).join('\n')}`);
 }
 
+// Keep expected failures in this legacy command shell: jira/ticketRefusal already reject, and
+// runPost translates them to an incomplete CLI outcome. This local exception boundary avoids a
+// second error protocol around those existing clients; pure completion policy never throws (#191).
 async function runLockedPost(argv: string[]): Promise<void> {
 	const toplevel = toplevelOf();
 	let state = readState(toplevel);
@@ -243,10 +246,11 @@ async function runLockedPost(argv: string[]): Promise<void> {
 	};
 	validate();
 	// Mark the new completion contract even if the first status read fails: an older runtime
-	// must not consume this notification as permission to reap (#191).
+	// sees the version on caller-bound commands (#191). Shipped old reap does not check a
+	// target version from a surviving checkout; cleanup safety requires the updated runtime.
 	if (state?.wf_version !== WF_STATE_VERSION) state = writeState(toplevel, (current) => { validate(current); return { wf_version: WF_STATE_VERSION }; });
 	const candidate = state?.delivery ?? state?.pr_handoff;
-	if (candidate && sections.some((s) => !sectionHasDelivery(s, candidate.url))) throw new Error(`wf post: saved note does not identify delivery candidate ${candidate.url}; restore it before retrying`);
+	if (candidate && sections.some((s) => !hasPrUrl(s.text, candidate.url))) throw new Error(`wf post: saved note does not identify delivery candidate ${candidate.url}; restore it before retrying`);
 	for (const s of todo) {
 		const pr = prNumberOf(s.text);
 		if (!pr) {
@@ -255,7 +259,7 @@ async function runLockedPost(argv: string[]): Promise<void> {
 		}
 		const issue = await jira(auth, `2/issue/${s.key}?fields=attachment,comment`);
 		// A session can die between the post and the mark: a comment with this PR's url is that post.
-		const already = issue.fields.comment.comments.some((c: { body: string }) => c.body.includes(`/pull/${pr}`));
+		const already = issue.fields.comment.comments.some((c: { body: string }) => isOwnPost(c.body, commentText(s)));
 		const pictures = picturesOf(pr, filesOf(s));
 		// A session that died mid-upload left some attached: only the missing ones go up.
 		if (!already) {
@@ -281,7 +285,7 @@ async function runLockedPost(argv: string[]): Promise<void> {
 	const pending = pendingCompletion(state, note);
 	if (!pending.length) return;
 	if (!state?.delivery || state.step !== 'merged') {
-		if (state?.step === 'merged') throw new Error('wf post: confirmed delivery receipt missing; run wf deliver before tracker completion');
+		if (state?.step === 'merged') throw new Error(state.pr_handoff ? 'wf post: confirmed delivery receipt missing; run wf deliver to reconcile the retained published candidate' : 'wf post: confirmed delivery receipt missing; restore original delivery evidence before tracker completion (wf next explains recovery/discard)');
 		return;
 	}
 	const delivery = state.delivery;
@@ -289,7 +293,7 @@ async function runLockedPost(argv: string[]): Promise<void> {
 	if (implementationGap) throw new Error(`wf post: ${implementationGap.reason}; tracker completion remains pending`);
 	for (const s of pending) {
 		validate();
-		if (!s.posted || !sectionHasDelivery(s, delivery.url)) throw new Error(`wf post: ${s.key} notification does not identify confirmed delivery ${delivery.url}; restore its note before retrying`);
+		if (!s.posted || !hasPrUrl(s.text, delivery.url)) throw new Error(`wf post: ${s.key} notification does not identify confirmed delivery ${delivery.url}; restore its note before retrying`);
 		let status = await trackerStatus(auth, s.key);
 		validate();
 		if (status !== DELIVERED) {

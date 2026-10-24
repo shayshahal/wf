@@ -90,7 +90,7 @@ await run(JSON.parse(process.env.ARGS),{gh});
 
 type Fixture = { work: string; remote: string };
 const state = (f: Fixture) => readState(f.work);
-type Ticket = { status: string; comments: {body: string}[]; attachments: {filename: string}[]; transitions: number };
+type Ticket = { status: string; comments: {body: string; created?: string}[]; attachments: {filename: string}[]; transitions: number };
 type Remote = { create: number; pr: {state: string}; calls: {key: string; url: string}[]; tickets: Record<string, Ticket> };
 // Only this controlled harness writes these fixture records; production parses its own responses.
 const remote = (f: Fixture): Remote => json(f.remote);
@@ -168,6 +168,20 @@ try {
 	const deliveryAgain = command(f, ['deliver']);
 	const finalPost = command(f, ['post']);
 	check('repeated post/reconcile preserves receipts and one publication', postAgain.code === 0 && deliveryAgain.code === 2 && deliveryAgain.out.includes('already merged') && finalPost.code === 0 && comments(f) === '1,1' && transitions(f) === '1,1' && remote(f).create === 1 && read(join(f.work, '.wf/state.json')) === bytes, postAgain.out + deliveryAgain.out + finalPost.out);
+
+	for (const [name, prior, first] of [
+		['remote-prefix', 'https://github.com/o/r/pull/1910', 'השינוי מוכן ב-PR וממתין למיזוג.'],
+		['remote-repository', 'https://github.com/other/repo/pull/191', 'השינוי מוכן ב-PR וממתין למיזוג.'],
+		['remote-quote', url, 'Human question about this PR:'],
+	]) {
+		const c = clone(beforeNotify, name);
+		const old = remote(c);
+		for (const t of Object.values(old.tickets)) t.comments.push({body: `${first}\nPR: ${prior}`,created:'2026-09-01T00:00:00Z'});
+		old.pr.state = 'MERGED'; save(c.remote, old);
+		const merged = command(c, ['deliver']);
+		const posted = command(c, ['post']);
+		check(`${name}: unrelated remote comment never suppresses notification or selected uploads`, merged.code === 0 && posted.code === 0 && comments(c) === '2,2' && Object.values(remote(c).tickets).every((t) => t.attachments.length === 1) && completionKeys(c) === 'X-1,X-2', merged.out + posted.out);
+	}
 
 	const commentCrash = clone(beforeNotify, 'comment-crash');
 	check('kill after first remote comment leaves notification unacknowledged', command(commentCrash, ['post'], 'crash-comment').code === 137 && comments(commentCrash) === '1,0' && !read(join(commentCrash.work, note)).includes('(posted)'));

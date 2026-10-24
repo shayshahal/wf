@@ -57,3 +57,11 @@ Failures preserved and diagnosed before reruns:
 - `receipt-focused.log`: new core/project receipt/pending property checks and state + tsc/eslint all pass. Generated subsets exercise receipt roundtrips and independently pending ticket sets; malformed authority stays byte-for-byte intact.
 
 `repro-after-second.log` is the original continuous repro green against implementation at that point; final-head evidence is still owed after all product/test edits. No complete suite run.
+
+## Independent assessment R1 and repair round 1
+
+Fresh T3-owned child task `node:delegated-task:command%3Amcp%3A1bdaec5d-0cda-4ab9-9481-dfbfa624931f%3Adelegate-task%3Awf-191-assessment-r1-a1fc529-pi`, provider `pi_pipersonal`, model `openai/gpt-6.1-sol`, option `thinking=high`; no parent history supplied. Initial requested Codex provider was project-disabled (no task started), so used discovered enabled provider. Full original report in ASSESSMENT.md, verdict repair on a1fc529. No production/test edits by reviewer.
+
+Accepted R1 exact remote notification identity, R2 unbound legacy routing, R3 fixture/coverage repairs. Implemented within agreement; detailed disposition in REVIEW-RESPONSES.md. R4 older-copy safety is a consequential compatibility limit: asked Shay explicitly via Inbox `msg_01M5QB4PMYHZ0HAEM4N02P5FPZ`, `q-9de1a887`, and corrected the too-strong source comment. Await actual ruling before final compatibility claim/handoff. No broader reap retry/migration design silently implemented.
+
+Original final run at a1fc529 completed: lifecycle and delivery-recovery PASS, three delivered-round failures (not a green aggregate). Repairs isolated with diagnostics before another full selection; two affected fixture expectations and one real routing precedence error explained. Repair focused next/delivered-round + project receipt/ticket-changes + tsc/eslint now green (`r1-repairs-focused2.log`), not a substitute for final-head coverage.

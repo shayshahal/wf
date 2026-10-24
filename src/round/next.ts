@@ -125,9 +125,11 @@ export function nextAction(s: Snapshot, purpose: 'next' | 'brief' = 'next'): { s
 		if (s.mergedGap?.kind === 'changed') return act(`wait user: ${s.mergedGap.reason}`);
 		const left = unpostedSections(s.note?.text ?? null);
 		if (left.length) return act(`post: ${left.join(', ')} — each section of ${s.note!.file} on its own item, with the delivered status (ROUND.md); right after each, its heading gets \` (posted)\`. Then \`${wf} next\``);
+		if (!s.delivery && s.prHandoff) return act(`deliver: reconcile the retained published candidate before tracker completion — \`${wf} deliver\``);
+		if (s.mergedGap) return act(`wait user: ${s.mergedGap.reason}`);
+		if (!s.delivery && s.note) return act('wait user: confirmed delivery receipt missing; restore original delivery evidence before tracker completion, or use WF_FORCE_REAP=1 only to intentionally discard unfinished work');
 		const completionGap = trackerCompletionGap({ step: s.step, delivery: s.delivery, id: s.id, ids: s.ids, post_completion: s.postCompletion }, s.note?.text ?? null);
 		if (completionGap) return act(`post: ${completionGap}. Then \`${wf} next\``);
-		if (s.mergedGap) return act(`wait user: ${s.mergedGap.reason}`);
 		return act(`done: \`${wf} reap ${s.branch}\``);
 	}
 	if (s.step === 'pr' && s.prHandoff && !corrections.length && s.head === s.prHandoff.head) {

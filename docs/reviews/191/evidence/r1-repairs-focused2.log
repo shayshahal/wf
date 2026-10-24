@@ -1,0 +1,8 @@
+selfcheck: focused (4 of 85 files); full suite not run.
+selfcheck: PASS projects/jewelryx/ticket-changes.selfcheck.ts (0.1s)
+selfcheck: PASS projects/jewelryx/post-completion.selfcheck.ts (0.1s)
+selfcheck: PASS tsc (0.3s)
+selfcheck: PASS eslint (0.9s)
+selfcheck: PASS src/round/next.selfcheck.ts (38.5s)
+selfcheck: PASS src/round/delivered-round.selfcheck.ts (47.6s)
+6 selfchecks green (focused; tsc and eslint included) in 47.6s
