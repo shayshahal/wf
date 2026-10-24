@@ -128,7 +128,10 @@ export function resolveRoundBase(toplevel: string, state: State | null): { ref: 
 // 4 adds correction/merge authority that older runtimes would ignore. New readers accept 2/3
 // without removed unit state; writers carrying the new facts mark 4 so old readers fail closed.
 // 5 fences published-candidate corrections; version 4 would route them to build without reconciliation.
-// 6 separates notification from post-merge completion; older routing could reap unfinished work.
+// 6 separates notification from post-merge completion. Caller-bound commands of an older wf refuse it
+// via legacyStateGap, but a shipped older reap that reads *another* checkout's target does not consult
+// that target version (#191 R4, measured non-destructively): cleanup therefore requires the wf that
+// wrote 6, as the guarantee Shay ruled for rather than an unqualified old-copy fence.
 export const WF_STATE_VERSION = 6;
 // The steps the smaller route removed (#111/#112/#113). A round parked at one is an old round: it must
 // finish on the installed wf that made it, and this wf refuses to reinterpret it.

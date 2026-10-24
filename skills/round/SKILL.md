@@ -62,7 +62,7 @@ not a finding about the product.
 | `deliver:` | Run `wf deliver`. It reconciles interrupted remote effects and refuses stale approval. T2 authorizes publishing the PR; leave it open for human merge. |
 | `wait user: PR …` | Leave the PR, branch and worktree intact for human merge. After the person merges, run `wf deliver` to reconcile, then `wf next`. |
 | `post:` | Follow `wf notes` and run the project's post command. Before merge, notify that the linked PR awaits human merge; `(posted)` records that notification. After confirmed delivery, use the same command to reconcile remaining tracker obligations, including already-notified sections. Done when the project confirms completion and `wf next` advances; a notification mark alone is not tracker completion. |
-| `done:` | Leave the round's bound session; run the named `wf reap` from a surviving checkout/session, then report the delivered PR and cleanup result. |
+| `done:` | Leave the round's bound session; run the named `wf reap` from a surviving checkout/session, then report the delivered PR and cleanup result. Clean up with the wf that wrote this round's state: an older copy does not check a target round's version when it reaps from another checkout, so it can delete unfinished tracker work. |
 
 **Corrections.** A clear round-linked instruction that arrives from the person in chat, review, Inbox,
 ticket or PR feedback is recorded once with
