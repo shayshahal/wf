@@ -6,6 +6,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { wfSync } from '../in-process-wf.ts';
 import { nextAction, unpostedSections } from './next.ts';
 import type { Snapshot } from './next.ts';
 import { readState, legacyStateGap, WF_STATE_VERSION } from './state.ts';
@@ -247,10 +248,8 @@ check('no state is not a legacy round', legacyStateGap(null) === null);
 // ── real CLI: an ordinary class A round reaches build through wf next; a legacy state is refused
 const git = (repo: string, ...args: string[]) => execFileSync('git', ['-C', repo, '-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { encoding: 'utf8' });
 const cli = (repo: string, ...args: string[]) => {
-	try { return { out: execFileSync(process.execPath, [join(WF_ROOT, 'wf.mjs'), ...args], { cwd: repo, encoding: 'utf8' }), code: 0 }; } catch (e) {
-		const err = e as { stdout?: string; stderr?: string; status?: number };
-		return { out: `${err.stdout ?? ''}${err.stderr ?? ''}`, code: err.status ?? 1 };
-	}
+	const r = wfSync(args, { cwd: repo });
+	return r.status === 0 ? { out: r.stdout, code: 0 } : { out: `${r.stdout}${r.stderr}`, code: r.status };
 };
 {
 	const repo = mkdtempSync(join(tmpdir(), 'wf-next-'));

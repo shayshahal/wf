@@ -4,6 +4,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { wfSync } from '../in-process-wf.ts';
 import { pathToFileURL } from 'node:url';
 import { WF_ROOT } from '../paths.ts';
 
@@ -20,7 +21,7 @@ try {
 	const agreement = '# r\n## Observed\n- measured at a.txt:1\n## Agreed\n- Behavior: the requested change\nUNASKED\nWALK\n## Verification\n| # | case | files | check |\n|---|---|---|---|\n| 1 | behavior | a.txt | manual: check behavior |\n';
 	for (const walk of ['', '- T2 walk:', '- **T2 walk.**', '- T2 walk: open:']) {
 		writeFileSync(join(repo, folder, 'AGREEMENT.md'), agreement.replace('UNASKED', '- **Not asked for.** none — the ticket names it').replace('WALK', walk));
-		const out = spawnSync(process.execPath, [join(WF_ROOT, 'wf.mjs'), 'agree', 'fix/r'], { cwd: repo, encoding: 'utf8' });
+		const out = wfSync(['agree', 'fix/r'], { cwd: repo });
 		assert.equal(out.status, 2, `${out.stdout}${out.stderr}`);
 		assert.match(out.stderr, /T2 walk.*finish the agreement before T1/);
 		assert.equal(readFileSync(join(repo, '.wf/state.json'), 'utf8'), state);
@@ -30,7 +31,7 @@ try {
 	// JX-1367 (2026-10-18): no Not asked for bullet, or a bare none, is refused before T1 like a missing walk.
 	for (const unasked of ['', '- **Not asked for.** none']) {
 		writeFileSync(join(repo, folder, 'AGREEMENT.md'), agreement.replace('UNASKED', unasked).replace('WALK', '- T2 walk: open: /catalog as buyer'));
-		const out = spawnSync(process.execPath, [join(WF_ROOT, 'wf.mjs'), 'agree', 'fix/r'], { cwd: repo, encoding: 'utf8' });
+		const out = wfSync(['agree', 'fix/r'], { cwd: repo });
 		assert.equal(out.status, 2, `${out.stdout}${out.stderr}`);
 		assert.match(out.stderr, /Not asked for.*finish the agreement before T1/);
 		assert.equal(existsSync(join(repo, '.wf/AGREEMENT-T1.html')), false);

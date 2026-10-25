@@ -4,6 +4,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { wfSync } from '../in-process-wf.ts';
 import { fileURLToPath } from 'node:url';
 import type { QuestionInbox } from '../seams.ts';
 import { WF_ROOT } from '../paths.ts';
@@ -37,7 +38,7 @@ const question: Question = { n: 1, to: 'user', text: 'May this behavior change?'
 const posted = { ref: 'm1', url: 'http://localhost/#thread=m1' };
 const reply = { ref: 'r1', text: 'Keep the agreed behavior.', sequence: 1 };
 const pending: State = { wf_version: 3, round: 'r', base: 'main', class: 'A', step: 'build', folder: 'round', last_question: 1, questions: [{ ...question, inbox: posted }] };
-const cli = (dir: string, ...args: string[]) => spawnSync(process.execPath, [join(WF_ROOT, 'wf.mjs'), ...args], { cwd: dir, encoding: 'utf8' });
+const cli = (dir: string, ...args: string[]) => wfSync([...args], { cwd: dir });
 function repo(name: string, state: State = pending) {
 	const dir = join(root, name);
 	mkdirSync(join(dir, '.wf'), { recursive: true });

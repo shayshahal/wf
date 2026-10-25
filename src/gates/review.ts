@@ -6,6 +6,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { dirname, join } from 'node:path';
 import { refuseCaller } from '../refusal.ts';
 import { CLASSIFY } from '../paths.ts';
+import { dirtyFiles } from '../dirty-files.ts';
 import { openFile, openInEditor, opensWindows } from '../worktrees/editor.ts';
 import { baseBranch, ticketChanges } from '../project.ts';
 import { ensureServers } from '../worktrees/serve.ts';
@@ -75,8 +76,7 @@ const currentIdentity = (worktree: string): ContentIdentity => {
 // nobody saw (#106 review, 2026-10-09). The round folder's own evidence is allowed: it is read as
 // files, not through the diff.
 function dirtyProduct(worktree: string, folder: string | null, notePath: string | null): string[] {
-  const git = (args: string[]) => execFileSync('git', ['-C', worktree, ...args], { encoding: 'utf8' }).split('\n').map((s) => s.trim()).filter(Boolean);
-  const dirty = [...new Set([...git(['diff', '--name-only', 'HEAD']), ...git(['diff', '--name-only', '--cached']), ...git(['ls-files', '--others', '--exclude-standard'])])];
+  const dirty = dirtyFiles(worktree);
   return dirty.filter((p) => !approvalPaperworkExcluded(p, folder, notePath) && !(folder && (p === folder || p.startsWith(`${folder}/`))));
 }
 

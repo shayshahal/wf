@@ -6,6 +6,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { wfSync } from '../in-process-wf.ts';
 import { classAttributes, classFromFiles, contractGlob } from './classify.ts';
 import { WF_ROOT } from '../paths.ts';
 
@@ -87,7 +88,7 @@ check('no files is A', classFromFiles([], contractPaths) === 'A');
 // running wf.mjs the way a person does exercises the arguments it owns, its output and its failure
 // modes. 2026-10-09: the route only imported the module, so `wf classify` printed nothing and exited 0.
 const cliEnv = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('GIT_')));
-const cliWf = (repo: string, args: string[]) => spawnSync(process.execPath, [join(WF_ROOT, 'wf.mjs'), ...args], { cwd: repo, env: cliEnv, encoding: 'utf8', timeout: 15000 });
+const cliWf = (repo: string, args: string[]) => wfSync([...args], { cwd: repo, env: cliEnv });
 const jsonClass = (out: string): string | undefined => { try { return JSON.parse(out).class; } catch { return undefined; } };
 // A repo on `main` and a round branch one commit ahead, with the project's contract-paths file
 // (project.ts) unless the test is about it missing.

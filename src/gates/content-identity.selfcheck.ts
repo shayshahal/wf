@@ -12,6 +12,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, sy
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { wfAsync } from '../in-process-wf.ts';
 import { pathToFileURL } from 'node:url';
 import { approvalBinding, approvalContentGap, needsFreshReviewHeader, renderSkeleton, lastField } from './review-format.ts';
 import { approvalIdentity, approvalPaperworkExcluded, commitContentSha, headContentSha, trackerNotePath, worktreeContentSha } from './content-identity.ts';
@@ -239,9 +240,15 @@ check('an unreadable before/after snapshot is `unavailable`, not green and not s
 
 // ── real CLI arms ────────────────────────────────────────────────────────────
 
+// In-process (a worker thread, ~0.1 s) unless the arm needs a real process: NODE_OPTIONS (the fake-gh
+// preload below) is read only at process start.
 const runCli = (cwd: string, args: string[], extraEnv: NodeJS.ProcessEnv = {}) => new Promise<{ status: number | null; out: string }>((resolve) => {
 	const env: NodeJS.ProcessEnv = { ...process.env, CLAUDECODE: '1', ...extraEnv };
 	for (const k of Object.keys(env)) if (k.startsWith('GIT_')) delete env[k];
+	if (!extraEnv.NODE_OPTIONS) {
+		void wfAsync(args, { cwd, env }).then((r) => resolve({ status: r.status, out: r.stdout + r.stderr }));
+		return;
+	}
 	const child = spawn(process.execPath, [join(WF_ROOT, 'wf.mjs'), ...args], { cwd, env });
 	let out = '';
 	child.stdout.on('data', (d) => { out += d; });

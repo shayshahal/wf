@@ -3,6 +3,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { wfSync } from '../in-process-wf.ts';
 import { WF_ROOT } from '../paths.ts';
 import { worktreeContentSha } from '../gates/content-identity.ts';
 import { readState } from './state.ts';
@@ -13,7 +14,7 @@ const check = (name: string, cond: unknown, detail = '') =>
 	(console.log(cond ? `  ok   ${name}` : `  FAIL ${name}${detail ? ` — ${detail}` : ''}`) as unknown) || (cond || failures++);
 const git = (repo: string, ...args: string[]) => execFileSync('git', ['-C', repo, ...args], { encoding: 'utf8' }).trim();
 const cli = (repo: string, ...args: string[]) => {
-	const run = spawnSync(process.execPath, [join(WF_ROOT, 'wf.mjs'), ...args], { cwd: repo, encoding: 'utf8' });
+	const run = wfSync([...args], { cwd: repo });
 	return { code: run.status, out: `${run.stdout ?? ''}${run.stderr ?? ''}`.trim() };
 };
 const assessment = (head: string, verdict = 'repair') => `# r — assessment

@@ -5,6 +5,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { wfSync } from '../in-process-wf.ts';
 import { fileURLToPath } from 'node:url';
 import { cloneLaunch, decisionsOf, earlierText, fetchFor, launchConfig, namesId, ownEntryHint, runNew } from './new.ts';
 import { entryGap, readState, writeState, WF_STATE_VERSION } from '../round/state.ts';
@@ -76,7 +77,7 @@ check('the same wf, a round from before the field, or no round: allowed', entryG
 // round to A and built before T1. The creation boundary must require that choice explicitly.
 const unclassifiedDir = mkdtempSync(join(tmpdir(), 'wf-unclassified-'));
 try {
-	const unclassified = spawnSync(process.execPath, [join(WF_ROOT, 'wf.mjs'), 'new', 'round/unclassified', '--base', 'HEAD'], { cwd: unclassifiedDir, encoding: 'utf8' });
+	const unclassified = wfSync(['new', 'round/unclassified', '--base', 'HEAD'], { cwd: unclassifiedDir });
 	check('new refuses a build round without an explicit class before worktree creation', unclassified.status === 2 && unclassified.stderr.includes('--class A|B|C') && !unclassified.stdout.includes('worktree ready'), `${unclassified.stdout}\n${unclassified.stderr}`);
 } finally { rmSync(unclassifiedDir, { recursive: true, force: true }); }
 
@@ -87,7 +88,7 @@ const bareRoot = mkdtempSync(join(tmpdir(), 'wf-new-bare-'));
 try {
 	const bareRepo = join(bareRoot, 'repo.git');
 	execFileSync('git', ['init', '-q', '--bare', bareRepo]);
-	const refused = spawnSync(process.execPath, [join(WF_ROOT, 'wf.mjs'), 'new', 'round/bare', '--class', 'A', '--base', 'HEAD'], { cwd: bareRepo, encoding: 'utf8' });
+	const refused = wfSync(['new', 'round/bare', '--class', 'A', '--base', 'HEAD'], { cwd: bareRepo });
 	const bareTrees = spawnSync('git', ['worktree', 'list', '--porcelain'], { cwd: bareRepo, encoding: 'utf8' }).stdout;
 	check('new refuses where the machine cannot supply a round\'s secrets, before anything is created', refused.status === 1 && refused.stderr.includes('no main checkout') && refused.stderr.includes('nothing created') && !refused.stdout.includes('worktree ready') && !bareTrees.includes('round/bare') && !existsSync(join(bareRepo, '.wf')), `${refused.stdout}\n${refused.stderr}\n${bareTrees}`);
 } finally { rmSync(bareRoot, { recursive: true, force: true }); }

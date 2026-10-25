@@ -10,6 +10,7 @@ import { readState, resolveRoundBase, roundOf, toplevelOf } from '../round/state
 import { acquireVerificationServers } from '../worktrees/serve.ts';
 import type { VerificationServers } from '../worktrees/serve.ts';
 import { worktreeContentSha } from './content-identity.ts';
+import { dirtyFiles } from '../dirty-files.ts';
 import { checkOutputTail, checkRunLine } from './checks-log.ts';
 import type { CheckRun, RedCause } from './checks-log.ts';
 import { runCheckProcess } from './check-process.ts';
@@ -24,7 +25,7 @@ export type CheckTask =
 // commits before `wf check`, a repair cycle or a resumed round runs on a clean tree (#109).
 export function changedFiles(toplevel: string, base?: string | null) {
 	const git = (args: string[]) => execFileSync('git', ['-C', toplevel, ...args], { encoding: 'utf8' }).split('\n').map((l) => l.trim()).filter(Boolean);
-	return [...new Set([...(base ? git(['diff', '--name-only', `${base}...HEAD`]) : []), ...git(['diff', '--name-only', 'HEAD']), ...git(['diff', '--name-only', '--cached']), ...git(['ls-files', '--others', '--exclude-standard'])])].sort();
+	return [...new Set([...(base ? git(['diff', '--name-only', `${base}...HEAD`]) : []), ...dirtyFiles(toplevel)])].sort();
 }
 
 // The round's own paperwork is never fenced: the implementer writes BLOCKED.md and

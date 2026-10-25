@@ -3,6 +3,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { wfSync } from '../in-process-wf.ts';
 import { pathToFileURL } from 'node:url';
 import { deliveryReceiptGap, mergedImplementationGap } from './delivered-round.ts';
 import { readState, writeState, WF_STATE_VERSION } from './state.ts';
@@ -18,7 +19,7 @@ const dir = mkdtempSync(join(tmpdir(), 'wf-delivered-'));
 const folder = 'bug-reports/first';
 const product = join(dir, 'product.txt');
 const git = (...args: string[]) => execFileSync('git', ['-C', dir, '-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { encoding: 'utf8' }).trim();
-const cli = (...args: string[]) => spawnSync(process.execPath, [join(WF_ROOT, 'wf.mjs'), ...args], { cwd: dir, env: { ...process.env, WF_FORCE_REAP: '0' }, encoding: 'utf8' });
+const cli = (...args: string[]) => wfSync(args, { cwd: dir, env: { ...process.env, WF_FORCE_REAP: '0' } });
 try {
 	git('init', '-q', '-b', 'dev');
 	git('config', 'core.autocrlf', 'false');

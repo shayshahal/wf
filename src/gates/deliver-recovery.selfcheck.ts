@@ -8,6 +8,7 @@ import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { wfSync } from '../in-process-wf.ts';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { trackerNote } from '../project.ts';
 import { captureCorrection, disposeCorrection } from '../round/corrections.ts';
@@ -531,7 +532,7 @@ const pendingOf = (f: Fixture) => ((readState(f).corrections ?? []) as Array<{ i
  setRemote(f, empty());
  const first = attempt(f, 'crash-merge');
  check('delivery leaves the PR and branch open with a durable handoff', first.code === 0 && readRemote(f).merge === 0 && readState(f).step === 'pr' && !!readState(f).pr_handoff && !readState(f).delivery && remoteBranches(f.work).includes(BRANCH), first.out);
- const next = spawnSync(process.execPath, [join(WF_ROOT, 'wf.mjs'), 'next'], { cwd: f.work, env: ENV, encoding: 'utf8' });
+ const next = wfSync(['next'], { cwd: f.work, env: ENV });
  check('open handoff routes to tracker posting', next.stdout.startsWith('post:'), next.stdout + next.stderr);
  const second = attempt(f);
  check('retry retains one open PR without merging', second.code === 0 && readRemote(f).create === 1 && readRemote(f).merge === 0 && !!readState(f).pr_handoff, second.out);
@@ -835,7 +836,7 @@ for (const timing of ['after-receipt']) {
 	const review = readFileSync(join(f.work, FOLDER, 'REVIEW.md'), 'utf8');
 	const note = readFileSync(join(f.work, NOTE), 'utf8');
 	const remote = readFileSync(f.remote, 'utf8');
-	const next = () => spawnSync(process.execPath, [join(WF_ROOT, 'wf.mjs'), 'next'], { cwd: f.work, env: ENV, encoding: 'utf8' });
+	const next = () => wfSync(['next'], { cwd: f.work, env: ENV });
 	check(`${timing}: incomplete local step calls for receipt reconciliation`, next().stdout.startsWith('deliver:'));
 	const recovered = attempt(f, 'no-remote');
 	check(`${timing}: receipt recovery completes despite pending correction and unavailable remote`, recovered.code === 0 && readState(f).step === 'merged' && !readState(f).merge_attempt, recovered.out);

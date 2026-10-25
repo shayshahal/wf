@@ -5,6 +5,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { wfOut, wfSync } from '../in-process-wf.ts';
 import { WF_ROOT } from '../paths.ts';
 import { guidance } from '../project.ts';
 import { worktreeContentSha } from '../gates/content-identity.ts';
@@ -89,7 +90,7 @@ rmSync(dir, { recursive: true, force: true });
 		writeFileSync(join(repo, folder, 'AGREEMENT.md'), '# AGREEMENT — DEC\n\n## Observed\n- a fact at `a.txt:1`\n\n## Agreed\n\n- **Behavior.** the thing changes\n- **T2 walk.** open: `b2b /catalog as buyer`\n\n## Verification\n\n| # | case | files | check |\n|---|---|---|---|\n| 1 | fix(dec): thing | `a.txt` | `a.spec.ts::x@1` |\n');
 		writeFileSync(join(repo, '.wf', 'state.json'), JSON.stringify({ wf_version: 3, made_by: 'kit', round: 'fix/dec', id: 'dec', folder, base: 'main', class: 'B', step: 'build', since: '2026-10-10T00:00:00Z' }));
 		const run = join(WF_ROOT, 'wf.mjs');
-		const wf = (...args: string[]) => execFileSync(process.execPath, [run, ...args], { cwd: repo, encoding: 'utf8' });
+		const wf = (...args: string[]) => wfOut(args, { cwd: repo });
 		wf('decide', 'keep the existing button');
 		const st = JSON.parse(readFileSync(join(repo, '.wf', 'state.json'), 'utf8')) as { step?: string; decisions?: { text: string }[] };
 		check('a non-revise decide keeps the step and records state.decisions', st.step === 'build' && st.decisions?.[0]?.text === 'keep the existing button', JSON.stringify(st));
@@ -149,7 +150,7 @@ rmSync(dir, { recursive: true, force: true });
 		mkdirSync(join(repo, '.wf'), { recursive: true });
 		const ticket = '# Guidance\n## Intent\n- preserve the existing behavior\n';
 		const state = { wf_version: 3, round: 'fix/guidance', id: 'guidance', folder, base: 'main', step: 'build', class: 'A' };
-		const wf = (...args: string[]) => execFileSync(process.execPath, [join(WF_ROOT, 'wf.mjs'), ...args], { cwd: repo, encoding: 'utf8' });
+		const wf = (...args: string[]) => wfOut(args, { cwd: repo });
 		for (const withCases of [false, true]) {
 			writeFileSync(join(repo, folder, 'TICKET.md'), ticket + (withCases ? '\n## Verification\n| # | case | files | check |\n|---|---|---|---|\n| 1 | refactor: existing behavior | src/planned.txt src/committed.txt | — |\n' : ''));
 			writeFileSync(join(repo, '.wf/state.json'), JSON.stringify(state));
@@ -166,7 +167,7 @@ rmSync(dir, { recursive: true, force: true });
 		}
 		writeFileSync(join(repo, '.wf/state.json'), JSON.stringify({ ...state, base: 'missing/base' }));
 		for (const phase of ['build', 'assess']) {
-			const refused = spawnSync(process.execPath, [join(WF_ROOT, 'wf.mjs'), 'prompt', phase], { cwd: repo, encoding: 'utf8' });
+			const refused = wfSync(['prompt', phase], { cwd: repo });
 			check(`${phase}: an unresolved base refuses rather than silently omitting committed guidance`, refused.status === 2 && refused.stdout === '' && refused.stderr.includes('missing/base') && refused.stderr.includes('does not resolve'), refused.stderr);
 		}
 		check('agree does not require a resolved diff base', wf('prompt', 'agree').includes('preserve the existing behavior'));

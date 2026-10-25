@@ -292,6 +292,12 @@ followed through the CLI: name it too. The run is bounded: `WF_SELFCHECK_JOBS` c
 min(6, cpus/4)) and `WF_SELFCHECK_TIMEOUT_S` seconds each (default 300), after which a check is killed with its
 children and reported `TIMEOUT`. Each result line ends with `[done/total]`.
 
+A selfcheck that drives the CLI uses `wfSync(args, { cwd, env })` (or `wfAsync` when the check serves HTTP
+from its own thread for wf to probe) from `src/in-process-wf.ts`, not `spawnSync(node wf.mjs ...)`: it runs the
+same `run()` in a worker thread (about 0.1 s against ~1 s for a process here). Use a real process to test the
+entry files themselves (`wf.mjs`, `env/wf.mjs`, an exported skill's `scripts/wf.mjs`, the hooks), anything that
+needs `NODE_OPTIONS` (read at process start), and a command that must change into another directory.
+
 This runs those files plus tsc and eslint, and labels the result **focused**, not full delivery
 proof. Unknown paths refuse the whole selection before any checks start. No arguments still runs
 every check, when you choose to run the complete suite. Report which checks ran and any known
