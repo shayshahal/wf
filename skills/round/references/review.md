@@ -44,6 +44,17 @@ returned to agreement. Working-detail edits need not renew unchanged material; c
 
 ## T2 and agreed checkpoints
 
+### Agreed checkpoints
+
+Before crossing a human-agreed checkpoint, show its intended diff and the evidence relevant to that
+intermediate work. Independent final assessment and the final T2 walk are not checkpoint prerequisites.
+Run `wf review <branch> --checkpoint [--base <ref>]`; show the prepared material, preserve its identity
+header, and record only the person's actual comments and verdict. Then run
+`wf review <branch> --checkpoint --done` and `wf next`.
+`CHECKPOINT-REVIEW.md` records the outcome; approval resumes build, never delivery.
+
+### Final T2
+
 1. Inspect the current agreement, implementation diff and independent assessment. Run the project's
    preview/walk command from `wf notes` and the agreement's setup recipe. Use the session's native
    browser tools, or an external UI/exact URL and setup if unavailable. Start the presentation with

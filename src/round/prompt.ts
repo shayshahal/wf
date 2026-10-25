@@ -22,6 +22,7 @@ import { guidanceSection, notesFor, readNotes } from './guidance.ts';
 import { readState, resolveRoundBase, roundOf, toplevelOf } from './state.ts';
 import { correctionContext } from './corrections.ts';
 import { decisionSheetGuidance } from './presentation.ts';
+import { canonicalSkillSource } from '../skill/skill-export.ts';
 
 export function renderPrompt(template: string, vars: Record<string, unknown>) {
 	return template.replace(/\{\{(\w+)\}\}/g, (m, key: string) => (key in vars ? String(vars[key]) : m));
@@ -88,6 +89,8 @@ export function composePrompt(argv: string[]) {
 	const gate = openQuestionGate(state);
 	if (gate) throw new Error(`${phase}: ${gate}`);
 	const klass = state?.class ?? 'A';
+	const skill = canonicalSkillSource(WF_ROOT);
+	if (!skill) throw new Error(`${phase}: round skill source is missing; restore this runtime's skill folder`);
 	let ticket = '';
 	try { ticket = readFileSync(join(toplevel, folder!, TICKET_FILE), 'utf8'); } catch { /* reported below */ }
 	const intent = ticketIntent(ticket);
@@ -96,7 +99,7 @@ export function composePrompt(argv: string[]) {
 	// Owner feedback (`## Decisions`, wf decide) reaches the build and the assessment through
 	// `agreedMaterial` in the `{{agreement}}` of both templates — one projection, so the text is not
 	// duplicated (#114 closure, F2).
-	const vars: PromptVars = { presentation: `${decisionSheetGuidance()}\n${seams.presentation?.guidance ?? ''}`, round: id, folder, base: state?.base ?? `origin/${baseBranch}`, intent: intent ?? `No requester intent is recorded yet. Write \`${folder}/TICKET.md\` with \`## Intent\`: the requester's words, verbatim and attributed, from the current task or its linked source. If that source is unavailable, ask the person for the request before proceeding; do not invent it.`, agreement: agreedMaterial(agreementText, klass), file: agreementFile(klass), assessment: '', review: '', answers: '', assessmentFile: ASSESSMENT_FILE, assessmentBase: state?.base ?? `origin/${baseBranch}` };
+	const vars: PromptVars = { phase, skill: skill.replaceAll('\\', '/'), worktree: toplevel.replaceAll('\\', '/'), presentation: `${decisionSheetGuidance()}\n${seams.presentation?.guidance ?? ''}`, round: id, folder, base: state?.base ?? `origin/${baseBranch}`, intent: intent ?? `No requester intent is recorded yet. Write \`${folder}/TICKET.md\` with \`## Intent\`: the requester's words, verbatim and attributed, from the current task or its linked source. If that source is unavailable, ask the person for the request before proceeding; do not invent it.`, agreement: agreedMaterial(agreementText, klass), file: agreementFile(klass), assessment: '', review: '', answers: '', assessmentFile: ASSESSMENT_FILE, assessmentBase: state?.base ?? `origin/${baseBranch}` };
 	const assessmentFile = ASSESSMENT_FILE;
 	// The project's direct URLs, {{<app>}}: Node on Windows cannot resolve *.localhost.
 	try {
@@ -105,7 +108,11 @@ export function composePrompt(argv: string[]) {
 	} catch { /* not in a round worktree */ }
 	// The previous updater anchors every *.md, including during the first upgrade to this release.
 	// .md.in retains pristine templates for export even through that updater (2026-10-19 review P1).
-	let template = readFileSync(join(templatesDir, `${phase}.md.in`), 'utf8');
+	const templateName = phase === 'agree' && !consequential(klass) ? 'agree-a' : phase;
+	let template = readFileSync(join(templatesDir, `${templateName}.md.in`), 'utf8');
+	// Cold reviewers receive no parent skill or chat. The shared context names authoritative inputs
+	// and persistent constraints once; each phase template owns only its current assignment.
+	vars.context = renderPrompt(readFileSync(join(templatesDir, 'phase-context.md.in'), 'utf8'), vars);
 	// agree: the round's name tells the agent which file holds the agreement.
 	if (phase === 'agree') {
 		const overruled = overruledAsks(state?.answered);
@@ -148,7 +155,6 @@ ${vars.answers}`;
 	// The project's notes for this phase: what its repo, apps and tests look like.
 	const notes = join(WF_ROOT, 'projects', projectName, 'prompts', `${phase}.md`);
 	if (existsSync(notes)) template += `\n${readFileSync(notes, 'utf8')}`;
-	if (phase === 'assess') vars.agreementFile = vars.file;
 	const wf = wfCommand(seams.entry);
 	// #126/#130: anchor template instructions before inserting people's verbatim rulings.
 	// Recorded answers are inserted after anchoring for the same reason.

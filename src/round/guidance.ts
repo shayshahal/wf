@@ -51,7 +51,7 @@ export function notesFor(notes: Note[], files: string[]): (Note & { files: strin
 export function guidanceSection(notes: (Note & { files: string[] })[]): string {
 	if (!notes.length) return '';
 	const parts = notes.map((n) => `### \`${n.path}\` (for ${n.files.map((f) => `\`${f}\``).join(', ')})\n\n${n.body}`);
-	return `\n## This project's notes for these files\n\nFrom its repository, for the case files and actual changed files. They rank below the agreement and the fence above.\n\n${parts.join('\n\n')}\n`;
+	return `\n## This project's notes for these files\n\nFrom its repository, for the case files and actual changed files. Apply them within the agreed scope and this phase's authority.\n\n${parts.join('\n\n')}\n`;
 }
 
 // The notes under `dir` (the worktree's, recursively) that name globs.

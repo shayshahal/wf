@@ -64,21 +64,9 @@ not a finding about the product.
 | `post:` | Follow `wf notes` and run the project's post command. Before merge, notify that the linked PR awaits human merge; `(posted)` records that notification. After confirmed delivery, use the same command to reconcile remaining tracker obligations, including already-notified sections. Done when the project confirms completion and `wf next` advances; a notification mark alone is not tracker completion. |
 | `done:` | Leave the round's bound session; run the named `wf reap` from a surviving checkout/session, then report the delivered PR and cleanup result. Clean up with the wf that wrote this round's state: an older copy does not check a target round's version when it reaps from another checkout, so it can delete unfinished tracker work. |
 
-**Corrections.** A clear round-linked instruction that arrives from the person in chat, review, Inbox,
-ticket or PR feedback is recorded once with
-`wf correct --source "<actual message/event reference>" --author "<original author>" --scope "<intended scope>" --reason "<why it applies>" "<instruction, verbatim>"`.
-Preserve attribution; ordinary discussion, non-directive approval notes and third-party suggestions
-are not new assignments. A clear instruction is still actionable when delivered beside an approval:
-classify its meaning, not just the review's verdict. If intent is ambiguous, retain the words and ask
-only what is missing. Reuse the exact source identity on retry; explicit replacement uses
-`--supersedes <id,...>`, never timestamps or a rewritten review verdict. Run `wf next`: the build and
-assessment context carries the instruction until it is addressed, blocked or explicitly replaced, and
-an outstanding instruction blocks delivery even when file bytes have not changed. A builder records
-disposition through the command in its brief. When a concrete blocker clears, record
-`wf correct --unblock <id> --note "<what cleared it/source>"`; unblocking is not application. Transport
-or dispatch acknowledgement is not application. After disposition, `wf next` may resume unchanged
-approved delivery; a changed subject follows fresh assessment and T2. A recorded uncertain merge is
-reconciled before repair or follow-up.
+**Corrections.** When a person gives a clear round-linked instruction in chat, review, Inbox,
+ticket or PR feedback, follow [authored corrections](references/corrections.md). Record the source
+and words once; reading, dispatching or acknowledging an instruction does not address it.
 
 Fixable within-agreement findings return to build within the recorded repair budget. Material scope
 or behavior changes go back to agreement. Keep outstanding corrections visible until implementation
@@ -91,10 +79,9 @@ Reviewers choose outcomes explicitly; there is no per-line assessment status or 
 
 ## Agreed checkpoints
 
-Before proceeding past a human-agreed checkpoint, show the intended diff with
-`wf review <branch> --checkpoint [--base <ref>]`, then `wf review <branch> --checkpoint --done`.
-`CHECKPOINT-REVIEW.md` records the outcome. Approval resumes build, never delivery. Final T2 still
-reviews the whole round.
+Before proceeding past a human-agreed checkpoint, follow
+[human review](references/review.md#agreed-checkpoints). Approval resumes build, never delivery;
+final T2 still reviews the whole round.
 
 ## Adapt execution, not the completion standard
 

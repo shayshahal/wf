@@ -37,9 +37,13 @@ The kit exports no `env/`, secrets, sessions, task state, git metadata or develo
 It can be moved or re-exported without keeping this checkout.
 
 Start with `notes` for the project's prerequisites and workflow references. `next` identifies the
-current allowed work; `brief agree|build|assess` supplies its context and handoff. Agreement/build can
-run in the current session. Assessment requires a fresh independent context, supplied by this or
-another harness; the tools enforce report freshness but cannot prove an LLM context's independence.
+current allowed work; `brief agree|build|assess` supplies its context and handoff. Each brief identifies
+the exact workspace, configured entry, saved request and full working document to read; inline excerpts
+are orientation, not a replacement for verification/evidence records. Phase procedures apply to the
+current assignment; agreed scope, decisions and corrections survive session changes. Agreement/build
+can run in the current session. Assessment requires a fresh independent context, supplied by this or
+another harness; it reports repairs rather than rewriting the builder's agreement. The tools enforce
+report freshness but cannot prove an LLM context's independence.
 Missing capabilities produce an explicit blocker/handover, not a silently weaker completion standard.
 
 A configured machine launcher is still useful for machine-specific infrastructure. Keep using the
