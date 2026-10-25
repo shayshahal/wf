@@ -119,8 +119,20 @@ for (const klass of ['A', 'B'] as const) {
 const cleanA = (agreement: string) => base({ step: 'assess', files: { agreement, assessment: ASSESS(), review: null, blocked: null } });
 check('class A with no T2 walk: T2 refuses and dispatches the build to record it', say(cleanA(TICKET)).startsWith('work build') && say(cleanA(TICKET)).includes('T2 walk') && steps(cleanA(TICKET)).join() === 'build', say(cleanA(TICKET)));
 check('class A with an explicit none reaches T2', say(cleanA(TICKET_WALK)).startsWith('review: T2'), say(cleanA(TICKET_WALK)));
-const TICKET_OPEN = `${TICKET}\n## Notes\n- **T2 walk.** open: b2b /catalog as buyer\n  setup: api createVariant {} as seller\n`;
-check('class A with an open: walk reaches T2 (with or without setup lines)', say(cleanA(TICKET_OPEN)).startsWith('review: T2'), say(cleanA(TICKET_OPEN)));
+const TICKET_OPEN = `${TICKET}\n## Notes\n- **T2 walk.** open: b2b /catalog as buyer\n`;
+check('class A with an open: walk and no setup lines reaches T2', say(cleanA(TICKET_OPEN)).startsWith('review: T2'), say(cleanA(TICKET_OPEN)));
+// JX-436 (2026-10-25): a walk whose setup line `wf show` cannot run passed build and assessment and
+// was refused only at T2. wf next names the two admitted forms while the build can rewrite the line.
+const walkTicket = (setup = '', ready = '') => `${TICKET}\n## Notes\n- **T2 walk.** open: b2b /catalog/rings as buyer\n${ready}${setup}\n`;
+const forms = 'must be `api <fn> <json> as <buyer|seller|admin>` or `script ["executable","arg",...]`';
+const shellWalk = walkTicket('  setup: cd packages/backend && uv run python ../../tools/set-sales-count.py\n');
+check('class A at T2 with a shell setup line returns to the build, naming both admitted forms', say(cleanA(shellWalk)).startsWith('work build') && say(cleanA(shellWalk)).includes(forms) && steps(cleanA(shellWalk)).join() === 'build', say(cleanA(shellWalk)));
+const buildShell = base({ step: 'build', files: { agreement: shellWalk, assessment: null, review: null, blocked: null } });
+check('the same line is named during the build, before the handoff', steps(buildShell).join() === 'build' && say(buildShell).includes(forms), say(buildShell));
+check('a setup: line without a ready: readback is returned to the build, never sent to T2', say(cleanA(walkTicket('  setup: api createVariant {} as seller\n'))).startsWith('work build') && say(cleanA(walkTicket('  setup: api createVariant {} as seller\n'))).includes('ready readback'));
+const apiWalk = walkTicket('  setup: api createVariant {"path":{"product_id":"13bd"}} as seller\n', '  ready: api listInventory {} as buyer\n');
+const scriptWalk = walkTicket('  setup: script ["node","scenario.mjs","prepare"]\n', '  ready: script ["node","scenario.mjs","ready"]\n');
+check('both admitted setup forms reach T2', say(cleanA(apiWalk)).startsWith('review: T2') && say(cleanA(scriptWalk)).startsWith('review: T2'), say(cleanA(apiWalk)));
 check('class A at review with no T2 walk refuses too, dispatching the build', say(base({ step: 'review', files: { agreement: TICKET, assessment: ASSESS(), review: null, blocked: null } })).startsWith('work build') && steps(base({ step: 'review', files: { agreement: TICKET, assessment: ASSESS(), review: null, blocked: null } })).join() === 'build', say(base({ step: 'review' })));
 check('a B/C agreement still uses agreementGap, not the class A walk gate (unchanged)', say(base({ klass: 'B', step: 'assess', files: { agreement: AGREEMENT, assessment: ASSESS(), review: null, blocked: null }, t1: { sha: 's1', reviewed: 's1', verdict: 'approved' } })).startsWith('review: T2'));
 check('a clean verdict ignores prose: only verdict and head are read', say(base({ step: 'assess', files: { agreement: TICKET_WALK, assessment: ASSESS({ intent: '- "x": looks fine' }), review: null, blocked: null } })).startsWith('review: T2'));

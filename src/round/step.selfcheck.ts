@@ -77,6 +77,21 @@ try {
 	writeFileSync(join(main.repo, 'bug-reports/r/ASSESSMENT.md'), report.replace('## Intent', 'assessed-at: 2026-10-14T10:00:00Z\n## Intent'));
 	const restored = cli(main.repo, 'next');
 	check('named captures and a fresh assessment restore T2', rehandoff.code === 0 && restored.out.startsWith('review: T2'), restored.out);
+
+	// JX-436 (2026-10-25): `setup: cd packages/backend && uv run python …` reached T2 and was refused
+	// only by `wf show`. The handoff now runs the same project validator, so the build rewrites the
+	// line it wrote; both admitted recipe forms pass.
+	const walk = (setup: string, ready = '') => `# r\n## Intent\n- "x": y\n\n## Notes\n- **T2 walk.** open: b2b /catalog/rings as buyer\n${ready}${setup}\n`;
+	const ticket = join(main.repo, 'bug-reports/r', 'TICKET.md');
+	writeFileSync(ticket, walk('  setup: cd packages/backend && uv run python ../../tools/set-sales-count.py\n'));
+	const shellSetup = cli(main.repo, 'step', 'assess');
+	check('a walk setup line wf show cannot run is refused at the handoff, naming both admitted forms', shellSetup.code === 2 && shellSetup.out.includes('TICKET.md: the T2 walk `setup:` line') && shellSetup.out.includes('must be `api <fn> <json> as <buyer|seller|admin>` or `script ["executable","arg",...]`'), shellSetup.out);
+	writeFileSync(ticket, walk('  setup: api createVariant {"path":{"product_id":"13bd"}} as seller\n', '  ready: api listInventory {} as buyer\n'));
+	const apiSetup = cli(main.repo, 'step', 'assess');
+	check('the api form passes the handoff', apiSetup.code === 0, apiSetup.out);
+	writeFileSync(ticket, walk('  setup: script ["node","scenario.mjs","prepare"]\n', '  ready: script ["node","scenario.mjs","ready"]\n  reset: script ["node","scenario.mjs","reset"]\n'));
+	const scriptSetup = cli(main.repo, 'step', 'assess');
+	check('the script form passes the handoff', scriptSetup.code === 0, scriptSetup.out);
 } finally {
 	rmSync(main.repo, { recursive: true, force: true });
 }

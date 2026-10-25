@@ -6,9 +6,10 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { opensWindows } from '../../src/worktrees/editor.ts';
-import { agreementSha } from '../../src/round/agreement.ts';
+import { agreementSha, t2WalkRecipeGap } from '../../src/round/agreement.ts';
 import type { Origins } from './index.ts';
-import { noneLineOf, openLineOf, paneText, parseOpen, setupArgs, setupLinesOf, showArgs, unMsys } from './show.ts';
+import { noneLineOf, openLineOf, paneText, parseOpen, setupLinesOf, showArgs, unMsys } from './show.ts';
+import { setupArgs, walkCommand, walkRecipeGap } from './walk.ts';
 
 assert.deepEqual(parseOpen('b2b /catalog as buyer mobile'), { app: 'b2b', path: '/catalog', as: 'buyer', mobile: true });
 assert.deepEqual(parseOpen('admin /orders'), { app: 'admin', path: '/orders', as: 'admin', mobile: false });
@@ -63,6 +64,27 @@ assert.deepEqual(setupLinesOf(walked), ['api createVariant {"path":{"product_id"
 assert.deepEqual(setupArgs(setupLinesOf(walked)[0])!.slice(1), ['api', 'createVariant', '{"path":{"product_id":"13bd"},"body":{"attribute_values":{"size":"45"}}}', '--as', 'seller']);
 assert.equal(setupArgs('curl -X POST http://x'), null);
 assert.deepEqual(setupLinesOf('- **T2 walk.** open: b2b / as buyer\n'), []);
+
+// JX-436 (2026-10-25): the two admitted recipe forms, and the refusal of everything else. The
+// build/assess handoff runs this same walkRecipeGap (t2WalkRecipeGap), so the decision `wf show` makes
+// at T2 is made while the build can still rewrite the line it wrote.
+const apiRecipes = { ready: ['api listInventory {} as buyer'], reset: [], setup: ['api createVariant {"path":{"product_id":"13bd"}} as seller'] };
+const scriptRecipes = { ready: ['script ["node","scenario.mjs","ready"]'], reset: ['script ["node","scenario.mjs","reset"]'], setup: ['script ["node","scenario.mjs","prepare"]'] };
+assert.equal(walkRecipeGap(apiRecipes), null);
+assert.equal(walkRecipeGap(scriptRecipes), null);
+assert.equal(walkRecipeGap({ ready: [], reset: [], setup: [] }), null);
+const shellSetup = walkRecipeGap({ ready: [], reset: [], setup: ['cd packages/backend && uv run python ../../tools/set-sales-count.py'] });
+assert.equal(shellSetup, 'the T2 walk `setup:` line "cd packages/backend && uv run python ../../tools/set-sales-count.py" must be `api <fn> <json> as <buyer|seller|admin>` or `script ["executable","arg",...]`');
+assert.match(walkRecipeGap({ ...apiRecipes, ready: [] }) ?? '', /requires ready readback/);
+assert.match(walkRecipeGap({ ...scriptRecipes, reset: ['node scenario.mjs reset'] }) ?? '', /`reset:` line "node scenario.mjs reset" must be/);
+assert.deepEqual(walkCommand('script ["node","scenario.mjs","ready"]'), { executable: process.execPath, args: ['scenario.mjs', 'ready'] });
+assert.equal(walkCommand('script ["node",42]'), null);
+// The whole walk bullet, as the handoff reads it: both admitted forms pass, a shell line is named.
+const walkText = (setup: string, ready = '') => `# r\n## Notes\n- **T2 walk.** open: b2b /catalog/rings as buyer\n${ready}${setup}\n`;
+assert.equal(t2WalkRecipeGap(walkText('  setup: api createVariant {} as seller\n', '  ready: api listInventory {} as buyer\n')), null);
+assert.equal(t2WalkRecipeGap(walkText('  setup: script ["node","scenario.mjs","prepare"]\n', '  ready: script ["node","scenario.mjs","ready"]\n')), null);
+assert.equal(t2WalkRecipeGap(walkText('  setup: cd packages/backend && uv run python ../../tools/set-sales-count.py\n')), 'the T2 walk `setup:` line "cd packages/backend && uv run python ../../tools/set-sales-count.py" must be `api <fn> <json> as <buyer|seller|admin>` or `script ["executable","arg",...]`');
+assert.equal(t2WalkRecipeGap('# r\n## Notes\n- **T2 walk.** none — nothing visible\n'), null);
 
 // A stray `setup:`/`open:` fact outside the walk is not a walk line (#114 closure, F1/F1b): the walk
 // is the `## Agreed` bullet, so a fact under `## Observed` neither hard-fails `wf show` nor shadows
@@ -227,7 +249,7 @@ fs.writeFileSync('scenario.json', JSON.stringify({label:'script scenario'}));
 		writeFileSync(join(repo, folder, 'TICKET.md'), scriptWalk.replace('["node","scenario.mjs","prepare"]', '["node",42]'));
 		const malformed = spawnSync(process.execPath, [run, 'show'], { cwd: repo, encoding: 'utf8', env: { ...process.env, CLAUDECODE: '1' } });
 		assert.equal(malformed.status, 1);
-		assert.match(malformed.stderr, /setup is not/);
+		assert.match(malformed.stderr, /the T2 walk `setup:` line .* must be/);
 		assert.doesNotMatch(malformed.stdout, /setup:/);
 
 		writeFileSync(join(repo, '.wf', 'state.json'), JSON.stringify({ wf_version: 3, round: 't-1', class: 'B', step: 'build', folder }));
@@ -236,7 +258,7 @@ fs.writeFileSync('scenario.json', JSON.stringify({label:'script scenario'}));
 		writeFileSync(join(repo, folder, 'AGREEMENT.md'), agreement.replace('- **T2 walk.** open: `b2b /catalog as buyer mobile`\n', '- **T2 walk.** open: `b2b /catalog as buyer mobile`\n  setup: curl -X POST http://x\n'));
 		const bad = spawnSync(process.execPath, [run, 'show'], { cwd: repo, encoding: 'utf8', env: { ...process.env, CLAUDECODE: '1' } });
 		assert.equal(bad.status, 1, `${bad.stdout}\n${bad.stderr}`);
-		assert.match(bad.stderr, /is not `api <fn> <json> as <buyer\|seller\|admin>`/);
+		assert.match(bad.stderr, /must be `api <fn> <json> as <buyer\|seller\|admin>` or `script \["executable","arg",\.\.\.\]`/);
 		assert.match(bad.stderr, /Fix it in the agreement's T2 walk bullet/);
 		assert.doesNotMatch(bad.stderr, /## T2 walk/);
 	} finally {

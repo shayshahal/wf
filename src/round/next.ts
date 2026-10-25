@@ -18,7 +18,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { refuseCaller } from '../refusal.ts';
 import { addQuestion, blockedQuestion, openRevisions } from './ask.ts';
-import { agreementClass, agreementGap, agreementPath, agreementSha, revisionSha, AGREEMENT_FILE, AGREEMENT_REVIEW_FILE, ASSESSMENT_FILE, assessmentGap, assessmentHead, assessmentVerdict, caseFiles, consequential, hasT2Walk, notAskedForGap, REVIEW_FILE, verificationCases } from './agreement.ts';
+import { agreementClass, agreementFile, agreementGap, agreementPath, agreementSha, revisionSha, AGREEMENT_FILE, AGREEMENT_REVIEW_FILE, ASSESSMENT_FILE, assessmentGap, assessmentHead, assessmentVerdict, caseFiles, consequential, hasT2Walk, notAskedForGap, REVIEW_FILE, t2WalkRecipeGap, verificationCases } from './agreement.ts';
 import { contractPaths as contractPathsFile, trackerCompletionGap } from '../project.ts';
 import { classFromFiles } from '../gates/classify.ts';
 import { anticipatedPaths, TICKET_FILE } from './agreement.ts';
@@ -84,6 +84,14 @@ export type Snapshot = {
 };
 export type Effect =
 	| { step?: string[]; ask?: { to: string; text: string; dflt: string | null; source: string }; repair?: true; blockedAnswered?: number; buildReason?: State['build_reason']; resumeAssessment?: true };
+
+/** Pure: why the T2 walk's setup recipe would be refused at T2, as a build instruction, or null.
+ * `wf show` owns the grammar and the handoff refuses it first (step.ts); this keeps a walk edited
+ * after the handoff — or one written early — from reaching T2 unreadable (JX-436, 2026-10-25). */
+const walkGap = (s: Snapshot): string | null => {
+	const gap = t2WalkRecipeGap(s.files.agreement);
+	return gap ? `${agreementFile(s.klass)}: ${gap} — fix the walk, then \`${wfCommand(s.entry)} next\`` : null;
+};
 
 // Pure: the ids of the tracker note's `## <id>` sections not yet marked ` (posted)`.
 export function unpostedSections(note: string | null): string[] {
@@ -238,6 +246,10 @@ export function nextAction(s: Snapshot, purpose: 'next' | 'brief' = 'next'): { s
 			}
 			return act(`wait user: blocked — ${q}`);
 		}
+		// JX-436 (2026-10-25): the handoff refuses a walk recipe `wf show` cannot run (step.ts). Say it
+		// here too, so a build that wrote the walk early learns it before it commits to the handoff.
+		const walk = walkGap(s);
+		if (walk) return work('build', walk);
 		if (s.buildReason?.kind === 'handoff') {
 			if (s.assessmentHandoffGap) return work('build', s.assessmentHandoffGap, 'handoff');
 			// JX-1392 (#151): re-evaluate the current assessment, not an empty repair or a new baseline.
@@ -300,6 +312,12 @@ ${s.files.assessment}`;
 		if (!consequential(s.klass) && !hasT2Walk(s.files.agreement)) {
 			effects.push({ step: ['build'] });
 			return work('build', 'TICKET.md needs a T2 walk before T2: a `- **T2 walk.**` bullet with the `open:` line `wf show` follows and any `setup:` lines the scenario needs, or `none — <why no walk is needed>`');
+		}
+		// JX-436 (2026-10-25): a walk edited after the handoff must not reach T2 unreadable either.
+		const walk = walkGap(s);
+		if (walk) {
+			effects.push({ step: ['build'] });
+			return work('build', walk);
 		}
 		return act(t2);
 	}
