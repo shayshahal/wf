@@ -60,9 +60,8 @@ before *Start*.
   After human merge and `wf deliver` reconciliation, run `wf post` again: even already-notified
   sections need *Fixed in Local* readback. Completion is recorded separately from `(posted)`; an
   already-delivered issue needs no new transition. A failed or unknown read stays pending and blocks
-  normal reap. Retries reuse earlier comments and attachments and retain successful ticket completions. Never post a note or a picture by hand (JX-268,
-  2026-10-07: posted without its pictures, the user told to attach them, and the reap after it
-  deleted them).
+  normal reap. Retries reuse earlier comments and attachments and retain successful ticket completions.
+  Agents may also post comments and attachments directly through an authorized Jira connector or REST API.
 - `wf post` refuses, posting nothing, when a section still has a `<...>` line, has no `pictures:`
   line or names a file not in `proof/` or not named `before-`/`after-<label>`, or when the session
   has no `JIRA_EMAIL` or `JIRA_TOKEN`: tell the user the session started without them, and stop; a
