@@ -23,6 +23,7 @@ import { captureCorrection, correctionGate, outstandingCorrections } from '../ro
 import { openQuestionGate } from '../round/ask.ts';
 import { stepHistory } from '../round/friction.ts';
 import { acquireProcessLock } from '../process-lock.ts';
+import { currentBranch, headSha } from '../git-head.ts';
 import { readVerdict, approvalBinding, approvalContentGap, lastField, reviewScopeBinding } from './review-format.ts';
 import { commitContentSha, headContentSha, trackerNotePath, worktreeContentSha } from './content-identity.ts';
 import type { ContentIdentity } from './content-identity.ts';
@@ -565,7 +566,7 @@ async function finishDelivery({ toplevel, state, folder, ids, url, head, because
 	}
 	// No effect on a lookup's stale claim: the note above is harmless to repeat, the branch delete is not.
 	revalidate?.(readState(toplevel) ?? {});
-	const branch = git(toplevel, ['rev-parse', '--abbrev-ref', 'HEAD']);
+	const branch = currentBranch(toplevel);
 	// Not --delete-branch: gh would then check out the base branch in this worktree, and it is checked
 	// out in the person's clone (deliver.ts, the merge). The delete is ignored: the branch may already
 	// be gone.
@@ -627,7 +628,7 @@ export async function reconcilePublishedDelivery(toplevel: string): Promise<{ ki
 		const snapshot = state;
 		const stateIdentity = JSON.stringify(state);
 		const subject = () => JSON.stringify({
-			head: git(toplevel, ['rev-parse', 'HEAD']), branch: git(toplevel, ['rev-parse', '--abbrev-ref', 'HEAD']),
+			head: headSha(toplevel), branch: currentBranch(toplevel),
 			index: git(toplevel, ['write-tree']),
 			worktree: worktreeContentSha(toplevel, snapshot.folder ?? null, trackerNotePath(snapshot.folder ?? null), 'approval'),
 			urls: gitConfigAll(toplevel, 'remote.origin.url'), pushurls: gitConfigAll(toplevel, 'remote.origin.pushurl'), effective: gitPushUrls(toplevel),
@@ -636,12 +637,12 @@ export async function reconcilePublishedDelivery(toplevel: string): Promise<{ ki
 		const revalidate = (current: State) => {
 			if (JSON.stringify(current) !== stateIdentity || subject() !== expectedSubject) throw new PublishedReconciliationRefused('round, candidate, instructions or local subject changed during published PR lookup; retained identity, retry wf deliver before repair');
 		};
-		const branch = git(toplevel, ['rev-parse', '--abbrev-ref', 'HEAD']);
+		const branch = currentBranch(toplevel);
 		const target = originTarget(gitConfigAll(toplevel, 'remote.origin.url'), gitConfigAll(toplevel, 'remote.origin.pushurl'), gitPushUrls(toplevel));
 		if (target.kind === 'refuse') return { kind: 'refused', why: target.why };
 		const repo = target.repo;
 		const lookup = prLookup(seams.gh(['pr', 'list', '--repo', `${repo.owner}/${repo.name}`, '--head', branch, '--base', baseBranch, '--state', 'all', '--json', 'url,state,headRefOid,headRefName,baseRefName,isCrossRepository'], toplevel), { headRefName: branch, baseRefName: baseBranch, repo });
-		const headNow = git(toplevel, ['rev-parse', 'HEAD']);
+		const headNow = headSha(toplevel);
 		const verdict = publishedDeliveryVerdict(lookup, candidate, headNow);
 		if (verdict.kind === 'refused') return { kind: 'refused', why: `${verdict.why}; retain candidate and instructions, fix the remote and retry wf deliver` };
 		revalidate(readState(toplevel) ?? {});
@@ -686,7 +687,7 @@ async function runLockedDelivery(toplevel: string) {
 	let state = readState(toplevel);
 	if (state?.merge_attempt) {
 		const attempt = state.merge_attempt;
-		const branch = git(toplevel, ['rev-parse', '--abbrev-ref', 'HEAD']);
+		const branch = currentBranch(toplevel);
 		const target = originTarget(gitConfigAll(toplevel, 'remote.origin.url'), gitConfigAll(toplevel, 'remote.origin.pushurl'), gitPushUrls(toplevel));
 		if (target.kind === 'refuse') { console.error(`wf deliver: ${target.why}; merge outcome remains uncertain`); process.exit(2); }
 		const repo = target.repo;
@@ -733,8 +734,8 @@ async function runLockedDelivery(toplevel: string) {
 		process.exit(2);
 	}
 	const { id, folder } = roundOf(state, toplevel);
-	const branch = git(toplevel, ['rev-parse', '--abbrev-ref', 'HEAD']);
-	const head = git(toplevel, ['rev-parse', 'HEAD']);
+	const branch = currentBranch(toplevel);
+	const head = headSha(toplevel);
 	const agreementFile = agreementPath(toplevel, state?.class ?? null, folder);
 	if (!folder || !existsSync(agreementFile)) {
 		console.error(`wf deliver: no agreement file in ${folder ?? 'the round folder'}`);
@@ -865,7 +866,7 @@ async function runLockedDelivery(toplevel: string) {
 	}
 	requireApprovedContent('the round-folder commit');
 	// gh pr create cannot push without a terminal; push first (BJEW-603, the first real deliver).
-	const pushEvent = `wf:push-hook:${git(toplevel, ['rev-parse', 'HEAD'])}:${randomUUID()}`;
+	const pushEvent = `wf:push-hook:${headSha(toplevel)}:${randomUUID()}`;
 	const pushed = spawnSync('git', ['-C', toplevel, 'push', '-q', '-u', 'origin', 'HEAD'], { encoding: 'utf8' });
 	if (pushed.status !== 0) {
 		const output = (pushed.stdout ?? '') + (pushed.stderr ?? '');
@@ -913,7 +914,7 @@ async function runLockedDelivery(toplevel: string) {
 	// record a different head than the branch now has (a force-push, or a stale PR answer). Read the PR
 	// again at the commit the branch now carries, and refuse unless it is an open PR for this url whose
 	// head is that commit before recording the open PR handoff.
-	const headNow = git(toplevel, ['rev-parse', 'HEAD']);
+	const headNow = headSha(toplevel);
 	const fresh = prLookup(
 		seams.gh(['pr', 'list', '--repo', repoName, '--head', branch, '--base', baseBranch, '--state', 'all', '--json', 'url,state,headRefOid,headRefName,baseRefName,isCrossRepository'], toplevel),
 		{ headRefName: branch, baseRefName: baseBranch, repo },
@@ -937,7 +938,7 @@ async function runLockedDelivery(toplevel: string) {
 	}
 	// T2 publishes the approved PR; merging remains a separate human action.
 	requireApprovedContent('the PR handoff');
-	if (git(toplevel, ['rev-parse', 'HEAD']) !== headNow) {
+	if (headSha(toplevel) !== headNow) {
 		console.error('wf deliver: HEAD moved after the PR lookup; retry delivery');
 		process.exit(1);
 	}

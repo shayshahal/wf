@@ -14,6 +14,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { refuseCaller } from '../refusal.ts';
 import { CLASSIFY } from '../paths.ts';
+import { currentBranch } from '../git-head.ts';
 import { agreementFile, agreementGap, agreementPath, agreementSha, AGREEMENT_REVIEW_FILE, ASSESSMENT_FILE, consequential, t2WalkRecipeGap } from './agreement.ts';
 import { agreementApprovalBinding } from '../gates/review-format.ts';
 import { people, proofNamingGap } from '../project.ts';
@@ -117,7 +118,7 @@ export async function runStep(argv: string[], { quiet = false, buildReason, resu
 	}
 	const toplevel = sh(['rev-parse', '--show-toplevel']);
 	// agree and build are gated below by the agreement; classify is what measures.
-	const round = flag('round') ?? sh(['rev-parse', '--abbrev-ref', 'HEAD']);
+	const round = flag('round') ?? currentBranch(toplevel);
 	const assertedClass = (asserted ?? null) as RoundClass | null;
 	const prev = readState(toplevel) ?? {};
 	// --class is an assertion and wins outright; a measurement can only upgrade what is stored.
