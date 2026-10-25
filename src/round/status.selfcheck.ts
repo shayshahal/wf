@@ -164,6 +164,14 @@ check('name-status lists the committed change set, a rename by its destination, 
     check('a clean worktree ahead of base lists the committed file, not 0 entries as clean', d.files?.some((f) => f.path === 'committed.txt' && f.committed) === true, JSON.stringify(d));
     const line = formatInspect(inspectRound({ path: repo, state: st, git: realGit, identity: fakeIdentity }));
     check('the committed-only diff does not read 0 entries/(clean), it names the clean working tree', /diff: \d+ entr/.test(line) && !/diff: 0 entr/.test(line) && !/\(clean\)/.test(line) && /working tree clean/.test(line) && /committed\.txt \(committed\)/.test(line), line);
+    git('checkout', '-q', 'main');
+    writeFileSync(join(repo, 'upstream-only.txt'), 'upstream\n'); git('add', 'upstream-only.txt'); git('commit', '-qm', 'upstream moved after the round forked');
+    git('checkout', '-q', 'fix/x');
+    const moved = inspectRound({ path: repo, state: st, git: realGit, identity: fakeIdentity });
+    check('a moving base never shows an upstream addition as the round deleting it', !moved.diff.files?.some((f) => f.path === 'upstream-only.txt') && moved.diff.files?.some((f) => f.path === 'committed.txt' && f.committed) === true, JSON.stringify(moved.diff));
+    const fork = git('merge-base', 'main', 'HEAD');
+    const expectedStat = git('diff', '--stat', fork).split('\n').map((s) => s.trim()).filter(Boolean).at(-1);
+    check('inspection stat measures the same merge-base delta as the round check', moved.diff.stat === expectedStat, JSON.stringify({ actual: moved.diff.stat, expected: expectedStat }));
   } finally { rmSync(repo, { recursive: true, force: true }); }
 }
 rmSync(root, { recursive: true, force: true });

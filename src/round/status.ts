@@ -273,11 +273,17 @@ export function inspectRound({ path, state, git, guidance = [], wfRoot = WF_ROOT
   const reviewFile = REVIEW_FILE;
   const base = state.base ?? null;
   // Three independent attempts: a base git cannot resolve must not take the worktree listing with it.
+  // The diff is measured from the fork point, not the base's current tip: `main` moves while a round
+  // is open, and a two-dot diff then shows an upstream addition as the round deleting it (proven by
+  // this file's moving-base arm, 2026-10-25). content-identity already diffs from the merge-base
+  // (state.ts resolveRoundBase), so status must name the same delta as the checks it reports.
+  const fork = base ? attempt(() => git(['merge-base', base, 'HEAD'])) : null;
+  const ref = (fork ?? '').trim() || base || 'HEAD';
   const statusOut = attempt(() => git(['status', '--porcelain', '-z']));
-  const statOut = attempt(() => git(['diff', '--stat', base ?? 'HEAD']));
+  const statOut = attempt(() => git(['diff', '--stat', ref]));
   // The committed set (base..HEAD): porcelain is vs HEAD, so without this a clean worktree ahead of
   // base had 0 entries beside a non-empty stat, reading as no diff (#114 closure, F3).
-  const nameStatusOut = attempt(() => git(['diff', '--name-status', '-z', base ?? 'HEAD', 'HEAD']));
+  const nameStatusOut = attempt(() => git(['diff', '--name-status', '-z', ref, 'HEAD']));
   const working = statusOut === null ? null : porcelainEntries(statusOut);
   const committed = nameStatusOut === null ? [] : nameStatusEntries(nameStatusOut);
   // A file carries its worktree XY when it has one; only a committed-only file is added.
