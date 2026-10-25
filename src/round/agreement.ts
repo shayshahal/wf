@@ -16,7 +16,7 @@
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { agreementCaseGap } from '../project.ts';
+import { agreementCaseGap, walkRecipeGap } from '../project.ts';
 import type { RoundClass } from './state.ts';
 
 export const AGREEMENT_FILE = 'AGREEMENT.md';
@@ -80,6 +80,16 @@ function agreedBulletLines(text: string | null | undefined, label: string): stri
 /** The explicit T2 walk bullet and its indented continuations. */
 export const agreementT2WalkLines = (text: string | null | undefined): string[] => agreedBulletLines(text, 'T2 walk');
 
+// The agreement owns the walk boundary (2026-10-10 F1: sibling facts must not execute) and labels;
+// the project owns command syntax. Plain labels failed on two delivered rounds, 2026-10-13.
+export function walkLines(text: string | null | undefined, key: RegExp): string[] {
+	const command = new RegExp(`^${key.source}[ \\t]*\`?([^\`\n]+?)\`?[ \\t]*$`, 'i');
+	return agreementT2WalkLines(text).flatMap((line) => {
+		const match = command.exec(line);
+		return match ? [match[1]] : [];
+	});
+}
+
 const NONE_WITH_REASON = /^none\s*(?:—|[-:])\s*\S/i;
 
 /** The `**Not asked for.**` items: what the agreement adds that no source asked for — the ticket, the
@@ -104,6 +114,15 @@ export function notAskedForGap(text: string | null | undefined): string | null {
  * and `wf next` (class A before T2, #139 JX-1068: a class A round reached T2 with no walk at all). */
 export function hasT2Walk(text: string | null | undefined): boolean {
 	return agreementT2WalkLines(text).some((line) => /^open:[ \t]*`?[^`\s<]/i.test(line) || NONE_WITH_REASON.test(line));
+}
+
+/** Pure: why the T2 walk's `ready:`/`reset:`/`setup:` lines would be refused at T2, or null. The
+ * grammar is the project's (`wf show` runs the recipe); reading it here means the handoff refuses a
+ * malformed line while the build is still here to fix it. JX-436 (2026-10-25): `setup: cd packages/…
+ * && uv run python …` passed build and assessment, and only `wf show` refused it at T2. */
+export function t2WalkRecipeGap(text: string | null | undefined): string | null {
+	if (!text) return null;
+	return walkRecipeGap({ ready: walkLines(text, /ready:/i), reset: walkLines(text, /reset:/i), setup: walkLines(text, /setup:/i) });
 }
 
 // A verification case: a table row under `## Verification` whose first cell is the case number. A

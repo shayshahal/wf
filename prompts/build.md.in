@@ -40,7 +40,10 @@ Implement the agreement at `{{folder}}/{{file}}`.
 - For a real decision or missing authority, write `{{folder}}/BLOCKED.md` with a contextual
   `Question:` and stop. Keep changes inside this worktree and respect protected project files.
 - Record the review's live demonstration in the working document's `**T2 walk.**` bullet:
-  the project's `open:` and any `setup:` lines, or `none — <why>`. Keep useful captures under
+  the project's `open:` and any `setup:` lines, or `none — <why>`. A setup line is one of the two
+  recipes `wf show` runs, never a shell line, and a `setup:`/`reset:` needs a `ready:` readback:
+  `setup: api updateProduct {"path":{"id":"SG-0001"}} as seller` or
+  `setup: script ["node","{{folder}}/scenario.mjs","prepare"]`. Keep useful captures under
   `{{folder}}/proof/` with descriptive `before-<label>` / `after-<label>` names.
 - For UI changes, before/after PR images are required. Follow
   `{{wf}}/process/SHOW-ME.md#ui-changes-required-pr-images`: capture the baseline before editing

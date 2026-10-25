@@ -16,7 +16,8 @@ import { ensureServers } from '../../src/worktrees/serve.ts';
 import { writeCloneLaunch } from '../../src/worktrees/new.ts';
 import { readState, roundOf, toplevelOf } from '../../src/round/state.ts';
 import { browserPidFromOutput, recordShowBrowser } from '../../src/worktrees/show-browser.ts';
-import { agreementPath, agreementT2WalkLines, consequential } from '../../src/round/agreement.ts';
+import { agreementPath, agreementT2WalkLines, consequential, walkLines } from '../../src/round/agreement.ts';
+import { walkCommand, walkRecipeGap } from './walk.ts';
 import { basePortForBranch, slugForBranch } from '../../src/worktrees/worktree.ts';
 import { logins, stackUrls } from './index.ts';
 import type { Origins, SeedRole } from './index.ts';
@@ -46,7 +47,7 @@ export function parseOpen(line: string | null | undefined): Open | null {
  * continuations, never another bullet's facts. The bullet lives in Agreed for B/C or TICKET.md
  * for A; the retired PLAN.md `## T2 walk` heading has no reader (#114). */
 export function openLineOf(text: string | null): string | null {
-	return matchWalkLines(text, /open:/i)[0] ?? null;
+	return walkLines(text, /open:/i)[0] ?? null;
 }
 
 /** Pure: the explicit `none — <why>` of the T2 walk bullet, or null. A class A round's is in
@@ -59,21 +60,10 @@ export function noneLineOf(text: string | null): string | null {
 	return null;
 }
 
-// Pure: the `setup:` lines of the agreement's T2 walk, in order. Each follows the one grammar
-// `setup: api <sdk function> <its JSON options, one line> as <role>` (`setupArgs` runs them).
+// Pure: the `setup:` lines of the agreement's T2 walk, in order. Each is one of the two recipes
+// walk.ts admits (`api …` or `script […]`), which `walkCommand` runs.
 export function setupLinesOf(text: string | null): string[] {
-	return matchWalkLines(text, /setup:/i);
-}
-
-// The agreement owns the walk boundary (2026-10-10 F1: sibling facts must not execute) and labels;
-// the project owns command syntax. Plain labels failed on two delivered rounds, 2026-10-13.
-function matchWalkLines(text: string | null, key: RegExp): string[] {
-
-	const command = new RegExp(`^${key.source}[ \\t]*\`?([^\`\n]+?)\`?[ \\t]*$`, 'i');
-	return agreementT2WalkLines(text).flatMap((line) => {
-		const match = command.exec(line);
-		return match ? [match[1]] : [];
-	});
+	return walkLines(text, /setup:/i);
 }
 
 // Pure: what Claude Code's Browser pane opens for a parsed `open:` line, where wf opens no window
@@ -87,25 +77,6 @@ export function paneText(open: Open, urls: Origins, slug: string, users: Record<
 		`  the page: ${page(open.path)}${open.mobile ? ' (mobile: resize the pane to 390x844)' : ''}`,
 		`  if it asks for a login: ${page('/login')} as ${user} / ${password} (a one-time code follows: it is on the page's DEV banner), then the page again`,
 	].join('\n');
-}
-
-// Pure: `api createVariant {"path":…} as seller` → the CLI's arguments, or null. One call of the
-// verification CLI's `api`, its JSON passed as one argument: no shell, whose quoting differs by OS.
-export function setupArgs(line: string): string[] | null {
-	const m = /^api\s+(\w+)\s+(\{.*\})\s+as\s+(buyer|seller|admin)$/.exec(line.trim());
-	return m ? [`${VERIFY_SKILL}/control-jewelryx.mjs`, 'api', m[1], m[2], '--as', m[3]] : null;
-}
-
-// Script recipes carry argv, never shell text; admission belongs to the round's walk.
-function walkCommand(line: string): { executable: string; args: string[] } | null {
-	if (line.startsWith('script ')) {
-		let value: unknown;
-		try { value = JSON.parse(line.slice(7)); } catch { return null; /* Report malformed recipes before execution. */ }
-		if (!Array.isArray(value) || !value.length || !value.every((arg): arg is string => typeof arg === 'string' && arg.length > 0)) return null;
-		return { executable: value[0] === 'node' ? process.execPath : value[0], args: value.slice(1) };
-	}
-	const args = setupArgs(line);
-	return args ? { executable: process.execPath, args } : null;
 }
 
 // Pure: the CLI's arguments for a parsed `open:` line, in its own headed window ("show" session),
@@ -126,8 +97,8 @@ export async function runShow(argv: string[]): Promise<void> {
 		const agreement = folder && agreementPath(toplevel, state?.class ?? null, folder);
 		const text = agreement && existsSync(agreement) ? readFileSync(agreement, 'utf8') : null;
 		line = text && openLineOf(text);
-		ready = matchWalkLines(text, /ready:/i);
-		resets = matchWalkLines(text, /reset:/i);
+		ready = walkLines(text, /ready:/i);
+		resets = walkLines(text, /reset:/i);
 		setups = setupLinesOf(text);
 		if (!line) {
 			// A round with nothing visible says `none — <why>`; print its own reason, never the fallback.
@@ -147,10 +118,11 @@ export async function runShow(argv: string[]): Promise<void> {
 		process.exit(2);
 	}
 	// #139: a recipe token cannot prove that live data survived reset. Check before and after
-	// preparation, using the same project-owned readback/reset that assessment can run.
-	const commands = [...ready, ...resets, ...setups];
-	if (((resets.length || setups.length) && !ready.length) || commands.some((cmd) => !walkCommand(cmd))) {
-		console.error("wf show: setup is not `api <fn> <json> as <buyer|seller|admin>` or `script [\"executable\",\"arg\",...]`; setup/reset requires ready readback. Fix it in the agreement's T2 walk bullet, then wf show again.");
+	// preparation, using the same project-owned readback/reset that assessment can run. The handoff
+	// runs this same check (step.ts), so a malformed line is refused there, not here at T2 (JX-436).
+	const gap = walkRecipeGap({ ready, reset: resets, setup: setups });
+	if (gap) {
+		console.error(`wf show: ${gap}. Fix it in the agreement's T2 walk bullet, then wf show again.`);
 		process.exit(1);
 	}
 	// API setup/readback needs the stack too; starting it only before browser open was too late.

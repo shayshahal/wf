@@ -22,7 +22,7 @@ for concise content, not an invitation to write a paragraph under each.
 - **Choice.** <consequential choice, rejected alternative and why>
 - **Verification.** <what evidence will demonstrate success>
 - **Not asked for.** <additions no source requested and why, or none — reason>
-- **T2 walk.** <project open:/setup: recipe, or none — reason>
+- **T2 walk.** <project open: target, then one setup: line per state the seed lacks, or none — reason>
 - **Checkpoints.** <only when agreed: what the person sees and before which work continues>
 
 ## Verification
@@ -34,6 +34,25 @@ for concise content, not an invitation to write a paragraph under each.
 ## Decisions
 <recorded rulings>
 ```
+
+The `**T2 walk.**` bullet is the recipe `wf show` replays at T2: the project's `open:` target, then
+one line per state the seed lacks, or `none — <why>`. A setup line takes one of the two forms the
+project's `wf show` runs — its SDK call, or an argv script — never a shell line:
+
+```markdown
+- **T2 walk.** open: b2b /catalog/rings as buyer
+  ready: api listProducts {} as buyer
+  setup: api updateProduct {"path":{"id":"SG-0001"},"body":{"status":"active"}} as seller
+```
+```markdown
+- **T2 walk.** open: b2b /catalog/rings as buyer
+  ready: script ["node","<round>/scenario.mjs","ready"]
+  setup: script ["node","<round>/scenario.mjs","prepare"]
+```
+
+A `setup:` or `reset:` line needs a `ready:` readback that proves the scenario before and after it.
+Anything else — `setup: cd packages/backend && uv run …` — is refused at the build/assess handoff
+(`wf step assess`, `wf next`) so the builder can rewrite it, not first at T2.
 
 The `## Verification` rows are the round's verification plan: what will be checked, the command or
 assertion that shows it, and the files it touches. They are working guidance, not executable

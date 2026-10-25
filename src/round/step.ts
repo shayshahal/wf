@@ -14,7 +14,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { refuseCaller } from '../refusal.ts';
 import { CLASSIFY } from '../paths.ts';
-import { agreementGap, agreementPath, agreementSha, AGREEMENT_REVIEW_FILE, ASSESSMENT_FILE, consequential } from './agreement.ts';
+import { agreementFile, agreementGap, agreementPath, agreementSha, AGREEMENT_REVIEW_FILE, ASSESSMENT_FILE, consequential, t2WalkRecipeGap } from './agreement.ts';
 import { agreementApprovalBinding } from '../gates/review-format.ts';
 import { people, proofNamingGap } from '../project.ts';
 import { roundFile, readState, writeState, WF_STATE_VERSION } from './state.ts';
@@ -47,7 +47,12 @@ export function assessmentHandoffGap(toplevel: string, state: State): string | n
 	// rule is enforced at delivery (deliver.ts), where it reads the base the shipping branch carries.
 	const proof = proofHandoffGap(toplevel, state);
 	if (proof) return proof;
-	return null;
+	// JX-436 (2026-10-25): `wf show` was the first reader of the walk's `setup:` line, so a shell line
+	// there passed build and assessment and stopped T2. The same project validator runs here, where the
+	// build can still rewrite the walk it wrote.
+	const agreement = agreementPath(toplevel, state.class ?? null, state.folder ?? null);
+	const walk = existsSync(agreement) ? t2WalkRecipeGap(readFileSync(agreement, 'utf8')) : null;
+	return walk ? `${agreementFile(state.class ?? null)}: ${walk} — fix the walk before the handoff` : null;
 }
 
 export const STEPS = ['classify', 'agree', 'build', 'assess', 'review', 'pr', 'merged', 'held'];
