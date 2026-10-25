@@ -11,10 +11,11 @@
 // after research, waiting on Shay (next.ts).
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { refuseCaller } from '../refusal.ts';
-import { baseBranch, newRound, roundBranches, roundsDir, stackUrls } from '../project.ts';
+import { baseBranch, newRound, roundBranches, roundsDir, secretsGap, stackUrls } from '../project.ts';
+import { WF_ROOT } from '../paths.ts';
 import { basePortForBranch, createWorktree, excludeFromGit, listWorktrees, mainCheckout, slugForBranch, urlLines } from './worktree.ts';
 import { seams } from '../seams.ts';
 import { writeState, WF_STATE_VERSION } from '../round/state.ts';
@@ -110,6 +111,14 @@ export function fetchFor(base: string) {
 	return m ? ['fetch', '--quiet', 'origin', m[1]] : null;
 }
 
+// Pure: what a refusal says where this machine has its own entry: env/wf.mjs beside the kit (Shay's
+// layout) or ~/bin/wf. Only where one is there, because a machine without one is sent after a file it
+// does not have. The kit's entry cannot ask that entry anything, so it looks for it and says this.
+export function ownEntryHint(exists: (path: string) => boolean = existsSync): string | null {
+	const own = [join(WF_ROOT, 'env', 'wf.mjs'), join(homedir(), 'bin', 'wf')].filter(exists);
+	return own.length ? 'this machine has its own entry: run ~/bin/wf (env/wf.mjs) instead of the bare kit entry' : null;
+}
+
 export async function runNew(argv: string[]) {
 	const branch = argv[0];
 	// A flag first is not a branch: `wf new --help` went to git as one and printed git branch's usage (TJEW-670).
@@ -127,6 +136,15 @@ export async function runNew(argv: string[]) {
 		refuseCaller();
 	}
 	const ids = argv.flatMap((a, i) => (a === '--id' && argv[i + 1] ? [argv[i + 1]] : []));
+	// What a round copies its secrets from is a machine fact, so it is asked before anything is fetched or
+	// cut. 2026-10-25: the bare kit entry ran in a repository with no main checkout (a bare layout) and
+	// setup's env step was the last of six to fail — after the worktree, the database and two pnpm builds.
+	const secrets = secretsGap(process.cwd());
+	if (secrets) {
+		const own = seams.madeBy === 'kit' ? ownEntryHint() : null;
+		console.error(`wf new: nothing created — ${secrets}${own ? `\n${own}` : ''}`);
+		process.exit(1);
+	}
 	// Neither wt nor git fetches: a clone days behind branched its round off a stale base (the kit
 	// plan's step 3 review, 2026-09-27). Offline, the round starts from the base this clone has.
 	const fetch = fetchFor(base);

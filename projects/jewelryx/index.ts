@@ -160,6 +160,20 @@ function machine(): Machine {
 	return { ...KIT, ...(seams.project as Partial<Machine>) };
 }
 
+// Why this machine cannot supply a new round's secrets from `cwd`'s repository, or null.
+// `wf new` asks before it creates anything: on 2026-10-25 the bare kit entry ran in a repository with
+// no main checkout, and setup's env step was the last of six steps to fail — after the worktree, the
+// database and two pnpm builds. Setup names a round's secrets only once a worktree exists (its env
+// step); this asks the same machine the same question with the folder wf was started in.
+export function secretsGap(cwd: string): string | null {
+	let from: string;
+	try { from = machine().secretsFrom(cwd); }
+	catch (error) { return error instanceof Error ? error.message : String(error); }
+	// A folder that is not there is not a source either (the kit's throw covers only the bare layout;
+	// a machine's own secretsFrom names its folder without looking).
+	return existsSync(from) ? null : `the secrets folder ${from} does not exist: machine().secretsFrom names the folder a round copies its .env files from`;
+}
+
 // Where the seeder writes for this worktree (`wf seed`, and setup's db step).
 export function seedUrl({ slug, port }: Stack): string {
 	const { database } = machine();

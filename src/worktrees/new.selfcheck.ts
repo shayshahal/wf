@@ -6,7 +6,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { cloneLaunch, decisionsOf, earlierText, fetchFor, launchConfig, namesId, runNew } from './new.ts';
+import { cloneLaunch, decisionsOf, earlierText, fetchFor, launchConfig, namesId, ownEntryHint, runNew } from './new.ts';
 import { entryGap, readState, writeState, WF_STATE_VERSION } from '../round/state.ts';
 import { plug } from '../seams.ts';
 import { contractPaths } from '../project.ts';
@@ -80,6 +80,19 @@ try {
 	check('new refuses a build round without an explicit class before worktree creation', unclassified.status === 2 && unclassified.stderr.includes('--class A|B|C') && !unclassified.stdout.includes('worktree ready'), `${unclassified.stdout}\n${unclassified.stderr}`);
 } finally { rmSync(unclassifiedDir, { recursive: true, force: true }); }
 
+// 2026-10-25: the bare kit entry ran in a bare layout and created the worktree, the database and two
+// pnpm builds before setup's env step failed on the secrets. The preflight must refuse first, with
+// nothing created: no worktree, no branch.
+const bareRoot = mkdtempSync(join(tmpdir(), 'wf-new-bare-'));
+try {
+	const bareRepo = join(bareRoot, 'repo.git');
+	execFileSync('git', ['init', '-q', '--bare', bareRepo]);
+	const refused = spawnSync(process.execPath, [join(WF_ROOT, 'wf.mjs'), 'new', 'round/bare', '--class', 'A', '--base', 'HEAD'], { cwd: bareRepo, encoding: 'utf8' });
+	const bareTrees = spawnSync('git', ['worktree', 'list', '--porcelain'], { cwd: bareRepo, encoding: 'utf8' }).stdout;
+	check('new refuses where the machine cannot supply a round\'s secrets, before anything is created', refused.status === 1 && refused.stderr.includes('no main checkout') && refused.stderr.includes('nothing created') && !refused.stdout.includes('worktree ready') && !bareTrees.includes('round/bare') && !existsSync(join(bareRepo, '.wf')), `${refused.stdout}\n${refused.stderr}\n${bareTrees}`);
+} finally { rmSync(bareRoot, { recursive: true, force: true }); }
+check('the hint names the machine\'s own entry only where it is there', ownEntryHint(() => false) === null && ownEntryHint((p) => p.replace(/\\/g, '/').endsWith('/env/wf.mjs'))?.includes('run ~/bin/wf (env/wf.mjs)') === true && ownEntryHint((p) => p.replace(/\\/g, '/').endsWith('/bin/wf'))?.includes('run ~/bin/wf (env/wf.mjs)') === true, String(ownEntryHint()));
+
 // Shay owns the parallel-round budget (2026-10-12): two existing live rounds must not block
 // the third or fourth, require --force, or change the earlier rounds' state.
 const fixture = mkdtempSync(join(tmpdir(), 'wf-new-parallel-'));
@@ -95,6 +108,8 @@ try {
 		writeState(path, () => ({ wf_version: WF_STATE_VERSION, round: branch, step: 'build' }));
 		return { path, before: readFileSync(join(path, '.wf/state.json'), 'utf8') };
 	});
+	// The preflight's other side: this fixture is a clone with a main checkout, so its rounds are
+	// created (a bare layout, above, is refused before anything exists).
 	for (const branch of ['round/third', 'round/fourth']) {
 		const host = branch === 'round/third' ? ['--bound-host'] : [];
 		const result = spawnSync(process.execPath, [fileURLToPath(import.meta.url), 'new-round', fixture, branch, ...host], { encoding: 'utf8' });
