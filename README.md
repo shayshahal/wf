@@ -285,6 +285,13 @@ For an edit loop, pass explicit relative selfcheck paths:
 node src/selfcheck.ts src/round/next.selfcheck.ts src/round/ask.selfcheck.ts
 ```
 
+`node src/selfcheck.ts --changed [ref]` selects the checks whose static imports reach a file changed since
+`ref` (default `origin/main`) or in the working tree, plus tsc and eslint. A change to a core module such as
+`src/models.ts` reaches most checks; a change to a leaf reaches few. A check that only drives `wf.mjs` is not
+followed through the CLI: name it too. The run is bounded: `WF_SELFCHECK_JOBS` checks at a time (default
+min(6, cpus/4)) and `WF_SELFCHECK_TIMEOUT_S` seconds each (default 300), after which a check is killed with its
+children and reported `TIMEOUT`. Each result line ends with `[done/total]`.
+
 This runs those files plus tsc and eslint, and labels the result **focused**, not full delivery
 proof. Unknown paths refuse the whole selection before any checks start. No arguments still runs
 every check, when you choose to run the complete suite. Report which checks ran and any known

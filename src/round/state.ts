@@ -104,8 +104,15 @@ export type State = {
 	ticket_read?: string;
 };
 
+// One `git rev-parse` per folder per process: a command asks for it several times, and a process start costs ~50-600 ms on Windows.
+// A failure (not a checkout) is not cached; a folder does not move to another checkout while a command runs.
+const toplevels = new Map<string, string>();
 export function toplevelOf(cwd = process.cwd()): string {
-	return execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8', cwd }).trim();
+	const known = toplevels.get(cwd);
+	if (known) return known;
+	const top = execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8', cwd }).trim();
+	toplevels.set(cwd, top);
+	return top;
 }
 
 // The ref a round's committed diff is measured against: the round's own base, else the project's
