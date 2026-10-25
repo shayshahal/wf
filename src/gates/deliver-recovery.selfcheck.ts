@@ -4,6 +4,8 @@
 // adapter (`run(['deliver'], { gh })`, seams.ts). No production remote: the fake records the PRs it
 // was asked to create, edit and merge, so a retry that duplicates work is visible in its records, and
 // the bare origin shows a branch a retry pushed back. Nothing here contacts GitHub or a tracker.
+import { startBranch } from '../fixture-template.ts';
+import { headSha } from '../git-head.ts';
 import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -168,33 +170,48 @@ const ASSESSMENT = ['# BJEW-1 — assessment', 'Verdict: clean', '', '## Intent'
 // step pr with T2 approved: exactly where `wf deliver` runs. `opts.base` is what .wf/state.json pins
 // (default `dev`); `opts.dropOriginDev` removes origin/dev, so the project's base branch does not
 // resolve while the round's own base still does (a round started with `wf new --base main`).
+const templates = new Map<string, string>();
 function makeRepo(name: string, opts: { base?: string; dropOriginDev?: boolean } = {}) {
 	const base = opts.base ?? 'dev';
 	const root = join(ROOT, name);
 	const origin = join(root, 'origin.git');
 	const work = join(root, 'work');
 	mkdirSync(root, { recursive: true });
-	must(['init', '-q', '--bare', origin], root);
-	must(['init', '-q', '-b', 'dev', work], root);
-	must(['config', 'core.autocrlf', 'false'], work);
-	must(['config', 'user.name', 'wf'], work);
-	must(['config', 'user.email', 'wf@selfcheck'], work);
-	writeFileSync(join(work, 'README.md'), 'base\n');
-	must(['add', '-A'], work);
-	must(['commit', '-qm', 'base'], work);
-	// The round's own base must resolve locally when it is a local branch (main), before origin/dev is
-	// dropped: origin/dev is the project's base branch, not the round's base.
-	if (base === 'main') must(['branch', 'main'], work);
-	// origin's identity is a GitHub url; git's transport is redirected to the local bare repo, so no
-	// test touches GitHub. `git config --get remote.origin.url` still answers the GitHub url.
-	must(['remote', 'add', 'origin', GITHUB], work);
-	must(['config', `url.${pathToFileURL(origin).href}.insteadOf`, GITHUB], work);
-	must(['push', '-q', '-u', 'origin', 'dev'], work);
-	if (opts.dropOriginDev) must(['update-ref', '-d', 'refs/remotes/origin/dev'], work);
-	must(['checkout', '-qb', BRANCH], work);
+	// The git part (init, config, commit, remote, push) is the same for every fixture of one shape, so it is
+	// built once and copied; only the path in the origin redirect differs per copy.
+	const key = `${base}|${opts.dropOriginDev ?? false}`;
+	let template = templates.get(key);
+	if (!template) {
+		template = join(ROOT, `template-${templates.size}`);
+		const tOrigin = join(template, 'origin.git');
+		const tWork = join(template, 'work');
+		mkdirSync(template, { recursive: true });
+		must(['init', '-q', '--bare', tOrigin], template);
+		must(['init', '-q', '-b', 'dev', tWork], template);
+		must(['config', 'core.autocrlf', 'false'], tWork);
+		must(['config', 'user.name', 'wf'], tWork);
+		must(['config', 'user.email', 'wf@selfcheck'], tWork);
+		writeFileSync(join(tWork, 'README.md'), 'base\n');
+		must(['add', '-A'], tWork);
+		must(['commit', '-qm', 'base'], tWork);
+		// The round's own base must resolve locally when it is a local branch (main), before origin/dev is
+		// dropped: origin/dev is the project's base branch, not the round's base.
+		if (base === 'main') must(['branch', 'main'], tWork);
+		// origin's identity is a GitHub url; git's transport is redirected to the local bare repo, so no
+		// test touches GitHub. `git config --get remote.origin.url` still answers the GitHub url.
+		must(['remote', 'add', 'origin', GITHUB], tWork);
+		must(['config', `url.${pathToFileURL(tOrigin).href}.insteadOf`, GITHUB], tWork);
+		must(['push', '-q', '-u', 'origin', 'dev'], tWork);
+		if (opts.dropOriginDev) must(['update-ref', '-d', 'refs/remotes/origin/dev'], tWork);
+		templates.set(key, template);
+	}
+	cpSync(template, root, { recursive: true });
+	const configFile = join(work, '.git', 'config');
+	writeFileSync(configFile, readFileSync(configFile, 'utf8').replaceAll(pathToFileURL(join(template, 'origin.git')).href, pathToFileURL(origin).href));
+	startBranch(work, BRANCH);
 	mkdirSync(join(work, FOLDER), { recursive: true });
 	writeFileSync(join(work, FOLDER, 'TICKET.md'), TICKET);
-	writeFileSync(join(work, FOLDER, 'ASSESSMENT.md'), `head: ${must(['rev-parse', 'HEAD'], work)}\n${ASSESSMENT}`);
+	writeFileSync(join(work, FOLDER, 'ASSESSMENT.md'), `head: ${headSha(work)}\n${ASSESSMENT}`);
 	mkdirSync(join(work, '.wf'), { recursive: true });
 	const state = { wf_version: 3, round: BRANCH, class: 'A', id: 'BJEW-1', ids: ['BJEW-1'], folder: FOLDER, base, step: 'pr', made_by: 'kit' };
 	writeFileSync(join(work, '.wf', 'state.json'), JSON.stringify(state, null, 2) + '\n');
@@ -202,7 +219,7 @@ function makeRepo(name: string, opts: { base?: string; dropOriginDev?: boolean }
 	// deliver's approval recheck runs against a real binding rather than refusing an unbound verdict.
 	const identity = approvalIdentity(work, FOLDER, trackerNotePath(FOLDER));
 	writeFileSync(join(work, FOLDER, 'REVIEW.md'), `round: ${BRANCH}\nbase: ${base}\ncontent-sha: ${identity.worktree}\nhead-sha: ${identity.head}\n\nverdict: approved\n`);
-	return { work, remote: join(root, 'remote.json'), head: must(['rev-parse', 'HEAD'], work) };
+	return { work, remote: join(root, 'remote.json'), head: headSha(work) };
 }
 
 type Fixture = ReturnType<typeof makeRepo>;

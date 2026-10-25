@@ -28,11 +28,17 @@ export function fixtureRepo(prefix: string, files: Record<string, string>, branc
 	}
 	const dir = mkdtempSync(join(tmpdir(), prefix));
 	cpSync(template, dir, { recursive: true });
-	if (branch !== 'main') {
-		const sha = readFileSync(join(dir, '.git/refs/heads/main'), 'utf8').trim();
-		mkdirSync(dirname(join(dir, '.git/refs/heads', branch)), { recursive: true });
-		writeFileSync(join(dir, '.git/refs/heads', branch), `${sha}\n`);
-		writeFileSync(join(dir, '.git/HEAD'), `ref: refs/heads/${branch}\n`);
-	}
+	if (branch !== 'main') startBranch(dir, branch);
 	return dir;
+}
+
+/** `git checkout -b branch` in a checkout, by writing the ref file and HEAD (no git launch). */
+export function startBranch(dir: string, branch: string): void {
+	const head = readFileSync(join(dir, '.git/HEAD'), 'utf8').trim();
+	const current = /^ref: (refs\/heads\/.+)$/.exec(head);
+	if (!current) throw new Error(`startBranch: ${dir} is not on a branch`);
+	const sha = readFileSync(join(dir, '.git', current[1]), 'utf8').trim();
+	mkdirSync(dirname(join(dir, '.git/refs/heads', branch)), { recursive: true });
+	writeFileSync(join(dir, '.git/refs/heads', branch), `${sha}\n`);
+	writeFileSync(join(dir, '.git/HEAD'), `ref: refs/heads/${branch}\n`);
 }
