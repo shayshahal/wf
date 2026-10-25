@@ -155,7 +155,12 @@ check('posted open PR waits for human merge without reap', say(handedOff).starts
 check('unposted open PR posts before waiting', say({ ...handedOff, note: { file: 'NOTE.md', text: '## JX-1\n' } }).startsWith('post:'));
 check('changed HEAD cannot reuse the open handoff', say({ ...handedOff, head: 'h2' }).startsWith('deliver:'));
 check('pr → deliver', say(base({ step: 'pr' })).startsWith('deliver: T2 approved'));
-check('merged with no note sections left → done and reap', say(base({ step: 'merged', note: { file: 'bug-reports/r/NOTE.md', text: '## JX-1 (posted)\n' } })) === 'done: `node "C:/wf/wf.mjs" reap fix/r`');
+check('legacy posted note without delivery authority asks to restore it, never retry-loop or reap', say(base({ step: 'merged', note: { file: 'bug-reports/r/NOTE.md', text: '## JX-1 (posted)\n' } })).startsWith('wait user: confirmed delivery receipt missing'));
+const mergedNote = { file: 'NOTE.md', text: '## X-1 (posted)\nPR: https://github.com/o/r/pull/191\n' };
+const mergedDelivery = {url:'https://github.com/o/r/pull/191',head:'a'.repeat(40),contentSha:'tree:'+'b'.repeat(40)};
+check('usable delivery without tracker acknowledgement routes post', say(base({step:'merged',delivery:mergedDelivery,note:mergedNote})).startsWith('post: tracker completion pending'));
+check('recoverable published candidate routes existing delivery owner', say(base({step:'merged',prHandoff:mergedDelivery,note:mergedNote,mergedGap:{kind:'unbound',reason:'missing historical evidence'}})).startsWith('deliver: reconcile'));
+check('unbound historical evidence preserves restore/discard guidance', say(base({step:'merged',note:mergedNote,mergedGap:{kind:'unbound',reason:'restore original evidence or WF_FORCE_REAP=1 intentionally discards'}})).includes('WF_FORCE_REAP=1'));
 check('merged with an unposted section → post it first', say(base({ step: 'merged', note: { file: 'bug-reports/r/NOTE.md', text: '## JX-1\n' } })).startsWith('post: JX-1'));
 
 // ── the class is measured from the agreement, not assumed: a declared `Class:` line, or a case whose

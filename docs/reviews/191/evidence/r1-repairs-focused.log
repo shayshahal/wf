@@ -1,0 +1,64 @@
+selfcheck: focused (4 of 85 files); full suite not run.
+selfcheck: PASS projects/jewelryx/post-completion.selfcheck.ts (0.1s)
+selfcheck: PASS projects/jewelryx/ticket-changes.selfcheck.ts (0.1s)
+selfcheck: FAIL src/round/next.selfcheck.ts (0.1s)
+selfcheck: FAIL tsc (0.1s)
+selfcheck: FAIL eslint (0.9s)
+selfcheck: FAIL src/round/delivered-round.selfcheck.ts (25.7s)
+
+── FAIL src/round/delivered-round.selfcheck.ts
+  FAIL paperwork-only commits preserve the receipt and allow reap — post: tracker completion pending for X-1; run wf post. Then `node "C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/wf.mjs" next`
+
+  FAIL post-delivery questions and answers do not reopen or block ordinary posting — q1 → user: What wording should the tracker note use?
+q1 closed · recorded in C:\Users\Shay\AppData\Local\Temp\wf-delivered-xiQrz3\bug-reports\first\TICKET.md § Decisions
+
+
+2 FAILURE(S)
+
+── FAIL src/round/next.selfcheck.ts
+node:internal/modules/run_main:111
+    triggerUncaughtException(
+    ^
+
+file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/next.selfcheck.ts:160
+const mergedNote = { file: 'NOTE.md', text: '## X-1 (posted)
+PR: https://github.com/o/r/pull/191
+^^
+' };
+
+SyntaxError [ERR_INVALID_TYPESCRIPT_SYNTAX]: Expected ',', got 'ident'
+    at parseTypeScript (node:internal/modules/typescript:61:36)
+    at processTypeScriptCode (node:internal/modules/typescript:129:37)
+    at Object.stripTypeScriptModuleTypes (node:internal/modules/typescript:172:22)
+    at stripTypeScriptModuleTypes (node:internal/modules/esm/translators:35:49)
+    at ModuleLoader.<anonymous> (node:internal/modules/esm/translators:684:29)
+    at #translate (node:internal/modules/esm/loader:441:20)
+    at afterLoad (node:internal/modules/esm/loader:509:29)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:514:12)
+    at #getOrCreateModuleJobAfterResolve (node:internal/modules/esm/loader:567:36)
+    at afterResolve (node:internal/modules/esm/loader:614:52) {
+  code: 'ERR_INVALID_TYPESCRIPT_SYNTAX'
+}
+
+Node.js v26.10.0
+
+── FAIL tsc
+src/round/next.selfcheck.ts(159,61): error TS1002: Unterminated string literal.
+src/round/next.selfcheck.ts(160,1): error TS1005: ',' expected.
+src/round/next.selfcheck.ts(160,10): error TS1005: ',' expected.
+src/round/next.selfcheck.ts(161,5): error TS1002: Unterminated string literal.
+src/round/next.selfcheck.ts(162,1): error TS1005: ':' expected.
+src/round/next.selfcheck.ts(162,7): error TS1005: ':' expected.
+src/round/next.selfcheck.ts(162,117): error TS1005: ',' expected.
+src/round/next.selfcheck.ts(163,7): error TS1003: Identifier expected.
+src/round/next.selfcheck.ts(163,68): error TS1138: Parameter declaration expected.
+src/round/next.selfcheck.ts(163,73): error TS1005: ',' expected.
+src/round/next.selfcheck.ts(163,183): error TS1005: ',' expected.
+
+── FAIL eslint
+
+C:\Users\Shay\.t3\worktrees\wf\fix-191-post-merge-tracker-completion\src\round\next.selfcheck.ts
+  0:0  error  Preprocessing error: Expected ',', got 'ident'
+
+✖ 1 problem (1 error, 0 warnings)
+4 of 6 selfchecks red (focused; tsc and eslint included) in 25.7s

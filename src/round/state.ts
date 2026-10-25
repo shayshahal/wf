@@ -11,6 +11,8 @@ import { linkSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } 
 import { join } from 'node:path';
 import { baseBranch, roundsDir } from '../project.ts';
 import { wfCommand } from '../paths.ts';
+import { postCompletionGap } from './post-completion.ts';
+import type { PostCompletion } from './post-completion.ts';
 import { deliveryReceiptGap } from './delivered-round.ts';
 import type { DeliveryReceipt } from './delivered-round.ts';
 import { correctionStateGap } from './corrections.ts';
@@ -92,6 +94,8 @@ export type State = {
 	delivery?: DeliveryReceipt;
 	/** Published open PR, separate from confirmed merge evidence. */
 	pr_handoff?: DeliveryReceipt;
+	/** Confirmed post-merge obligations, independent of notification marks. */
+	post_completion?: PostCompletion;
 	/** An observed OPEN published candidate; its presence alone permits repair of that candidate. */
 	pr_repair?: { readonly url: string; readonly head: string } | null;
 	// When a person last re-read the ticket against the round's paperwork after it changed
@@ -124,7 +128,11 @@ export function resolveRoundBase(toplevel: string, state: State | null): { ref: 
 // 4 adds correction/merge authority that older runtimes would ignore. New readers accept 2/3
 // without removed unit state; writers carrying the new facts mark 4 so old readers fail closed.
 // 5 fences published-candidate corrections; version 4 would route them to build without reconciliation.
-export const WF_STATE_VERSION = 5;
+// 6 separates notification from post-merge completion. Caller-bound commands of an older wf refuse it
+// via legacyStateGap, but a shipped older reap that reads *another* checkout's target does not consult
+// that target version (#191 R4, measured non-destructively): cleanup therefore requires the wf that
+// wrote 6, as the guarantee Shay ruled for rather than an unqualified old-copy fence.
+export const WF_STATE_VERSION = 6;
 // The steps the smaller route removed (#111/#112/#113). A round parked at one is an old round: it must
 // finish on the installed wf that made it, and this wf refuses to reinterpret it.
 const OLD_ROUTE_STEPS = ['research', 'plan', 'design', 'implement'];
@@ -135,7 +143,7 @@ export function legacyStateGap(state: State | null): string | null {
 	// protocol cut does not strand rounds that hold no removed progress. A newer or hand-edited version
 	// is refused before a mutating command touches it, as is a versionless old round (even parked at a
 	// step the two routes share, like classify or review).
-	if (state.wf_version === 2 || state.wf_version === 3 || state.wf_version === 4) return null;
+	if (state.wf_version === 2 || state.wf_version === 3 || state.wf_version === 4 || state.wf_version === 5) return null;
 	if (typeof state.wf_version === 'number') return `this round's state names wf version ${state.wf_version}, not ${WF_STATE_VERSION} — finish it on that wf, then start a new round`;
 	const at = state.step && OLD_ROUTE_STEPS.includes(state.step) ? ` (step "${state.step}")` : '';
 	return `this round's state is from an older wf (no wf_version${at}): finish it on the installed wf that made it, then start a new round — this wf refuses to reinterpret old state (finish-before-release, #110)`;
@@ -215,6 +223,10 @@ export function readState(toplevel: string): State | null {
 	if ('pr_repair' in parsed && parsed.pr_repair !== null) {
 		const repair = parsed.pr_repair;
 		if (typeof repair !== 'object' || Array.isArray(repair) || !('url' in repair) || typeof repair.url !== 'string' || !/^https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/pull\/\d+$/.test(repair.url) || !('head' in repair) || typeof repair.head !== 'string' || !/^[a-f0-9]{40}$/.test(repair.head)) throw new CorruptStateError(file, 'invalid published repair observation');
+	}
+	if ('post_completion' in parsed) {
+		const gap = postCompletionGap(parsed.post_completion);
+		if (gap) throw new CorruptStateError(file, gap);
 	}
 	if ('delivery' in parsed) {
 		const gap = deliveryReceiptGap(parsed.delivery);
@@ -461,7 +473,7 @@ export function writeState(toplevel: string, update: StateUpdater): State {
 			const state: State = { ...current, ...patch };
 			// The capability boundary is the write of durable authority, not a later step command:
 			// old wf must refuse a correction admitted before the agent has run next (#150).
-			if ((state.corrections?.length || state.merge_attempt || state.pr_repair) && (state.wf_version === undefined || state.wf_version === 2 || state.wf_version === 3 || state.wf_version === 4)) state.wf_version = WF_STATE_VERSION;
+			if ((state.corrections?.length || state.merge_attempt || state.pr_repair || state.post_completion) && (state.wf_version === undefined || state.wf_version === 2 || state.wf_version === 3 || state.wf_version === 4 || state.wf_version === 5)) state.wf_version = WF_STATE_VERSION;
 			writeStateFileAtomically(toplevel, state);
 
 			return state;

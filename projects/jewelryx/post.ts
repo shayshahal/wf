@@ -9,26 +9,24 @@
 // comment; REST v2 can: wiki markup `!name|thumbnail!` shows an attachment of the issue (tried on a
 // throwaway issue, 2026-10-07: Jira stored it as the comment's own media).
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { acquireProcessLock } from '../../src/process-lock.ts';
+import { mergedImplementationGap } from '../../src/round/delivered-round.ts';
+import { outstandingCorrections } from '../../src/round/corrections.ts';
+import { openQuestionGate } from '../../src/round/ask.ts';
 import { join } from 'node:path';
 import { isProofImage, proofPairs } from '../../src/gates/review-format.ts';
-import { readState, roundFile, toplevelOf, writeState } from '../../src/round/state.ts';
+import { readState, roundFile, toplevelOf, writeState, WF_STATE_VERSION } from '../../src/round/state.ts';
 import type { State } from '../../src/round/state.ts';
 import { baselineOf, changesOf, isOwnPost, jiraTime, refusalText } from './ticket-changes.ts';
 
+import { sectionsOf, sameDelivery, sectionSha, hasPrUrl, pendingCompletion } from './post-completion.ts';
+import type { Section } from './post-completion.ts';
+export { sectionsOf } from './post-completion.ts';
+export type { Section } from './post-completion.ts';
+
 const SITE = 'https://raynw.atlassian.net';
 const DELIVERED = 'Fixed in Local';
-
-export type Section = { key: string; posted: boolean; text: string };
-
-// Pure: the note's sections, each the lines under its `## <key>` heading, without the HTML comment.
-export function sectionsOf(note: string): Section[] {
-	const parts = note.replace(/\r\n/g, '\n').replace(/<!--[\s\S]*?-->/g, '').split(/^## /m).slice(1);
-	return parts.map((p) => {
-		const [head, ...rest] = p.split('\n');
-		const [key, ...tail] = head.trim().split(/\s+/);
-		return { key, posted: tail.join(' ').includes('(posted)'), text: rest.join('\n').trim() };
-	});
-}
 
 // Pure: why a section cannot be posted yet, or null. The scaffold's <...> lines are for the round to fill.
 export function unfilled(s: Section): string | null {
@@ -116,6 +114,20 @@ export async function jira(auth: string, path: string, init: RequestInit = {}) {
 
 const JIRA_KEY = /^[A-Z][A-Z0-9]*-\d+$/;
 
+async function trackerStatus(auth: string, key: string): Promise<string> {
+	const raw: unknown = await jira(auth, `3/issue/${key}?fields=status`);
+	if (typeof raw === 'object' && raw !== null && 'fields' in raw && typeof raw.fields === 'object' && raw.fields !== null && 'status' in raw.fields && typeof raw.fields.status === 'object' && raw.fields.status !== null && 'name' in raw.fields.status && typeof raw.fields.status.name === 'string' && raw.fields.status.name.trim()) return raw.fields.status.name;
+	throw new Error(`wf post: ${key} tracker status unknown; completion remains pending`);
+}
+
+function deliveredTransition(raw: unknown): string | null {
+	if (typeof raw !== 'object' || raw === null || !('transitions' in raw) || !Array.isArray(raw.transitions)) return null;
+	for (const t of raw.transitions) {
+		if (typeof t === 'object' && t !== null && 'id' in t && typeof t.id === 'string' && t.id && 'to' in t && typeof t.to === 'object' && t.to !== null && 'name' in t.to && t.to.name === DELIVERED) return t.id;
+	}
+	return null;
+}
+
 type Own = (key: string) => (body: string) => boolean;
 const noOwn: Own = () => () => false;
 
@@ -144,7 +156,7 @@ export async function ticketRefusal(state: State | null, keys: string[], then: s
 const roundKeys = (state: State | null, sections: Section[]) => [...new Set([...(state?.ids ?? (state?.id ? [state.id] : [])), ...sections.map((s) => s.key)])];
 const ownOf = (sections: Section[]): Own => (key) => {
 	const s = sections.find((n) => n.key === key);
-	return (body) => s !== undefined && isOwnPost(body, commentText(s), prNumberOf(s.text));
+	return (body) => s !== undefined && isOwnPost(body, commentText(s));
 };
 
 // wf post --ticket-reread: a person has read what changed on the ticket and the round's paperwork
@@ -177,10 +189,12 @@ async function runTicketReread(): Promise<void> {
 	console.log(`wf post --ticket-reread: recorded ${seen.checkedAt}; changes before it are read:\n${changes.map((c) => `  - ${c.key}: ${c.who}, ${c.at}: ${c.what}`).join('\n')}`);
 }
 
-export async function runPost(argv: string[] = []): Promise<void> {
-	if (argv.includes('--ticket-reread')) return runTicketReread();
+// Keep expected failures in this legacy command shell: jira/ticketRefusal already reject, and
+// runPost translates them to an incomplete CLI outcome. This local exception boundary avoids a
+// second error protocol around those existing clients; pure completion policy never throws (#191).
+async function runLockedPost(argv: string[]): Promise<void> {
 	const toplevel = toplevelOf();
-	const state = readState(toplevel);
+	let state = readState(toplevel);
 	const notePath = state?.note ? join(toplevel, state.note) : null;
 	if (!notePath || !existsSync(notePath)) {
 		console.error('wf post: no tracker note recorded for this round (wf deliver writes it)');
@@ -188,6 +202,9 @@ export async function runPost(argv: string[] = []): Promise<void> {
 	}
 	let note = readFileSync(notePath, 'utf8');
 	const sections = sectionsOf(note);
+	const keys = new Set(sections.map((s) => s.key));
+	const expected = state?.ids ?? (state?.id ? [state.id] : []);
+	if (!sections.length || keys.size !== sections.length || sections.some((s) => !JIRA_KEY.test(s.key)) || expected.some((key) => !keys.has(key))) throw new Error('wf post: saved note has missing, duplicate or invalid ticket sections; restore it before retrying');
 	const todo = sections.filter((s) => !s.posted);
 	const proofDir = join(toplevel, state!.folder ?? '', 'proof');
 	const names = existsSync(proofDir) ? readdirSync(proofDir) : [];
@@ -210,7 +227,7 @@ export async function runPost(argv: string[] = []): Promise<void> {
 	// Before anything goes up: a ticket that changed since the round began is not what the round built to.
 	let refusal: string | null;
 	try {
-		refusal = await ticketRefusal(state, todo.map((s) => s.key), 'run wf post again', ownOf(sections));
+		refusal = await ticketRefusal(state, [...new Set([...todo, ...(state?.delivery ? pendingCompletion(state, note) : [])].map((s) => s.key))], 'run wf post again', ownOf(sections));
 	} catch (e) {
 		console.error(`wf post: could not check the ticket for changes: ${(e as Error).message}; nothing posted`);
 		process.exit(1);
@@ -219,6 +236,21 @@ export async function runPost(argv: string[] = []): Promise<void> {
 		console.error(`wf post: ${refusal}\nNothing posted.`);
 		process.exit(1);
 	}
+	// Every lookup runs outside state.json's write lock. Before a mutation or acknowledgement,
+	// recheck the exact round/note plus product/correction guards (#191, OPEN notification crash).
+	const validate = (current = readState(toplevel)) => {
+		if (JSON.stringify(current) !== JSON.stringify(state) || readFileSync(notePath, 'utf8') !== note) throw new Error('wf post: round or note changed during tracker lookup; retain evidence and retry');
+		const gap = current && mergedImplementationGap(toplevel, current);
+		if (gap?.kind === 'changed' || gap?.kind === 'corrections') throw new Error(`wf post: ${gap.reason}`);
+		if (current?.merge_attempt || outstandingCorrections(current).length || current?.step === 'held' || openQuestionGate(current)) throw new Error('wf post: unresolved round instructions, questions or delivery outcome; run wf next first');
+	};
+	validate();
+	// Mark the new completion contract even if the first status read fails: an older runtime
+	// sees the version on caller-bound commands (#191). Shipped old reap does not check a
+	// target version from a surviving checkout; cleanup safety requires the updated runtime.
+	if (state?.wf_version !== WF_STATE_VERSION) state = writeState(toplevel, (current) => { validate(current); return { wf_version: WF_STATE_VERSION }; });
+	const candidate = state?.delivery ?? state?.pr_handoff;
+	if (candidate && sections.some((s) => !hasPrUrl(s.text, candidate.url))) throw new Error(`wf post: saved note does not identify delivery candidate ${candidate.url}; restore it before retrying`);
 	for (const s of todo) {
 		const pr = prNumberOf(s.text);
 		if (!pr) {
@@ -227,7 +259,7 @@ export async function runPost(argv: string[] = []): Promise<void> {
 		}
 		const issue = await jira(auth, `2/issue/${s.key}?fields=attachment,comment`);
 		// A session can die between the post and the mark: a comment with this PR's url is that post.
-		const already = issue.fields.comment.comments.some((c: { body: string }) => c.body.includes(`/pull/${pr}`));
+		const already = issue.fields.comment.comments.some((c: { body: string }) => isOwnPost(c.body, commentText(s)));
 		const pictures = picturesOf(pr, filesOf(s));
 		// A session that died mid-upload left some attached: only the missing ones go up.
 		if (!already) {
@@ -236,22 +268,64 @@ export async function runPost(argv: string[] = []): Promise<void> {
 				if (have.has(pic.as)) continue;
 				const form = new FormData();
 				form.append('file', new Blob([readFileSync(join(proofDir, pic.file))], { type: pictureType(pic.file) }), pic.as);
+				validate();
 				await jira(auth, `3/issue/${s.key}/attachments`, { method: 'POST', body: form, headers: { 'X-Atlassian-Token': 'no-check' } });
 			}
+			validate();
 			await jira(auth, `2/issue/${s.key}/comment`, { method: 'POST', body: JSON.stringify({ body: commentBody(commentText(s), pictures) }), headers: { 'content-type': 'application/json' } });
 		}
-		// An open PR is awaiting merge, not fixed in the shared branch (Shay, 2026-10-20).
-		if (state?.delivery && state.step === 'merged') {
-			const { transitions } = await jira(auth, `3/issue/${s.key}/transitions`);
-			const to = transitions.find((t: { to: { name: string } }) => t.to.name === DELIVERED);
-			if (!to) throw new Error(`wf post: ${s.key} has no transition to ${DELIVERED}`);
-			await jira(auth, `3/issue/${s.key}/transitions`, { method: 'POST', body: JSON.stringify({ transition: { id: to.id } }), headers: { 'content-type': 'application/json' } });
-		}
+		validate();
 		note = markPosted(note, s.key);
 		writeFileSync(notePath, note);
 		const count = pictures.flatMap((p) => [p.before, p.after]).filter(Boolean).length;
-		console.log(`${s.key}: ${already ? 'already posted, pictures not re-attached' : `posted with ${count} picture(s) — ${pictureNotes(pictures)}`}, ${state?.delivery && state.step === 'merged' ? DELIVERED : 'in PR, awaiting merge'} — ${SITE}/browse/${s.key}`);
+		console.log(`${s.key}: ${already ? 'already posted, pictures not re-attached' : `posted with ${count} picture(s) — ${pictureNotes(pictures)}`}, ${state?.delivery && state.step === 'merged' ? 'merged; tracker completion pending' : 'in PR, awaiting merge'} — ${SITE}/browse/${s.key}`);
 	}
+	// Notification is durable before status work. Legacy (posted) sections join this same path;
+	// neither a missing local acknowledgement nor a lost transition response requires reposting.
+	const pending = pendingCompletion(state, note);
+	if (!pending.length) return;
+	if (!state?.delivery || state.step !== 'merged') {
+		if (state?.step === 'merged') throw new Error(state.pr_handoff ? 'wf post: confirmed delivery receipt missing; run wf deliver to reconcile the retained published candidate' : 'wf post: confirmed delivery receipt missing; restore original delivery evidence before tracker completion (wf next explains recovery/discard)');
+		return;
+	}
+	const delivery = state.delivery;
+	const implementationGap = mergedImplementationGap(toplevel, state);
+	if (implementationGap) throw new Error(`wf post: ${implementationGap.reason}; tracker completion remains pending`);
+	for (const s of pending) {
+		validate();
+		if (!s.posted || !hasPrUrl(s.text, delivery.url)) throw new Error(`wf post: ${s.key} notification does not identify confirmed delivery ${delivery.url}; restore its note before retrying`);
+		let status = await trackerStatus(auth, s.key);
+		validate();
+		if (status !== DELIVERED) {
+			const raw: unknown = await jira(auth, `3/issue/${s.key}/transitions`);
+			const transition = deliveredTransition(raw);
+			if (!transition) throw new Error(`wf post: ${s.key} has no known transition to ${DELIVERED}; completion remains pending`);
+			validate();
+			await jira(auth, `3/issue/${s.key}/transitions`, { method: 'POST', body: JSON.stringify({ transition: { id: transition } }), headers: { 'content-type': 'application/json' } });
+			status = await trackerStatus(auth, s.key);
+		}
+		validate();
+		if (status !== DELIVERED) throw new Error(`wf post: ${s.key} status readback is ${status}, not ${DELIVERED}; completion remains pending`);
+		state = writeState(toplevel, (current) => {
+			validate(current);
+			const previous = sameDelivery(current.post_completion?.delivery, delivery) ? current.post_completion?.sections ?? [] : [];
+			return { post_completion: { delivery, sections: [...previous.filter((p) => p.key !== s.key), { key: s.key, sha: sectionSha(s) }] } };
+		});
+		console.log(`${s.key}: confirmed ${DELIVERED} — ${SITE}/browse/${s.key}`);
+	}
+}
+
+/** Post notification and reconcile confirmed tracker completion under the delivery process lock. */
+export async function runPost(argv: string[] = []): Promise<void> {
+	if (argv.includes('--ticket-reread')) return runTicketReread();
+	const toplevel = toplevelOf();
+	const lockPath = execFileSync('git', ['rev-parse', '--path-format=absolute', '--git-path', 'wf-deliver.lock'], { cwd: toplevel, encoding: 'utf8' }).trim();
+	const lock = acquireProcessLock(lockPath);
+	if (lock.kind === 'refused') { console.error(`wf post: ${lock.why}`); process.exitCode = 2; return; }
+	process.once('exit', lock.release);
+	try { await runLockedPost(argv); }
+	catch (error) { console.error(`wf post: tracker work incomplete: ${error instanceof Error ? error.message : String(error)}; retain note/proof and retry wf post`); process.exitCode = 1; }
+	finally { process.removeListener('exit', lock.release); lock.release(); }
 }
 
 if (process.argv[1]?.endsWith('post.ts')) await runPost(process.argv.slice(2));

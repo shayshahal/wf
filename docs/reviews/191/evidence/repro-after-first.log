@@ -1,0 +1,8 @@
+file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54
+const WAITING = ['user', ...people, 'ci'];
+                            ^
+
+ReferenceError: Cannot access 'people' before initialization
+    at file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54:29
+
+Node.js v26.10.0

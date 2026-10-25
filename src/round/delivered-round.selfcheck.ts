@@ -34,7 +34,15 @@ try {
 	check('the merged product identity allows post-only resume', mergedImplementationGap(dir, original) === null);
 	const post = cli('next');
 	check('real next still posts the first delivery', post.status === 0 && post.stdout.startsWith('post: X-1'), `${post.stdout}${post.stderr}`);
-	writeFileSync(join(dir, folder, 'NOTE.md'), '## X-1 (posted)\nDelivered\n');
+	writeFileSync(join(dir, folder, 'NOTE.md'), `## X-1 (posted)\nDelivered\npictures: none\nPR: ${delivery.url}\n`);
+	// #191: establish completion by actual status readback, then retain the identity assertions.
+	const postHarness = join(dir, folder, 'post-harness.mjs');
+	writeFileSync(postHarness, `import { run } from ${JSON.stringify(pathToFileURL(join(WF_ROOT, 'src/run.ts')).href)};
+	globalThis.fetch = async (url) => new Response(JSON.stringify(String(url).includes('/changelog') ? {values:[],isLast:true} : {fields:{status:{name:'Fixed in Local'},comment:{comments:[]}}}),{status:200});
+	await run(['post']);`);
+	const completed = spawnSync(process.execPath, [postHarness], {cwd:dir,env:{...process.env,JIRA_EMAIL:'fixture@example.invalid',JIRA_TOKEN:'controlled-not-real'},encoding:'utf8'});
+	check('tracker readback establishes separate bound completion', completed.status === 0 && readState(dir)?.post_completion?.delivery.head === head, completed.stdout + completed.stderr);
+	rmSync(postHarness);
 	git('add', folder); git('commit', '-qm', 'post-delivery paperwork');
 	const done = cli('next');
 	check('paperwork-only commits preserve the receipt and allow reap', done.status === 0 && done.stdout.startsWith('done:'), `${done.stdout}${done.stderr}`);

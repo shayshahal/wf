@@ -19,7 +19,7 @@ import { join } from 'node:path';
 import { refuseCaller } from '../refusal.ts';
 import { addQuestion, blockedQuestion, openRevisions } from './ask.ts';
 import { agreementClass, agreementGap, agreementPath, agreementSha, revisionSha, AGREEMENT_FILE, AGREEMENT_REVIEW_FILE, ASSESSMENT_FILE, assessmentGap, assessmentHead, assessmentVerdict, caseFiles, consequential, hasT2Walk, notAskedForGap, REVIEW_FILE, verificationCases } from './agreement.ts';
-import { contractPaths as contractPathsFile } from '../project.ts';
+import { contractPaths as contractPathsFile, trackerCompletionGap } from '../project.ts';
 import { classFromFiles } from '../gates/classify.ts';
 import { anticipatedPaths, TICKET_FILE } from './agreement.ts';
 import { changedFiles } from '../gates/check.ts';
@@ -76,6 +76,7 @@ export type Snapshot = {
 	delivery?: State['delivery'];
 	prHandoff?: State['pr_handoff'];
 	prRepair?: State['pr_repair'];
+	postCompletion?: State['post_completion'];
 	id?: string;
 	ids?: string[];
 	/** A merged round cannot post/reap on the old delivery while carrying new product work. */
@@ -124,7 +125,11 @@ export function nextAction(s: Snapshot, purpose: 'next' | 'brief' = 'next'): { s
 		if (s.mergedGap?.kind === 'changed') return act(`wait user: ${s.mergedGap.reason}`);
 		const left = unpostedSections(s.note?.text ?? null);
 		if (left.length) return act(`post: ${left.join(', ')} — each section of ${s.note!.file} on its own item, with the delivered status (ROUND.md); right after each, its heading gets \` (posted)\`. Then \`${wf} next\``);
+		if (!s.delivery && s.prHandoff) return act(`deliver: reconcile the retained published candidate before tracker completion — \`${wf} deliver\``);
 		if (s.mergedGap) return act(`wait user: ${s.mergedGap.reason}`);
+		if (!s.delivery && s.note) return act('wait user: confirmed delivery receipt missing; restore original delivery evidence before tracker completion, or use WF_FORCE_REAP=1 only to intentionally discard unfinished work');
+		const completionGap = trackerCompletionGap({ step: s.step, delivery: s.delivery, id: s.id, ids: s.ids, post_completion: s.postCompletion }, s.note?.text ?? null);
+		if (completionGap) return act(`post: ${completionGap}. Then \`${wf} next\``);
 		return act(`done: \`${wf} reap ${s.branch}\``);
 	}
 	if (s.step === 'pr' && s.prHandoff && !corrections.length && s.head === s.prHandoff.head) {
@@ -346,6 +351,7 @@ export function snapshotOf(toplevel: string): Snapshot {
 		delivery: state.delivery,
 		prHandoff: state.pr_handoff,
 		prRepair: state.pr_repair,
+		postCompletion: state.post_completion,
 		id: state.id,
 		ids: state.ids,
 		repairs: state.repairs ?? 0,

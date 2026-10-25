@@ -1,0 +1,7 @@
+selfcheck: focused (3 of 85 files); full suite not run.
+selfcheck: PASS src/boundary.selfcheck.ts (0.1s)
+selfcheck: PASS tsc (0.3s)
+selfcheck: PASS eslint (0.9s)
+selfcheck: PASS src/round/state.selfcheck.ts (7.2s)
+selfcheck: PASS src/skill/skill-export.selfcheck.ts (19.3s)
+5 selfchecks green (focused; tsc and eslint included) in 19.3s

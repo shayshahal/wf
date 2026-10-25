@@ -1,0 +1,13 @@
+selfcheck: focused (4 of 82 files); full suite not run.
+selfcheck: PASS tsc (0.9s)
+selfcheck: PASS eslint (1.0s)
+selfcheck: PASS src/round/state.selfcheck.ts (12.4s)
+selfcheck: PASS src/round/correction-fences.selfcheck.ts (47.0s)
+selfcheck: FAIL projects/jewelryx/post.selfcheck.ts (50.4s)
+selfcheck: PASS src/round/next.selfcheck.ts (54.5s)
+
+── FAIL projects/jewelryx/post.selfcheck.ts
+  FAIL confirmed merged delivery can still mark the issue Fixed in Local — warning: in the working copy of 'bug-reports/x/JIRA.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'bug-reports/x/TICKET.md', LF will be replaced by CRLF the next time Git touches it
+wf post: tracker work incomplete: wf post: product changes exist after delivery (https://github.com/x/y/pull/7, aa148be9d860); start a fresh round with wf new <new-branch> --reopen --class A|B|C --id JX-1239; read its EARLIER.md, refresh the ticket/scope, then agreement, build, assessment and T2 — the previous approval does not cover follow-up work; retain note/proof and retry wf post
+1 of 6 selfchecks red (focused; tsc and eslint included) in 55.1s

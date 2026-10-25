@@ -1,0 +1,335 @@
+selfcheck: focused (4 of 82 files); full suite not run.
+selfcheck: FAIL projects/jewelryx/post.selfcheck.ts (0.2s)
+selfcheck: FAIL src/round/state.selfcheck.ts (0.2s)
+selfcheck: FAIL src/round/correction-fences.selfcheck.ts (0.2s)
+selfcheck: FAIL tsc (0.3s)
+selfcheck: PASS eslint (1.0s)
+selfcheck: FAIL src/round/next.selfcheck.ts (11.7s)
+
+── FAIL projects/jewelryx/post.selfcheck.ts
+file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54
+const WAITING = ['user', ...people, 'ci'];
+                            ^
+
+ReferenceError: Cannot access 'people' before initialization
+    at file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54:29
+
+Node.js v26.10.0
+
+── FAIL src/round/next.selfcheck.ts
+  FAIL merged with no note sections left → done and reap
+file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54
+const WAITING = ['user', ...people, 'ci'];
+                            ^
+
+ReferenceError: Cannot access 'people' before initialization
+    at file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54:29
+
+Node.js v26.10.0
+  FAIL CLI: fresh class A next 1 offers agreement without advancing to build — file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54
+const WAITING = ['user', ...people, 'ci'];
+                            ^
+
+ReferenceError: Cannot access 'people' before initialization
+    at file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54:29
+
+Node.js v26.10.0
+
+file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54
+const WAITING = ['user', ...people, 'ci'];
+                            ^
+
+ReferenceError: Cannot access 'people' before initialization
+    at file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54:29
+
+Node.js v26.10.0
+  FAIL CLI: fresh class A next 2 offers agreement without advancing to build — file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54
+const WAITING = ['user', ...people, 'ci'];
+                            ^
+
+ReferenceError: Cannot access 'people' before initialization
+    at file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54:29
+
+Node.js v26.10.0
+
+file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54
+const WAITING = ['user', ...people, 'ci'];
+                            ^
+
+ReferenceError: Cannot access 'people' before initialization
+    at file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54:29
+
+Node.js v26.10.0
+  FAIL CLI: the fresh agreement packet is executable and tells the worker to record sourced intent — file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54
+const WAITING = ['user', ...people, 'ci'];
+                            ^
+
+ReferenceError: Cannot access 'people' before initialization
+    at file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54:29
+
+Node.js v26.10.0
+
+file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54
+const WAITING = ['user', ...people, 'ci'];
+                            ^
+
+ReferenceError: Cannot access 'people' before initialization
+    at file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54:29
+
+Node.js v26.10.0
+  FAIL CLI: direct build still refuses a missing ticket without advancing — file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54
+const WAITING = ['user', ...people, 'ci'];
+                            ^
+
+ReferenceError: Cannot access 'people' before initialization
+    at file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54:29
+
+Node.js v26.10.0
+
+file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54
+const WAITING = ['user', ...people, 'ci'];
+                            ^
+
+ReferenceError: Cannot access 'people' before initialization
+    at file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54:29
+
+Node.js v26.10.0
+  FAIL CLI: an empty intent returns to agreement without advancing — file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54
+const WAITING = ['user', ...people, 'ci'];
+                            ^
+
+ReferenceError: Cannot access 'people' before initialization
+    at file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54:29
+
+Node.js v26.10.0
+
+file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54
+const WAITING = ['user', ...people, 'ci'];
+                            ^
+
+ReferenceError: Cannot access 'people' before initialization
+    at file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54:29
+
+Node.js v26.10.0
+  FAIL CLI: direct build refuses an empty intent without rewriting state — file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54
+const WAITING = ['user', ...people, 'ci'];
+                            ^
+
+ReferenceError: Cannot access 'people' before initialization
+    at file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54:29
+
+Node.js v26.10.0
+
+file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54
+const WAITING = ['user', ...people, 'ci'];
+                            ^
+
+ReferenceError: Cannot access 'people' before initialization
+    at file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54:29
+
+Node.js v26.10.0
+  FAIL CLI: build prompt still refuses an empty intent — file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54
+const WAITING = ['user', ...people, 'ci'];
+                            ^
+
+ReferenceError: Cannot access 'people' before initialization
+    at file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54:29
+
+Node.js v26.10.0
+
+file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54
+const WAITING = ['user', ...people, 'ci'];
+                            ^
+
+ReferenceError: Cannot access 'people' before initialization
+    at file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54:29
+
+Node.js v26.10.0
+  FAIL CLI: assess prompt still refuses an empty intent — file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54
+const WAITING = ['user', ...people, 'ci'];
+                            ^
+
+ReferenceError: Cannot access 'people' before initialization
+    at file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54:29
+
+Node.js v26.10.0
+
+file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54
+const WAITING = ['user', ...people, 'ci'];
+                            ^
+
+ReferenceError: Cannot access 'people' before initialization
+    at file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54:29
+
+Node.js v26.10.0
+  FAIL CLI: an ordinary class A round steps to build and dispatches it — file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54
+const WAITING = ['user', ...people, 'ci'];
+                            ^
+
+ReferenceError: Cannot access 'people' before initialization
+    at file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54:29
+
+Node.js v26.10.0
+
+file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54
+const WAITING = ['user', ...people, 'ci'];
+                            ^
+
+ReferenceError: Cannot access 'people' before initialization
+    at file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54:29
+
+Node.js v26.10.0
+  FAIL CLI: after recording intent, the build brief consumes the original request — file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54
+const WAITING = ['user', ...people, 'ci'];
+                            ^
+
+ReferenceError: Cannot access 'people' before initialization
+    at file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54:29
+
+Node.js v26.10.0
+
+file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54
+const WAITING = ['user', ...people, 'ci'];
+                            ^
+
+ReferenceError: Cannot access 'people' before initialization
+    at file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54:29
+
+Node.js v26.10.0
+  FAIL CLI: an agreement declaring Class: B upgrades the round and takes T1 — file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54
+const WAITING = ['user', ...people, 'ci'];
+                            ^
+
+ReferenceError: Cannot access 'people' before initialization
+    at file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54:29
+
+Node.js v26.10.0
+
+file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54
+const WAITING = ['user', ...people, 'ci'];
+                            ^
+
+ReferenceError: Cannot access 'people' before initialization
+    at file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54:29
+
+Node.js v26.10.0
+  FAIL CLI: a legacy state refuses a mutating command before it writes — file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54
+const WAITING = ['user', ...people, 'ci'];
+                            ^
+
+ReferenceError: Cannot access 'people' before initialization
+    at file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54:29
+
+Node.js v26.10.0
+
+file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54
+const WAITING = ['user', ...people, 'ci'];
+                            ^
+
+ReferenceError: Cannot access 'people' before initialization
+    at file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54:29
+
+Node.js v26.10.0
+  FAIL CLI: wf next refuses a versionless state parked at review — file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54
+const WAITING = ['user', ...people, 'ci'];
+                            ^
+
+ReferenceError: Cannot access 'people' before initialization
+    at file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54:29
+
+Node.js v26.10.0
+
+file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54
+const WAITING = ['user', ...people, 'ci'];
+                            ^
+
+ReferenceError: Cannot access 'people' before initialization
+    at file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54:29
+
+Node.js v26.10.0
+  FAIL CLI: wf step assess refuses an uncommitted tree — file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54
+const WAITING = ['user', ...people, 'ci'];
+                            ^
+
+ReferenceError: Cannot access 'people' before initialization
+    at file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54:29
+
+Node.js v26.10.0
+
+file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54
+const WAITING = ['user', ...people, 'ci'];
+                            ^
+
+ReferenceError: Cannot access 'people' before initialization
+    at file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54:29
+
+Node.js v26.10.0
+  FAIL CLI: a committed implementation hands off with no wf check required — file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54
+const WAITING = ['user', ...people, 'ci'];
+                            ^
+
+ReferenceError: Cannot access 'people' before initialization
+    at file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54:29
+
+Node.js v26.10.0
+
+file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54
+const WAITING = ['user', ...people, 'ci'];
+                            ^
+
+ReferenceError: Cannot access 'people' before initialization
+    at file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54:29
+
+Node.js v26.10.0
+  FAIL CLI: a clean assessment at this HEAD passes to review — file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54
+const WAITING = ['user', ...people, 'ci'];
+                            ^
+
+ReferenceError: Cannot access 'people' before initialization
+    at file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54:29
+
+Node.js v26.10.0
+
+file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54
+const WAITING = ['user', ...people, 'ci'];
+                            ^
+
+ReferenceError: Cannot access 'people' before initialization
+    at file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54:29
+
+Node.js v26.10.0
+  FAIL CLI: a product change after the assessment is refused at review — file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54
+const WAITING = ['user', ...people, 'ci'];
+                            ^
+
+ReferenceError: Cannot access 'people' before initialization
+    at file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54:29
+
+Node.js v26.10.0
+
+
+18 FAILURE(S)
+
+── FAIL src/round/state.selfcheck.ts
+file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54
+const WAITING = ['user', ...people, 'ci'];
+                            ^
+
+ReferenceError: Cannot access 'people' before initialization
+    at file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54:29
+
+Node.js v26.10.0
+
+── FAIL src/round/correction-fences.selfcheck.ts
+file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54
+const WAITING = ['user', ...people, 'ci'];
+                            ^
+
+ReferenceError: Cannot access 'people' before initialization
+    at file:///C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/src/round/step.ts:54:29
+
+Node.js v26.10.0
+
+── FAIL tsc
+projects/jewelryx/post.ts(127,144): error TS2345: Argument of type 'string' is not assignable to parameter of type 'never'.
+5 of 6 selfchecks red (focused; tsc and eslint included) in 11.7s

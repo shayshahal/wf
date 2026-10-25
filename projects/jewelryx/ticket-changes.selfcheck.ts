@@ -27,7 +27,7 @@ const since = '2026-10-12T09:00:03.000Z'; // 12:00:03 in Jira's +0300
 
 check('Jira\'s offset without a colon parses', jiraTime('2026-10-12T13:43:02.638+0300') === Date.parse('2026-10-12T10:43:02.638Z'));
 
-const own = (body: string) => isOwnPost(body, post, '333');
+const own = (body: string) => isOwnPost(body, post);
 const changes = changesSince({ since, histories, comments, own });
 check('JX-810: the comments and the description and title edits after the round began, oldest first, with who and when',
 	changes.map((c) => `${c.at.slice(11, 16)} ${c.who}: ${c.what}`).join('; ') === '13:18 Einat Shahal: comment added; 13:19 Einat Shahal: title edited; 13:26 shay shahal: comment added; 13:43 Einat Shahal: description edited', JSON.stringify(changes));
@@ -36,9 +36,12 @@ check('without telling its own post apart, that post is a change too (the 15:14 
 check('before the round began nothing counts', changesSince({ since: '2026-10-13T00:00:00.000Z', histories, comments, own }).length === 0);
 check('a comment edited after the round began counts, though written before', changesSince({ since, histories: [], comments: [{ body: 'x', created: '2026-09-30T10:00:00.000+0300', updated: '2026-10-12T14:00:00.000+0300', author: einat }] }).map((c) => c.what).join() === 'comment edited');
 
-check('a post of this PR is the round\'s own', isOwnPost(`${post}\r\n\r\nלפני:\r\n!333-before-1.png|thumbnail!`, post, '333'));
-check('a person quoting the PR url is not', !isOwnPost('נבדק? https://github.com/x/y/pull/333', post, '333'));
-check('another PR\'s post is not', !isOwnPost(post, post, '334'));
+check('a post of this PR is the round\'s own', isOwnPost(`${post}\r\n\r\nלפני:\r\n!333-before-1.png|thumbnail!`, post));
+check('a person quoting the PR url is not', !isOwnPost('נבדק? https://github.com/x/y/pull/333', post));
+check('another PR\'s post is not', !isOwnPost(post.replace('/pull/333','/pull/334'), post));
+
+check('PR number prefixes are not own posts', !isOwnPost(post.replace('/pull/333', '/pull/3330'), post));
+check('same number in another repository is not an own post', !isOwnPost(post.replace('/x/y/', '/other/repo/'), post));
 
 check('a state with no step history has no baseline', baselineOf({ id: 'JX-1' }) === null);
 check('the round\'s first step is the baseline', baselineOf({ history: [{ step: 'classify', at: '2026-10-12T09:00:03.000Z' }, { step: 'build', at: '2026-10-12T09:30:00.000Z' }] }) === '2026-10-12T09:00:03.000Z');

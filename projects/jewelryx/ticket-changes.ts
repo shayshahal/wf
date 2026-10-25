@@ -4,6 +4,7 @@
 // 13:18, 13:26 and 13:43 the product owner corrected the requirement in a comment and rewrote the
 // description; the round built to the old text, passed T2, merged, and at 15:14 `wf post` said
 // "תוקן ✅" and set Fixed in Local. Nothing in wf looked at the issue between the fetch and the post.
+import { hasPrUrl, prUrlOf } from './post-completion.ts';
 import type { State } from '../../src/round/state.ts';
 
 export type Change = { what: 'description edited' | 'title edited' | 'comment added' | 'comment edited'; who: string; at: string };
@@ -28,10 +29,11 @@ export function baselineOf(state: State | null): string | null {
 // Pure: whether a comment is the round's own earlier post of this section (wf post's comment starts
 // with the section's first line and carries the PR's url), so a session that died after the post is
 // not refused for its own comment.
-export function isOwnPost(body: string, sectionText: string, pr: string | null): boolean {
+export function isOwnPost(body: string, sectionText: string): boolean {
 	const norm = (t: string) => t.replace(/\r\n/g, '\n').trim();
 	const first = norm(sectionText).split('\n')[0];
-	return pr !== null && first !== '' && norm(body).startsWith(first) && body.includes(`/pull/${pr}`);
+	const url = prUrlOf(sectionText);
+	return url !== null && first !== '' && norm(body).startsWith(first) && hasPrUrl(body, url);
 }
 
 // Pure: the edits and comments after `since`, oldest first. A comment edited after `since` counts

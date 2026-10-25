@@ -1,0 +1,28 @@
+selfcheck: focused (13 of 85 files); full suite not run.
+selfcheck: PASS eslint (1.6s)
+selfcheck: PASS src/gates/deliver.selfcheck.ts (0.8s)
+selfcheck: PASS tsc (1.6s)
+selfcheck: PASS src/round/post-completion.selfcheck.ts (1.5s)
+selfcheck: PASS projects/jewelryx/post-completion.selfcheck.ts (1.6s)
+selfcheck: PASS src/boundary.selfcheck.ts (0.7s)
+selfcheck: PASS src/round/state.selfcheck.ts (8.2s)
+selfcheck: PASS src/worktrees/reap.selfcheck.ts (8.7s)
+selfcheck: PASS src/skill/skill-export.selfcheck.ts (46.7s)
+selfcheck: PASS src/round/correction-fences.selfcheck.ts (52.8s)
+selfcheck: PASS src/round/next.selfcheck.ts (63.0s)
+selfcheck: PASS projects/jewelryx/post.selfcheck.ts (74.3s)
+selfcheck: FAIL src/round/delivered-round.selfcheck.ts (75.0s)
+selfcheck: PASS projects/jewelryx/post-lifecycle.selfcheck.ts (425.2s)
+selfcheck: PASS src/gates/deliver-recovery.selfcheck.ts (691.0s)
+
+── FAIL src/round/delivered-round.selfcheck.ts
+  FAIL paperwork-only commits preserve the receipt and allow reap — post: tracker completion pending for X-1; run wf post. Then `node "C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/wf.mjs" next`
+
+  FAIL post-delivery questions and answers do not reopen or block ordinary posting — q1 → user: What wording should the tracker note use?
+q1 closed · recorded in C:\Users\Shay\AppData\Local\Temp\wf-delivered-fQUy1F\bug-reports\first\TICKET.md § Decisions
+
+  FAIL old unbound rounds need restored evidence or explicit discard, never automatic reap — post: tracker completion pending: run wf deliver to reconcile the confirmed delivery first. Then `node "C:/Users/Shay/.t3/worktrees/wf/fix-191-post-merge-tracker-completion/wf.mjs" next`
+
+
+3 FAILURE(S)
+1 of 15 selfchecks red (focused; tsc and eslint included) in 691.9s
