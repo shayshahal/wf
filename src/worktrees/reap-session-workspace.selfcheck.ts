@@ -39,7 +39,7 @@ function target(parent = root) {
 type Target = ReturnType<typeof target>;
 function saveJournal(t: Target, next = 0, path = t.path) {
 	const stat = existsSync(path) ? statSync(path, { bigint: true }) : null;
-	writeFileSync(t.journal, JSON.stringify({ branch: t.branch, path, token: randomUUID(), directory: stat ? `${stat.dev}:${stat.ino}:${stat.birthtimeNs}` : null, next, merged: false }));
+	writeFileSync(t.journal, JSON.stringify({ branch: t.branch, path, token: randomUUID(), directory: stat ? `${stat.dev}:${stat.ino}:${stat.birthtimeNs}` : null, next, merged: false, plan: ['rm -rf worktree', 'git worktree prune'] }));
 }
 // Snapshot persisted effects, not merely call counts: refused cleanup cannot touch target bytes,
 // metadata, archive/ledger, launch entries, journal or even a preexisting malformed cleanup lock.
