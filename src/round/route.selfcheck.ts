@@ -4,6 +4,7 @@
 // edit that must not renew T1, the ordinary/helper scope fence, the bounded repair and the blocked
 // verdict's one durable ruling, and the version guard.
 import { execFileSync } from 'node:child_process';
+import { fixtureRepo } from '../fixture-template.ts';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -42,15 +43,8 @@ const TICKET = `# r — ticket
 `;
 
 function repo(branch: string, klass: 'A' | 'B', agreement: string | null) {
-	const dir = mkdtempSync(join(tmpdir(), 'wf-route-'));
+	const dir = fixtureRepo('wf-route-', { 'src/Page.svelte': 'a\n' }, branch);
 	const git = (...args: string[]) => execFileSync('git', ['-C', dir, '-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { encoding: 'utf8' });
-	git('init', '-q', '-b', 'main');
-	git('config', 'core.autocrlf', 'false');
-	mkdirSync(join(dir, 'src'), { recursive: true });
-	writeFileSync(join(dir, 'src/Page.svelte'), 'a\n');
-	git('add', '-A');
-	git('commit', '-q', '-m', 'base');
-	git('checkout', '-q', '-b', branch);
 	mkdirSync(join(dir, 'bug-reports/r'), { recursive: true });
 	writeFileSync(join(dir, 'bug-reports/r/TICKET.md'), TICKET);
 	if (agreement !== null) writeFileSync(join(dir, 'bug-reports/r/AGREEMENT.md'), agreement);
