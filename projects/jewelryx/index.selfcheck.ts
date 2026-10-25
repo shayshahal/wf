@@ -6,7 +6,7 @@ import { strandedTestDatabases, worktreeDatabase } from './db.ts';
 import { devCommands } from './dev.ts';
 import { includedFiles, sanitizeEnv } from './env.ts';
 import { agreementGap } from '../../src/round/agreement.ts';
-import { protectedFilesGap, directUrls, pageOf, agreementCaseGap, baselineRunnerEnv, baselineStackEnv, runnerEnv, setup, stackUrls, teardown, trackerNote, verificationStackEnv } from './index.ts';
+import { protectedFilesGap, directUrls, pageOf, agreementCaseGap, baselineRunnerEnv, baselineStackEnv, runnerEnv, secretsGap, setup, stackUrls, teardown, trackerNote, verificationStackEnv } from './index.ts';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -91,6 +91,20 @@ check('.worktreeinclude: plain paths, leading / dropped, comments and blanks ski
 let glob = '';
 try { includedFiles('/packages/*/.env'); } catch (e) { glob = (e as Error).message; }
 check('a pattern is refused, not silently skipped', glob.includes('is a pattern'), glob);
+
+// ── a round's secrets, asked before `wf new` creates anything (2026-10-25: the bare kit entry cut a
+// worktree, a database and two builds in a bare layout, and setup's env step failed last).
+const cloneDir = mkdtempSync(join(tmpdir(), 'wf-secrets-clone-'));
+const bareDir = mkdtempSync(join(tmpdir(), 'wf-secrets-bare-'));
+try {
+  execFileSync('git', ['init', '-q', cloneDir]);
+  execFileSync('git', ['init', '-q', '--bare', join(bareDir, 'repo.git')]);
+  check('a clone answers: this machine copies a round\'s secrets from its own main checkout', secretsGap(cloneDir) === null, String(secretsGap(cloneDir)));
+  check('a bare layout is named before a worktree exists', secretsGap(join(bareDir, 'repo.git'))?.includes('no main checkout') === true, String(secretsGap(join(bareDir, 'repo.git'))));
+} finally {
+  rmSync(cloneDir, { recursive: true, force: true });
+  rmSync(bareDir, { recursive: true, force: true });
+}
 
 // ── the dev servers (cases from the project's dev-worktree.mjs --check)
 const plain = devCommands('18001');
