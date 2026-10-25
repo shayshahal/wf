@@ -68,10 +68,19 @@ export function toplevelOf(cwd = process.cwd()): string {
 // origin base branch. `base` is the merge-base with HEAD, or null when the ref does not resolve — the
 // round's committed range is then unknown, and every caller must fail closed rather than bless a
 // committed product change it cannot see (N-1, #109).
-export function resolveRoundBase(toplevel: string, state: State | null): { ref: string; base: string | null } {
+export function resolveRoundBase(toplevel: string, state: State | null, git?: (args: string[]) => string): { ref: string; base: string | null } {
 	const ref = state?.base ?? `origin/${baseBranch}`;
-	const run = spawnSync('git', ['-C', toplevel, 'merge-base', ref, 'HEAD'], { encoding: 'utf8' });
-	return { ref, base: run.status === 0 ? (run.stdout ?? '').trim() : null };
+	const read = git ?? ((args: string[]) => {
+		const run = spawnSync('git', ['-C', toplevel, ...args], { encoding: 'utf8' });
+		return run.status === 0 ? (run.stdout ?? '').trim() : null;
+	});
+	try {
+		return { ref, base: read(['merge-base', ref, 'HEAD'])?.trim() || null };
+	} catch {
+		// Inspection supplies its git reader; its failed read is the same unknown base as a failed
+		// spawn, never permission to substitute HEAD or the upstream tip (2026-10-10 stack review).
+		return { ref, base: null };
+	}
 }
 
 // The runtime that reads and writes a round's state. A state from an older one is refused before any
