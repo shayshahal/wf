@@ -1,9 +1,14 @@
 # {{round}} — the working agreement
 
+{{context}}
+
 {{presentation}}
 
-Write `{{folder}}/{{file}}`: what will change, what is excluded, the consequential choice and
-how the result will be checked. Use `{{wf}}/process/SHOW-ME.md` to choose and deliver the view.
+Write `{{folder}}/{{file}}` using `{{wf}}/process/AGREEMENT-TEMPLATE.md`: what will change, what is
+excluded, the consequential choice and how the result will be checked. Read the class guidance
+linked by `wf notes` for consequential gaps; use `{{wf}}/process/SHOW-ME.md` to deliver the view.
+T1 records the person's approval of the current agreed material before building; follow
+`{{skill}}/references/review.md#t1-consequential-agreement`.
 
 ## The requester's words (verbatim)
 
@@ -29,11 +34,9 @@ how the result will be checked. Use `{{wf}}/process/SHOW-ME.md` to choose and de
 - For UI changes, plan the required before/after PR images in
   `{{wf}}/process/SHOW-ME.md#ui-changes-required-pr-images`; capture the baseline before editing.
 
-For a check-only round, run the repro using normal project commands before handing back. Start the
-round stack with `wf serve --wait` if needed; restore disposable fixtures with project tools between
-runs. Choose enough runs for the hypothesis, distinguish the symptom from setup failure and record
-the command, result and limitations under `## Repro`. A stack that cannot start is a named capability
-gap, not a successful reproduction. Ask for the decision to build or stop; do not begin a fix.
+For a check-only round, follow
+`{{skill}}/references/start.md#reproduction-only-work`: measure and record `## Repro`,
+leave the tracker untouched, and stop for the person's build-or-stop decision.
 
 Borrowed examples are evidence of required behavior, an existing convention or optional inspiration:
 say which. Draw a screen/contract/code-shape view when it resolves consequential uncertainty

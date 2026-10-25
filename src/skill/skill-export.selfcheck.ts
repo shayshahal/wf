@@ -138,6 +138,10 @@ try {
 	check('a relocated export starts class A build after intent is recorded', readyNext.status === 0 && readyNext.stdout.startsWith('work build:'), tail(readyNext));
 	const uiBrief = nodeRun([movedEntry, 'brief', 'build'], fixture);
 	check('the relocated build brief requires before/after PR images and its own guidance', uiBrief.status === 0 && uiBrief.stdout.includes('before/after PR images are required') && uiBrief.stdout.includes(`${forward(moved)}/scripts/runtime/process/SHOW-ME.md#ui-changes-required-pr-images`) && !namesSourceCheckout(uiBrief.stdout), tail(uiBrief));
+	for (const name of ['questions', 'corrections', 'review']) {
+		check(`a relocated cold build points to its real ${name} reference outside the runtime root`, uiBrief.stdout.includes(`${forward(moved)}/references/${name}.md`) && existsSync(join(moved, 'references', `${name}.md`)) && !uiBrief.stdout.includes('/scripts/runtime/skills/round/'), tail(uiBrief));
+	}
+	check('a relocated ordinary agreement points to its real intake reference', freshBrief.stdout.includes(`${forward(moved)}/references/start.md`) && existsSync(join(moved, 'references/start.md')), tail(freshBrief));
 	const uiGuidance = readFileSync(join(moved, 'scripts/runtime/process/SHOW-ME.md'), 'utf8');
 	check('the relocated kit carries the complete PR image requirement', uiGuidance.includes('Every PR that changes UI must show before and after screenshots') && uiGuidance.includes('## UI evidence') && uiGuidance.includes('Verify that both images render on GitHub'));
 

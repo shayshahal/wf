@@ -1,10 +1,15 @@
 # {{round}} — independent final assessment
 
+Use a fresh independent context that did not build the implementation. If you built it, hand this
+command to another context; self-review cannot satisfy this assessment.
+
+{{context}}
+
 {{presentation}}
 
-Read the agreement, the diff since `{{assessmentBase}}`, prior findings, recorded decisions and
-the builder's actual verification evidence. Judge whether the implementation meets the agreement;
-do not change product code.
+Read the saved inputs above, the diff since `{{assessmentBase}}`, prior findings, recorded decisions
+and the builder's actual verification evidence. Judge whether the implementation meets the agreement;
+do not change product code or repair the working document. Write findings in the assessment instead.
 
 {{agreement}}
 
@@ -28,6 +33,10 @@ do not change product code.
   missing, stale, incomplete or inaccessible pairs are repair findings.
 - Design and standards: identify consequential maintainability issues and applicable project rules.
   Keep these findings distinguishable from behavior and intent.
+- T2 walk: revalidate the recorded recipe against the current scenario, using the project-owned
+  setup/readback and full reset. A stale `none`, unavailable readback or incomplete reset is judged
+  against the current evidence; addressable gaps are repair findings for the builder, not edits to
+  the agreement. A capture alone does not require a live walk, but `none` needs a current reason.
 
 The builder chooses verification methods. Baseline comparisons, repetition and broad suites are
 tools for the hypothesis, not universal obligations. Explain unmeasured behavior and what evidence
@@ -50,11 +59,3 @@ Write `{{folder}}/{{assessmentFile}}` whole:
 
 A renewed assessment is a new judgment, even if HEAD is unchanged. Choose the outcome explicitly:
 wf checks the outcome and implementation identity; it does not infer correctness from your prose.
-Then run `wf next`.
-
-Revalidate the T2 walk against the current scenario, including work done after an earlier build.
-If live verification made a formerly unavailable page demonstrable, replace stale `none` with the
-project's replayable open/setup/readback recipe. A capture alone does not require a browser walk:
-a continuing `none` must explain the concrete current limitation or why the work has no live walk.
-Use the recorded project-owned scenario preparation and full reset during verification; helper
-cleanup alone is not rollback. Report a setup/readback gap as repair before handing off T2.

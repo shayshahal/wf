@@ -22,11 +22,10 @@ import { seams } from '../seams.ts';
 // build chooses its own checks; the assessment may look at the app itself.
 export const USES_STACK = new Set(['assess']);
 
-// Pure: the handoff a phase's brief ends with. No token is minted: the build's handoff is the step
-// transition `wf step assess`, the assessment's the ASSESSMENT.md it writes.
+/** End a phase brief with its next action; phase templates own the work and report requirements. */
 export function handoffText(phase: string, folder: string | null, klass: string | null, assessmentFile = 'ASSESSMENT.md'): string {
-	if (phase === 'build') return `\n## Handoff\n\nAfter recording a correction's disposition, run \`wf next\`: unchanged approved delivery may resume without another vote. Otherwise, when the agreement's behavior is implemented and you have run the checks that matter for this change, commit, then run \`wf step assess\`. If a check cannot run (stack, git, a missing runner), do not retry blind: write \`${folder}/BLOCKED.md\` with a \`Question:\` naming what could not run. Write it too if you cannot proceed.\n`;
-	if (phase === 'assess') return `\n## Handoff\n\nWrite \`${folder}/${assessmentFile}\` whole, with its \`Verdict:\` line and \`head:\` line; this must be a fresh independent context, never the session that built the work. Then \`wf next\`.\n`;
+	if (phase === 'build') return `\n## Handoff\n\nAfter recording a correction's disposition, run \`wf next\`: unchanged approved delivery may resume without another vote. Otherwise, when the agreement's behavior is implemented and you have run the checks that matter for this change, commit, then run \`wf step assess\`. For an unresolved blocker, follow the questions procedure above rather than retrying blindly.\n`;
+	if (phase === 'assess') return `\n## Handoff\n\nAfter writing \`${folder}/${assessmentFile}\` as specified above, run \`wf next\`.\n`;
 	return `\n## Handoff\n\nWrite \`${folder}/${agreementFile(klass as 'A' | 'B' | 'C')}\` (class ${klass}: ${consequential(klass as 'A' | 'B' | 'C') ? 'the agreement with `## Observed`, `## Agreed` and `## Verification`' : 'the ticket with `## Intent` (the requester\'s words, verbatim and attributed), plus `## Repro` for a check round'}); then \`wf next\`.\n`;
 }
 

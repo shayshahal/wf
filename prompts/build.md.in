@@ -1,5 +1,7 @@
 # {{round}} — build
 
+{{context}}
+
 {{presentation}}
 
 Implement the agreement at `{{folder}}/{{file}}`.
@@ -17,8 +19,11 @@ Implement the agreement at `{{folder}}/{{file}}`.
 ## How to work
 
 - Choose implementation steps, helpers, delegation and tests proportionate to the task. Keep changes
-  inspectable and honor the human checkpoints agreed for this work. A commit or worker session is
-  not a workflow milestone.
+  inspectable. Before crossing a human-agreed checkpoint, follow
+  `{{skill}}/references/review.md#agreed-checkpoints`; checkpoint approval resumes
+  build, never delivery. A commit or worker session is not a workflow milestone.
+- Before editing a newly discovered area, read its applicable project guidance. The matched notes
+  below reflect the case files and diff when this brief was read, not every file you may touch.
 - Run the project's normal commands through your harness. Choose repetitions, regression coverage
   and baseline comparisons for the behavior being changed. `wf check` is an optional affected-check
   convenience, not a required certificate.
@@ -38,23 +43,13 @@ Implement the agreement at `{{folder}}/{{file}}`.
   contract/persistence choice or dropped agreed item needs a recorded decision and renewed agreement.
   Record newly discovered contract paths under `paths:` in the ticket's `## Scope` and run `wf next`.
 - For a real decision or missing authority, write `{{folder}}/BLOCKED.md` with a contextual
-  `Question:` and stop. Keep changes inside this worktree and respect protected project files.
-- Record the review's live demonstration in the working document's `**T2 walk.**` bullet:
-  the project's `open:` and any `setup:` lines, or `none — <why>`. A setup line is one of the two
-  recipes `wf show` runs, never a shell line, and a `setup:`/`reset:` needs a `ready:` readback:
-  `setup: api updateProduct {"path":{"id":"SG-0001"}} as seller` or
-  `setup: script ["node","{{folder}}/scenario.mjs","prepare"]`. Keep useful captures under
-  `{{folder}}/proof/` with descriptive `before-<label>` / `after-<label>` names.
+  `Question:` and register it with `wf ask --blocked`; follow the questions procedure above.
+- Prepare and revalidate the working document's `**T2 walk.**` against the current scenario,
+  including work after an earlier build. Record the project's replayable open/setup/readback recipe,
+  or `none — <current limitation or why no live walk is needed>`. If a formerly unavailable page
+  becomes demonstrable, update stale `none`. Use the project-owned recipe and full scenario reset
+  during verification; helper cleanup alone is not rollback. Resolve setup/readback gaps before
+  handoff. Keep useful captures under `{{folder}}/proof/` with descriptive before/after names.
 - For UI changes, before/after PR images are required. Follow
   `{{wf}}/process/SHOW-ME.md#ui-changes-required-pr-images`: capture the baseline before editing
   and supply the final pairs under `## UI evidence` in `{{folder}}/{{file}}` before assessment.
-
-When the agreed work and your verification are ready for independent review, commit and run
-`wf step assess`.
-
-Revalidate the T2 walk against the current scenario, including work done after an earlier build.
-If live verification made a formerly unavailable page demonstrable, replace stale `none` with the
-project's replayable open/setup/readback recipe. A capture alone does not require a browser walk:
-a continuing `none` must explain the concrete current limitation or why the work has no live walk.
-Use the recorded project-owned scenario preparation and full reset during verification; helper
-cleanup alone is not rollback. Report a setup/readback gap as repair before handing off T2.
