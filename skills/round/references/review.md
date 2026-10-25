@@ -1,8 +1,8 @@
 # Independent and human review
 
 Use the entry and cwd rules in `../SKILL.md`. Read the review-format and agreement guidance linked
-by `wf notes` when writing those records. Use `process/SHOW-ME.md` from the wf root for compact
-reading and visual presentation. A configured native presentation adapter takes precedence over
+by `wf notes` when writing those records. Use `process/SHOW-ME.md` from the wf root for visual
+presentation (show, don't narrate; ASD-STE100). A configured native presentation adapter takes precedence over
 external review UI and prints a handoff for the session to execute. Set `WF_NO_OPEN=1` for an
 unconfigured UI-owning or remote harness.
 
