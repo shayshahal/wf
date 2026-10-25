@@ -64,8 +64,11 @@ check('a params segment stays for the reviewer to fill', pageOf('packages/fronte
 check('a component is not a page', pageOf('packages/frontend/b2b/src/lib/x.svelte') === null);
 
 // ── teardown
+// The browsers go first: a window keeps the folder as its working folder and Windows will not delete
+// it (#180), so the plan closes them before the database steps. The expectation was not updated with
+// that step and read red on main until 2026-10-25.
 const down = teardown({ slug: 'fix-bjew-1', worktree: 'C:/wt/fix-bjew-1' });
-check('with no machine plugged in, a teardown drops the worktree\'s database, then stranded test databases, in-process', down.map((s) => s.label).join() === 'drop database,drop stranded test databases' && down.every((s) => typeof s.run === 'function' && !s.cmd), down.map((s) => s.label).join());
+check('with no machine plugged in, a teardown closes this checkout\'s browsers, then drops the worktree\'s database and stranded test databases, in-process', down.map((s) => s.label).join() === "close this checkout's browsers,drop database,drop stranded test databases" && down.every((s) => typeof s.run === 'function' && !s.cmd), down.map((s) => s.label).join());
 // The backend's names (tests/support/database.py): <name>_test_<pid>_<8 hex>[_<suffix>]; pid 7 is running.
 const stranded = strandedTestDatabases(['jewelryx', 'jewelryx_fix-bjew-1', 'jewelryx_test_9304_2cb586fe', 'jewelryx_bench-suites_test_15260_b50c2d2b', 'jewelryx_test_9304_2cb586fe_fx', 'jewelryx_test_7_71d9a288', 'jewelryx-test', 'jewelryx_fix-test_1'], (pid) => pid === 7);
 check('stranded: a dead run\'s database and its suffixed one; not a running run\'s, a worktree\'s or one named by hand', stranded.join() === 'jewelryx_test_9304_2cb586fe,jewelryx_bench-suites_test_15260_b50c2d2b,jewelryx_test_9304_2cb586fe_fx', stranded.join());
