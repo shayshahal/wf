@@ -12,6 +12,7 @@ import { randomUUID } from 'node:crypto';
 import { appendFileSync, closeSync, copyFileSync, existsSync, lstatSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync, writeSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { createWorktree, listWorktrees, removalPlan, resolveWorktree, slugForBranch } from '../worktrees/worktree.ts';
+import { currentBranch } from '../git-head.ts';
 import { runRemovalStep } from '../worktrees/removal.ts';
 import { stopWorktreeServers } from '../worktrees/serve.ts';
 
@@ -32,7 +33,7 @@ export const baselineBranchFor = (liveBranch: string) => `wf-baseline/${slugForB
 /** The scratch branch for the round at `toplevel`: its branch name, or a commit-scoped id when HEAD is
  * detached, so two detached rounds at different commits do not share one scratch ref. */
 export function scratchBranchFor(toplevel: string): string {
-	const head = execFileSync('git', ['-C', toplevel, 'rev-parse', '--abbrev-ref', 'HEAD'], { encoding: 'utf8' }).trim();
+	const head = currentBranch(toplevel);
 	const id = head === 'HEAD' ? `detached-${execFileSync('git', ['-C', toplevel, 'rev-parse', '--short=12', 'HEAD'], { encoding: 'utf8' }).trim()}` : head;
 	return baselineBranchFor(id);
 }
