@@ -99,3 +99,7 @@ Disclosure: business 5 runs the same model family as this builder. Per this repo
 Its one objection, E1 (low, non-blocking), was to this file's contention wording. Accepted and corrected above: the lifecycle line carried an empty detail rather than being empty output, deliver-recovery's failure was a real `git config` stack trace, and the contention cause is inferred rather than instrumented. The reviewer's assessment of the coverage claim stands: no all-green aggregate log exists and the full suite was not run.
 
 Nothing here authorizes publication; T2 does, and it is still owed.
+
+## Publication (T2)
+
+Shay answered the Inbox question `q-cf6155b4` (`msg_01M5RXGQ734QYN94W0AMJQM8ZN`): "Publish: push the branch and open the PR against main (your recommendation)". Branch `fix/191-post-merge-tracker-completion` pushed to origin and PR opened against `main`: https://github.com/shayshahal/wf/pull/196. No merge, no tag, no tracker mutation. Checks reported before publishing: focused runs as recorded above (12 green in one run; post-lifecycle and deliver-recovery green alone at the same head), full suite not run, no live Jira/GitHub, destructive old-runtime reap not attempted.
