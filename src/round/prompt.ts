@@ -9,6 +9,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { refuseCaller } from '../refusal.ts';
 import { changedFiles, isRoundPaperwork } from '../gates/check.ts';
+import { currentBranch } from '../git-head.ts';
 import { baseBranch, directUrls, guidance, name as projectName } from '../project.ts';
 import { WF_HOME, WF_ROOT, wfCommand } from '../paths.ts';
 import { anchorToolPaths } from '../plugin/anchor.ts';
@@ -99,7 +100,7 @@ export function composePrompt(argv: string[]) {
 	const assessmentFile = ASSESSMENT_FILE;
 	// The project's direct URLs, {{<app>}}: Node on Windows cannot resolve *.localhost.
 	try {
-		const base = basePortForBranch(execFileSync('git', ['-C', toplevel, 'rev-parse', '--abbrev-ref', 'HEAD'], { encoding: 'utf8' }).trim());
+		const base = basePortForBranch(currentBranch(toplevel));
 		Object.assign(vars, directUrls(base));
 	} catch { /* not in a round worktree */ }
 	// The previous updater anchors every *.md, including during the first upgrade to this release.

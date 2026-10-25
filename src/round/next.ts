@@ -23,6 +23,7 @@ import { contractPaths as contractPathsFile, trackerCompletionGap } from '../pro
 import { classFromFiles } from '../gates/classify.ts';
 import { anticipatedPaths, TICKET_FILE } from './agreement.ts';
 import { changedFiles } from '../gates/check.ts';
+import { currentBranch, headSha } from '../git-head.ts';
 import { lastField, readVerdict } from '../gates/review-format.ts';
 import { wfCommand } from '../paths.ts';
 import { seams } from '../seams.ts';
@@ -332,7 +333,7 @@ export function snapshotOf(toplevel: string): Snapshot {
 	const state = readState(toplevel) ?? {};
 	const dir = join(toplevel, state.folder ?? '');
 	const git = (...args: string[]) => execFileSync('git', ['-C', toplevel, ...args], { encoding: 'utf8' }).trim();
-	const branch = git('rev-parse', '--abbrev-ref', 'HEAD');
+	const branch = currentBranch(toplevel);
 	// 2026-10-10: `wf brief` read this snapshot directly and bypassed runNext's base refusal, emitting
 	// a build prompt with the committed range unknown. Both callers must refuse at the shared reader.
 	const { ref, base } = resolveRoundBase(toplevel, state);
@@ -376,7 +377,7 @@ export function snapshotOf(toplevel: string): Snapshot {
 		assessmentChangedSinceHandoff,
 		assessmentBaselineMissing,
 		assessmentHandoffGap: assessmentHandoffGap(toplevel, state),
-		head: git('rev-parse', 'HEAD'),
+		head: headSha(toplevel),
 		files: {
 			// The agreement is AGREEMENT.md when the working session wrote one (it decided the work is
 			// consequential), else the class A ticket. Reading it here is what lets `wf next` measure the
