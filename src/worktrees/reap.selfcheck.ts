@@ -71,6 +71,10 @@ check('force-reaped but never merged: the branch stays', branchStep({ step: 'rev
   check('a merged round\'s branch is deleted', first.ok && git('branch', '--list', 'cr/x') === '');
   const again = await runRemovalStep(step!);
   check('a branch already gone is already gone, not a failure', again.ok, again.say);
+  const unknown = branchStep({ step: 'merged' }, 'cr/x', join(repo, 'not-a-repository'));
+  if (!unknown) throw new Error('merged branch step missing');
+  const refused = await runRemovalStep(unknown);
+  check('failed git inspection is unknown, never confirmed branch absence', !refused.ok && refused.say.includes('cannot confirm local branch ownership'), refused.say);
   rmSync(repo, { recursive: true, force: true });
 }
 check('a deleted branch is said to be deleted', branchKeptLine({ step: 'merged' }, 'fix/x', true).includes('deleted'));

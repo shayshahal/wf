@@ -133,11 +133,14 @@ export const branchDeleteArgs = (gitDir: string, branch: string) => [`--git-dir=
 // A branch already deleted by hand is "already gone", not a failure: `git branch -D` exits 1 on a
 // missing branch, and reap re-runs its last step from the journal, so that exit 1 repeated forever —
 // the folder deleted, the journal never cleared (2026-10-18, #180's neighbouring report).
+/** Delete only a merged round's local branch; confirmed absence is a repeat-safe success. */
 export function branchStep(state: State | null, branch: string, gitDir: string): RemovalStep | null {
 	if (state?.step !== 'merged') return null;
 	return { label: `delete local branch ${branch}`, run: () => {
 		const ref = `refs/heads/${branch}`;
-		if (spawnSync('git', [`--git-dir=${gitDir}`, 'show-ref', '--verify', '--quiet', ref]).status !== 0) return;
+		const found = spawnSync('git', [`--git-dir=${gitDir}`, 'show-ref', '--verify', '--quiet', ref], { encoding: 'utf8' });
+		if (found.status === 1) return;
+		if (found.status !== 0) throw new Error(`wf reap: cannot confirm local branch ownership: ${found.error?.message ?? found.stderr.trim() ?? found.status}`);
 		const removed = spawnSync('git', branchDeleteArgs(gitDir, branch), { encoding: 'utf8' });
 		if (removed.status !== 0) throw new Error(`${removed.stderr.trim().split('\n').at(-1) || `git branch -D exited ${removed.status}`}`);
 	} };
@@ -170,6 +173,7 @@ export async function runReap(argv: string[]) {
 	const common = execFileSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { encoding: 'utf8' }).trim();
 	const journal = join(common, `wf-reap-${createHash('sha256').update(branch).digest('hex')}.json`);
 	let progress = 0;
+	let rememberedPlan: string[] | null = null;
 	let rememberedMerged = false;
 	let token: string = randomUUID();
 	let directory: string | null = null;
@@ -179,6 +183,10 @@ export async function runReap(argv: string[]) {
 		// A null identity is valid only while the target remains gone. Never adopt a replacement
 		// directory from an interrupted journal that recorded no authority to remove it (#154).
 		if (typeof saved !== 'object' || saved === null || !('branch' in saved) || saved.branch !== branch || !('path' in saved) || typeof saved.path !== 'string' || !isAbsolute(saved.path) || !('next' in saved) || typeof saved.next !== 'number' || !Number.isSafeInteger(saved.next) || saved.next < 0 || !('merged' in saved) || typeof saved.merged !== 'boolean' || !('token' in saved) || typeof saved.token !== 'string' || !('directory' in saved) || (saved.directory !== null && typeof saved.directory !== 'string')) throw new Error('wf reap: invalid recovery journal; nothing removed');
+		if ('plan' in saved) {
+			if (!Array.isArray(saved.plan) || !saved.plan.every((label): label is string => typeof label === 'string' && label.length > 0)) throw new Error('wf reap: invalid recovery plan identity; recovery journal retained');
+			rememberedPlan = saved.plan;
+		}
 		path = saved.path; progress = saved.next; rememberedMerged = saved.merged; token = saved.token; directory = saved.directory;
 	} else {
 		path = resolveWorktree(branch, trees).path;
@@ -215,8 +223,16 @@ export async function runReap(argv: string[]) {
 	// that is still there (2026-10-04, a broken .git: the line was written, then reap stopped).
 	// Read before the worktree goes: the repository the branch lives in.
 	const gitDir = common;
-	const deleteBranch = rememberedMerged ? { label: `delete local branch ${branch}`, cmd: 'git', args: [`--git-dir=${gitDir}`, 'branch', '-D', branch] } : branchStep(state, branch, gitDir);
+	const deleteBranch = branchStep(rememberedMerged ? { step: 'merged' } : state, branch, gitDir);
 	const steps = [...(await removalPlan({ branch, path, slug, pid: process.pid })), ...(deleteBranch ? [deleteBranch] : [])];
+	const plan = steps.map((step) => step.label);
+	// #192: numeric progress alone cannot distinguish an old conditional plan from a shorter one.
+	// Refuse ambiguous legacy progress rather than guessing which destructive effects completed.
+	if (recovering && ((rememberedPlan === null && progress > 0) || (rememberedPlan !== null && JSON.stringify(rememberedPlan) !== JSON.stringify(plan)) || progress > steps.length)) {
+		console.error(`wf reap: recovery plan identity is missing or changed, or progress is out of range; recovery journal ${journal} retained. Inspect the saved cleanup evidence before reconciling; no steps run`);
+		process.exitCode = 1;
+		return;
+	}
 	if (withinTarget(common) || withinTarget(survivor)) throw new Error('wf reap: target contains the surviving repository; nothing removed');
 	const reapLock = force ? acquireProcessLock(`${journal}.lock`) : null;
 	if (reapLock && reapLock.kind === 'refused') {
@@ -246,7 +262,7 @@ export async function runReap(argv: string[]) {
 		if (force && state && !existsSync(journal)) recordFriction(path, state);
 		const save = (next: number) => {
 			const temp = `${journal}.${process.pid}.tmp`;
-			writeFileSync(temp, JSON.stringify({ branch, path, token, directory, next, merged: rememberedMerged || state?.step === 'merged' }));
+			writeFileSync(temp, JSON.stringify({ branch, path, token, directory, next, merged: rememberedMerged || state?.step === 'merged', plan }));
 			renameSync(temp, journal);
 		};
 		if (force) {

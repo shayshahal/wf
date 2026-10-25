@@ -52,11 +52,13 @@ export function linkVerifySkill(worktree: string): string[] {
 // Best effort by design: reap's own release (src/worktrees/show-browser.ts) owns the window wf opened
 // and refuses to report success if it cannot stop it; this step only widens that to sessions wf never
 // started, so it must not turn a teardown into a failure.
+/** Keep browser cleanup in the removal plan even after the checkout has gone; reap persists positions. */
 export function closeBrowsers(worktree: string): RemovalStep[] {
-	const cli = join(worktree, VERIFY_SKILL, 'control-jewelryx.mjs');
-	const playwright = join(worktree, 'verification', 'node_modules', '@playwright', 'cli', 'playwright-cli.js');
-	if (!existsSync(cli) || !existsSync(playwright)) return [];
 	return [{ label: "close this checkout's browsers", run: () => {
+		// #192: a construction-time presence check shifted prune behind saved progress on recovery.
+		const cli = join(worktree, VERIFY_SKILL, 'control-jewelryx.mjs');
+		const playwright = join(worktree, 'verification', 'node_modules', '@playwright', 'cli', 'playwright-cli.js');
+		if (!existsSync(cli) || !existsSync(playwright)) return;
 		const r = spawnSync(process.execPath, [cli, 'cleanup'], { cwd: worktree, encoding: 'utf8', timeout: 60_000 });
 		if (r.status !== 0) console.error(`control-jewelryx cleanup exited ${r.status ?? 'without a status'}: ${`${r.stdout ?? ''}${r.stderr ?? ''}`.trim().split('\n').at(-1) ?? 'no output'}`);
 	} }];
