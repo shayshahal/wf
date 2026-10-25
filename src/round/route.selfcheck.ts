@@ -7,6 +7,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { wfSync } from '../in-process-wf.ts';
 import { assessmentContentSha } from './agreement.ts';
 import { readState } from './state.ts';
 import { agreementSha, revisionSha } from './agreement.ts';
@@ -58,10 +59,8 @@ function repo(branch: string, klass: 'A' | 'B', agreement: string | null) {
 	return { dir, git };
 }
 function cli(dir: string, ...args: string[]) {
-	try { return { out: execFileSync(process.execPath, [join(WF_ROOT, 'wf.mjs'), ...args], { cwd: dir, encoding: 'utf8' }), code: 0 }; } catch (e) {
-		const err = e as { stdout?: string; stderr?: string; status?: number };
-		return { out: `${err.stdout ?? ''}${err.stderr ?? ''}`, code: err.status ?? 1 };
-	}
+	const r = wfSync(args, { cwd: dir });
+	return r.status === 0 ? { out: r.stdout, code: 0 } : { out: `${r.stdout}${r.stderr}`, code: r.status };
 }
 // Route fixtures that start after build carry the verification checkpoint the new boundary requires.
 const checked = (dir: string) => writeFileSync(join(dir, '.wf/checks.log'), `${JSON.stringify({ row: null, result: 'green', content: worktreeContentSha(dir, 'bug-reports/r', null, 'row'), tasks: [] })}\n`);

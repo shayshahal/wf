@@ -4,6 +4,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { wfSync } from '../in-process-wf.ts';
 import { WF_ROOT } from '../paths.ts';
 import { approvalIdentity } from '../gates/content-identity.ts';
 import { agreementSha } from './agreement.ts';
@@ -70,7 +71,7 @@ function fixture(klass: 'A' | 'B' = 'A') {
  const statePath = join(dir, '.wf/state.json');
  const bytes = () => readFileSync(statePath, 'utf8');
  const cli = (...args: string[]) => {
-  const result = spawnSync(process.execPath, [join(WF_ROOT, 'wf.mjs'), ...args], { cwd: dir, env: { ...process.env, WF_FORCE_REAP: '0' }, encoding: 'utf8' });
+  const result = wfSync(args, { cwd: dir, env: { ...process.env, WF_FORCE_REAP: '0' } });
   return { code: result.status, out: `${result.stdout}${result.stderr}` };
  };
  return { dir, git, cli, bytes, statePath, review, reviewBytes: () => readFileSync(join(dir, folder, 'REVIEW.md'), 'utf8') };

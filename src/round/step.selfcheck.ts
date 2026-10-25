@@ -9,6 +9,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { wfSync } from '../in-process-wf.ts';
 import { WF_ROOT } from '../paths.ts';
 import { worktreeContentSha } from '../gates/content-identity.ts';
 import { proofNamingGap } from '../project.ts';
@@ -29,7 +30,7 @@ check('a non-picture never hides a picture that is unnamed', (proofNamingGap(['l
 
 const git = (repo: string, ...args: string[]) => execFileSync('git', ['-C', repo, ...args], { encoding: 'utf8' }).trim();
 const cli = (repo: string, ...args: string[]) => {
-	const run = spawnSync(process.execPath, [join(WF_ROOT, 'wf.mjs'), ...args], { cwd: repo, encoding: 'utf8' });
+	const run = wfSync([...args], { cwd: repo });
 	return { code: run.status, out: `${run.stdout ?? ''}${run.stderr ?? ''}`.trim() };
 };
 // A class A round at `step build` with a green `wf check` of its bytes: proof/ starts absent, so a

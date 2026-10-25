@@ -5,6 +5,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { wfSync } from '../in-process-wf.ts';
 import { WF_ROOT } from '../paths.ts';
 
 let failures = 0;
@@ -23,10 +24,8 @@ writeFileSync(join(dir, 'bug-reports/r/TICKET.md'), '# r — ticket\n## Intent\n
 mkdirSync(join(dir, '.wf'), { recursive: true });
 writeFileSync(join(dir, '.wf/state.json'), `${JSON.stringify({ wf_version: 3, round: 'r', id: 'r', folder: 'bug-reports/r', base: 'main', step: 'classify', class: 'B' }, null, 2)}\n`);
 function cli(...args: string[]) {
-	try { return { out: execFileSync(process.execPath, [join(WF_ROOT, 'wf.mjs'), ...args], { cwd: dir, encoding: 'utf8' }), code: 0 }; } catch (e) {
-		const err = e as { stdout?: string; stderr?: string; status?: number };
-		return { out: `${err.stdout ?? ''}${err.stderr ?? ''}`, code: err.status ?? 1 };
-	}
+	const r = wfSync(args, { cwd: dir });
+	return r.status === 0 ? { out: r.stdout, code: 0 } : { out: `${r.stdout}${r.stderr}`, code: r.status };
 }
 
 const ask = cli('ask', 'x', '--to', 'einat');
