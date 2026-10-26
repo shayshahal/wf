@@ -12,6 +12,7 @@ import { composePrompt } from './prompt.ts';
 import { harnessSession, recordSession } from './session.ts';
 import { agreementFile, consequential } from './agreement.ts';
 import { ensureServers } from '../worktrees/serve.ts';
+import { recoverProjections } from './ask.ts';
 import { readState, toplevelOf } from './state.ts';
 import { correctionStateSha } from './corrections.ts';
 import { PHASES, USAGE } from './prompt.ts';
@@ -55,6 +56,7 @@ export async function runBrief(argv: string[], { stack = ensureServers }: { stac
 	let expectedCorrections = '';
 	try {
 		const toplevel = toplevelOf();
+		recoverProjections(toplevel);
 		const snapshot = snapshotOf(toplevel);
 		expectedCorrections = correctionStateSha({ corrections: snapshot.corrections });
 		const action = nextAction(snapshot, 'brief').say;

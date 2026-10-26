@@ -77,7 +77,11 @@ export type State = {
 	// Local corrections `wf decide` recorded where the build reads them (the agreement's
 	// `## Decisions`): the round's explicit fact, so a resumed build's brief carries them without a
 	// renewed agreement (#114). A correction that changes agreed behavior is `revisions` instead.
-	decisions?: { text: string; at: string }[];
+	// `id` is the operation's identity (`q<n>` for an answered question, `d<k>` for a local decision):
+	// the marker its document line carries, so a retry or recovery never appends it twice (ask.ts).
+	// `doc: 'agreement'` marks one that belongs in the agreement's `## Decisions`; `revise` ones are
+	// carried by `revisions` and are not re-projected after the agreement is rewritten.
+	decisions?: { text: string; at: string; id?: string; doc?: 'agreement'; revise?: true }[];
 	/** Authored instructions retain their own lifecycle, independent of the review verdict. */
 	corrections?: RoundCorrection[];
 	/** Resume unchanged approval only after explicit disposition of the interrupted work. */
