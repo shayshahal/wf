@@ -7,7 +7,7 @@ import { dirname, join } from 'node:path';
 import { refuseCaller } from '../refusal.ts';
 import { CLASSIFY } from '../paths.ts';
 import { dirtyFiles } from '../dirty-files.ts';
-import { openFile, openInEditor, opensWindows } from '../worktrees/editor.ts';
+import { openInEditor, opensWindows } from '../worktrees/editor.ts';
 import { baseBranch, ticketChanges } from '../project.ts';
 import { ensureServers } from '../worktrees/serve.ts';
 import { excludeWfFolder, resolveWorktree } from '../worktrees/worktree.ts';
@@ -225,12 +225,10 @@ export async function runReview(argv: string[], { stack = ensureServers }: { sta
   const beforeAfter = writeBeforeAfter(worktree, round, target.assessmentFiles);
   if (beforeAfter) {
     console.log(`before/after: ${beforeAfter}`);
-    openFile(beforeAfter);
   }
   const agreementHtml = writeAgreement(worktree, round);
   if (agreementHtml) {
     console.log(`agreement: ${agreementHtml}`);
-    openFile(agreementHtml);
   }
   const assessment = target.assessmentFiles.flatMap((name) => assessmentFor(worktree, name));
   const manual = manualFor(worktree);

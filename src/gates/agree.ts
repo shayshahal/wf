@@ -10,7 +10,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { refuseCaller } from '../refusal.ts';
-import { openFile, openInEditor, opensWindows } from '../worktrees/editor.ts';
+import { openInEditor, opensWindows } from '../worktrees/editor.ts';
 import { resolveWorktree } from '../worktrees/worktree.ts';
 import { roundWorkspaceGap } from '../worktrees/session-workspace.ts';
 import { appendDatedSection, devUrlsFor, foldFeedbackLine, agreementPage, renderHeader, renderSkeleton, roundArtifacts } from './review-format.ts';
@@ -101,7 +101,6 @@ export async function runAgree(argv: string[]) {
 		console.log(`wrote ${file}`);
 		return;
 	}
-	openFile(pageFile);
 	if (!existsSync(file)) appendDatedSection(file, renderSkeleton({ round, klass, agreementSha: sha, urls: devUrlsFor(worktree) }));
 	if (!opensWindows()) {
 		console.log(`to annotate: ${toAnnotate}

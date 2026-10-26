@@ -87,8 +87,8 @@ before *Start*.
 
 ## T2
 
-- Before `wf review`, run `wf show` from the worktree. It returns in seconds, leaving a browser window
-  on the round's stack, logged in, on the plan's `open:` page.
+- Before `wf review`, run `wf show` from the worktree. It prepares the plan's scenario and opens no window.
+  The visual proof is a screenshot in `proof/`.
 
 ## This machine
 
