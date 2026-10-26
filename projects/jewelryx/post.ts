@@ -142,8 +142,12 @@ async function ticketChangesOf(state: State | null, keys: string[], own: Own) {
 	if (!since) throw new Error('the round recorded no first step, so there is no start time to compare the ticket against');
 	const auth = Buffer.from(`${email}:${token}`).toString('base64');
 	const checkedAt = new Date().toISOString();
+	// The account the token acts as: its own comments are the round's (ticket-changes.ts changesSince).
+	const me: unknown = await jira(auth, '2/myself');
+	const ownAccount = typeof me === 'object' && me !== null && 'accountId' in me && typeof me.accountId === 'string' ? me.accountId : undefined;
+	if (!ownAccount) throw new Error("Jira did not say which account this token is: cannot tell the round's own comments from other people's");
 	const found = [];
-	for (const key of keys.filter((k) => JIRA_KEY.test(k))) found.push({ key, changes: await changesOf((path) => jira(auth, path), key, since, own(key)) });
+	for (const key of keys.filter((k) => JIRA_KEY.test(k))) found.push({ key, changes: await changesOf((path) => jira(auth, path), key, since, own(key), ownAccount) });
 	return { since, checkedAt, found };
 }
 

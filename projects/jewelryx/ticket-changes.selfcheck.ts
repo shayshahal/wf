@@ -62,5 +62,19 @@ const get = async (path: string) => {
 const fetched = await changesOf(get, 'JX-810', since, own);
 check('changesOf pages the changelog to its end', fetched.length === 4 && paths.filter((p) => p.includes('/changelog')).length === 2, paths.join(' '));
 
+// A comment the round's own token account wrote before any PR existed (JX-436: UI evidence posted ahead of T2).
+const mine = { displayName: 'shay shahal', accountId: 'acct-shay' };
+const theirs = { displayName: 'Einat Shahal', accountId: 'acct-einat' };
+const evidence = { body: 'UI evidence: before/after pictures', created: '2026-10-12T14:00:00.000+0300', updated: '2026-10-12T14:00:00.000+0300', author: mine };
+const reply = { body: 'looks wrong', created: '2026-10-12T14:05:00.000+0300', updated: '2026-10-12T14:05:00.000+0300', author: theirs };
+const edit = { body: 'edited later', created: '2026-09-30T10:00:00.000+0300', updated: '2026-10-12T14:10:00.000+0300', author: mine };
+check("without the account, the round's own pre-PR comment is a change", changesSince({ since, histories: [], comments: [evidence] }).length === 1);
+check("the token account's own comment is not a change", changesSince({ since, histories: [], comments: [evidence], ownAccount: 'acct-shay' }).length === 0);
+check('nor is its own edit of an older comment', changesSince({ since, histories: [], comments: [edit], ownAccount: 'acct-shay' }).length === 0);
+check("another person's comment still is", changesSince({ since, histories: [], comments: [evidence, reply], ownAccount: 'acct-shay' }).map((c) => c.who).join() === 'Einat Shahal');
+check('a comment with no author is still a change', changesSince({ since, histories: [], comments: [{ ...evidence, author: undefined }], ownAccount: 'acct-shay' }).length === 1);
+check('a description edit by the same account still is', changesSince({ since, histories: [{ created: '2026-10-12T14:00:00.000+0300', author: mine, items: [{ field: 'description' }] }], comments: [], ownAccount: 'acct-shay' }).length === 1);
+check('changesOf passes the account through', (await changesOf(async (path) => (path.includes('/changelog') ? { values: [], isLast: true } : { fields: { comment: { comments: [evidence, reply] } } }), 'JX-1', since, undefined, 'acct-shay')).length === 1);
+
 if (failed) process.exit(1);
 console.log('\nall arms green');
