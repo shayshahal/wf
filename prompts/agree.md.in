@@ -4,11 +4,15 @@
 
 {{presentation}}
 
-Write `{{folder}}/{{file}}` using `{{wf}}/process/AGREEMENT-TEMPLATE.md`: what will change, what is
-excluded, the consequential choice and how the result will be checked. Read the class guidance
-linked by `wf notes` for consequential gaps; use `{{wf}}/process/SHOW-ME.md` to deliver the view.
-T1 records the person's approval of the current agreed material before building; follow
-`{{skill}}/references/review.md#t1-consequential-agreement`.
+Write `{{folder}}/{{file}}` with `{{wf}}/process/AGREEMENT-TEMPLATE.md`. It states:
+- what changes
+- what is excluded
+- the consequential choice
+- how the result will be checked
+
+Read the class guidance that `wf notes` links for each consequential gap. Show the person the view
+as `{{wf}}/process/SHOW-ME.md` says. T1 records the person's approval of the agreed material before
+the build. Follow `{{skill}}/references/review.md#t1-consequential-agreement`.
 
 ## The requester's words (verbatim)
 
@@ -16,30 +20,38 @@ T1 records the person's approval of the current agreed material before building;
 
 ## What to record
 
-- `## Observed`: relevant facts, each with its source (`path:line` or the command that measured it).
-- `## Agreed`: behavior, exclusions, the consequential choice with its rejected alternative, and
-  the verification promise. List additions that no source requested under `**Not asked for.**`,
-  with their reason; or `none — <why>`.
-- `## Verification`: one table row per case, `| # | case | files | check |`. The `check` cell names
-  the command or assertion that would show the behavior, or `manual: <what a person looks at>` where
-  only a person can judge it. The `files` cell lists what the case touches (the project refuses a
-  fix/ case that names a protected verification file). The rows are the round's verification plan a
-  builder and reviewer work from; they are not a completion gate, a per-case baseline requirement or
-  an exhaustive file fence, and the builder may refine a command or add affected checks as it learns.
-- For large work, agree human checkpoints and what each shows under `## Agreed`. Leave worker
-  sessions, task breakdown and ordinary implementation choices to the builder. Use a representative
-  visual chunk before propagating a new pattern.
-- Record the `**T2 walk.**` bullet with the project's `open:` / `setup:` recipe, or
-  `none — <why>`. The builder may refine the recipe without changing the agreed behavior.
-- For UI changes, plan the required before/after PR images in
-  `{{wf}}/process/SHOW-ME.md#ui-changes-required-pr-images`; capture the baseline before editing.
+- `## Observed`: the relevant facts. Give a source for each fact: `path:line`, or the command that
+  measured it.
+- `## Agreed`: the behavior, the exclusions, the consequential choice with the alternative that you
+  rejected, and the verification promise.
+  - Put each addition that nobody requested under `**Not asked for.**`, with its reason.
+  - If there is none, write `none — <why>`.
+- `## Verification`: one table row for each case: `| # | case | files | check |`.
+  - The `check` cell names the command or assertion that shows the behavior. If only a person can
+    judge the case, write `manual: <what a person looks at>`.
+  - The `files` cell lists what the case touches. The project refuses a fix/ case that names a
+    protected verification file.
+  - The rows are the verification plan for the builder and the reviewer. They are not a completion
+    gate. They are not a per-case baseline requirement. They are not a complete file fence, and
+    the builder may refine a command or add affected checks.
+- For large work, agree the human checkpoints under `## Agreed`. State what each checkpoint shows.
+  Leave worker sessions, task breakdown and ordinary implementation choices to the builder.
+  Before you spread a new pattern, show one representative visual chunk.
+- Record the `**T2 walk.**` bullet with the project's `open:` and `setup:` recipe, or
+  `none — <why>`. The builder can refine the recipe. The agreed behavior does not change.
+- For a UI change, plan the required before and after PR images. Use
+  `{{wf}}/process/SHOW-ME.md#ui-changes-required-pr-images`. Capture the baseline before you edit.
 
-For a check-only round, follow
-`{{skill}}/references/start.md#reproduction-only-work`: measure and record `## Repro`,
-leave the tracker untouched, and stop for the person's build-or-stop decision.
+For a check-only round, follow `{{skill}}/references/start.md#reproduction-only-work`:
+1. Measure the behavior.
+2. Record `## Repro`.
+3. Do not change the tracker.
+4. Stop. The person decides: build or stop.
 
-Borrowed examples are evidence of required behavior, an existing convention or optional inspiration:
-say which. Draw a screen/contract/code-shape view when it resolves consequential uncertainty
-(`{{wf}}/process/SHOW-ME.md`), not as a universal artifact.
+A borrowed example is one of: evidence of required behavior, an existing convention, or optional
+inspiration. Say which one it is.
+
+Draw a screen, contract or code-shape view when it resolves a consequential uncertainty
+(`{{wf}}/process/SHOW-ME.md`). Do not draw one for every round.
 
 {{revisions}}

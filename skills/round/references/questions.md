@@ -1,43 +1,64 @@
 # Questions and blockers
 
-Use the entry and cwd rules in `../SKILL.md`. A decision lives in the task record, not only in chat
-or an Inbox message.
+Use the entry and cwd rules in `../SKILL.md`. A decision lives in the task record. Never keep it
+only in chat or in an Inbox message.
 
 ## Record, ask, resume
 
-1. For a new unresolved decision, use `wf ask` (`--to <person>` when it belongs to someone else).
-   A builder that cannot proceed writes the brief's `BLOCKED.md` with a `Question:` line; register
-   that question with `wf ask --blocked` before handing it over. Existing `q<n>` questions stay mapped
-   to that same question; do not create duplicates on resume.
-2. For user questions, run `wf inbox`. It sends through the configured optional transport and saves
-   replies. If unavailable, ask with this harness's question tool or directly in chat, quoting the
-   question with its round id. A transport failure does not authorize the default answer.
-3. While awaiting a reply, do only independent authorized work that needs no such ruling, such as
-   read-only investigation or separately authorized tasks. The round's open-question gates still apply;
-   do not force a blocked brief or handoff. Save the handover and end the turn when nothing useful remains. Wakeups are optional: on any later resume,
-   run `wf inbox` again to retrieve replies before `wf next`.
-4. Record the person's clear ruling with `wf decide --q <n> "<their words>"`, then `wf next`. A skipped,
-   ambiguous or conflicting answer remains open; ask for clarification in the same thread.
+1. **Register the question.**
+   - For a new unresolved decision, run `wf ask`. Add `--to <person>` when the decision belongs to
+     someone else.
+   - A builder that cannot proceed writes the `BLOCKED.md` of the brief with a `Question:` line.
+     Before the handover, register that question with `wf ask --blocked`.
+   - An existing `q<n>` question stays mapped to the same question. On resume, do not create
+     duplicates.
+2. **Ask the person.**
+   - Run `wf inbox`. It sends through the configured optional transport and saves the replies.
+   - If it is not available, use the question tool of this harness, or ask in chat. Quote the
+     question with its round id.
+   - A transport failure does not authorize the default answer.
+3. **Wait.**
+   - While you wait, do only independent authorized work that needs no such ruling. Examples:
+     read-only investigation, or separately authorized tasks.
+   - The open-question gates of the round still apply. Do not force a blocked brief or handoff.
+   - When nothing useful remains, save the handover and end the turn.
+   - Wakeups are optional. On each later resume, run `wf inbox` to get the replies before `wf next`.
+4. **Record the ruling.**
+   - Run `wf decide --q <n> "<their words>"`. Then run `wf next`.
+   - A skipped, ambiguous or conflicting answer stays open. Ask for clarification in the same thread.
 
-Done when the actual ruling is saved against its original question and the task's next action
-reflects it. An Inbox reply alone is neither a decision record nor T1/T2 approval.
+Done when the actual ruling is saved against its original question, and the next action of the
+task shows it. An Inbox reply alone is not a decision record. It is not T1 or T2 approval.
 
 ## Changed agreement
 
-An answer changing scope or agreed behavior uses `wf decide --revise --q <n> "<renewed behavior>"`.
-An unsolicited agreement change uses the same command without `--q`. Rework and approve changed
-agreed material before dependent implementation. Accepting an unmet agreed behavior is an agreement
-change, not a chat-only exception.
+- An answer that changes the scope or the agreed behavior: run
+  `wf decide --revise --q <n> "<renewed behavior>"`.
+- An agreement change that nobody asked for: run the same command without `--q`.
+- Rework the changed agreed material and get it approved before the dependent implementation.
+- To accept an agreed behavior that is not met is an agreement change. It is not an exception that
+  lives only in chat.
 
-For a `fix or accept` ruling, record the person's `fix …` or `accept …` answer, not the transport's
-headings. Record `default` only when the person actually chose that default.
+For a `fix or accept` ruling, record the `fix …` or `accept …` answer of the person. Do not record
+the headings of the transport. Record `default` only when the person chose that default.
 
 ## Missing execution capability
 
-Distinguish an engineering decision from a tool, fixture, runtime or permission gap. Record the
-exact failed operation, evidence, owner and smallest recovery/rerun action. A product repair is not
-charged for an unavailable harness capability. Use `capabilities.md` to choose a real fallback.
+Separate an engineering decision from a gap in a tool, a fixture, a runtime or a permission.
+Record:
+- the exact operation that failed
+- the evidence
+- the owner
+- the smallest recovery or rerun action
 
-Use existing authorized setup where possible. Shared configuration changes, unrelated infrastructure
-repair, account changes or a new paid service are separate work requiring authority. Do not expand
-the task into fixing every missing prerequisite. Preserve the task so another session can continue.
+Do not charge a product repair for a harness capability that is not available. Use `capabilities.md`
+to choose a real fallback.
+
+Use the existing authorized setup where possible. These are separate work and need authority:
+- a change of shared configuration
+- a repair of unrelated infrastructure
+- a change to an account
+- a new paid service
+
+Do not grow the task into a fix of every missing prerequisite. Keep the task so that another
+session can continue.

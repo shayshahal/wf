@@ -2,18 +2,35 @@
 
 Use the entry and cwd rules in `../SKILL.md`.
 
-A clear round-linked instruction that arrives from the person in chat, review, Inbox,
-ticket or PR feedback is recorded once with
-`wf correct --source "<actual message/event reference>" --author "<original author>" --scope "<intended scope>" --reason "<why it applies>" "<instruction, verbatim>"`.
-Preserve attribution; ordinary discussion, non-directive approval notes and third-party suggestions
-are not new assignments. A clear instruction is still actionable when delivered beside an approval:
-classify its meaning, not just the review's verdict. If intent is ambiguous, retain the words and ask
-only what is missing. Reuse the exact source identity on retry; explicit replacement uses
-`--supersedes <id,...>`, never timestamps or a rewritten review verdict. Run `wf next`: the build and
-assessment context carries the instruction until it is addressed, blocked or explicitly replaced, and
-an outstanding instruction blocks delivery even when file bytes have not changed. A builder records
-disposition through the command in its brief. When a concrete blocker clears, record
-`wf correct --unblock <id> --note "<what cleared it/source>"`; unblocking is not application. Transport
-or dispatch acknowledgement is not application. After disposition, `wf next` may resume unchanged
-approved delivery; a changed subject follows fresh assessment and T2. A recorded uncertain merge is
-reconciled before repair or follow-up.
+## When to record
+
+A person can give a clear instruction that is linked to the round. It can come in chat, review,
+Inbox, ticket or PR feedback. Record it one time:
+
+`wf correct --source "<actual message/event reference>" --author "<original author>" --scope "<intended scope>" --reason "<why it applies>" "<instruction, verbatim>"`
+
+- Keep the attribution.
+- These are not new assignments: ordinary discussion, approval notes that are not directives, and
+  suggestions from third parties.
+- An instruction that arrives beside an approval is still actionable. Classify its meaning. Do not
+  classify only the verdict of the review.
+- If the intent is not clear, keep the words. Ask only for what is missing.
+
+## Retry and replace
+
+- On retry, use the same source identity.
+- To replace an instruction, use `--supersedes <id,...>`. Never use timestamps. Never rewrite a
+  review verdict.
+
+## After you record it
+
+1. Run `wf next`. The build context and the assessment context carry the instruction until it is
+   addressed, blocked or explicitly replaced.
+2. An open instruction blocks delivery, also when the file bytes did not change.
+3. The builder records the disposition with the command in its brief.
+4. When a concrete blocker clears, run
+   `wf correct --unblock <id> --note "<what cleared it/source>"`. Unblocking is not application.
+5. A transport or dispatch acknowledgement is not application.
+6. After the disposition, `wf next` can resume an approved delivery that did not change. If the
+   subject changed, it needs a fresh assessment and T2.
+7. Reconcile a recorded uncertain merge before you repair or follow up.
