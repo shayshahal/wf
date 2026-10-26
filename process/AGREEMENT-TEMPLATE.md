@@ -1,14 +1,18 @@
 # The working agreement
 
-Class A uses `TICKET.md`; consequential class B/C work uses `AGREEMENT.md`.
-The requester's words remain verbatim in the ticket's `## Intent`.
-T1 binds `## Observed` + `## Agreed`; verification details and implementation notes can evolve
-without renewing unchanged direction.
+- Class A uses `TICKET.md`. Consequential class B/C work uses `AGREEMENT.md`.
+- The words of the requester stay verbatim in `## Intent` of the ticket.
+- T1 binds `## Observed` + `## Agreed`.
+- Verification details and implementation notes can change. Unchanged direction needs no renewal.
 
-Use the decision-sheet style in `SHOW-ME.md`: short sourced facts, one claim per bullet, and a
-before/after, diagram or generated view where it replaces explanation. Keep the whole agreed scope
-visible; put logs and routine implementation detail behind references. The labels below are prompts
-for concise content, not an invitation to write a paragraph under each.
+Use the decision-sheet style in `SHOW-ME.md`:
+- short facts with a source
+- one claim in each bullet
+- a before/after, a diagram or a generated view, where it replaces an explanation
+- the whole agreed scope is visible
+- logs and routine implementation detail are behind references
+
+The labels below tell you what content to write. Do not write a paragraph under each label.
 
 ```markdown
 # AGREEMENT — <ID> · <ticket title>
@@ -35,9 +39,16 @@ for concise content, not an invitation to write a paragraph under each.
 <recorded rulings>
 ```
 
-The `**T2 walk.**` bullet is the recipe `wf show` replays at T2: the project's `open:` target, then
-one line per state the seed lacks, or `none — <why>`. A setup line takes one of the two forms the
-project's `wf show` runs — its SDK call, or an argv script — never a shell line:
+## The T2 walk
+
+The `**T2 walk.**` bullet is the recipe that `wf show` replays at T2. It has:
+1. The `open:` target of the project.
+2. One line for each state that the seed lacks.
+3. Or `none — <why>`.
+
+A setup line has one of two forms. The `wf show` of the project runs both. Never write a shell line.
+- an SDK call
+- an argv script
 
 ```markdown
 - **T2 walk.** open: b2b /catalog/rings as buyer
@@ -50,27 +61,48 @@ project's `wf show` runs — its SDK call, or an argv script — never a shell l
   setup: script ["node","<round>/scenario.mjs","prepare"]
 ```
 
-A `setup:` or `reset:` line needs a `ready:` readback that proves the scenario before and after it.
-Anything else — `setup: cd packages/backend && uv run …` — is refused at the build/assess handoff
-(`wf step assess`, `wf next`) so the builder can rewrite it, not first at T2.
+- A `setup:` or `reset:` line needs a `ready:` readback. The readback proves the scenario before
+  and after the line.
+- Any other form is refused, for example `setup: cd packages/backend && uv run …`. The refusal
+  comes at the build/assess handoff (`wf step assess`, `wf next`). The builder can then rewrite
+  the line. It does not come first at T2.
 
-The `## Verification` rows are the round's verification plan: what will be checked, the command or
-assertion that shows it, and the files it touches. They are working guidance, not executable
-workflow state: a builder may refine a command or add affected checks, and no row is a completion
-gate. A proof only a person can make says `manual: <what they look at>` and reaches T2 as a check the
-person makes. The `files` cell still matters where the project refuses a `fix/` case that names a
-protected verification file.
+## The verification rows
 
-The builder may change helpers, files, test selections and setup within the agreement. A new
-user-visible behavior, consequential contract/persistence choice or dropped agreed item renews
-`## Agreed` through `wf decide --revise` and T1. List unrequested additions separately so the
-person can judge them rather than finding them buried inside another bullet.
+The `## Verification` rows are the verification plan of the round. Each row has: what is checked,
+the command or assertion that shows it, and the files that it touches.
+- The rows are working guidance. They are not executable workflow state.
+- A builder may refine a command or add affected checks.
+- No row is a completion gate.
+- A proof that only a person can make says `manual: <what they look at>`. It reaches T2 as a check
+  that the person makes.
+- The `files` cell still matters where the project refuses a `fix/` case that names a protected
+  verification file.
 
-`wf agree <round>` renders the agreed material and records the person's comments and verdict in
-`AGREEMENT-REVIEW.md`. What T1 binds is `## Observed` + `## Agreed`; refining a `## Verification`
+## Changes
+
+The builder may change helpers, files, test selections and setup inside the agreement. These renew
+`## Agreed` through `wf decide --revise` and T1:
+- a new user-visible behavior
+- a consequential contract or persistence choice
+- a dropped agreed item
+
+List each unrequested addition on its own. Then the person can judge it. Do not bury it in another
+bullet.
+
+## T1 record
+
+`wf agree <round>` renders the agreed material. It records the comments and the verdict of the
+person in `AGREEMENT-REVIEW.md`. T1 binds `## Observed` + `## Agreed`. To refine a `## Verification`
 row does not renew it.
 
-A check-only round records the reproduction the agent actually ran — command, observed result,
-setup/reset and limitations — under `## Repro`; there is no fixed run count and wf does not
-interpret assertion output seen there. See [Human touchpoints](HUMAN-TOUCHPOINTS.md) for T1,
-optional checkpoints and T2.
+## Check-only round
+
+A check-only round records the reproduction that the agent actually ran under `## Repro`:
+- the command
+- the observed result
+- the setup and reset
+- the limits
+
+There is no fixed run count. wf does not interpret the assertion output. See
+[Human touchpoints](HUMAN-TOUCHPOINTS.md) for T1, optional checkpoints and T2.

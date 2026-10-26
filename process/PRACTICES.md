@@ -1,21 +1,32 @@
 # Practices
 
-**Isolate work.** One round, one worktree and branch created by `wf new`. Change only that
-worktree; leave other rounds, shared Git configuration and protected project files alone.
+**Isolate work.**
+- One round has one worktree and one branch. `wf new` creates them.
+- Change only that worktree.
+- Do not touch other rounds, shared Git configuration or protected project files.
 
-**Verify the behavior.** Choose project commands and scenario setup for the actual claim. For a
-bug, a before/after comparison can distinguish the defect; preservation and refactors need relevant
-regression evidence, not a mandatory baseline replay. A passing proxy assertion is not the promised
-outcome. State missing evidence and setup/runner failures plainly.
+**Verify the behavior.**
+- Choose the project commands and the scenario setup for the actual claim.
+- Bug: a before/after comparison can show the defect.
+- Preservation and refactors: relevant regression evidence is enough. A baseline replay is not
+  mandatory.
+- A passing proxy assertion is not the promised outcome.
+- State plainly: missing evidence, setup failures and runner failures.
 
-**Keep evidence accessible.** Cite commands, observed output and relevant captures from harness
-records or the working document. Reuse evidence whose inputs still apply; remeasure what changed.
-A completion claim is judgment backed by evidence, not a specially formatted wf certificate.
+**Keep evidence accessible.**
+- Cite commands, observed output and relevant captures. Use the harness records or the working
+  document.
+- Reuse evidence when its inputs still apply. Measure again what changed.
+- A completion claim is a judgment with evidence. It is not a wf certificate in a special format.
 
-**Keep work inspectable.** Choose bounded steps and delegation to fit the task. Honor agreed human
-checkpoints; commits and worker-session boundaries do not require independent assessments.
+**Keep work inspectable.**
+- Choose bounded steps and delegation that fit the task.
+- Respect the human checkpoints that were agreed.
+- A commit or a worker-session boundary does not require an independent assessment.
 
-**Review independently.** Before final T2, a reviewer who did not write the code judges intent,
-behavior/evidence, consequential design and applicable standards. The reviewer explicitly chooses
-clean, repair or blocked. Fixable work returns to the builder; a real decision goes to the person.
-Final human approval identifies the reviewed implementation and is the authority to deliver.
+**Review independently.**
+- Before the final T2, a reviewer who did not write the code judges these: intent, behavior and
+  evidence, consequential design, applicable standards.
+- The reviewer chooses explicitly: clean, repair or blocked.
+- Work that can be fixed returns to the builder. A real decision goes to the person.
+- The final human approval names the reviewed implementation. It is the authority to deliver.
