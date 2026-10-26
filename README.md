@@ -131,7 +131,6 @@ and resume rather than claiming to run after exit.
 - `docs/plans/2026-09-17-workflow-v2.md`: the plan wf was built from (history; done)
 - `docs/research/papers-and-first-principles.md`: what wf is for, and the five papers read after it was built
 - `docs/research/show-me-maintainability-papers.html`: five papers on what happens to agent code after it merges, against wf (notes per paper in `docs/research/papers/`)
-- `docs/demo/`: the agreement pages rendered (`process/SHOW-ME.md`, `agreementPage`, the `manual:` cell) — `node docs/demo/make-demo.mjs`, then open `.wf/AGREEMENT-T1.html` (T1, the page `wf agree` annotates) and `.wf/AGREEMENT.html` (T2)
 
 Runtime templates name wf's files as `{{wf}}/…` and project notes as `{{project}}/…`.
 `wf prompt` / `wf brief` and `wf notes` fill in the current paths when read (`anchor.ts`); installation

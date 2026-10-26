@@ -1,8 +1,7 @@
 // review-format.ts — the REVIEW-FORMAT.md contract in code, shared by T1 (SPEC-REVIEW.md)
 // and T2 (REVIEW.md): foldFeedbackLine(jsonLine) + renderHeader/renderSkeleton (pure),
 // plus worktree IO helpers (devUrlsFor, appendDatedSection).
-import { appendFileSync, existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
-import { relative } from 'node:path';
+import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { pageOf, stackUrls } from '../project.ts';
 import type { ContentIdentity } from './content-identity.ts';
 import { basePortForBranch, listWorktrees, slugForBranch, urlLines } from '../worktrees/worktree.ts';
@@ -15,14 +14,14 @@ export const VERDICTS = ['approved', 'changes-requested', 'dismissed'];
 export const verdictOf = (d: string | undefined) => (d === 'approved' || d === 'lgtm' || d === 'approved-with-notes' ? 'approved' : d === 'dismissed' ? 'dismissed' : 'changes-requested');
 
 // One annotation, as Plannotator logs it on submit. The `element*` fields and `originalText` are what the
-// annotate surface reports when its document is a raw-rendered page (agreementPage): no file and no blockId,
+// annotate surface reports when its document is a raw-rendered page (an older page): no file and no blockId,
 // but the element the comment landed on and the selector/path back to it.
 export type Annotation = { text?: string; file?: string; lineStart?: number; lineEnd?: number; blockId?: string; originalText?: string; elementSelector?: string; elementPath?: string };
 // The line a review UI returns (seams.reviewUI), or the JSON text of one. `target` is the file on
 // Plannotator's annotate surface, and what was diffed on its review surface.
 export type ReviewFeedback = { decision?: string; feedback?: string; message?: string; annotations?: Annotation[]; target?: string | { review?: { base?: string; changedFiles?: number } } };
 
-// Pure: the source line a comment on a rendered page points at. agreementBody tags every block `wf-src-<line>`;
+// Pure: the source line a comment on a rendered page points at. an older agreement page tagged every block `wf-src-<line>`;
 // Plannotator hands that tag back in elementSelector and elementPath (measured on 0.28.5, 2026-10-06: an
 // element's first class is dropped from elementPath when it has more than one — the selector keeps them
 // all — and an id survives both, while the attributes never arrive at all). The last match is the block
@@ -185,8 +184,6 @@ export function captionFor(name: string, texts: (string | null | undefined)[]) {
   return line ? line.replace(/`/g, '').replace(`proof/${name}`, '').replace(/^[\s\-—:|]+|[\s\-—:|]+$/g, '').trim() : '';
 }
 
-const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-
 // Pure: the T2 header lines for the round's before/after pictures, one line per pair: both file paths
 // (absolute, from `dir`, the proof folder) and the caption. No page is written (2026-10): the pictures are
 // shown in the review file, in chat and in the PR (`wf post`), and a missing side says `none`.
@@ -196,176 +193,6 @@ export function beforeAfterLines({ pairs, captions, dir }: { pairs: ProofPair[];
     const caption = [...new Set([p.before, p.after].map((n) => (n ? captions[n] ?? '' : '')).filter(Boolean))].join(' / ');
     return `look at ${'n' in p ? p.n : p.label}: before ${path(p.before)} · after ${path(p.after)}${caption ? ` — ${caption}` : ''}`;
   });
-}
-
-// ── the agreement page ──────────────────────────────────────────────────────
-// The agreement, rendered: `wf agree` shows the agreed material at T1 (.wf/AGREEMENT-T1.html) and
-// `wf review` no longer writes a page for it. The markdown stays the file of
-// record. At T1 the page is what the person annotates, so the page has to say which AGREEMENT.md line
-// each block is: agreementBody tags them `wf-src-<line>` and pageLine reads the tag back out of what
-// Plannotator reports. The page is also where SHOW-ME.md's views read as views — diff blocks coloured,
-// a mermaid block drawn, the Asks copyable, the round's own HTML artifacts embedded. Mermaid comes
-// from a CDN and its source stays readable when there is none: the page is opened on the person's
-// machine, never fetched by wf (and under Claude Code the screen that shows it is the review UI,
-// editor.ts).
-export type AgreementArtifact = { title: string; src: string };
-
-// Pure: the round folder's own HTML files (SHOW-ME.md artifacts), as the page embeds them. `from` is
-// the folder the page is written in (.wf), so each src is relative to it.
-export function roundArtifacts(roundDir: string, from: string): AgreementArtifact[] {
-	if (!existsSync(roundDir)) return [];
-	const base = relative(from, roundDir).replace(/\\/g, '/');
-	return readdirSync(roundDir).filter((f) => f.endsWith('.html')).sort()
-		.map((f) => ({ title: f, src: `${base === '.' ? '' : `${base}/`}${f}` }));
-}
-
-// Pure: one diff line as a coloured span. The markers are the call stack's own (`CALL-STACK-FORMAT.md`):
-// `+` added, `-` removed, `~` changed, no marker unchanged — and a hop is indented, so the marker is
-// the first non-space character, not the first (a `+` under two spaces of indent is still an addition).
-const MARKERS = { '+': 'add', '-': 'del', '~': 'chg' } as const;
-const diffRow = (line: string) => {
-	const marker = /^\s*([+\-~])/.exec(line)?.[1] as keyof typeof MARKERS | undefined;
-	return `<span class="${marker ? MARKERS[marker] : 'ctx'}">${escapeHtml(line) || ' '}</span>`;
-};
-
-// Pure: an agreement's markdown → the small part of it wf writes. Fenced blocks keep their shape:
-// a `diff` block and a bare one (where the call stacks live) are coloured by marker, `mermaid` is left
-// for the script `agreementPage` adds. Tables render as cells, with each row keeping its source line.
-export function agreementBody(md: string, base = 0): string {
-	const out: string[] = [];
-	const lines = md.replace(/\r\n/g, '\n').split('\n');
-	const inline = (s: string) => escapeHtml(s).replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>').replace(/`([^`]+)`/g, '<code>$1</code>');
-	// Each block opens tagged with its markdown line: `wf-src-<line>`, `base` lines into the document the
-	// section was cut from. The tag goes in as the first class *and* as the id: the two fields Plannotator
-	// reports it in serialize differently (measured 2026-10-06, 0.28.5 — a click on the ASK's `<strong>`
-	// came back `#wf-src-50 > strong`, `body > blockquote#wf-src-50 > strong`), and picking one rule of a
-	// third-party's string builder is how a fold silently stops finding lines. The styling class follows.
-	const openTag = (name: string, i: number, cls = '') => `<${name} class="${[`wf-src-${base + i + 1}`, cls].filter(Boolean).join(' ')}" id="wf-src-${base + i + 1}">`;
-	let list = false;
-	// The indentation of each open nested <ul>, innermost last: a nested bullet is its own list inside
-	// the open <li>, so a comment on it folds onto its own line instead of flattening into the parent
-	// (#114 closure, F7). A plain indented line (no bullet) is still a wrapped continuation.
-	const nest: number[] = [];
-	const close = () => {
-		if (list) { while (nest.length) { out.push('</ul></li>'); nest.pop(); } out.push('</ul>'); list = false; }
-	};
-	for (let i = 0; i < lines.length; i++) {
-		const line = lines[i];
-		const fence = /^```(\w*)\s*$/.exec(line);
-		if (fence) {
-			close();
-			const start = i;
-			const body: string[] = [];
-			for (i++; i < lines.length && !/^```\s*$/.test(lines[i]); i++) body.push(lines[i]);
-			out.push(fence[1] === 'mermaid' ? `${openTag('pre', start, 'mermaid')}${escapeHtml(body.join('\n'))}</pre>`
-				: fence[1] === 'diff' || fence[1] === '' ? `${openTag('pre', start, 'diff')}${body.map(diffRow).join('\n')}</pre>`
-					: `${openTag('pre', start, 'lang')}${escapeHtml(body.join('\n'))}</pre>`);
-			continue;
-		}
-		if (/^\|/.test(line)) {
-			close();
-			const start = i;
-			const rows = [line];
-			while (i + 1 < lines.length && /^\|/.test(lines[i + 1])) rows.push(lines[++i]);
-			const cells = (row: string) => row.trim().replace(/^\||\|$/g, '').split(/(?<!\\)\|/).map((cell) => cell.trim().replace(/\\\|/g, '|'));
-			const header = cells(rows[0]);
-			if (rows.length < 2 || cells(rows[1]).length !== header.length || !cells(rows[1]).every((cell) => /^:?-{3,}:?$/.test(cell))) {
-				out.push(`${openTag('pre', start, 'table')}${escapeHtml(rows.join('\n'))}</pre>`);
-				continue;
-			}
-			out.push(`<div class="table-scroll"><table><thead>${openTag('tr', start)}${header.map((cell) => `<th scope="col">${inline(cell)}</th>`).join('')}</tr></thead><tbody>`);
-			for (let row = 2; row < rows.length; row++) out.push(`${openTag('tr', start + row)}${cells(rows[row]).map((cell) => `<td>${inline(cell)}</td>`).join('')}</tr>`);
-			out.push('</tbody></table></div>');
-			continue;
-		}
-		const head = /^(#{1,3})\s+(.*)$/.exec(line);
-		if (head) { close(); out.push(`${openTag(`h${head[1].length}`, i)}${inline(head[2])}</h${head[1].length}>`); continue; }
-		const item = /^[-*]\s+(.*)$/.exec(line);
-		if (item) { if (!list) { out.push('<ul>'); list = true; } while (nest.length) { out.push('</ul></li>'); nest.pop(); } out.push(`${openTag('li', i)}${inline(item[1])}</li>`); continue; }
-		const nested = /^(\s+)[-*]\s+(.*)$/.exec(line);
-		if (list && nested) {
-			const indent = nested[1].length;
-			while (nest.length && indent < nest[nest.length - 1]) { out.push('</ul></li>'); nest.pop(); }
-			if (!nest.length || indent > nest[nest.length - 1]) { out[out.length - 1] = out[out.length - 1].replace(/<\/li>$/, ''); out.push('<ul>'); nest.push(indent); }
-			out.push(`${openTag('li', i)}${inline(nested[2])}</li>`);
-			continue;
-		}
-		if (/^>/.test(line)) {
-			close();
-			const start = i;
-			const quote = [line.replace(/^>\s?/, '')];
-			while (i + 1 < lines.length && /^>/.test(lines[i + 1])) quote.push(lines[++i].replace(/^>\s?/, ''));
-			out.push(`${openTag('blockquote', start, 'ask')}${quote.map(inline).join('<br>')}<button class="copy" type="button">copy</button></blockquote>`);
-			continue;
-		}
-		// An indented line under an open list item continues it. The agreement template wraps a long
-		// bullet onto a 2-space continuation line; closing the list here split the sentence out as a
-		// sibling <p> on every T1/T2 page (render-check, 2026-10-10). The continuation keeps its own
-		// `wf-src-<line>` so a comment on it still folds onto its agreement line (review-format.ts pageLine).
-		if (list && /^\s+\S/.test(line)) {
-			const n = base + i + 1;
-			out[out.length - 1] = out[out.length - 1].replace(/<\/li>$/, ` <span class="wf-src-${n}" id="wf-src-${n}">${inline(line.trim())}</span></li>`);
-			continue;
-		}
-		if (!line.trim()) continue;
-		close();
-		out.push(`${openTag('p', i)}${inline(line)}</p>`);
-	}
-	close();
-	return out.join('\n');
-}
-
-// `theme` follows the page's own scheme: mermaid's default theme writes dark text, which is
-// unreadable on the dark page the browser paints for `color-scheme: light dark` (seen in the demo,
-// 2026-10-06 — the sequence diagram came out dark-on-dark). Offline the block keeps its source.
-const MERMAID = '<script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";mermaid.initialize({startOnLoad:false,theme:matchMedia("(prefers-color-scheme: dark)").matches?"dark":"default"});await mermaid.run({querySelector:".mermaid"});</script>';
-// The copy button on an ASK. Plannotator hosts this page in an `<iframe sandbox="allow-scripts">` with no
-// allow-same-origin (its 0.28.5 binary, 2026-10-06): the script runs, but the frame's origin is opaque and
-// the clipboard API can refuse there, where a plain browser tab does not. The textarea path is the old
-// fallback, so the button does something rather than nothing when the API says no.
-const COPY_ASK = '<script>const wfCopy=(t)=>{const a=document.createElement("textarea");a.value=t;document.body.appendChild(a);a.select();let ok=false;try{ok=document.execCommand("copy")}catch(e){ok=false /* no clipboard in this frame: the person copies by hand */}a.remove();return ok};document.addEventListener("click",(e)=>{const b=e.target.closest("button.copy");if(!b)return;const t=b.parentElement.innerText.replace(/copy$/,"").trim();const done=()=>{b.textContent="copied"};if(navigator.clipboard)navigator.clipboard.writeText(t).then(done,()=>{wfCopy(t);done()});else{wfCopy(t);done()}});</script>';
-
-// Pure: the standalone page for an agreement section. `base` is the line the section starts at in the
-// document it was cut from: with it each block's tag is a line of that document (agree.ts, review.ts).
-export function agreementPage({ title, meta, section, artifacts = [], base = 0 }: { title: string; meta: string[]; section: string; artifacts?: AgreementArtifact[]; base?: number }) {
-	const body = agreementBody(section, base);
-	const hasClass = (cls: string) => new RegExp(`class="[^"]*\\b${cls}\\b`).test(body);
-	return `<!doctype html>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escapeHtml(title)}</title>
-<style>
-:root{color-scheme:light dark}
-body{font:15px/1.55 system-ui,sans-serif;margin:0 auto;padding:24px;max-width:1100px}
-h1{font-size:20px;margin:0 0 4px}
-h2{font-size:17px;margin:28px 0 8px;border-bottom:1px solid #8884;padding-bottom:4px}
-h3{font-size:15px;margin:20px 0 6px}
-.meta{color:#777;font-size:13px;margin-bottom:20px}
-pre{background:#8881;border:1px solid #8883;border-radius:6px;padding:10px 12px;overflow:auto;font:13px/1.45 ui-monospace,Consolas,monospace}
-.table-scroll{max-width:100%;overflow-x:auto;margin:12px 0}
-table{border-collapse:collapse;width:100%;font-size:14px}
-th,td{text-align:start;vertical-align:top;padding:8px 12px;border:1px solid #8884;overflow-wrap:break-word}
-th{background:#8882;font-weight:600}
-@media(max-width:600px){body{padding:12px}th,td{padding:6px}}
-pre.diff span{display:block;white-space:pre}
-pre.diff .add{color:#187a3c;background:#2e7d3218}
-pre.diff .del{color:#a32323;background:#c6282818}
-pre.diff .chg{color:#8a6d00;background:#f9a82518}
-@media (prefers-color-scheme:dark){pre.diff .add{color:#4ade80}pre.diff .del{color:#f87171}pre.diff .chg{color:#fbbf24}.meta,figcaption{color:#aaa}footer{color:#999}}
-code{background:#8882;border-radius:3px;padding:1px 4px;font-size:.92em}
-blockquote.ask{margin:10px 0;padding:8px 12px;border-left:3px solid #4a7;background:#4a71}
-button.copy{float:right;font:11px system-ui;cursor:pointer;border:1px solid #8886;background:transparent;border-radius:4px;padding:2px 8px;color:inherit}
-figure{margin:16px 0}
-figcaption{color:#777;font-size:12px;margin-bottom:4px}
-iframe{width:100%;height:520px;border:1px solid #8884;border-radius:6px;background:#fff}
-footer{color:#888;font-size:12px;margin-top:40px;border-top:1px solid #8883;padding-top:8px}
-</style>
-<h1>${escapeHtml(title)}</h1>
-<div class="meta">${meta.map((m) => `<div>${escapeHtml(m)}</div>`).join('')}</div>
-${body}
-${artifacts.length ? `<h2>Views</h2>\n${artifacts.map((a) => `<figure><figcaption><a href="${escapeHtml(a.src)}">${escapeHtml(a.title)}</a></figcaption><iframe src="${escapeHtml(a.src)}" loading="lazy"></iframe></figure>`).join('\n')}` : ''}
-<footer>The markdown is the file of record; this page is it rendered, with the views drawn. Generated by wf.</footer>
-${hasClass('mermaid') ? MERMAID : ''}
-${hasClass('copy') ? COPY_ASK : ''}
-`;
 }
 
 // Last `verdict: <v>` line wins; anything but a real verdict (e.g. pending) → null.
