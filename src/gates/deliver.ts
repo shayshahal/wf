@@ -862,7 +862,7 @@ async function runLockedDelivery(toplevel: string) {
 	// feat/ branch must not carry them. A base the guard cannot resolve fails closed with one line.
 	let protectedGap: string | null;
 	try {
-		protectedGap = protectedFilesGap(toplevel);
+		protectedGap = protectedFilesGap(toplevel, baseRef);
 	} catch (error) {
 		protectedGap = error instanceof Error ? error.message : String(error);
 	}

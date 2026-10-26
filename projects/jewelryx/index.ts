@@ -276,13 +276,13 @@ export function agreementCaseGap({ branch, rows }: { branch: string | null; rows
 // The oracle files the worktree differs from the base in (checks.ts, the oracle guard): committed, staged,
 // unstaged and untracked, where the guard itself reads only commits. Empty off a fix/ or feat/ branch.
 // The base as the guard reads it: origin/<base> when there is one, else the local branch.
-function oracleTouched(toplevel: string): string[] {
+function oracleTouched(toplevel: string, roundBase?: string): string[] {
 	const git = (args: string[]) => spawnSync('git', ['-C', toplevel, ...args], { encoding: 'utf8', windowsHide: true });
 	const branchResult = git(['branch', '--show-current']);
 	if (branchResult.status !== 0) throw new Error('protected files: cannot read the current branch');
 	const branch = branchResult.stdout.trim();
 	if (!PRODUCT_BRANCH.test(branch)) return [];
-	const base = git(['rev-parse', '--verify', '--quiet', `origin/${baseBranch}`]).status === 0 ? `origin/${baseBranch}` : baseBranch;
+	const base = roundBase ?? (git(['rev-parse', '--verify', '--quiet', `origin/${baseBranch}`]).status === 0 ? `origin/${baseBranch}` : baseBranch);
 	const resolved = git(['merge-base', base, 'HEAD']);
 	const mergeBase = resolved.stdout.trim();
 	if (resolved.status !== 0 || !mergeBase) throw new Error('protected files: cannot resolve the project base');
@@ -352,9 +352,10 @@ export function checks({ toplevel, changed }: { toplevel: string; changed: strin
 }
 
 /** Protected oracle edits are refused independently of commands or case tables. */
-export function protectedFilesGap(toplevel: string): string | null {
+// `roundBase` is the round's own base ref (a release-branch round: origin/v1.1); default is the project base.
+export function protectedFilesGap(toplevel: string, roundBase?: string): string | null {
 	try {
-		const touched = oracleTouched(toplevel);
+		const touched = oracleTouched(toplevel, roundBase);
 		return touched.length ? `protected oracle files differ from the base: ${touched.join(', ')}; coverage belongs on a verification branch` : null;
 	} catch (error) {
 		return `protected files: could not inspect the project diff: ${error instanceof Error ? error.message : String(error)}`;

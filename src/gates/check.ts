@@ -83,7 +83,7 @@ export async function runCheck(argv: string[] = []): Promise<void> {
 	};
 	const { ref, base } = resolveRoundBase(toplevel, state);
 	if (!base) { refuse(`the round's base \`${ref}\` does not resolve`); return; }
-	const protectedGap = protectedFilesGap(toplevel);
+	const protectedGap = protectedFilesGap(toplevel, ref);
 	if (protectedGap) { refuse(protectedGap); return; }
 	const tasks = checks({ toplevel, changed: changedFiles(toplevel, base) });
 	if (!tasks.length) { console.log('wf check: no affected project checks; no measurement recorded'); return; }

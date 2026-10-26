@@ -181,6 +181,15 @@ check('agreementCaseGap is what the agreement gap asks', agreementCaseGap({ bran
   check('row check: an untracked new oracle file is refused', guard()?.includes('verification/new.spec.ts') === true);
   git('checkout', '-q', '-b', 'verification/y');
   check('row check: a verification/ branch may edit it', guard() === undefined);
+  // A round cut from a release branch is judged against that branch, not against dev (JX-1476).
+  rmSync(join(repo, 'verification', 'new.spec.ts'));
+  git('checkout', '-q', 'dev');
+  git('checkout', '-q', '-b', 'rel');
+  writeFileSync(join(repo, 'verification', 'a.spec.ts'), 'rel');
+  git('commit', '-q', '-am', 'release moved the oracle');
+  git('checkout', '-q', '-b', 'fix/from-rel');
+  check('release round: judged against the project base, the release oracle edit is refused', guard()?.includes('verification/a.spec.ts') === true);
+  check('release round: judged against its own base (rel), nothing is refused', protectedFilesGap(repo, 'rel') === null);
   rmSync(repo, { recursive: true, force: true });
 }
 
