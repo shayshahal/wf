@@ -12,7 +12,7 @@ import { baseBranch, ticketChanges } from '../project.ts';
 import { ensureServers } from '../worktrees/serve.ts';
 import { excludeWfFolder, resolveWorktree } from '../worktrees/worktree.ts';
 import { roundWorkspaceGap } from '../worktrees/session-workspace.ts';
-import { appendDatedSection, approvalContentGap, beforeAfterPage, captionFor, devUrlsFor, foldFeedbackLine, lastField, needsFreshReviewHeader, agreementPage, proofPairs, readVerdict, renderHeader, renderSkeleton, reviewScopeBinding, roundArtifacts, scopedApprovalGap } from './review-format.ts';
+import { appendDatedSection, approvalContentGap, beforeAfterLines, captionFor, devUrlsFor, foldFeedbackLine, lastField, needsFreshReviewHeader, proofPairs, readVerdict, renderHeader, renderSkeleton, reviewScopeBinding, scopedApprovalGap } from './review-format.ts';
 import { approvalIdentity, approvalPaperworkExcluded, trackerNotePath } from './content-identity.ts';
 import type { ContentIdentity } from './content-identity.ts';
 import { seams } from '../seams.ts';
@@ -86,45 +86,23 @@ export function reviewFiles(diff: string[], assessment: string, onDisk: boolean)
   return onDisk && !diff.includes(assessment) ? [assessment, ...diff] : diff;
 }
 
-// The round's before/after page (.wf/before-after.html, outside the round folder: deliver commits that
-// folder, and the PNGs it shows are gitignored), or null when the round has no before/after pictures.
-// A checkpoint's page is the round's whole proof set, same as the final review's; the person chose the
-// diff range, and wf does not track per-chunk picture ownership.
-function writeBeforeAfter(worktree: string, round: string, assessmentFiles: string[]) {
+// The round's before/after pictures for T2: the header lines that name each pair's files and caption, and
+// the picture files themselves (for a native handoff). Empty when the round has none. A checkpoint shows the
+// round's whole proof set, same as the final review; wf does not track per-chunk picture ownership.
+function beforeAfterOf(worktree: string, assessmentFiles: string[]) {
   const folder = readState(worktree).folder;
   const proof = folder ? join(worktree, folder, 'proof') : null;
   const assessments = assessmentFiles.map((name) => folder ? join(worktree, folder, name) : null).map((f) => f && existsSync(f) ? readFileSync(f, 'utf8') : '');
   const names = proof && existsSync(proof) ? readdirSync(proof) : [];
   const pairs = proofPairs(names);
-  if (!pairs.length) return null;
+  if (!proof || !pairs.length) return { lines: [] as string[], files: [] as string[] };
   // Both are round-owned absolute paths: joining the agreement to worktree again lost its caption,
   // and the bare assessment name read a root-level decoy instead of the round's assessment (#114).
   const agreement = agreementPath(worktree, readState(worktree).class ?? null, folder);
   const texts = [existsSync(agreement) ? readFileSync(agreement, 'utf8') : '', ...assessments];
-  const captions = Object.fromEntries((pairs.flatMap((p) => [p.before, p.after]).filter(Boolean) as string[]).map((n) => [n, captionFor(n, texts)]));
-  const file = join(worktree, '.wf', 'before-after.html');
-  mkdirSync(dirname(file), { recursive: true });
-  writeFileSync(file, beforeAfterPage({ round, pairs, captions, src: `../${folder}/proof` }));
-  return file;
-}
-
-// The agreement as a page (.wf/AGREEMENT.html): what the diff is judged against, with its Build views
-// drawn (SHOW-ME.md, review-format.ts agreementPage). Null when the round has no agreement file.
-function writeAgreement(worktree: string, round: string) {
-  const state = readState(worktree);
-  const folder = state.folder;
-  if (!folder) return null;
-  const agreement = agreementPath(worktree, state.class ?? null, folder);
-  if (!existsSync(agreement)) return null;
-  const file = join(worktree, '.wf', 'AGREEMENT.html');
-  mkdirSync(dirname(file), { recursive: true });
-  writeFileSync(file, agreementPage({
-    title: `Agreement — ${round}`,
-    meta: [`class ${state.class ?? '—'} · base ${state.base ?? baseBranch}`, 'the agreement the diff is judged against — the markdown is the file of record'],
-    section: readFileSync(agreement, 'utf8'),
-    artifacts: roundArtifacts(join(worktree, folder), join(worktree, '.wf')),
-  }));
-  return file;
+  const pictures = pairs.flatMap((p) => [p.before, p.after]).filter((n): n is string => !!n);
+  const captions = Object.fromEntries(pictures.map((n) => [n, captionFor(n, texts)]));
+  return { lines: beforeAfterLines({ pairs, captions, dir: proof }), files: pictures.map((n) => join(proof, n)) };
 }
 
 // The header's assessment line: the round's assessment verdict, read from ASSESSMENT.md.
@@ -222,14 +200,9 @@ export async function runReview(argv: string[], { stack = ensureServers }: { sta
   // T2 opens the round's pages: the stack is started for it, since nothing serves a worktree from its
   // creation (2026-10-04, serve.ts). A stack that will not start leaves the diff to review, and says so.
   try { console.log(await stack(worktree, { wait: true })); } catch (e) { /* the diff is still reviewable: the line says why there are no pages */ console.error((e as Error).message); }
-  const beforeAfter = writeBeforeAfter(worktree, round, target.assessmentFiles);
-  if (beforeAfter) {
-    console.log(`before/after: ${beforeAfter}`);
-  }
-  const agreementHtml = writeAgreement(worktree, round);
-  if (agreementHtml) {
-    console.log(`agreement: ${agreementHtml}`);
-  }
+  const shots = beforeAfterOf(worktree, target.assessmentFiles);
+  const beforeAfter = shots.lines;
+  if (beforeAfter.length) console.log(beforeAfter.join('\n'));
   const assessment = target.assessmentFiles.flatMap((name) => assessmentFor(worktree, name));
   const manual = manualFor(worktree);
   // The identities the verdict is bound to, computed once at open and printed in every header this run
@@ -252,7 +225,7 @@ export async function runReview(argv: string[], { stack = ensureServers }: { sta
   }
   if (seams.presentation) {
     console.log(seams.presentation.guidance);
-    console.log(seams.presentation.reviewHandoff({ kind: 'review', worktree, document: file, pages: [agreementHtml, beforeAfter].filter((page): page is string => page !== null), reviewFile: file }));
+    console.log(seams.presentation.reviewHandoff({ kind: 'review', worktree, document: file, pages: shots.files, reviewFile: file }));
     return;
   }
   // The machine's review screen when it has one (seams.reviewUI: plannotator on Shay's), else an editor.
