@@ -83,7 +83,7 @@ try {
 		const result = cli(repo, argv, bound(repo));
 		refused(result, /workspace does not match/);
 		unchanged(repo); unchanged(other, state('round/two'));
-		assert.equal(existsSync(join(other, '.wf/AGREEMENT-T1.html')), false);
+		assert.equal(existsSync(join(other, '.wf/AGREEMENT-T1.md')), false);
 		assert.equal(existsSync(join(other, folder, 'REVIEW.md')), false);
 	}
 
@@ -121,7 +121,7 @@ try {
 	assert.equal(agreement.status, 0, `${agreement.stdout}${agreement.stderr}`);
 	assert.equal(agreement.queries, 1);
 	assert.match(agreement.stdout, /NATIVE_HANDOFF/);
-	assert.equal(existsSync(join(repo, '.wf/AGREEMENT-T1.html')), true);
+	assert.equal(existsSync(join(repo, '.wf/AGREEMENT-T1.md')), true);
 	assert.equal(existsSync(join(repo, folder, 'AGREEMENT-REVIEW.md')), true);
 	writeFileSync(join(repo, folder, 'CHECKPOINT-REVIEW.md'), 'base: main\nverdict: changes-requested\n');
 	const review = cli(other, ['review', 'round/one', '--checkpoint', '--done'], bound(repo));

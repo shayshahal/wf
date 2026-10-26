@@ -108,6 +108,36 @@ export function notAskedForGap(text: string | null | undefined): string | null {
 	return `${AGREEMENT_FILE} needs a \`**Not asked for.**\` bullet under \`## Agreed\`: one sub-bullet per behavior, screen, text or contract change no source asked for (the ticket, the spec it cites, a ruling), each with why it is needed; or \`none — <why>\``;
 }
 
+export const CONCISE = { observedBullets: 5, observedWords: 20, agreedWords: 25, verificationRows: 6 } as const;
+
+/**
+ * Pure: the lines of a class B/C agreement that are longer than the agreement may be, or null. T1
+ * binds `## Observed` + `## Agreed`, and a person reads all of it: `## Observed` is at most
+ * CONCISE.observedBullets bullets of CONCISE.observedWords words, each `## Agreed` bullet (a sub-bullet
+ * is its own) CONCISE.agreedWords words, and `## Verification` at most CONCISE.verificationRows rows.
+ * The T2 walk's recipe lines are exempt: they are commands, not prose.
+ */
+export function concisenessGap(text: string | null | undefined): string | null {
+	const words = (line: string) => line.replace(/^\s*[-*]\s+/, '').split(/\s+/).filter(Boolean).length;
+	const items = (body: string | null) => {
+		const out: { text: string; walk: boolean }[] = [];
+		for (const line of (body ?? '').split('\n')) {
+			if (/^\s*[-*]\s+/.test(line)) out.push({ text: line, walk: /^\s*[-*]\s+\**T2 walk\b/i.test(line) });
+			else if (line.trim() && out.length) out.at(-1)!.text += ` ${line.trim()}`;
+		}
+		return out;
+	};
+	const clip = (t: string) => `${t.replace(/^\s*[-*]\s+/, '').slice(0, 60)}…`;
+	const gaps: string[] = [];
+	const observed = items(section(text, 'Observed'));
+	if (observed.length > CONCISE.observedBullets) gaps.push(`## Observed has ${observed.length} bullets (at most ${CONCISE.observedBullets}): keep the facts the decision rests on`);
+	for (const i of observed) if (words(i.text) > CONCISE.observedWords) gaps.push(`## Observed, ${words(i.text)} words (at most ${CONCISE.observedWords}): ${clip(i.text)}`);
+	for (const i of items(section(text, 'Agreed'))) if (!i.walk && words(i.text) > CONCISE.agreedWords) gaps.push(`## Agreed, ${words(i.text)} words (at most ${CONCISE.agreedWords}): ${clip(i.text)}`);
+	const rows = (section(text, 'Verification') ?? '').split('\n').filter((l) => /^\|\s*\d+\s*\|/.test(l)).length;
+	if (rows > CONCISE.verificationRows) gaps.push(`## Verification has ${rows} rows (at most ${CONCISE.verificationRows}): merge the cases that prove the same thing`);
+	return gaps.length ? `${AGREEMENT_FILE} is longer than the person reads at T1:\n  - ${gaps.join('\n  - ')}` : null;
+}
+
 /** Pure: true when the round declares a T2 walk `wf show` can follow: an `open:` target or the
  * explicit `none — <why>`. Class A's bullet lives in TICKET.md (there is no `## Agreed` to scope it),
  * B/C's under `## Agreed`; agreementT2WalkLines reads both. Shared by agreementGap (B/C before T1)

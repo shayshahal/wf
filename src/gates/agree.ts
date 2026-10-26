@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// agree.ts — wf agree <round> — T1: annotate the round agreement's agreed material as a page, fold →
+// agree.ts — wf agree <round> — T1: annotate the round agreement's agreed material (a markdown extract), fold →
 // AGREEMENT-REVIEW.md. This is where the old `wf design` / SPEC.md T1 went (#110): the agreement is
 // the one document T1 decides on, and T1 joins the build rather than gating a separate spec.
 //
@@ -8,13 +8,13 @@
 // folds onto the line it was made on. The sha in AGREEMENT-REVIEW.md is over the agreed material
 // (agreement.ts), never the mutable `## Verification` working detail.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import { refuseCaller } from '../refusal.ts';
 import { openInEditor, opensWindows } from '../worktrees/editor.ts';
 import { resolveWorktree } from '../worktrees/worktree.ts';
 import { roundWorkspaceGap } from '../worktrees/session-workspace.ts';
-import { appendDatedSection, devUrlsFor, foldFeedbackLine, agreementPage, renderHeader, renderSkeleton, roundArtifacts } from './review-format.ts';
-import { agreementGap, agreementPath, agreementSha, AGREEMENT_REVIEW_FILE, consequential, notAskedFor, notAskedForGap, section } from '../round/agreement.ts';
+import { appendDatedSection, devUrlsFor, foldFeedbackLine, renderHeader, renderSkeleton } from './review-format.ts';
+import { agreementGap, agreementPath, agreementSha, AGREEMENT_REVIEW_FILE, consequential, concisenessGap, notAskedFor, notAskedForGap, section } from '../round/agreement.ts';
 import { seams } from '../seams.ts';
 import { readState, roundFile } from '../round/state.ts';
 import { runStep } from '../round/step.ts';
@@ -56,7 +56,7 @@ export async function runAgree(argv: string[]) {
 		process.exit(2);
 	}
 	const text = readFileSync(agreement, 'utf8');
-	const gap = agreementGap(text, klass, round) ?? (consequential(klass) ? notAskedForGap(text) : null);
+	const gap = agreementGap(text, klass, round) ?? (consequential(klass) ? notAskedForGap(text) ?? concisenessGap(text) : null);
 	if (gap) {
 		console.error(`wf agree: ${gap} — finish the agreement before T1`);
 		process.exit(2);
@@ -75,15 +75,7 @@ export async function runAgree(argv: string[]) {
 	const material = agreedSection(text, klass);
 	const toAnnotate = join(worktree, '.wf', 'AGREEMENT-T1.md');
 	writeFileSync(toAnnotate, `${material}\n<!-- extracted from ${agreement.split(/[\\/]/).pop()} § the agreed material: what T1 decides. The rest of the agreement is working detail. Annotate here -->\n`);
-	const pageFile = join(worktree, '.wf', 'AGREEMENT-T1.html');
-	writeFileSync(pageFile, agreementPage({
-		title: `Agreement — ${round} · T1`,
-		meta: [`agreement-sha: ${sha ?? 'n/a'}`, 'the agreed material this round is built against'],
-		section: material,
-		base: agreedOffset(text, klass),
-		artifacts: roundArtifacts(dirname(agreement), join(worktree, '.wf')),
-	}));
-	console.log(`page: ${pageFile}`);
+	console.log(`agreement: ${toAnnotate}`);
 	// JX-1367 (2026-10-18): an addition no source asked for was approved unseen inside `## Agreed`.
 	// Name each one where the person reads first, so T1 decides it on its own.
 	const unasked = consequential(klass) ? notAskedFor(text) : [];
@@ -92,11 +84,11 @@ export async function runAgree(argv: string[]) {
 		// Native tools belong to the calling session. Prepare the bound record without inventing a verdict.
 		appendDatedSection(file, renderSkeleton({ round, klass, agreementSha: sha, urls: devUrlsFor(worktree) }));
 		console.log(seams.presentation.guidance);
-		console.log(seams.presentation.reviewHandoff({ kind: 'agreement', worktree, document: toAnnotate, pages: [pageFile], reviewFile: file }));
+		console.log(seams.presentation.reviewHandoff({ kind: 'agreement', worktree, document: toAnnotate, pages: [], reviewFile: file }));
 		return;
 	}
 	if (seams.reviewUI?.available()) {
-		const line = seams.reviewUI.annotate({ worktree, file: pageFile, since: new Date().toISOString() });
+		const line = seams.reviewUI.annotate({ worktree, file: toAnnotate, since: new Date().toISOString() });
 		appendDatedSection(file, `${header()}${line ? foldFeedbackLine(line) : 'verdict: dismissed'}`);
 		console.log(`wrote ${file}`);
 		return;

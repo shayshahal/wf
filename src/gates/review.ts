@@ -7,12 +7,11 @@ import { dirname, join } from 'node:path';
 import { refuseCaller } from '../refusal.ts';
 import { CLASSIFY } from '../paths.ts';
 import { dirtyFiles } from '../dirty-files.ts';
-import { openInEditor, opensWindows } from '../worktrees/editor.ts';
 import { baseBranch, ticketChanges } from '../project.ts';
 import { ensureServers } from '../worktrees/serve.ts';
 import { excludeWfFolder, resolveWorktree } from '../worktrees/worktree.ts';
 import { roundWorkspaceGap } from '../worktrees/session-workspace.ts';
-import { appendDatedSection, approvalContentGap, beforeAfterLines, captionFor, devUrlsFor, foldFeedbackLine, lastField, needsFreshReviewHeader, proofPairs, readVerdict, renderHeader, renderSkeleton, reviewScopeBinding, scopedApprovalGap } from './review-format.ts';
+import { appendDatedSection, approvalContentGap, beforeAfterLines, captionFor, devUrlsFor, lastField, needsFreshReviewHeader, proofPairs, readVerdict, renderHeader, renderSkeleton, reviewScopeBinding, scopedApprovalGap } from './review-format.ts';
 import { approvalIdentity, approvalPaperworkExcluded, trackerNotePath } from './content-identity.ts';
 import type { ContentIdentity } from './content-identity.ts';
 import { seams } from '../seams.ts';
@@ -220,7 +219,7 @@ export async function runReview(argv: string[], { stack = ensureServers }: { sta
   // HEAD (#106 final review). A checkpoint's range may change without changing either identity;
   // its requested base must still be the one the native handoff tells the person to review.
   const previousBinding = previous === null ? null : { contentSha: lastField(previous, 'content-sha'), headSha: lastField(previous, 'head-sha') };
-  if (previous === null || ((seams.presentation || !seams.reviewUI?.available()) && (needsFreshReviewHeader(previousBinding, contentSha, headSha) || lastField(previous, 'base') !== base))) {
+  if (previous === null || (needsFreshReviewHeader(previousBinding, contentSha, headSha) || lastField(previous, 'base') !== base)) {
     appendDatedSection(file, renderSkeleton({ round, klass, base, contentSha, headSha, scope: target.scope, urls: devUrlsFor(worktree), files, beforeAfter, assessment, manual }));
   }
   if (seams.presentation) {
@@ -228,22 +227,10 @@ export async function runReview(argv: string[], { stack = ensureServers }: { sta
     console.log(seams.presentation.reviewHandoff({ kind: 'review', worktree, document: file, pages: shots.files, reviewFile: file }));
     return;
   }
-  // The machine's review screen when it has one (seams.reviewUI: plannotator on Shay's), else an editor.
-  if (!seams.reviewUI?.available()) {
-    if (!opensWindows()) {
-      console.log(`review file: ${file}
-  Claude Code: the person comments on lines in the diff view and says the verdict; write both into this file (round skill, T2)`);
-      return;
-    }
-    if (!openInEditor([worktree, file])) console.log(`fallback: no editor found — review by hand:\n  worktree: ${worktree}\n  review file: ${file}`);
-    else console.log(`skeleton at ${file} — fill the comments + verdict: line`);
-    return;
-  }
-  // merge-base, not branch: branch diffs against the tip of base, so a dev that moved on showed its
-  // newer commits as reverts inside the round (TJEW-700). plannotator computes the merge-base itself.
-  const line = seams.reviewUI.reviewDiff({ worktree, base, diffType: 'merge-base', since: new Date().toISOString() });
-  appendDatedSection(file, `${header()}${line ? foldFeedbackLine(line) : 'verdict: dismissed'}`);
-  console.log(`wrote ${file}`);
+  // T2 shows the proof (the before/after lines above and the header's evidence), and opens nothing: no
+  // diff screen, no editor. The person says the verdict in the chat; write it into this file (round skill, T2).
+  console.log(`review file: ${file}
+  The proof is above. The person gives the comments and the verdict in the chat; write both into this file (round skill, T2)`);
 }
 
 async function runReviewDone(worktree: string, round: string, target: ReviewTarget) {

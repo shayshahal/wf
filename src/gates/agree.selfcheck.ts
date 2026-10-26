@@ -47,7 +47,8 @@ await runAgree(['fix/r']);`;
 		assert.equal(out.status, 0, `${out.stdout}${out.stderr}`);
 		assert.match(out.stdout, /T1_OPEN/);
 		assert.match(out.stdout, /not asked for — decide each at T1:\n {2}- a held-total line on the bid form/);
-		assert.equal(existsSync(join(repo, '.wf/AGREEMENT-T1.html')), true);
+		assert.equal(existsSync(join(repo, '.wf/AGREEMENT-T1.html')), false);
+		assert.equal(existsSync(join(repo, '.wf/AGREEMENT-T1.md')), true);
 	}
 } finally {
 	rmSync(repo, { recursive: true, force: true });

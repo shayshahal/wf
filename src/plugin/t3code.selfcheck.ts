@@ -143,12 +143,12 @@ try {
 	assert.match(opened.stdout, /native review handoff: T3 Code — agreement \(not opened by wf\)/);
 	assert.ok(!opened.stdout.includes('fixture-secret-not-for-output'));
 	assert.ok(opened.stdout.includes(record));
-	assert.ok(opened.stdout.includes(join(repo, '.wf', 'AGREEMENT-T1.html')));
+	assert.ok(opened.stdout.includes(join(repo, '.wf', 'AGREEMENT-T1.md')));
 	assert.equal(readFileSync(join(repo, folder, 'AGREEMENT.md'), 'utf8'), agreement);
 	assert.equal(agreementSha(repo, 'B', folder), sha);
 	assert.equal(lastField(readFileSync(record, 'utf8'), 'agreement-sha'), sha);
 	assert.equal(readVerdict(readFileSync(record, 'utf8')), null);
-	assert.ok(existsSync(join(repo, '.wf', 'AGREEMENT-T1.html')));
+	assert.ok(existsSync(join(repo, '.wf', 'AGREEMENT-T1.md')));
 
 	const wrongReviewWorkspace = invoke('review', true, 'main', chat);
 	assert.equal(wrongReviewWorkspace.status, 2, wrongReviewWorkspace.stdout + wrongReviewWorkspace.stderr);

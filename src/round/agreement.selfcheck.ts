@@ -6,7 +6,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { anticipatedPaths } from './agreement.ts';
-import { agreementClass, agreementFile, agreementGap, agreementPath, agreementSha, revisionSha, assessmentGap, assessmentHead, assessmentContentSha, assessmentRulingSource, isAssessmentRulingSource, assessmentVerdict, ASSESSMENT_FILE, caseFiles, consequential, notAskedFor, notAskedForGap, section, verificationCases } from './agreement.ts';
+import { agreementClass, agreementFile, agreementGap, agreementPath, agreementSha, revisionSha, assessmentGap, assessmentHead, assessmentContentSha, assessmentRulingSource, isAssessmentRulingSource, assessmentVerdict, ASSESSMENT_FILE, caseFiles, consequential, concisenessGap, notAskedFor, notAskedForGap, section, verificationCases } from './agreement.ts';
 
 let failures = 0;
 const check = (name: string, cond: boolean, detail = '') =>
@@ -102,6 +102,17 @@ check('assessment content identity normalizes checkout newlines', assessmentCont
 check('assessment content identity changes with prose', assessmentContentSha(assess()) !== assessmentContentSha(assess() + 'new judgment\n'));
 check('assessment ruling source is recognized', isAssessmentRulingSource(assessmentRulingSource(assess())));
 check('unrelated source is not an assessment ruling', !isAssessmentRulingSource('BLOCKED.md'));
+
+// A class B/C agreement is short enough to read at T1: caps on Observed, Agreed and Verification.
+const wordsOf = (n: number) => Array.from({ length: n }, (_, i) => `w${i}`).join(' ');
+const shortAgreement = `# A\n\n## Observed\n- ${wordsOf(20)}\n- b\n\n## Agreed\n- **Behavior.** ${wordsOf(22)}\n- **T2 walk.** open: b2b /x as buyer\n  ready: api a {} as buyer ${wordsOf(40)}\n\n## Verification\n| # | case | files | check |\n|---|---|---|---|\n| 1 | a | \`p\` | \`c\` |\n`;
+check('a short agreement is within the caps', concisenessGap(shortAgreement) === null, String(concisenessGap(shortAgreement)));
+check('the T2 walk recipe is exempt from the word cap', concisenessGap(shortAgreement) === null);
+check('an Observed bullet over 20 words is named', /## Observed, 21 words/.test(concisenessGap(shortAgreement.replace(wordsOf(20), wordsOf(21))) ?? ''));
+check('more than 5 Observed bullets is named', /## Observed has 6 bullets/.test(concisenessGap(shortAgreement.replace('- b\n', '- b\n- c\n- d\n- e\n- f\n')) ?? ''));
+check('an Agreed bullet over 25 words is named, with its start', /## Agreed, 26 words .*Behavior/.test(concisenessGap(shortAgreement.replace(wordsOf(22), wordsOf(25))) ?? ''));
+check('a wrapped bullet counts as one', /## Agreed, 3\d words/.test(concisenessGap(shortAgreement.replace(`${wordsOf(22)}\n`, `${wordsOf(22)}\n  ${wordsOf(10)}\n`)) ?? ''));
+check('more than 6 verification rows is named', /## Verification has 7 rows/.test(concisenessGap(shortAgreement + [2, 3, 4, 5, 6, 7].map((n) => `| ${n} | a | \`p\` | \`c\` |\n`).join('')) ?? ''));
 
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');
 process.exit(failures ? 1 : 0);

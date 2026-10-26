@@ -56,5 +56,3 @@ function runAndFold({ worktree, args, surface, since }: { worktree: string; args
 }
 export const annotateFile: ReviewUI['annotate'] = ({ worktree, file, since }) =>
   runAndFold({ worktree, args: ['annotate', file, '--gate', '--json', '--require-approval'], surface: 'annotate', since });
-export const reviewDiff: ReviewUI['reviewDiff'] = ({ worktree, base, diffType = 'branch', since }) =>
-  runAndFold({ worktree, args: ['review', '--base', base, '--diff-type', diffType, '--json'], surface: 'review', since });

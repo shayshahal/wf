@@ -14,6 +14,12 @@ Use the decision-sheet style in `SHOW-ME.md`:
 
 The labels below tell you what content to write. Do not write a paragraph under each label.
 
+The agreement is short enough to read at T1, and `wf agree` refuses one that is not:
+- `## Observed`: at most 5 bullets, each at most 20 words.
+- `## Agreed`: each bullet (and each sub-bullet) at most 25 words. The T2 walk's recipe lines are exempt.
+- `## Verification`: at most 6 rows.
+- A longer fact goes behind a path or a command, not in the bullet.
+
 ```markdown
 # AGREEMENT — <ID> · <ticket title>
 

@@ -39,12 +39,13 @@ check('the canonical skill is skills/round in the checkout', canonicalSkillSourc
 
 // ── a synthetic source tree: the copy rules without the real checkout ────────
 const synthetic = (root: string) => {
-	for (const dir of ['skills/round/references', 'skills/round/scripts', 'prompts', 'process', 'projects/fixture', 'src/gates', 'src/skill', 'agents', 'env/adapters', 'docs/plans', 'claude/agents', '.claude-plugin', 'node_modules/x', '.git', '.delta']) mkdirSync(join(root, dir), { recursive: true });
+	for (const dir of ['skills/round/references', 'skills/round/scripts', 'prompts', 'process', 'projects/fixture', 'src/gates', 'src/skill', 'bin', 'agents', 'env/adapters', 'docs/plans', 'claude/agents', '.claude-plugin', 'node_modules/x', '.git', '.delta']) mkdirSync(join(root, dir), { recursive: true });
 	writeFileSync(join(root, 'skills/round/SKILL.md'), SKILL_MD);
 	writeFileSync(join(root, 'skills/round/references/rules.md'), '# rules\n');
 	writeFileSync(join(root, 'skills/round/scripts/wf.mjs'), 'export {};\n');
 	writeFileSync(join(root, 'wf.mjs'), 'export {};\n');
 	writeFileSync(join(root, 'package.json'), '{"type":"module","devDependencies":{"not-for-distribution":"1"}}\n');
+	writeFileSync(join(root, 'bin/wfk.mjs'), 'export {};' + String.fromCharCode(10));
 	for (const [file, text] of [['prompts/agree.md.in', '# agree\n'], ['process/CLASSES.md', '# classes\n'], ['projects/fixture/index.ts', 'export {};\n'], ['src/gates/check.ts', 'export {};\n'], ['src/skill/skill-export.ts', 'export {};\n'], ['agents/round-worker.md', '# worker\n'], ['src/selfcheck.ts', 'export {};\n'], ['src/gates/check.selfcheck.ts', 'export {};\n'], ['src/gates/fixture.selfcheck.json', '{}\n'], ['tsconfig.json', '{}\n'], ['env/adapters/herdr.ts', 'export {};\n'], ['docs/plans/x.md', '# x\n'], ['claude/agents/round-worker.md', '# generated\n'], ['.claude-plugin/plugin.json', '{}\n'], ['node_modules/x/index.js', 'export {};\n'], ['.git/HEAD', 'ref: refs/heads/x\n'], ['.delta/scratch.md', '# scratch\n'], ['projects/fixture/.env', 'private configuration\n']] as const) writeFileSync(join(root, file), text);
 };
 
