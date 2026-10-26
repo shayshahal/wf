@@ -115,7 +115,11 @@ export function prBody({ ticket, agreement, commitLines, assessment, agreementPa
 	// The agreed material a reviewer after the merge must be able to read: the agreement's own behavior
 	// (Observed + Agreed for B/C, Intent for class A). Without this the PR body lost what the round was
 	// agreed to do (#111.2, #113.5).
-	const agreementBody = [A.Observed, A.Agreed].filter(Boolean).join('\n\n').trim() || (A.Intent ?? K.Intent ?? '').trim();
+	// Class A has no agreement file: the ticket stands in for it, so its Intent is already the Intent
+	// section above. The Agreement section then stays out rather than print the same text twice.
+	const agreed = [A.Observed, A.Agreed].filter(Boolean).join('\n\n').trim();
+	const fallback = (A.Intent ?? K.Intent ?? '').trim();
+	const agreementBody = agreed || (fallback === (K.Intent ?? '').trim() ? '' : fallback);
 	const t2Walk = A['T2 walk']?.trim() || t2WalkOf(agreement);
 	// The assessment's own sections, in the template's order and by axis, so one cannot mask another:
 	// the intent judgement, what was observed, consequential design, applicable standards, and the
