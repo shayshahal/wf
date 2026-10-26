@@ -18,38 +18,47 @@ Implement the agreement at `{{folder}}/{{file}}`.
 
 ## How to work
 
-- Choose implementation steps, helpers, delegation and tests proportionate to the task. Keep changes
-  inspectable. Before crossing a human-agreed checkpoint, follow
-  `{{skill}}/references/review.md#agreed-checkpoints`; checkpoint approval resumes
-  build, never delivery. A commit or worker session is not a workflow milestone.
-- Before editing a newly discovered area, read its applicable project guidance. The matched notes
-  below reflect the case files and diff when this brief was read, not every file you may touch.
-- Run the project's normal commands through your harness. Choose repetitions, regression coverage
-  and baseline comparisons for the behavior being changed. `wf check` is an optional affected-check
-  convenience, not a required certificate.
-- Address each applicable recorded correction, preserving its source and scope. Use `wf correct
-  --address <id> --note "<action/evidence>"` when acted on, or `wf correct --block <id> --owner
-  "<recovery owner>" --note "<concrete blocker>"`. Reading this brief or acknowledging a message is
-  not completion. Do not edit a person's historical verdict to carry an instruction.
-- Record commands, observed results and limitations as short evidence rows in the working document.
-  Use `{{wf}}/process/SHOW-ME.md` for handovers: show, don't narrate (ASD-STE100, no prose-only handoffs). Read previous findings and recorded decisions; repair them through the work and its
-  evidence, rather than a prescribed response form.
-- Use project setup/reset and diagnostic tools to reach the actual scenario. A check that could not
-  run because the scenario or state was absent is this build's work — set it up with the project's
-  tools, measure the claim, then restore what you changed, rather than handing the finding back. If a
-  capability is unavailable, name what is missing and who owns it; ordinary work does not authorize
-  fixing every external dependency.
-- Ordinary helpers, tests and local corrections are yours. A genuinely new behavior, consequential
-  contract/persistence choice or dropped agreed item needs a recorded decision and renewed agreement.
-  Record newly discovered contract paths under `paths:` in the ticket's `## Scope` and run `wf next`.
-- For a real decision or missing authority, write `{{folder}}/BLOCKED.md` with a contextual
-  `Question:` and register it with `wf ask --blocked`; follow the questions procedure above.
-- Prepare and revalidate the working document's `**T2 walk.**` against the current scenario,
-  including work after an earlier build. Record the project's replayable open/setup/readback recipe,
-  or `none — <current limitation or why no live walk is needed>`. If a formerly unavailable page
-  becomes demonstrable, update stale `none`. Use the project-owned recipe and full scenario reset
-  during verification; helper cleanup alone is not rollback. Resolve setup/readback gaps before
-  handoff. Keep useful captures under `{{folder}}/proof/` with descriptive before/after names.
-- For UI changes, before/after PR images are required. Follow
-  `{{wf}}/process/SHOW-ME.md#ui-changes-required-pr-images`: capture the baseline before editing
-  and supply the final pairs under `## UI evidence` in `{{folder}}/{{file}}` before assessment.
+- Choose the implementation steps, helpers, delegation and tests that fit the task. Keep each
+  change easy to inspect.
+- Before you cross a checkpoint that a human agreed, follow
+  `{{skill}}/references/review.md#agreed-checkpoints`. Checkpoint approval resumes the build. It
+  never resumes delivery. A commit or a worker session is not a workflow milestone.
+- Before editing a newly discovered area, read the project guidance for it. The notes below
+  match the case files and the diff as they were when this brief was read. They do not cover every
+  file that you can touch.
+- Run the normal project commands through your harness. Choose the repetitions, the regression
+  coverage and the baseline comparisons that fit the behavior you change. `wf check` is an optional
+  convenience for affected checks. It is not a required certificate.
+- Address each applicable recorded correction. Keep its source and scope.
+  - When you acted on it: `wf correct --address <id> --note "<action/evidence>"`.
+  - When you cannot: `wf correct --block <id> --owner "<recovery owner>" --note "<concrete blocker>"`.
+  - Reading this brief is not completion. Acknowledging a message is not completion.
+  - Do not edit a person's historical verdict to carry an instruction.
+- Record commands, observed results and limits as short evidence rows in the working document.
+  Read the earlier findings and the recorded decisions. Repair them in the work and its evidence.
+  No response form is prescribed.
+- Hand over as `{{wf}}/process/SHOW-ME.md` says: show, don't narrate (ASD-STE100). Do not hand
+  over prose alone.
+- Use the project setup, reset and diagnostic tools to reach the real scenario. A check that could
+  not run because the scenario or state was absent is this build's work. Set it up with the project
+  tools. Measure the claim. Restore what you changed. Do not give the finding back.
+- If a capability is not available, name what is missing and who owns it. Ordinary work does not
+  give you authority to fix every external dependency.
+- Ordinary helpers, tests and local corrections are yours. These need a recorded decision and a
+  renewed agreement: a new behavior, a consequential contract or persistence choice, a dropped
+  agreed item.
+- Record each newly found contract path under `paths:` in the ticket's `## Scope`. Then run `wf next`.
+- For a real decision or missing authority: write `{{folder}}/BLOCKED.md` with a `Question:` that
+  has context. Register it with `wf ask --blocked`. Follow the questions procedure above.
+- Prepare the `**T2 walk.**` in the working document. Validate it again against the current
+  scenario, also after an earlier build.
+  - Record the project's replayable open, setup and readback recipe, or
+    `none — <current limitation or why no live walk is needed>`.
+  - If a page that was not available can now be shown, update the old `none`.
+  - During verification, use the project-owned recipe and the full scenario reset. A helper
+    cleanup is not a rollback.
+  - Resolve setup and readback gaps before the handoff.
+  - Keep useful captures under `{{folder}}/proof/`. Give them clear before and after names.
+- For a UI change, before and after PR images are required. Follow
+  `{{wf}}/process/SHOW-ME.md#ui-changes-required-pr-images`. Capture the baseline before you edit.
+  Put the final pairs under `## UI evidence` in `{{folder}}/{{file}}` before assessment.

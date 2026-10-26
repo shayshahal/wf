@@ -4,17 +4,23 @@
 
 {{presentation}}
 
-Record the request in `{{folder}}/TICKET.md`. Keep `## Intent` verbatim and attributed to the
-requester; preserve the source/thread, attachments, scope, exclusions and missing inputs using
-`{{skill}}/references/start.md`. Resolve consequential gaps using the class guidance
-linked by `wf notes`; routine work needs no invented consequential choice or separate agreement.
+Record the request in `{{folder}}/TICKET.md`.
+- Keep `## Intent` verbatim. Attribute it to the requester.
+- Keep the source or thread, the attachments, the scope, the exclusions and the missing inputs.
+  Use `{{skill}}/references/start.md`.
+- Resolve each consequential gap with the class guidance that `wf notes` links.
+- Routine work needs no invented consequential choice and no separate agreement.
 
 ## The requester's words (verbatim)
 
 {{intent}}
 
-Record how the behavior will be checked, proportionate to the task. For a check-only round, follow
-`{{skill}}/references/start.md#reproduction-only-work`: measure and record `## Repro`,
-leave the tracker untouched, and stop for the person's build-or-stop decision.
+Record how the behavior will be checked. Make the check fit the size of the task.
+
+For a check-only round, follow `{{skill}}/references/start.md#reproduction-only-work`:
+1. Measure the behavior.
+2. Record `## Repro`.
+3. Do not change the tracker.
+4. Stop. The person decides: build or stop.
 
 {{revisions}}

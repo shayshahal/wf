@@ -1,17 +1,21 @@
 ## Current phase: {{phase}}
 
-- **Workspace and entry.** Use `{{worktree}}` as command cwd and session/file-tool workspace.
-  Run `wf notes` once in this context; follow its workspace-binding guidance before working.
-  Keep the configured entry used by the commands below; a shell cwd alone does not bind file tools.
-- **Saved inputs.** Read `{{folder}}/TICKET.md` for the complete request, thread, attachments and scope.
-  Read the whole working document `{{folder}}/{{file}}` for verification, evidence and recorded decisions,
-  following relevant log/capture links. Agreement creates missing records; build and assessment use
-  the existing records. Inline excerpts below orient you, not replace those files or their sources.
-- **Instruction scope.** Do only the {{phase}} work below; earlier phase procedures are not current
-  assignments. Agreed scope, recorded decisions and applicable corrections still bind this phase.
-  Keep work inside this round, respect protected files and hooks, and preserve prior review verdicts.
-- **New decisions or blockers.** Follow `{{skill}}/references/questions.md` to register a
-  question and record the person's actual ruling. Changed agreed behavior uses `wf decide --revise`
-  and renewed agreement before dependent work; silence or an Inbox reply alone supplies no approval.
-- **New authored instructions.** Follow `{{skill}}/references/corrections.md` when a person
-  gives a round-linked instruction; save its source and words rather than relying on this chat.
+- **Workspace and entry.** Use `{{worktree}}` as the command cwd and as the session and file-tool
+  workspace. Run `wf notes` once in this context. Do what its workspace-binding guidance says before
+  you work. Keep the configured entry that the commands below use. A shell cwd alone does not bind
+  the file tools.
+- **Saved inputs.** Read `{{folder}}/TICKET.md` for the request, thread, attachments and scope.
+  Read the whole working document `{{folder}}/{{file}}` for verification, evidence and recorded
+  decisions. Follow its log and capture links. Agreement creates the records that are missing.
+  Build and assessment use the records that exist. The excerpts below help you orient. They do not
+  replace the files or their sources.
+- **Instruction scope.** Do only the {{phase}} work below. The earlier phase procedures are not
+  your assignment. The agreed scope, the recorded decisions and the applicable corrections still
+  apply to this phase. Stay inside this round. Respect protected files and hooks. Keep earlier
+  review verdicts unchanged.
+- **New decisions or blockers.** Follow `{{skill}}/references/questions.md`. Register the question.
+  Record the ruling that the person actually gave. If the agreed behavior changes, use
+  `wf decide --revise` and get renewed agreement before the dependent work. Silence is not approval.
+  An Inbox reply alone is not approval.
+- **New authored instructions.** When a person gives an instruction that is linked to this round,
+  follow `{{skill}}/references/corrections.md`. Save its source and its words. Do not rely on this chat.

@@ -1,15 +1,16 @@
 # {{round}} — independent final assessment
 
-Use a fresh independent context that did not build the implementation. If you built it, hand this
-command to another context; self-review cannot satisfy this assessment.
+Use a fresh independent context that did not build the implementation. If you built it, give this
+command to another context. Self-review does not satisfy this assessment.
 
 {{context}}
 
 {{presentation}}
 
-Read the saved inputs above, the diff since `{{assessmentBase}}`, prior findings, recorded decisions
-and the builder's actual verification evidence. Judge whether the implementation meets the agreement;
-do not change product code or repair the working document. Write findings in the assessment instead.
+Read these: the saved inputs above, the diff since `{{assessmentBase}}`, the earlier findings, the
+recorded decisions and the builder's verification evidence. Judge if the implementation meets the
+agreement. Do this, and do not change product code. Do not repair the working document. Write your
+findings in the assessment.
 
 {{agreement}}
 
@@ -21,41 +22,47 @@ do not change product code or repair the working document. Write findings in the
 
 ## What to judge
 
-- Intent: does the change deliver what was asked, including applicable authored corrections, without
-  silently adding or dropping behavior? Judge addressed correction claims against the actual work
-  and evidence; a recorded disposition is not a certificate of sufficiency.
-- Behavior and evidence: do the commands and observations actually support the claims? Distinguish
-  a product failure from setup/runner failure, an unexecuted check, or a test that measures a proxy.
-  Inspect important assertions and live evidence where appropriate. Existing usable evidence does
-  not need repeating solely because a fresh reviewer is reading it.
-- UI changes require before/after PR images under the working document's `## UI evidence`.
-  Apply `{{wf}}/process/SHOW-ME.md#ui-changes-required-pr-images` to the actual UI diff;
-  missing, stale, incomplete or inaccessible pairs are repair findings.
-- Design and standards: identify consequential maintainability issues and applicable project rules.
-  Keep these findings distinguishable from behavior and intent.
-- T2 walk: revalidate the recorded recipe against the current scenario, using the project-owned
-  setup/readback and full reset. A stale `none`, unavailable readback or incomplete reset is judged
-  against the current evidence; addressable gaps are repair findings for the builder, not edits to
-  the agreement. A capture alone does not require a live walk, but `none` needs a current reason.
+- **Intent.** Does the change deliver what was asked, with the applicable authored corrections?
+  Does it add or drop behavior without saying so? Judge each correction that is marked addressed
+  against the actual work and evidence. A recorded disposition does not prove the work is enough.
+- **Behavior and evidence.** Do the commands and observations support the claims? Separate these:
+  a product failure, a setup or runner failure, a check that did not run, a test that measures a
+  proxy. Inspect the important assertions. Inspect live evidence where it fits. Do not repeat
+  evidence that is usable only because a fresh reviewer reads it.
+- **UI changes.** Before and after PR images are required under `## UI evidence` in the working
+  document. Apply `{{wf}}/process/SHOW-ME.md#ui-changes-required-pr-images` to the actual UI diff.
+  A missing, stale, incomplete or inaccessible pair is a repair finding.
+- **Design and standards.** Find consequential maintainability issues and broken project rules.
+  Keep these findings separate from behavior and intent.
+- **T2 walk.** Validate the recorded recipe again against the current scenario. Use the
+  project-owned setup, readback and full reset. Judge a stale `none`, an unavailable readback or an
+  incomplete reset against the current evidence. The builder can repair these gaps: report them as
+  repair findings. Do not edit the agreement. A capture alone does not require a live walk. But
+  `none` needs a current reason.
 
-The builder chooses verification methods. Baseline comparisons, repetition and broad suites are
-tools for the hypothesis, not universal obligations. Explain unmeasured behavior and what evidence
-would resolve it. Use available project capabilities before declaring something unreachable. The
-round's stack and its own database are the round's and disposable: setting the scenario up there is
-preparation, not a product change, and being asked not to change product code never means leaving a
-check unmeasured whose missing state you could build.
+The builder chooses the verification methods. Baseline comparisons, repetition and broad suites
+are tools for the hypothesis. They are not required in every case. For behavior that is not
+measured, say why, and say what evidence would resolve it. Use the available project capabilities
+before you call something unreachable.
+
+The round's stack and its own database belong to the round. They are disposable. To set up the
+scenario there is preparation. It is not a product change. "Do not change product code" never
+means: leave a check not measured when you could build the missing state.
 
 ## What to write
 
 Write `{{folder}}/{{assessmentFile}}` whole:
-- `Verdict: clean | repair | blocked`: clean when the agreed work and evidence support handoff;
-  repair for addressable findings within scope; blocked only for a decision or authority the person
-  must supply.
+- `Verdict: clean | repair | blocked`.
+  - `clean`: the agreed work and the evidence support the handoff.
+  - `repair`: addressable findings within scope.
+  - `blocked`: only when the person must supply a decision or authority.
 - `head: <git rev-parse HEAD>` and `assessed-at: <current ISO timestamp>`.
-- Lead with result and the next action. Use short findings or an evidence table: claim, observed
-  result, source, limitation. Keep intent and design/standards distinguishable; link supporting logs
-  instead of narrating the investigation. Follow `{{wf}}/process/SHOW-ME.md` for views and generated
-  UI when they clarify the finding. No per-line verdict or repair response grammar is required.
+- Give the result and the next action first. Then give short findings or an evidence table: claim,
+  observed result, source, limit. Keep intent findings and design/standards findings separate.
+  Link the supporting logs. Do not narrate the investigation. When a view makes a finding clearer,
+  follow `{{wf}}/process/SHOW-ME.md` for views and generated UI. No per-line verdict grammar and no
+  repair-response grammar is required.
 
-A renewed assessment is a new judgment, even if HEAD is unchanged. Choose the outcome explicitly:
-wf checks the outcome and implementation identity; it does not infer correctness from your prose.
+A renewed assessment is a new judgment, also when HEAD did not change. Choose the outcome
+explicitly. `wf` checks the outcome and the implementation identity. It does not infer correctness
+from your prose.
