@@ -1,6 +1,9 @@
 // deliver.selfcheck.ts — node deliver.selfcheck.ts → exit 0 when green.
 // Fixture agreement + assessment → the PR title, the PR body, the tracker note.
-import { commitRows, deliveryResume, existingNoteAction, githubPrRepo, githubRepo, hookRefused, noteComplete, originTarget, prBody, prLookup, prTitle, redactRemote, refusedPushInstruction, t2Gap } from './deliver.ts';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { localImageAttachments, commitRows, deliveryResume, existingNoteAction, githubPrRepo, githubRepo, hookRefused, noteComplete, originTarget, prBody, prLookup, prTitle, redactRemote, refusedPushInstruction, t2Gap } from './deliver.ts';
 import type { State } from '../round/state.ts';
 
 let failures = 0;
@@ -85,6 +88,14 @@ check('UI PRs carry the complete before/after image section before optional note
 const uiTicket = `${ticket}\n\n${uiSection}`;
 check('class A UI evidence comes from its working ticket', prBody({ ticket: uiTicket, agreement: uiTicket, commitLines, assessment, agreementPath: 'bug-reports/bjew-1/TICKET.md' }).includes(uiSection));
 check('non-UI PRs need no image section', !body.includes('## UI evidence'));
+{
+	const root = mkdtempSync(join(tmpdir(), 'wf-img-'));
+	mkdirSync(join(root, 'bug-reports/r/proof'), { recursive: true });
+	writeFileSync(join(root, 'bug-reports/r/proof/after-1.png'), 'x');
+	const r = localImageAttachments('| ![After: page](proof/after-1.png) | ![Before](https://x.test/b.png) | ![Gone](proof/none.png) |', root, 'bug-reports/r');
+	check('a local UI image is attached and its reference points at it from the repo root', r.attach.length === 1 && r.attach[0] === './bug-reports/r/proof/after-1.png#After: page' && r.body.includes('![After: page](./bug-reports/r/proof/after-1.png)'));
+	check('a URL and a missing file are left as written', r.body.includes('![Before](https://x.test/b.png)') && r.body.includes('![Gone](proof/none.png)'));
+}
 check('an empty agreement gives a commits table of the pushed commits alone', JSON.stringify(commitRows(['- abc1234 one'])) === JSON.stringify(['| abc1234 | one |']) && JSON.stringify(commitRows(['not a commit line'])) === '[]');
 
 // Over the budget the working-notes fold goes first, then the assessment’s detail, then the oldest

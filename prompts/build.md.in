@@ -62,3 +62,8 @@ Implement the agreement at `{{folder}}/{{file}}`.
 - For a UI change, before/after PR images are required. Follow
   `{{wf}}/process/SHOW-ME.md#ui-changes-required-pr-images`. Capture the baseline before you edit.
   Put the final pairs under `## UI evidence` in `{{folder}}/{{file}}` before assessment.
+  - Keep the files as `{{folder}}/proof/before-<label>.png` and `after-<label>.png`. They are gitignored.
+  - Reference each one in the section as `![Before: <view>](proof/before-<label>.png)`.
+    A local path alone is not enough for reviewers. `wf deliver` uploads each referenced `proof/` file
+    with `gh --attach` and rewrites the reference. Do not commit the images.
+  - A caption names the viewport, direction, scenario and data. Before and after must match.
