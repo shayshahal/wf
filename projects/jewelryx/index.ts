@@ -50,10 +50,12 @@ export const logins: Record<SeedRole, [user: string, password: string]> = {
 	seller: ['seller@seed.jewelryx', 'seed1234'],
 	admin: ['admin@jewelryx.com', 'admin123'],
 };
-// Printed by `wf new`: the logins, and the fixtures a round needs on line one.
+// Printed by `wf new`: the logins, and where the fixture ids are. The ids themselves stay in the
+// project's docs/agents/seed.md (AGENTS.md: wf keeps no copy of a project's facts): the copy printed
+// here said SG-0001..0005 · ORD-0001..0009 while the seed held SG-0006 · ORD-0006 (2026-10-26 audit).
 export const seedLines: string[] = [
 	`Seed logins: ${Object.values(logins).map(([u, p]) => `${u} / ${p}`).join(' · ')}`,
-	'Fixtures:    SG-0001..SG-0005 · ORD-0001..ORD-0009 · MKT-0001 · AUC-0001 · SEED-RNG-001 … (docs/agents/seed.md)',
+	'Fixtures:    fixed ids (orders, scrap gold, listings, auction, products): docs/agents/seed.md',
 ];
 
 // ── ports and names ──────────────────────────────────────────────────────────
