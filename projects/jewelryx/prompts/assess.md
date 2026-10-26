@@ -5,6 +5,10 @@ to judge the user path. Direct stack origins: B2B `{{b2b}}`, Admin `{{admin}}`.
 Run `control-jewelryx doctor` before relying on live observations; failed setup or requests do not
 establish product behavior.
 
+For UI work with a Figma frame, judge the page against `design/JewelryX.fig` read with figlens
+(`docs/agents/design.md`), never the Figma MCP, API or browser: frame numbers from `inspect`/`nodes`,
+its render to compare captures against.
+
 Inspect assertions and relevant captures against each important claim. A new accessibility
 attribute does not alone prove value/reset behavior; a CSS class does not prove rendered clipping.
 Use the project's testing notes and feature recipes for state setup and measurement.

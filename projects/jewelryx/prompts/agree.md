@@ -17,6 +17,9 @@ The T2 recipe is `open: <b2b|admin> /<path> as <buyer|seller|admin> [mobile]`, w
 available actions. Product branches cannot edit `verification/` or `JewelryX-Tools/`; protected
 coverage changes use an authorized verification branch.
 
-When the ticket links a Figma frame, inspect that frame's dimensions/order rather than choosing an
-unlinked design. Cite the source under Observed; distinguish a measured value from a screenshot
-impression.
+For UI work the design is the worktree's `design/JewelryX.fig`, read with figlens (its MCP tools or
+`npx -y @runkids/figlens`; `docs/agents/design.md`), never the Figma MCP, API or browser. When the
+ticket links a Figma frame, pass that URL or node ID to figlens and inspect that frame's
+dimensions/order rather than choosing an unlinked design; without a link, `find` the screen by name
+or visible text. Cite the file and node ID under Observed; distinguish a measured value (figlens
+`inspect`/`nodes`) from a render or screenshot impression.

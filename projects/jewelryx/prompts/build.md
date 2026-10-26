@@ -13,6 +13,11 @@ request, 500 or blank screen, inspect `control-jewelryx errors` (or `.wf/logs/de
 guessing.
 Measure the promised behavior, not just a new CSS/accessibility attribute.
 
+For UI work with a Figma frame, read `design/JewelryX.fig` with figlens (`docs/agents/design.md`),
+never the Figma MCP, API or browser. Take numbers from figlens `inspect`/`nodes`, icons from its
+`export`, and follow `docs/figma-pixel-parity-playbook.md`; compare the running page with the frame's
+figlens render and record the node ID with the proof.
+
 For frontend type checks, run the affected package's `pnpm --filter <package-name> check:fast`,
 not a bare `svelte-check`: the package script prepares paraglide and `.svelte-kit` output first.
 Missing generated output is an environment failure (`NOT MEASURED`), not evidence of a product
