@@ -10,6 +10,7 @@ import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { anchorToolPaths } from '../src/plugin/anchor.ts';
 import { withModel } from '../src/models.ts';
+import { installWfkShims, shimDirs } from './shim.ts';
 
 export const LIVE = join(homedir(), '.local', 'share', 'wf');
 // The editing clone: a push from it moves origin/main here at once, so the check needs no network.
@@ -65,6 +66,8 @@ export function install(gitDir: string, rev: string) {
 		const agents = join(LIVE, 'agents');
 		const pi = join(homedir(), '.pi', 'agent', 'agents');
 		if (existsSync(pi)) for (const f of readdirSync(agents)) writeFileSync(join(pi, f), withModel(anchorToolPaths(readFileSync(join(agents, f), 'utf8'), LIVE, project), null));
+		// The short agent command, beside the person's own commands (shim.ts). Best effort: no folder on the PATH is no failure.
+		installWfkShims(shimDirs());
 		return rev;
 	});
 }
@@ -108,7 +111,7 @@ export function runUpdate() {
 	git(gitDir, ['fetch', '-q', 'origin', `+refs/heads/main:${REF}`]);
 	const published = git(gitDir, ['rev-parse', REF]);
 	const installed = installedRevision();
-	if (installed === published) { console.log(`wf update: already at ${published.slice(0, 9)}`); return; }
+	if (installed === published) { installWfkShims(shimDirs()); console.log(`wf update: already at ${published.slice(0, 9)}`); return; }
 	if (!install(gitDir, published)) { console.error('wf update: another update is running'); process.exit(1); }
 	console.log(`wf update: ${installed?.slice(0, 9) ?? 'none'} → ${published.slice(0, 9)}`);
 }

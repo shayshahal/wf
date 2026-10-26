@@ -11,7 +11,7 @@ import { refuseCaller } from '../refusal.ts';
 import { changedFiles, isRoundPaperwork } from '../gates/check.ts';
 import { currentBranch } from '../git-head.ts';
 import { baseBranch, directUrls, guidance, name as projectName } from '../project.ts';
-import { WF_HOME, WF_ROOT, wfCommand } from '../paths.ts';
+import { WF_HOME, WF_ROOT, wfEntryCommand } from '../paths.ts';
 import { anchorToolPaths } from '../plugin/anchor.ts';
 import { seams } from '../seams.ts';
 import { readVerdict } from '../gates/review-format.ts';
@@ -155,7 +155,7 @@ ${vars.answers}`;
 	// The project's notes for this phase: what its repo, apps and tests look like.
 	const notes = join(WF_ROOT, 'projects', projectName, 'prompts', `${phase}.md`);
 	if (existsSync(notes)) template += `\n${readFileSync(notes, 'utf8')}`;
-	const wf = wfCommand(seams.entry);
+	const wf = wfEntryCommand(seams.entry);
 	// #126/#130: anchor template instructions before inserting people's verbatim rulings.
 	// Recorded answers are inserted after anchoring for the same reason.
 	// Source words are inserted after anchoring: a quoted wf command is the author's text,

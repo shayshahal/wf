@@ -21,7 +21,7 @@ const root = WF_ROOT;
 const under = (dir: string): string[] => readdirSync(dir, { withFileTypes: true }).flatMap((e) =>
 	e.isDirectory() ? under(join(dir, e.name)) : e.name.endsWith('.selfcheck.ts') ? [join(dir, e.name)] : []);
 // The kit (src/, projects/) and Shay's env (env/).
-const files = ['src', 'projects', 'env'].flatMap((d) => under(join(root, d)));
+const files = ['src', 'projects', 'env', 'bin'].flatMap((d) => under(join(root, d)));
 const labels = new Set(files.map((file) => relative(root, file).replace(/\\/g, '/')));
 const argv = process.argv.slice(2);
 const changedAt = argv.indexOf('--changed');
@@ -77,6 +77,8 @@ const partial = selected.length !== files.length;
 // Fixture checkouts are not the calling T3 thread's workspace. Native checks supply their own
 // local MCP credentials; inheriting the live host's would query it for every throwaway round.
 const env = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('GIT_') && !k.startsWith('T3_') && !k.startsWith('T3CODE_')));
+// Printed commands stay the full node line, whatever shims this machine has on its PATH (paths.ts).
+env.WF_FULL_COMMAND = '1';
 
 const jobs = Math.max(1, Number(process.env.WF_SELFCHECK_JOBS) || Math.min(6, Math.max(2, Math.floor(cpus().length / 4))));
 const timeoutS = Number(process.env.WF_SELFCHECK_TIMEOUT_S) || 300;
