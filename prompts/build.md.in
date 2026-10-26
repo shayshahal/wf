@@ -59,6 +59,6 @@ Implement the agreement at `{{folder}}/{{file}}`.
     cleanup is not a rollback.
   - Resolve setup and readback gaps before the handoff.
   - Keep useful captures under `{{folder}}/proof/`. Give them clear before and after names.
-- For a UI change, before and after PR images are required. Follow
+- For a UI change, before/after PR images are required. Follow
   `{{wf}}/process/SHOW-ME.md#ui-changes-required-pr-images`. Capture the baseline before you edit.
   Put the final pairs under `## UI evidence` in `{{folder}}/{{file}}` before assessment.
