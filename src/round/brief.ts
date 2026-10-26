@@ -15,7 +15,7 @@ import { ensureServers } from '../worktrees/serve.ts';
 import { readState, toplevelOf } from './state.ts';
 import { correctionStateSha } from './corrections.ts';
 import { PHASES, USAGE } from './prompt.ts';
-import { wfCommand } from '../paths.ts';
+import { wfEntryCommand } from '../paths.ts';
 import { seams } from '../seams.ts';
 
 // The phases that drive the app in a browser: their brief starts the stack and waits for it. The
@@ -86,7 +86,7 @@ ${action}
 		return;
 	}
 	const handoff = handoffText(phase, folder, readState(toplevel)?.class ?? state?.class ?? null, composed.assessmentFile)
-		.replace(/`wf /g, `\`${wfCommand(seams.entry)} `);
+		.replace(/`wf /g, `\`${wfEntryCommand(seams.entry, { cwd: toplevel })} `);
 	process.stdout.write(`${composed.text.trimEnd()}\n${workReason}${blockedAnswer}${handoff}`);
 }
 

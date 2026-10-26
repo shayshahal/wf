@@ -214,6 +214,12 @@ Claude Code, plus what the project's `setup` runs (JewelryX: pnpm, uv, docker, p
 3. Put `wf` on the PATH through Shay's entry: `~/bin/wf` is
    `exec node "$HOME/.local/share/wf/env/wf.mjs" "$@"`, and `~/bin/wf.cmd` is
    `@node "%USERPROFILE%\.local\share\wf\env\wf.mjs" %*`.
+   The installer also puts the agents' short command, `wfk`, beside them (`env/shim.ts`: `~/bin/wfk` and
+   `~/bin/wfk.cmd`, for bash, cmd and PowerShell). `wfk` runs the entry that made the round (from
+   `.wf/state.json`), and this copy's `env/wf.mjs` outside a round. `next`, `brief` and the prompts print
+   `wfk` when it is on the PATH and would run the same entry, else the full `node "<entry>"` line.
+   `WF_FULL_COMMAND=1` keeps the full line. Windows also has `WF.msc`, which is why `wf` is not the agents' name.
+   The team kit has no `env/`: put a shim that runs `node <kit>/bin/wfk.mjs "$@"` on the PATH.
 4. Skills: add `~/.local/share/wf/skills/round`, `~/.local/share/wf/skills/design-session` and
    `~/.local/share/wf/skills/show-me` to pi's `settings.json` `skills`. Each path is a stable entry
    point: the skill's directory keeps its name across releases, so a registered path never dangles

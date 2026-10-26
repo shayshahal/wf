@@ -25,7 +25,7 @@ import { anticipatedPaths, TICKET_FILE } from './agreement.ts';
 import { changedFiles } from '../gates/check.ts';
 import { currentBranch, headSha } from '../git-head.ts';
 import { lastField, readVerdict } from '../gates/review-format.ts';
-import { wfCommand } from '../paths.ts';
+import { wfEntryCommand } from '../paths.ts';
 import { seams } from '../seams.ts';
 import { readState, resolveRoundBase, toplevelOf, writeState } from './state.ts';
 import type { Question, RoundClass, State } from './state.ts';
@@ -91,7 +91,7 @@ export type Effect =
  * after the handoff — or one written early — from reaching T2 unreadable (JX-436, 2026-10-25). */
 const walkGap = (s: Snapshot): string | null => {
 	const gap = t2WalkRecipeGap(s.files.agreement);
-	return gap ? `${agreementFile(s.klass)}: ${gap} — fix the walk, then \`${wfCommand(s.entry)} next\`` : null;
+	return gap ? `${agreementFile(s.klass)}: ${gap} — fix the walk, then \`${wfEntryCommand(s.entry)} next\`` : null;
 };
 
 // Pure: the ids of the tracker note's `## <id>` sections not yet marked ` (posted)`.
@@ -103,7 +103,7 @@ export function unpostedSections(note: string | null): string[] {
 export function nextAction(s: Snapshot, purpose: 'next' | 'brief' = 'next'): { say: string; effects: Effect[] } {
 	const effects: Effect[] = [];
 	const act = (say: string) => ({ say, effects });
-	const wf = wfCommand(s.entry);
+	const wf = wfEntryCommand(s.entry);
 	// The line a phase is worked from: it runs wf brief itself, so its brief is wf's own text. The
 	// session already open may do the work, or a fresh agent may be handed the same line; only the
 	// assessment requires a context that did not build the work (never self-review). The phase's
