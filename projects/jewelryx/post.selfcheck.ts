@@ -70,6 +70,7 @@ const json = (o) => new Response(JSON.stringify(o), { status: 200, headers: { 'c
 let status = 'In Progress';
 globalThis.fetch = async (url, init = {}) => {
   const u = String(url), method = init.method ?? 'GET';
+  if (u.endsWith('/myself')) return json({ accountId: 'acct-shay' });
   if (u.includes('/changelog')) return json({ values: JSON.parse(process.env.STUB_HISTORIES ?? '[]'), isLast: true });
   if (u.includes('/attachments')) { const f = init.body.get('file'); log({ attach: f.name, type: f.type }); return json([]); }
   if (u.endsWith('/comment')) { log({ comment: JSON.parse(init.body).body }); return json({}); }
@@ -143,6 +144,12 @@ const commented = [{ body: 'תיקון דרישה', created: '2026-10-12T13:18:3
 const stale = runPostIn(incident, false, { histories: edited, comments: commented });
 check('wf post: a ticket edited and commented since the round began is refused, nothing posted, the note not marked', stale.run.status === 1 && stale.calls.length === 0 && !stale.note.includes('(posted)'), JSON.stringify(stale.calls) + stale.run.stdout + stale.run.stderr);
 check('wf post: the refusal names who, when, which, and the way past', /JX-1239 changed since the round began/.test(stale.run.stderr) && stale.run.stderr.includes('Einat Shahal, 2026-10-12T13:18:34.637+0300: comment added') && stale.run.stderr.includes('Einat Shahal, 2026-10-12T13:43:02.638+0300: description edited') && stale.run.stderr.includes('wf post --ticket-reread'), stale.run.stderr);
+// The round's own pre-PR comment (a UI-evidence comment before T2) is by the token's account (the stub's /myself): not a change.
+const ownEvidence = [{ body: 'UI evidence: before/after', created: '2026-10-12T14:00:00.000+0300', updated: '2026-10-12T14:00:00.000+0300', author: { displayName: 'shay shahal', accountId: 'acct-shay' } }];
+const withOwn = runPostIn(incident, false, { comments: ownEvidence });
+check('wf post: the token account\'s own earlier comment does not stop it', withOwn.run.status === 0 && withOwn.calls.some((c) => c.comment), withOwn.run.stderr);
+const withOther = runPostIn(incident, false, { comments: [{ ...ownEvidence[0], author: { displayName: 'Einat Shahal', accountId: 'acct-einat' } }] });
+check('wf post: the same comment from another account still stops it', withOther.run.status === 1 && withOther.calls.length === 0 && /Einat Shahal.*comment added/.test(withOther.run.stderr), withOther.run.stderr);
 const quiet = runPostIn(incident, false, { histories: [{ created: '2026-10-12T11:00:00.000+0300', author: { displayName: 'Einat Shahal' }, items: [{ field: 'description' }] }] });
 check('wf post: a description edited before the round began does not stop it', quiet.run.status === 0 && quiet.calls.some((c) => c.comment), quiet.run.stderr);
 const reread = runPostIn(incident, false, { histories: edited, comments: commented, ticketRead: '2026-10-12T11:00:00.000Z' });

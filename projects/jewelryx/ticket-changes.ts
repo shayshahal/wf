@@ -8,7 +8,7 @@ import { hasPrUrl, prUrlOf } from './post-completion.ts';
 import type { State } from '../../src/round/state.ts';
 
 export type Change = { what: 'description edited' | 'title edited' | 'comment added' | 'comment edited'; who: string; at: string };
-type Who = { displayName?: string };
+type Who = { displayName?: string; accountId?: string };
 export type History = { created: string; author?: Who; items: { field: string }[] };
 export type IssueComment = { body: string; created: string; updated?: string; author?: Who };
 
@@ -37,8 +37,11 @@ export function isOwnPost(body: string, sectionText: string): boolean {
 }
 
 // Pure: the edits and comments after `since`, oldest first. A comment edited after `since` counts
-// too (the words it carried are not the words the round read).
-export function changesSince(o: { since: string; histories: History[]; comments: IssueComment[]; own?: (body: string) => boolean }): Change[] {
+// too (the words it carried are not the words the round read). `ownAccount` is the Jira account the
+// round's token acts as: a comment it wrote, before or after the PR existed (a UI-evidence comment
+// posted ahead of T2), is the round's own and not a change. Descriptions, titles and other people's
+// comments still count.
+export function changesSince(o: { since: string; histories: History[]; comments: IssueComment[]; own?: (body: string) => boolean; ownAccount?: string }): Change[] {
 	const after = Date.parse(o.since);
 	const changes: Change[] = [];
 	for (const h of o.histories) {
@@ -49,7 +52,7 @@ export function changesSince(o: { since: string; histories: History[]; comments:
 		}
 	}
 	for (const c of o.comments) {
-		if (o.own?.(c.body)) continue;
+		if (o.own?.(c.body) || (o.ownAccount !== undefined && c.author?.accountId === o.ownAccount)) continue;
 		const who = c.author?.displayName ?? 'unknown';
 		if (jiraTime(c.created) > after) changes.push({ what: 'comment added', who, at: c.created });
 		else if (c.updated && jiraTime(c.updated) > after) changes.push({ what: 'comment edited', who, at: c.updated });
@@ -66,7 +69,7 @@ export function refusalText(since: string, found: { key: string; changes: Change
 }
 
 // The issue's changes after `since`. `get` is wf post's Jira GET (REST v2 path in, JSON out).
-export async function changesOf(get: (path: string) => Promise<any>, key: string, since: string, own?: (body: string) => boolean): Promise<Change[]> {
+export async function changesOf(get: (path: string) => Promise<any>, key: string, since: string, own?: (body: string) => boolean, ownAccount?: string): Promise<Change[]> {
 	const issue = await get(`2/issue/${key}?fields=comment`);
 	const histories: History[] = [];
 	for (let startAt = 0; ;) {
@@ -75,5 +78,5 @@ export async function changesOf(get: (path: string) => Promise<any>, key: string
 		startAt += page.values.length;
 		if (page.isLast || !page.values.length) break;
 	}
-	return changesSince({ since, histories, comments: issue.fields.comment.comments, own });
+	return changesSince({ since, histories, comments: issue.fields.comment.comments, own, ownAccount });
 }
