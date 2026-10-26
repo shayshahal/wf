@@ -1,12 +1,16 @@
 # Call-stack format
 
-How a call stack is written in `AGREEMENT.md` (`## Observed` as-is, and a candidate view under
-`## Agreed`) and in the assessment's `## Design`. **A stack is written in diff syntax, because the
-interesting part is what changes** — an unchanged hop is context, not content.
+This file says how to write a call stack. A call stack appears in these places:
+- `AGREEMENT.md`, `## Observed` (the as-is stack)
+- `AGREEMENT.md`, a candidate view under `## Agreed`
+- the `## Design` of the assessment
 
-A change that is not a call path — a data structure, a SQL table, an API contract, a file tree, a
-branch a stack flattens — is one of `SHOW-ME.md`'s views, in the same `+ ~ -` grammar, beside the
-stack. The stack is the default, not the only view.
+**Write a stack in diff syntax.** What changes is the important part. An unchanged hop is context.
+It is not content.
+
+Some changes are not a call path: a data structure, a SQL table, an API contract, a file tree, a
+branch that a stack flattens. Show these as one of the views in `SHOW-ME.md`. Use the same `+ ~ -`
+grammar. Put the view beside the stack. The stack is the default. It is not the only view.
 
 ## Grammar
 
@@ -23,31 +27,31 @@ stack. The stack is the default, not the only view.
 |---|---|
 | `+` `-` `~` | added · removed · changed. No marker = unchanged, shown for context |
 | `← In → Out` | the hop's argument and return types, when they are not obvious from the name |
-| `✗ Kind` | an error arm. **Every `✗` names where it lands** — `→ lands: <the next hop, the status, the screen>`. In `## As-is` too: a raise site listed without its landing is half a measurement |
+| `✗ Kind` | an error arm. **Each `✗` names where it lands**: `→ lands: <the next hop, the status, the screen>`. This also applies in `## As-is`. A raise site without its landing is half a measurement |
 | `(ruled \| proposed \| assumed)` | the standing of a landing that a human decided: a decision record · an open ASK · built anyway, recorded `status: assumed` |
-| `·` | a note about a hop that does not change — "unchanged, already raises", "one caller only" |
-| `✓` | an outcome the shape makes impossible; used in an assessment's `## Design` and in candidates that remove a defect class |
+| `·` | a note about a hop that does not change: "unchanged, already raises", "one caller only" |
+| `✓` | an outcome that the shape makes impossible. Use it in the `## Design` of an assessment, and in candidates that remove a defect class |
 
-**File-tree diff**, when a candidate adds or removes files:
+**File-tree diff.** Use it when a candidate adds or removes files:
 
 ```
 + resource-client.ts NEW · ~ resource-route.ts MODIFIED · - legacy-flow.ts DELETED
 ```
 
-**Signature block** — one per new or changed function, bodies may throw:
+**Signature block.** Write one for each new or changed function. The bodies may throw:
 
 ```python
 @staticmethod
 async def sweep_orphan_stones(*, limit: int | None = None) -> int: ...   # returns rows removed
 ```
 
-"No diff" is a valid stack: BJEW-585's operational candidate changed zero lines of application
-code and wrote `**Call stack** — no diff.` above the script's own hops.
+"No diff" is a valid stack. Example: the operational candidate of BJEW-585 changed zero lines of
+application code. It wrote `**Call stack** — no diff.` above the hops of the script.
 
 ## Backend variant
 
-Hops are `file:line` + the real function name; the types that matter are the ones a failure
-travels through. Excerpt, BJEW-586 candidate A (`SPEC.md` rev 2, `## Candidates`):
+Write each hop as `file:line` + the real function name. The types that matter are the types that a
+failure travels through. Excerpt: BJEW-586 candidate A (`SPEC.md` rev 2, `## Candidates`):
 
 ```
   POST /api/v1/auth/2fa/send
@@ -59,12 +63,12 @@ travels through. Excerpt, BJEW-586 candidate A (`SPEC.md` rev 2, `## Candidates`
     · sms arm              UNCHANGED — already raises at auth_service.py:641
 ```
 
-Two things that excerpt does and every backend stack must: an error arm is followed all the way
-to what the user sees, not to the exception type; and a path that does **not** change is named
-when a reader would otherwise assume it did.
+The excerpt does two things. Each backend stack must do them:
+1. Follow an error arm all the way to what the user sees. Do not stop at the exception type.
+2. Name a path that does **not** change, when a reader can assume that it did.
 
-A candidate may also record a **measured negative** inside the stack — the thing that does not
-happen. BJEW-585 candidate C:
+A candidate can also record a **measured negative** inside the stack: a thing that does not happen.
+Example: BJEW-585 candidate C:
 
 ```
   ProductRepository.delete_many(ids)
@@ -76,10 +80,14 @@ happen. BJEW-585 candidate C:
 
 ## Frontend variant
 
-The chain is `<Page>` → handler → `*.remote.ts` → invalidate. Hops are `file:line` with the
-rune or the export name; **state is a union, not a set of booleans** (`step: 'creds' | 'otp'`,
-not `isOtp` + `isSending`), and a child is written `<Child prop: T onEvent>`. Excerpt,
-BJEW-586 candidate D (`SPEC.md` rev 2), the shape being replaced and the shape replacing it:
+The chain is `<Page>` → handler → `*.remote.ts` → invalidate.
+- Write each hop as `file:line` with the rune or the export name.
+- **State is a union. It is not a set of booleans.** Write `step: 'creds' | 'otp'`. Do not write
+  `isOtp` + `isSending`.
+- Write a child as `<Child prop: T onEvent>`.
+
+Excerpt: BJEW-586 candidate D (`SPEC.md` rev 2). It shows the shape that goes away and the shape
+that replaces it:
 
 ```svelte
 - :23   let handledResult = $state.raw(login_form.result)   # the BJEW-292 guard, deleted
@@ -101,14 +109,17 @@ BJEW-586 candidate D (`SPEC.md` rev 2), the shape being replaced and the shape r
     · no-JS                method/action retained by enhance — no worse than today (NOT MEASURED)
 ```
 
-That block is doing the job of the format: the `✗` arm found the missing render site *before*
-it was built, and the `·` line marks an unmeasured claim instead of asserting it.
+That block does the job of the format:
+- The `✗` arm found the missing render site *before* it was built.
+- The `·` line marks a claim that is not measured. It does not assert it.
 
-**A presentation-only change has no call stack, and is Class A** — no agreement session.
+**A presentation-only change has no call stack. It is Class A.** It needs no agreement session.
 
 ## In the assessment
 
-The agreement's `## Observed` is the as-is stack a build works from; an assessment's `## Design`
-is this format again for what was built, when a call path is the right view. It names the agreement
-sha it judged and lists what was left out. A view is drawn only when it resolves the task's
-expensive uncertainty, never for completeness.
+- The `## Observed` of the agreement is the as-is stack. The build works from it.
+- The `## Design` of an assessment uses this format again for what was built, when a call path is
+  the right view.
+- It names the agreement sha that it judged. It lists what was left out.
+- Draw a view only when it resolves the expensive uncertainty of the task. Never draw one for
+  completeness.

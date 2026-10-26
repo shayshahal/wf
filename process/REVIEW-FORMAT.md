@@ -1,8 +1,8 @@
 # Review format — the contract for AGREEMENT-REVIEW.md (T1) and REVIEW.md (T2)
 
-Both files share one shape: a header block, one line per comment, a final verdict line.
+Both files have one shape: a header block, one line for each comment, and a final verdict line.
 `review-format.ts` implements it (`foldFeedbackLine`, `renderHeader`/`renderSkeleton`,
-`readVerdict`); `agree.ts` and `review.ts` only call those.
+`readVerdict`). `agree.ts` and `review.ts` only call those.
 
 ```
 # Review — <round>
@@ -19,12 +19,20 @@ urls: <one `<app>: <url>` line per app, worktree.ts urlLines
       | n/a — a detached worktree has no stack>
 ```
 
-`scope: checkpoint` identifies an optional in-build diff review in `CHECKPOINT-REVIEW.md`.
-It binds with the verdict and intended base under the same header, and approval resumes build.
-Final T2 uses `REVIEW.md` without a scope line. A checkpoint approval never authorizes delivery.
+## Scope
 
-The names come from the worktree's branch (`worktree.ts`, the slug and port rules in
-`ports.ts`); a detached worktree has no stack — omit the URLs and say so, never invent one.
+- `scope: checkpoint` marks an optional review of a diff in the build. It is in
+  `CHECKPOINT-REVIEW.md`.
+- It binds the verdict and the intended base under the same header. Approval resumes the build.
+- The final T2 uses `REVIEW.md` without a scope line.
+- A checkpoint approval never authorizes delivery.
+
+## URLs
+
+The names come from the branch of the worktree (`worktree.ts`, and the slug and port rules in
+`ports.ts`). A detached worktree has no stack. Omit the URLs and say so. Never invent one.
+
+## Body
 
 ```
 files changed (<n>):
@@ -37,25 +45,46 @@ comments:
 verdict: <approved | changes-requested | dismissed>
 ```
 
-Comment lines: `path:lineStart[-lineEnd] — text` (em-dash). A range folds to
-`a/b.ts:10-14 — rename this`; a single line to `c.ts:3 — nit`. A comment made on the page T1
-shows (agree.ts) is an agreement comment too, folded onto the line of the block it was made on —
-`AGREEMENT.md:22 — one call, not two` — because the page tags every block with its agreement line
-(`agreementBody`'s `wf-src-<line>`) and `pageLine` reads that tag back out of what the review UI reports.
-A `blockId` (annotating markdown directly) folds the same way:
-`AGREEMENT.md:usage-table — add a row`; one that says nothing about where it was is
-`AGREEMENT.md:? — text`. Each comment line also carries what it was made on, clipped to one line:
-`AGREEMENT.md:22 — one call, not two (on: invalidate('listings', 'stats')     one call, both keys)`.
-A person's overall words are an annotation like any other — the review UI reports them against no
-block, so they fold as `AGREEMENT.md:? — text` — and the review UI's own `message`, when it has one,
-becomes a leading `note — <message>` line, as does what the agent writes by hand when T1 is given in
-chat (round skill). What is **not** folded is the review UI's `feedback` field: it is a digest the
-tool generates, one section per annotation quoting the element's HTML and its box coordinates, and
-folding it put a 20-line restatement of every comment into a review file (measured 2026-10-06).
-Verdict mapping: `approved → approved`, `annotated → changes-requested`, anything dismissed stays
-`dismissed`.
+## Comment lines
 
-Rules: the verdict line is always last; the **last** `verdict: <v>` line in the file
-wins (runs append dated `## YYYY-MM-DD` sections, never overwrite). A skeleton's
-`verdict: pending …` line is not a verdict — `wf review --done` exits 2 until a real
-one is set. Dismissed at `--done` also exits 2: re-run the review.
+A comment line is `path:lineStart[-lineEnd] — text`. The dash is an em-dash.
+
+| Comment on | Folded line |
+|---|---|
+| A range | `a/b.ts:10-14 — rename this` |
+| A single line | `c.ts:3 — nit` |
+| A block of the T1 page | `AGREEMENT.md:22 — one call, not two` |
+| A `blockId` (markdown annotated directly) | `AGREEMENT.md:usage-table — add a row` |
+| No known place | `AGREEMENT.md:? — text` |
+
+- **T1 page comments.** A comment made on the page that T1 shows (`agree.ts`) is an agreement
+  comment. It folds onto the line of the block where it was made. The page tags each block with its
+  agreement line (`agreementBody`'s `wf-src-<line>`). `pageLine` reads that tag out of what the
+  review UI reports.
+- **Context.** Each comment line also carries what it was made on, cut to one line:
+  `AGREEMENT.md:22 — one call, not two (on: invalidate('listings', 'stats')     one call, both keys)`.
+- **Overall words.** The overall words of a person are an annotation like any other. The review UI
+  reports them against no block. They fold as `AGREEMENT.md:? — text`.
+- **Notes.** The review UI can give its own `message`. It becomes a leading `note — <message>` line.
+  The same applies to what the agent writes by hand when T1 is given in chat (round skill).
+- **Not folded.** The `feedback` field of the review UI is not folded. The tool generates it as a
+  digest. It has one section for each annotation, with the HTML of the element and its box
+  coordinates. When it was folded, it put a 20-line restatement of each comment into a review file
+  (measured 2026-10-06).
+
+Verdict mapping:
+
+| Review UI | Verdict |
+|---|---|
+| `approved` | `approved` |
+| `annotated` | `changes-requested` |
+| dismissed | `dismissed` |
+
+## Rules
+
+- The verdict line is always last.
+- The **last** `verdict: <v>` line in the file wins. Runs append dated `## YYYY-MM-DD` sections.
+  They never overwrite.
+- The `verdict: pending …` line of a skeleton is not a verdict. `wf review --done` exits 2 until a
+  real verdict is set.
+- A dismissed verdict at `--done` also exits 2. Run the review again.
