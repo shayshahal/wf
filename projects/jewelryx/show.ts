@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 // show.ts — wf show [<b2b|admin> <path> [as <buyer|seller|admin>] [mobile]]
-// Opens a browser window on this worktree's stack, already logged in as a seed user and
-// already on the page, and leaves it to Shay (T2: see the fix before reading the diff).
+// Prepares the T2 walk's scenario (reset, setup, readback) and opens no window: the proof is a screenshot.
 // No args: the `open:` line of the agreement's T2 walk. #114 moved that walk from the old
 // `## T2 walk` PLAN.md section into the agreement (`process/AGREEMENT-TEMPLATE.md`: a `- **T2 walk.**`
 // bullet under `## Agreed`). Plain and bold labels are equivalent; B/C agreements declare a walk
@@ -13,14 +12,10 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { opensWindows } from '../../src/worktrees/editor.ts';
 import { ensureServers } from '../../src/worktrees/serve.ts';
-import { writeCloneLaunch } from '../../src/worktrees/new.ts';
 import { readState, roundOf, toplevelOf } from '../../src/round/state.ts';
-import { browserPidFromOutput, recordShowBrowser } from '../../src/worktrees/show-browser.ts';
 import { agreementPath, agreementT2WalkLines, consequential, walkLines } from '../../src/round/agreement.ts';
 import { walkCommand, walkRecipeGap } from './walk.ts';
-import { basePortForBranch, slugForBranch } from '../../src/worktrees/worktree.ts';
-import { logins, stackUrls } from './index.ts';
-import type { Origins, SeedRole } from './index.ts';
+import type { SeedRole } from './index.ts';
 import { VERIFY_SKILL } from './round.ts';
 
 // Pure: Git Bash rewrites an argument that starts with / into a Windows path under its own install
@@ -66,25 +61,6 @@ export function setupLinesOf(text: string | null): string[] {
 	return walkLines(text, /setup:/i);
 }
 
-// Pure: what Claude Code's Browser pane opens for a parsed `open:` line, where wf opens no window
-// (editor.ts opensWindows): the login page, the seed user, then the page. Apps are served under
-// their own base path, as control-jewelryx's appUrl has it.
-export function paneText(open: Open, urls: Origins, slug: string, users: Record<SeedRole, [user: string, password: string]> = logins): string {
-	const page = (path: string) => `${urls[open.app]}/${open.app}${path}`;
-	const [user, password] = users[open.as];
-	return [
-		`T2 in the Browser pane (wf opens no window under Claude Code): mcp__Claude_Browser__preview_start with name "${slug} ${open.app}" (wf new wrote it into the clone's .claude/launch.json, where Desktop reads it; by name the pane can persist its login), then navigate:`,
-		`  the page: ${page(open.path)}${open.mobile ? ' (mobile: resize the pane to 390x844)' : ''}`,
-		`  if it asks for a login: ${page('/login')} as ${user} / ${password} (a one-time code follows: it is on the page's DEV banner), then the page again`,
-	].join('\n');
-}
-
-// Pure: the CLI's arguments for a parsed `open:` line, in its own headed window ("show" session),
-// apart from the browser the round's agents drive.
-export function showArgs(open: Open): string[] {
-	return [`${VERIFY_SKILL}/control-jewelryx.mjs`, 'open', open.app, open.path, 'as', open.as, ...(open.mobile ? ['mobile'] : []), '--headed'];
-}
-
 export async function runShow(argv: string[]): Promise<void> {
 	const toplevel = toplevelOf();
 	let line: string | null = argv.map((a) => unMsys(a, process.env)).join(' ').trim();
@@ -125,8 +101,8 @@ export async function runShow(argv: string[]): Promise<void> {
 		console.error(`wf show: ${gap}. Fix it in the agreement's T2 walk bullet, then wf show again.`);
 		process.exit(1);
 	}
-	// API setup/readback needs the stack too; starting it only before browser open was too late.
-	if (opensWindows()) {
+	// API setup/readback needs the stack. wf show opens no window; the proof is a screenshot.
+	if (opensWindows() && (ready.length || resets.length || setups.length)) {
 		if (!existsSync(join(toplevel, VERIFY_SKILL))) {
 			console.error(`wf show: this worktree has no ${VERIFY_SKILL} — its base predates the verification skill`);
 			process.exit(1);
@@ -164,27 +140,8 @@ export async function runShow(argv: string[]): Promise<void> {
 			process.exit(1);
 		}
 	}
-	if (!opensWindows()) {
-		const branch = spawnSync('git', ['-C', toplevel, 'rev-parse', '--abbrev-ref', 'HEAD'], { encoding: 'utf8' }).stdout.trim();
-		const slug = slugForBranch(branch);
-		const urls = stackUrls({ slug, port: basePortForBranch(branch) });
-		// Again here: a round wf new made before the clone had its entries gets them now.
-		writeCloneLaunch(slug, urls);
-		console.log(paneText(open, urls, slug));
-		return;
-	}
-
-	// Capture rather than inherit: the browser pid is in this CLI's first output line, and the window
-	// it leaves behind keeps the worktree on Windows until reap releases it (#180).
-	const r = spawnSync(process.execPath, showArgs(open), { cwd: toplevel, encoding: 'utf8' });
-	const printed = `${r.stdout ?? ''}${r.stderr ?? ''}`;
-	if (printed) process.stdout.write(printed.endsWith('\n') ? printed : `${printed}\n`);
-	if (r.status === 0) {
-		const pid = browserPidFromOutput(printed);
-		if (pid === null) console.error('wf show: the CLI printed no `opened with pid` line, so this window is not recorded as the round\'s and `wf reap` may fail to delete the worktree while it is open. Report it; the project\'s teardown still closes this checkout\'s browsers');
-		else recordShowBrowser(toplevel, [pid]);
-	}
-	process.exit(r.status ?? 1);
+	// No browser window opens (2026-10): the person judges screenshots and the PR, not a live app.
+	console.log(`wf show: scenario ready for ${open.app} ${open.path} as ${open.as}; no window opened. Capture the proof as a screenshot under proof/.`);
 }
 
 if (process.argv[1]?.endsWith('show.ts')) await runShow(process.argv.slice(2));

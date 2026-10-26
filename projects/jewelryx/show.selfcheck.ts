@@ -5,10 +5,9 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { opensWindows } from '../../src/worktrees/editor.ts';
 import { agreementSha, t2WalkRecipeGap } from '../../src/round/agreement.ts';
 import type { Origins } from './index.ts';
-import { noneLineOf, openLineOf, paneText, parseOpen, setupLinesOf, showArgs, unMsys } from './show.ts';
+import { noneLineOf, openLineOf, parseOpen, setupLinesOf, unMsys } from './show.ts';
 import { setupArgs, walkCommand, walkRecipeGap } from './walk.ts';
 
 assert.deepEqual(parseOpen('b2b /catalog as buyer mobile'), { app: 'b2b', path: '/catalog', as: 'buyer', mobile: true });
@@ -42,21 +41,11 @@ assert.equal(noneLineOf('# TICKET\n\n## Intent\n- x\n\n- **T2 walk.** none: noth
 assert.equal(noneLineOf('# TICKET\n\n## Intent\n- x\n\n- **T2 walk.** none - nothing visible\n'), 'none — nothing visible');
 assert.equal(noneLineOf(agreement), null);
 assert.equal(noneLineOf('# TICKET\n\n## Intent\n- x\n'), null);
-const cli = 'docs/agents/verify-jewelryx/control-jewelryx.mjs';
-assert.deepEqual(showArgs(parseOpen('b2b /catalog as seller mobile')!), [cli, 'open', 'b2b', '/catalog', 'as', 'seller', 'mobile', '--headed']);
-assert.deepEqual(showArgs(parseOpen('admin /orders')!), [cli, 'open', 'admin', '/orders', 'as', 'admin', '--headed']);
 const gitBash = { MSYSTEM: 'MINGW64', EXEPATH: 'C:\\Program Files\\Git\\bin' };
 assert.equal(unMsys('C:/Program Files/Git/products', gitBash), '/products');
 assert.equal(unMsys('C:/Program Files/Git/products', {}), 'C:/Program Files/Git/products');
 assert.equal(unMsys('/b2b/orders?order=1', gitBash), '/b2b/orders?order=1');
 
-// Under Claude Code: no window, the Browser pane's login and page (BJEW-562 T2, 2026-09-27).
-assert.equal(opensWindows({ CLAUDECODE: '1' }), false);
-assert.equal(opensWindows({}), true);
-const pane = paneText(parseOpen('b2b /inventory as seller')!, { b2b: 'http://localhost:13111', admin: 'http://localhost:33111' } as Origins, 'fix-a');
-assert.match(pane, /preview_start with name "fix-a b2b"/);
-assert.match(pane, /the page: http:\/\/localhost:13111\/b2b\/inventory\n/);
-assert.match(pane, /login: http:\/\/localhost:13111\/b2b\/login as seller@seed\.jewelryx \/ seed1234/);
 
 // The T2 walk's setup lines: the data the page needs, made once per agreement through the CLI's api.
 const walked = '- **T2 walk.** open: b2b /inventory/13bd/variants as seller\n  setup: api createVariant {"path":{"product_id":"13bd"},"body":{"attribute_values":{"size":"45"}}} as seller\n  setup: `api listInventory {} as seller`\nLook at the header.\n';
@@ -105,8 +94,8 @@ for (const prefix of ['## Agreed\n', '# TICKET\n\n## Intent\n']) {
 }
 assert.deepEqual(setupLinesOf('- **T2 walk.** open: b2b / as buyer\n\n## Facts\n  setup: a fact after a heading\n'), []);
 
-// Public CLI: `wf show` reads the new shape end to end. Under Claude Code it opens no window and
-// prints the Browser pane's page, which is what proves the open line parsed (a parse failure exits
+// Public CLI: `wf show` reads the new shape end to end. It opens no window and
+// prints the scenario line, which is what proves the open line parsed (a parse failure exits
 // before any of this).
 {
 	const repo = mkdtempSync(join(tmpdir(), 'wf-show-'));
@@ -119,17 +108,17 @@ assert.deepEqual(setupLinesOf('- **T2 walk.** open: b2b / as buyer\n\n## Facts\n
 		const run = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'wf.mjs');
 		writeFileSync(join(repo, folder, 'AGREEMENT.md'), agreement);
 		const out = execFileSync(process.execPath, [run, 'show'], { cwd: repo, encoding: 'utf8', env: { ...process.env, CLAUDECODE: '1' } });
-		assert.match(out, /\/b2b\/catalog/);
-		assert.match(out, /preview_start/);
+		assert.match(out, /b2b \/catalog as buyer/);
+		assert.match(out, /no window opened/);
 		writeFileSync(join(repo, folder, 'AGREEMENT.md'), agreement.replace('**T2 walk.**', 'T2 walk:'));
 		const plain = execFileSync(process.execPath, [run, 'show'], { cwd: repo, encoding: 'utf8', env: { ...process.env, CLAUDECODE: '1' } });
-		assert.match(plain, /\/b2b\/catalog/);
-		assert.match(plain, /preview_start/);
+		assert.match(plain, /b2b \/catalog as buyer/);
+		assert.match(plain, /no window opened/);
 		// The same end-to-end run with a stray `setup:` fact under `## Observed`: it is not run and does
 		// not fail the command; the real walk (`## Agreed`) still opens.
 		writeFileSync(join(repo, folder, 'AGREEMENT.md'), agreement.replace('## Observed\n- x\n', '## Observed\n- setup: the seed lacks the page, so it must be made by hand\n- open: the drawer holds a stale count\n'));
 		const out2 = execFileSync(process.execPath, [run, 'show'], { cwd: repo, encoding: 'utf8', env: { ...process.env, CLAUDECODE: '1' } });
-		assert.match(out2, /\/b2b\/catalog/);
+		assert.match(out2, /b2b \/catalog as buyer/);
 		assert.doesNotMatch(out2, /stale count|made by hand/);
 		// Public CLI regressions: normal Agreed facts and wrapped Behavior continuations, and the
 		// same facts in Class A's TICKET.md, must all leave the actual walk usable.
@@ -138,7 +127,7 @@ assert.deepEqual(setupLinesOf('- **T2 walk.** open: b2b / as buyer\n\n## Facts\n
 			writeFileSync(join(repo, '.wf', 'state.json'), JSON.stringify({ wf_version: 3, round: 't-1', class: klass, step: 'build', folder }));
 			writeFileSync(join(repo, folder, klass === 'A' ? 'TICKET.md' : 'AGREEMENT.md'), `${klass === 'A' ? '## Intent' : '## Agreed'}\n\n${facts}`);
 			const shown = execFileSync(process.execPath, [run, 'show'], { cwd: repo, encoding: 'utf8', env: { ...process.env, CLAUDECODE: '1' } });
-			assert.match(shown, /\/b2b\/catalog/);
+			assert.match(shown, /b2b \/catalog as buyer/);
 			assert.doesNotMatch(shown, /stale count|ordinary fact/);
 		}
 		// #139: the round's own explicit none is printed, and nothing opens; with no walk at all the
@@ -147,7 +136,7 @@ assert.deepEqual(setupLinesOf('- **T2 walk.** open: b2b / as buyer\n\n## Facts\n
 		writeFileSync(join(repo, folder, 'TICKET.md'), '# t\n## Intent\n- x\n\n- **T2 walk.** none — nothing visible to walk\n');
 		const noneOut = execFileSync(process.execPath, [run, 'show'], { cwd: repo, encoding: 'utf8', env: { ...process.env, CLAUDECODE: '1' } });
 		assert.match(noneOut, /none — nothing visible to walk/);
-		assert.doesNotMatch(noneOut, /preview_start/);
+		assert.doesNotMatch(noneOut, /no window opened/);
 		writeFileSync(join(repo, folder, 'TICKET.md'), '# t\n## Intent\n- x\n');
 		const missing = spawnSync(process.execPath, [run, 'show'], { cwd: repo, encoding: 'utf8', env: { ...process.env, CLAUDECODE: '1' } });
 		assert.equal(missing.status, 2, `${missing.stdout}\n${missing.stderr}`);
@@ -174,7 +163,7 @@ console.log('HTTP 200');
 		const show = () => execFileSync(process.execPath, [run, 'show'], { cwd: repo, encoding: 'utf8', env: { ...process.env, CLAUDECODE: '1' } });
 		const replay = show();
 		assert.match(replay, /setup: .*HTTP 200/);
-		assert.match(replay, /\/b2b\/catalog\/necklaces/);
+		assert.match(replay, /b2b \/catalog\/necklaces as buyer/);
 		assert.equal(JSON.parse(readFileSync(join(repo, 'scenario.json'), 'utf8')).label, 'variants');
 		show();
 		assert.equal(JSON.parse(readFileSync(join(repo, 'control-calls.json'), 'utf8')).length, 1);
@@ -214,13 +203,13 @@ fs.writeFileSync('scenario.json', JSON.stringify({label:'script scenario'}));
 		writeFileSync(join(repo, folder, 'TICKET.md'), '# t\n## Intent\n- x\n- **T2 walk.** none — external payment credentials unavailable; local captures do not reproduce settlement\n');
 		assert.match(show(), /none — external payment credentials unavailable/);
 		writeFileSync(join(repo, folder, 'TICKET.md'), scriptWalk);
-		assert.match(show(), /b2b\/orders/);
+		assert.match(show(), /b2b \/orders as buyer/);
 		// B/C use the same live readback/reset owner, preserving their agreement and approval path.
 		for (const klass of ['B', 'C']) {
 			writeFileSync(join(repo, '.wf', 'state.json'), JSON.stringify({ wf_version: 3, round: 't-1', class: klass, step: 'build', folder }));
 			writeFileSync(join(repo, folder, 'AGREEMENT.md'), scriptWalk.replace('## Notes', '## Agreed'));
 			execFileSync(process.execPath, ['scenario.mjs', 'reset'], { cwd: repo });
-			assert.match(show(), /b2b\/orders/);
+			assert.match(show(), /b2b \/orders as buyer/);
 			assert.equal(JSON.parse(readFileSync(join(repo, 'scenario.json'), 'utf8')).label, 'script scenario');
 		}
 		writeFileSync(join(repo, '.wf', 'state.json'), JSON.stringify({ wf_version: 3, round: 't-1', class: 'A', step: 'build', folder }));
