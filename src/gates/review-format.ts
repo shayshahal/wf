@@ -99,8 +99,8 @@ export function lookAtLines(urls: string | null, files: string[], pageFor: (file
 // `scope` names what a review judges — `checkpoint` for a person-chosen checkpoint review;
 // the final review is unscoped — and binds the verdict written under it (reviewScopeBinding). The
 // `chunk` field is retained for older headers and is no longer written.
-export type ReviewHeader = { round: string; klass?: string; base?: string | null; agreementSha?: string | null; contentSha?: string | null; headSha?: string | null; scope?: string | null; chunk?: string[]; date?: string; urls?: string | null; files?: string[]; beforeAfter?: string | null; assessment?: string[]; manual?: string[] };
-export function renderHeader({ round, klass = '—', base = null, agreementSha = null, contentSha = null, headSha = null, scope = null, chunk = [], date = today(), urls = null, files = [], beforeAfter = null, assessment = [], manual = [] }: ReviewHeader) {
+export type ReviewHeader = { round: string; klass?: string; base?: string | null; agreementSha?: string | null; contentSha?: string | null; headSha?: string | null; scope?: string | null; chunk?: string[]; date?: string; urls?: string | null; files?: string[]; beforeAfter?: string[]; assessment?: string[]; manual?: string[] };
+export function renderHeader({ round, klass = '—', base = null, agreementSha = null, contentSha = null, headSha = null, scope = null, chunk = [], date = today(), urls = null, files = [], beforeAfter = [], assessment = [], manual = [] }: ReviewHeader) {
   return [
     `# Review — ${round}`,
     ``,
@@ -115,7 +115,7 @@ export function renderHeader({ round, klass = '—', base = null, agreementSha =
     `date: ${date}`,
     urls ?? `urls: n/a — port not derivable without wt (see REVIEW-FORMAT.md)`,
     ...(asBuiltFile(files) ? [`look at: ${asBuiltFile(files)}  ← the call stack as built, diffed against the agreement — read first`] : []),
-    ...(beforeAfter ? [`look at: ${beforeAfter}  ← screenshots: before (the base) and after (this round)`] : []),
+    ...beforeAfter,
     ...lookAtLines(urls, files),
     ...assessment,
     ...manual,
@@ -187,25 +187,20 @@ export function captionFor(name: string, texts: (string | null | undefined)[]) {
 
 const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-// Pure: the page `wf review` writes to .wf/before-after.html. `src` is the proof folder as seen from it.
-export function beforeAfterPage({ round, pairs, captions, src }: { round: string; pairs: ProofPair[]; captions: Record<string, string>; src: string }) {
-  const cell = (name: string | undefined) => (name
-    ? `<figure><img src="${escapeHtml(`${src}/${name}`)}"><figcaption dir="auto">${escapeHtml(captions[name] ?? '')}</figcaption></figure>`
-    : '<figure class="none">none</figure>');
-  const rows = pairs.map((p) => `<tr><th>${'n' in p ? p.n : escapeHtml(p.label)}</th><td>${cell(p.before)}</td><td>${cell(p.after)}</td></tr>`).join('\n');
-  return `<!doctype html>
-<meta charset="utf-8"><title>${escapeHtml(round)}: before / after</title>
-<style>body{font:14px system-ui;margin:16px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccc;padding:8px;vertical-align:top}td{width:50%}img{max-width:100%;display:block}figure{margin:0}figcaption{color:#555;margin-top:6px}.none{color:#999}</style>
-<h1>${escapeHtml(round)}: before / after</h1>
-<table><tr><th></th><th>before (the base)</th><th>after (this round)</th></tr>
-${rows}
-</table>
-`;
+// Pure: the T2 header lines for the round's before/after pictures, one line per pair: both file paths
+// (absolute, from `dir`, the proof folder) and the caption. No page is written (2026-10): the pictures are
+// shown in the review file, in chat and in the PR (`wf post`), and a missing side says `none`.
+export function beforeAfterLines({ pairs, captions, dir }: { pairs: ProofPair[]; captions: Record<string, string>; dir: string }): string[] {
+  const path = (name: string | undefined) => (name ? `${dir.split('\\').join('/')}/${name}` : 'none');
+  return pairs.map((p) => {
+    const caption = [...new Set([p.before, p.after].map((n) => (n ? captions[n] ?? '' : '')).filter(Boolean))].join(' / ');
+    return `look at ${'n' in p ? p.n : p.label}: before ${path(p.before)} · after ${path(p.after)}${caption ? ` — ${caption}` : ''}`;
+  });
 }
 
 // ── the agreement page ──────────────────────────────────────────────────────
 // The agreement, rendered: `wf agree` shows the agreed material at T1 (.wf/AGREEMENT-T1.html) and
-// `wf review` shows the whole AGREEMENT.md at T2 (.wf/AGREEMENT.html). The markdown stays the file of
+// `wf review` no longer writes a page for it. The markdown stays the file of
 // record. At T1 the page is what the person annotates, so the page has to say which AGREEMENT.md line
 // each block is: agreementBody tags them `wf-src-<line>` and pageLine reads the tag back out of what
 // Plannotator reports. The page is also where SHOW-ME.md's views read as views — diff blocks coloured,

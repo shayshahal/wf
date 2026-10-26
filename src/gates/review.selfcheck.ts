@@ -3,7 +3,7 @@
 // comment) → folded lines + verdict mapping; resolveWorktree throws helpfully.
 import assert from 'node:assert/strict';
 import { reviewFiles, reviewTarget } from './review.ts';
-import { beforeAfterPage, captionFor, proofPairs } from './review-format.ts';
+import { beforeAfterLines, captionFor, proofPairs } from './review-format.ts';
 import { commentLine, foldFeedbackLine, lastField, pageLine, agreementBody, agreementPage, renderHeader, renderSkeleton, readVerdict, roundArtifacts } from './review-format.ts';
 import { appendDecision, STEPS, t1Gap } from '../round/step.ts';
 import { agreedOffset, agreedSection } from './agree.ts';
@@ -117,13 +117,13 @@ const validation = '## Live\nVERIFIED \u2014 the row counts down 23:59:58 \u2014
 check('a before caption is its RESEARCH.md line without the name', captionFor('before-1.png', [research, validation]) === 'admin on /admin/listings: the pending row, no countdown', captionFor('before-1.png', [research, validation]));
 check('an after caption is its Live line without the name', captionFor('after-1.png', [research, validation]) === 'VERIFIED \u2014 the row counts down 23:59:58', captionFor('after-1.png', [research, validation]));
 check('a picture no file names has no caption', captionFor('after-2.png', [research, validation]) === '');
-const page = beforeAfterPage({ round: 'TJEW-1', pairs, captions: { 'before-1.png': 'a <b>' }, src: '../bug-reports/TJEW-1/proof' });
-check('the page shows each side from the proof folder, escaped, and says when a side is missing', page.includes('src="../bug-reports/TJEW-1/proof/before-1.png"') && page.includes('a &lt;b&gt;') && page.includes('class="none"'), page);
-// #138: a class A round's live proof is after-only (no agreement baseline), named, and must reach T2's page.
-const namedPage = beforeAfterPage({ round: 'JX-1068', pairs: proofPairs(['after-he-1280-assess.png']), captions: {}, src: '../bug-reports/JX-1068/proof' });
-check('a named after-only capture reaches the before/after page', namedPage.includes('src="../bug-reports/JX-1068/proof/after-he-1280-assess.png"') && namedPage.includes('he-1280-assess'), namedPage);
-const withPage = renderHeader({ round: 'r', files: [], beforeAfter: '/w/.wf/before-after.html' });
-check('the T2 header points at the before/after page', withPage.includes('look at: /w/.wf/before-after.html'), withPage);
+const lines = beforeAfterLines({ pairs, captions: { 'before-1.png': 'a <b>' }, dir: '/w/bug-reports/TJEW-1/proof' });
+check('each pair is one line with both files and the caption; a missing side says none', lines.length === 3 && lines[0] === 'look at 1: before /w/bug-reports/TJEW-1/proof/before-1.png · after /w/bug-reports/TJEW-1/proof/after-1.png — a <b>' && lines[1].includes('before none') && lines[1].includes('after /w/bug-reports/TJEW-1/proof/after-2.png'), JSON.stringify(lines));
+// #138: a class A round's live proof is after-only (no agreement baseline), named, and must reach T2.
+const namedLines = beforeAfterLines({ pairs: proofPairs(['after-he-1280-assess.png']), captions: {}, dir: String.raw`C:\w\proof` });
+check('a named after-only capture reaches the T2 header, with a forward-slash path', namedLines.length === 1 && namedLines[0] === 'look at he-1280-assess: before none · after C:/w/proof/after-he-1280-assess.png', JSON.stringify(namedLines));
+const withPage = renderHeader({ round: 'r', files: [], beforeAfter: lines });
+check('the T2 header lists the before/after pictures', withPage.includes(lines[0]) && !withPage.includes('before-after.html'), withPage);
 check('the T2 header carries a manual row as a `manual:` line (prompts/plan.md)', renderHeader({ round: 'r', manual: ['manual: row 2 — the badge shows 3'] }).includes('manual: row 2 — the badge shows 3'));
 
 // The plan page: SHOW-ME.md's views rendered for T1 (.wf/SPEC-T1.html) and T2 (.wf/PLAN.html). Every

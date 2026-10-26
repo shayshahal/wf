@@ -1,7 +1,7 @@
 // Public T2 CLI regression: no live services, windows, approval callback or remote operation.
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -41,11 +41,12 @@ for (const klass of ['A', 'B']) {
     const result = spawnSync(process.execPath, ['--import', pathToFileURL(hook).href, join(root, 'wf.mjs'), 'review', 'fix/caption'], { cwd: dir, encoding: 'utf8', env: { ...process.env, CLAUDECODE: '1' }, timeout: 20000 });
     assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
     assert.match(result.stdout, /services intentionally stubbed/);
-    const html = readFileSync(join(dir, '.wf/before-after.html'), 'utf8');
-    assert.match(html, new RegExp(`ROUND-BEFORE-${klass}`), 'caption must come from the round agreement');
-    assert.match(html, new RegExp(`ROUND-AFTER-${klass}`), 'caption must come from the round assessment');
-    assert.ok(!html.includes('WRONG-ROOT-CAPTION'), 'root decoy must not be used');
-    assert.ok(html.includes(`../${folder}/proof/before-1.png`), 'image resolves from the actual .wf page');
+    assert.ok(!existsSync(join(dir, '.wf/before-after.html')), 'no before/after page is written');
+    const out = result.stdout;
+    assert.match(out, new RegExp(`ROUND-BEFORE-${klass}`), 'caption must come from the round agreement');
+    assert.match(out, new RegExp(`ROUND-AFTER-${klass}`), 'caption must come from the round assessment');
+    assert.ok(!out.includes('WRONG-ROOT-CAPTION'), 'root decoy must not be used');
+    assert.ok(out.includes(`${folder}/proof/before-1.png`), 'the line names the actual picture file');
     console.log(`ok class ${klass}: public review reads both round captions, not root decoy`);
   } catch (error) {
     failures++;

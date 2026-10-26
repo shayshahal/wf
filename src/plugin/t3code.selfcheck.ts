@@ -163,8 +163,9 @@ try {
 	assert.ok(review.stdout.includes(checkpoint));
 	// A different checkout still has no .wf: matching the native binding prevents the dead-link case.
 	assert.equal(existsSync(join(chat, '.wf', 'before-after.html')), false);
+	assert.equal(existsSync(join(repo, '.wf', 'before-after.html')), false);
 	const views = [...review.stdout.matchAll(/^view: (.+)$/gm)].map((match) => match[1].trim());
-	assert.ok(views.includes(join(repo, '.wf', 'before-after.html')));
+	assert.ok(views.some((page) => /proof[\\/](before|after)-/.test(page)));
 	assert.ok(views.every((page) => page.startsWith(repo) && existsSync(page)));
 	assert.match(review.stdout, /Workspace binding:.*worktree_status.*round checkout/);
 	assert.match(review.stdout, /absolute paths in handoffs/);
