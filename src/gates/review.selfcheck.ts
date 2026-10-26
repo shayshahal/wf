@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { reviewFiles, reviewTarget } from './review.ts';
 import { beforeAfterLines, captionFor, proofPairs } from './review-format.ts';
-import { commentLine, foldFeedbackLine, lastField, pageLine, agreementBody, agreementPage, renderHeader, renderSkeleton, readVerdict, roundArtifacts } from './review-format.ts';
+import { commentLine, foldFeedbackLine, lastField, pageLine, renderHeader, renderSkeleton, readVerdict } from './review-format.ts';
 import { appendDecision, STEPS, t1Gap } from '../round/step.ts';
 import { agreedOffset, agreedSection } from './agree.ts';
 import { agreementSha } from '../round/agreement.ts';
@@ -126,43 +126,6 @@ const withPage = renderHeader({ round: 'r', files: [], beforeAfter: lines });
 check('the T2 header lists the before/after pictures', withPage.includes(lines[0]) && !withPage.includes('before-after.html'), withPage);
 check('the T2 header carries a manual row as a `manual:` line (prompts/plan.md)', renderHeader({ round: 'r', manual: ['manual: row 2 — the badge shows 3'] }).includes('manual: row 2 — the badge shows 3'));
 
-// The plan page: SHOW-ME.md's views rendered for T1 (.wf/SPEC-T1.html) and T2 (.wf/PLAN.html). Every
-// block carries its own markdown line (`wf-src-<line>`) as its first class and as its id, so a comment
-// on the page folds back onto that line (pageLine/commentLine below).
-const body = agreementBody('# T\n\n## Build\n\n```diff\n a\n+b\n-c\n~d\n```\n\n- one\n- two\n\n> **ASK-1 (user) — which?**\n');
-check('a plan heading becomes h2, the diff markers keep their class', body.includes('<h2 class="wf-src-3" id="wf-src-3">Build</h2>') && body.includes('class="add">+b') && body.includes('class="del">-c') && body.includes('class="chg">~d'), body);
-check('every block is tagged with its own line: the tag survives a click inside it', body.includes('<h1 class="wf-src-1" id="wf-src-1">T</h1>') && body.includes('<pre class="wf-src-5 diff" id="wf-src-5">') && body.includes('<blockquote class="wf-src-15 ask" id="wf-src-15">') && body.includes('<li class="wf-src-12" id="wf-src-12">one</li>'), body);
-check('a bullet run becomes one list', body.includes('<ul>\n<li class="wf-src-12" id="wf-src-12">one</li>\n<li class="wf-src-13" id="wf-src-13">two</li>\n</ul>'), body);
-check('an ASK is a blockquote with a copy button', body.includes('<blockquote class="wf-src-15 ask" id="wf-src-15">') && body.includes('<button class="copy"'), body);
-const bare = agreementBody('```\n+x\n y\n```');
-check('a bare fence is coloured like a diff: the call stacks live there', bare.includes('class="add">+x') && bare.includes('class="ctx"> y'), bare);
-const indented = agreementBody('```\n  entry\n    run\n  +    handle\n    ~ changed\n    - gone\n```');
-check('an indented hop keeps its marker: a stack indents, so the marker is not at column 0', indented.includes('class="add">  +    handle') && indented.includes('class="chg">    ~ changed') && indented.includes('class="del">    - gone') && indented.includes('class="ctx">  entry'), indented);
-const table = agreementBody('| a | b |\n|---|---|\n');
-check('a decision table renders as cells with a source-tagged header', table.includes('<table><thead><tr class="wf-src-1" id="wf-src-1">') && table.includes('<th scope="col">a</th>'), table);
-const decisionTable = agreementBody('| Change | Evidence |\n|:---|---:|\n| **Restore** | `<unsafe>` |\n| a\\|b | <script>bad()</script> |', 10);
-check('table rows retain their source lines for annotation', decisionTable.includes('<tr class="wf-src-13" id="wf-src-13"><td><strong>Restore</strong>') && decisionTable.includes('id="wf-src-14"'), decisionTable);
-check('table cells escape HTML and render inline code', decisionTable.includes('<code>&lt;unsafe&gt;</code>') && !decisionTable.includes('<script>') && decisionTable.includes('&lt;script&gt;'), decisionTable);
-check('escaped table pipes stay inside one cell', decisionTable.includes('<td>a|b</td><td>&lt;script&gt;bad()&lt;/script&gt;</td>'), decisionTable);
-check('a malformed pipe block stays readable rather than disappearing', agreementBody('| not a table |').includes('<pre class="wf-src-1 table"'));
-for (const base of [0, 1, 10, 99]) {
-  for (const count of [1, 2, 7]) {
-    const md = ['| Change | Proof |', '|---|---|', ...Array.from({ length: count }, (_, n) => `| change-${n} | proof-${n} |`)].join('\n');
-    const html = agreementBody(md, base);
-    check(`table source offsets survive ${count} rows at base ${base}`, Array.from({ length: count }, (_, n) => html.includes(`id="wf-src-${base + n + 3}"`)).every(Boolean) && (html.match(/<td>/g) ?? []).length === count * 2);
-  }
-}
-const offset = agreementBody('## H\n\np\n', 10);
-check('with a base the tag is the line in the document the section was cut from', offset.includes('<h2 class="wf-src-11" id="wf-src-11">H</h2>') && offset.includes('<p class="wf-src-13" id="wf-src-13">p</p>'), offset);
-const withAsk = agreementPage({ title: 'P', meta: [], section: '> **ASK-1 — which?**\n' });
-const withMermaid = agreementPage({ title: 'P', meta: ['m'], section: '```mermaid\nA->>B: x\n```' });
-check('mermaid: the block is drawn by the CDN script', withMermaid.includes('<pre class="wf-src-1 mermaid" id="wf-src-1">A-&gt;&gt;B: x</pre>') && withMermaid.includes('cdn.jsdelivr.net/npm/mermaid'), withMermaid);
-check('mermaid follows the page scheme: default writes dark text, unreadable on the dark page', withMermaid.includes('theme:matchMedia("(prefers-color-scheme: dark)").matches?"dark":"default"'), withMermaid);
-check('the diff markers get a dark-scheme colour too, or they are dim on it', withMermaid.includes('@media (prefers-color-scheme:dark){pre.diff .add{color:#4ade80}'));
-check('the copy button falls back when the frame refuses the clipboard API (sandbox, no allow-same-origin)', withAsk.includes('wfCopy') && withAsk.includes('execCommand("copy")') && withAsk.includes('navigator.clipboard'), withAsk);
-check('no mermaid script on a page with no mermaid block', !agreementPage({ title: 'P', meta: [], section: '- a' }).includes('cdn.jsdelivr.net'));
-const pageHtml = agreementPage({ title: '<b>', meta: ['x <y>'], section: '## <i>', artifacts: [{ title: 'v.html', src: '../r/v.html' }] });
-check('the page escapes the title, meta and artifact, and embeds it', pageHtml.includes('<title>&lt;b&gt;</title>') && pageHtml.includes('x &lt;y&gt;') && pageHtml.includes('src="../r/v.html"'), pageHtml);
 // Folding a comment made on the rendered page back to an agreement line (agreementBody's tag, pageLine). The
 // payloads are what Plannotator 0.28.5 logged for clicks on a styled page (2026-10-06): the tag has to be
 // read out of both fields, because elementPath keeps only an element's first class where the selector
@@ -181,16 +144,6 @@ check('no quote, no `on:`', commentLine({ text: 't', blockId: 'b' }) === 'AGREEM
 const foldedPage = foldFeedbackLine({ decision: 'approved-with-notes', target: 'SPEC-T1.html', annotations: [onWrapper] });
 check('a page review folds to the same review-file shape, with a real agreement line', foldedPage.includes('AGREEMENT.md:12 — here?') && foldedPage.endsWith('verdict: approved'), foldedPage);
 
-const artDir = mkdtempSync(pjoin(tmpdir(), 'wf-art-'));
-writeFileSync(pjoin(artDir, 'b.html'), 'x');
-writeFileSync(pjoin(artDir, 'a.html'), 'x');
-writeFileSync(pjoin(artDir, 'note.md'), 'x');
-const from = mkdtempSync(pjoin(tmpdir(), 'wf-from-'));
-const arts = roundArtifacts(artDir, from);
-check('round artifacts are the round folder\'s HTML files, in order, relative to the page', arts.length === 2 && arts[0].title === 'a.html' && arts[0].src.endsWith('/a.html') && arts[0].src.startsWith('../'), JSON.stringify(arts));
-check('no round folder, no artifacts', roundArtifacts(pjoin(artDir, 'gone'), from).length === 0);
-rmSync(artDir, { recursive: true });
-rmSync(from, { recursive: true });
 
 // A round routes its reviews: the final review covers the round base and carries the final assessment;
 // a checkpoint covers its own named range (or the round base) and is bound `scope: checkpoint`

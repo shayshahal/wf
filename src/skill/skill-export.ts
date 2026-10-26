@@ -26,7 +26,7 @@ import { refuseCaller } from '../refusal.ts';
 // what every current command reads (src/run.ts's dispatch plus WF_ROOT-relative prompts, process docs
 // and the project's folder); missing any of them would make the export refuse rather than ship a
 // folder whose commands cannot run.
-const SKILL_EXPORT_REQUIRED_ENTRIES: readonly string[] = ['wf.mjs', 'prompts', 'process', 'projects', 'src'];
+const SKILL_EXPORT_REQUIRED_ENTRIES: readonly string[] = ['wf.mjs', 'prompts', 'process', 'projects', 'src', 'bin'];
 // Names never copied out of a runtime folder, whatever a checkout happens to hold.
 /** Standard local state and installed dependencies are never portable runtime assets. */
 export const SKILL_EXPORT_OMITTED_NAMES: readonly string[] = ['.git', '.delta', '.wf', '.cache', '.claude', '.pi', 'node_modules'];

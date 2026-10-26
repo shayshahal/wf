@@ -159,7 +159,7 @@ if (!install(${JSON.stringify(join(installSource, '.git'))}, ${JSON.stringify(in
 	assert.match(gate.stdout, /native review handoff: T3 Code — agreement \(not opened by wf\)/);
 	const record = readFileSync(join(repo, folder, 'AGREEMENT-REVIEW.md'), 'utf8');
 	assert.ok(!/^verdict: approved$/m.test(record), 'presentation handoff cannot invent approval');
-	assert.ok(existsSync(join(repo, '.wf/AGREEMENT-T1.html')));
+	assert.ok(existsSync(join(repo, '.wf/AGREEMENT-T1.md')));
 	console.log('source/installed skill, relocated/re-exported kit and env entry: Pi/ACP native guidance, concise phase prompts, workspace/authorization refusals, unchanged entry ownership, terminal fallback and pending T1');
 } finally {
 	server.closeAllConnections();

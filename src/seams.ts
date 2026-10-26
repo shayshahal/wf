@@ -23,7 +23,6 @@ export type Worktree = { path: string; branch: string | null };
 export type ReviewUI = {
 	available: () => boolean;
 	annotate: (o: { worktree: string; file: string; since: string }) => ReviewFeedback | null;
-	reviewDiff: (o: { worktree: string; base: string; diffType?: string; since: string }) => ReviewFeedback | null;
 };
 // A question inbox carries messages, not round decisions or human gate approvals.
 export type QuestionInbox = {
@@ -86,7 +85,7 @@ export const seams: Seams = {
 	// ({ branch, path, slug, pid }) → the ordered steps `wf reap` runs (reap.ts runs them).
 	// null: the kit's plain git (git-worktree.ts).
 	removalPlan: null,
-	// { available(), annotate({ worktree, file, since }), reviewDiff({ worktree, base, diffType, since }) }
+	// { available(), annotate({ worktree, file, since }) }
 	// → the one feedback line T1/T2 fold, or null. Without one, T1/T2 open the file in an editor.
 	reviewUI: null,
 	// Native tool instructions take precedence over an external review UI; null keeps kit defaults.

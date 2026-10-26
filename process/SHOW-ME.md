@@ -67,7 +67,14 @@ with a short caption naming the scenario and conditions:
 ```
 
 Use image URLs accessible to the PR's reviewers after the worktree is removed: uploaded attachments
-or committed images linked at an immutable revision. Verify that both images render on GitHub.
+or committed images linked at an immutable revision.
+
+A recent `gh` (2.103.2 has it; `gh pr comment --help` must list `--attach`) uploads the images itself:
+`gh pr comment <n> --attach './before.png#Before: <view>' --attach './after.png#After: <view>'`, and
+`gh pr create --attach …` does the same. A body that references the file, `![Before: <view>](./before.png)`,
+has that reference rewritten to the uploaded asset. The text after `#` is the alt text. Up to 50 files
+per command; if some uploads fail, the PR or comment is still created, so read the result. Prefer it
+to committing screenshots. Without `--attach` in the installed `gh`, use a committed image at an immutable revision. Verify that both images render on GitHub.
 Local paths and ignored `proof/` files alone do not meet the requirement. `wf deliver` copies this
 section into the PR description, including on retry; keep it current in the working document.
 

@@ -5,7 +5,7 @@
 import { run } from '../src/run.ts';
 import { herdrOpener } from './adapters/herdr.ts';
 import { processCwds } from './adapters/processes.ts';
-import { annotateFile, isPlannotatorPresent, reviewDiff } from './adapters/plannotator.ts';
+import { annotateFile, isPlannotatorPresent } from './adapters/plannotator.ts';
 import { questionInbox } from './adapters/plannotator-inbox.ts';
 import { piModelsForProvider, resolvePi } from './models.ts';
 import * as jewelryx from './projects/jewelryx/index.ts';
@@ -28,7 +28,7 @@ export async function runEnvWf(entry: string, argv: string[]) {
 		madeBy: 'env',
 		createWorktree,
 		removalPlan,
-		reviewUI: { available: isPlannotatorPresent, annotate: annotateFile, reviewDiff },
+		reviewUI: { available: isPlannotatorPresent, annotate: annotateFile },
 		inbox: questionInbox,
 		opener: herdrOpener,
 		processCwds,
