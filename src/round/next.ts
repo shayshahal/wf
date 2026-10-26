@@ -17,7 +17,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { refuseCaller } from '../refusal.ts';
-import { addQuestion, blockedQuestion, openRevisions } from './ask.ts';
+import { addQuestion, blockedQuestion, openRevisions, recoverProjections } from './ask.ts';
 import { agreementClass, agreementFile, agreementGap, agreementPath, agreementSha, revisionSha, AGREEMENT_FILE, AGREEMENT_REVIEW_FILE, ASSESSMENT_FILE, assessmentGap, assessmentHead, assessmentVerdict, caseFiles, consequential, hasT2Walk, notAskedForGap, REVIEW_FILE, t2WalkRecipeGap, verificationCases } from './agreement.ts';
 import { contractPaths as contractPathsFile, trackerCompletionGap } from '../project.ts';
 import { classFromFiles } from '../gates/classify.ts';
@@ -407,6 +407,7 @@ export async function runNext() {
 		console.error('wf next: no round here — run it in the round\'s worktree (wf new <branch> --id <id> makes one)');
 		refuseCaller();
 	}
+	recoverProjections(toplevel);
 	const snapshot = snapshotOf(toplevel);
 	const expectedCorrections = correctionStateSha({ corrections: snapshot.corrections });
 	let { say, effects } = nextAction(snapshot);

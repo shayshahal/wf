@@ -7,7 +7,7 @@
 //   wf decide [--q <n>] "<answer, their words>"                          → closes q<n>
 //   wf decide --revise [--q <n>] "<what the agreement must now do>"      → the same, and back to `agree`
 // `wf prompt` and `wf deliver` refuse while a question is open (openQuestionGate).
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { refuseCaller } from '../refusal.ts';
 import { appendDecision, agreementPathOf } from './step.ts';
 import { stepHistory } from './friction.ts';
@@ -50,10 +50,15 @@ export function blockedQuestion(text: string): string | null {
 	return text.replace(/\r\n/g, '\n').match(/^Question:[ \t]*(.+)$/m)?.[1].trim() || null;
 }
 
+// The identity a projected line carries: the recorded question or decision it came from.
+export const projectionMarker = (id: string) => `<!-- wf:${id} -->`;
+
 // Pure: BLOCKED.md with the answer under `## Answer`, which the next build agent follows.
-export function appendAnswer(blockedText: string, answer: string, date = new Date().toISOString().slice(0, 10)) {
+export function appendAnswer(blockedText: string, answer: string, date = new Date().toISOString().slice(0, 10), id: string | null = null) {
 	const body = blockedText.replace(/\r\n/g, '\n').trimEnd();
-	const line = `${date} ${answer.trim()}`;
+	if (id && body.includes(projectionMarker(id))) return `${body}
+`;
+	const line = `${date} ${answer.trim()}${id ? ` ${projectionMarker(id)}` : ''}`;
 	return /^## Answer[ \t]*$/m.test(body) ? `${body}\n${line}\n` : `${body}\n\n## Answer\n${line}\n`;
 }
 
@@ -125,12 +130,53 @@ export async function runAsk(argv: string[]): Promise<void> {
 	console.log(`q${q.n} → ${to}: ${text}`);
 }
 
-// Record a local correction as the round's own fact (state.decisions), beside the agreement's
-// `## Decisions` line the build reads. `wf status --inspect` shows it and a resumed build's brief
-// carries it (prompt.ts), so a local correction reaches the implementation without a renewed
-// agreement or T1 (#114). `wf decide --revise` is the other path: a new revision and a fresh T1.
-function recordDecision(toplevel: string, text: string) {
-	writeState(toplevel, (s) => ({ decisions: [...(s.decisions ?? []), { text: text.trim(), at: new Date().toISOString() }] }));
+// A local correction is the round's own fact (state.decisions), beside the agreement's `## Decisions`
+// line the build reads. `wf status --inspect` shows it and a resumed build's brief carries it
+// (prompt.ts), so a local correction reaches the implementation without a renewed agreement or T1
+// (#114). `wf decide --revise` is the other path: a new revision and a fresh T1.
+// The state record is written first, in the same transaction that closes the question, and carries the
+// operation's identity. The document line is its projection: `projectDecisions` writes it, and writes it
+// again after an interruption, never twice (#193).
+type Decision = NonNullable<State['decisions']>[number];
+const localDecisionId = (decisions: Decision[] = []) => `d${Math.max(0, ...decisions.map((d) => Number(/^d(\d+)$/.exec(d.id ?? '')?.[1] ?? 0))) + 1}`;
+
+// Write each state decision that belongs in the agreement and is not there yet. `recover` (a later
+// command finding a gap) leaves revise decisions alone: the agreement they reached has been rewritten.
+export function projectDecisions(toplevel: string, { recover }: { recover: boolean }): void {
+	const state = readState(toplevel);
+	const agreement = agreementPathOf(toplevel, state);
+	if (!state || !existsSync(agreement)) return;
+	const before = readFileSync(agreement, 'utf8');
+	let text = before;
+	for (const d of state.decisions ?? []) {
+		if (d.doc !== 'agreement' || !d.id || (recover && d.revise)) continue;
+		if (text.includes(projectionMarker(d.id))) continue;
+		text = appendDecision(text, `${d.text} ${projectionMarker(d.id)}`, d.at.slice(0, 10));
+	}
+	if (text !== before) writeFileSync(agreement, text);
+}
+
+// Write the answer of the build's blocked question into BLOCKED.md when the state records it and the
+// file lacks it. Only the latest answer to the question the file asks now, and only when the file was
+// not rewritten after the answer: a new block, even with the same Question line, stays open.
+export function projectBlockedAnswer(toplevel: string): void {
+	const state = readState(toplevel);
+	const file = roundFile(toplevel, 'BLOCKED.md');
+	if (!state || !existsSync(file)) return;
+	const body = readFileSync(file, 'utf8');
+	const question = blockedQuestion(body);
+	const answered = [...(state.answered ?? [])].reverse().find((q) => q.source?.startsWith('BLOCKED.md'));
+	if (!question || !answered || answered.text !== question || answered.answer == null || answered.n === state.blocked_answered) return;
+	if (body.includes(projectionMarker(`q${answered.n}`))) return;
+	if (answered.answered && statSync(file).mtimeMs > Date.parse(answered.answered) + 1000) return;
+	writeFileSync(file, appendAnswer(body, answered.answer, answered.answered?.slice(0, 10), `q${answered.n}`));
+}
+
+// Run by the commands that read the working documents (`wf next`, `wf brief`): finish any projection
+// an interrupted `wf decide` left behind.
+export function recoverProjections(toplevel: string): void {
+	projectBlockedAnswer(toplevel);
+	projectDecisions(toplevel, { recover: true });
 }
 
 export async function runDecide(argv: string[]): Promise<void> {
@@ -154,8 +200,8 @@ export async function runDecide(argv: string[]): Promise<void> {
 			console.error(`wf decide: no ${agreement} to record it in`);
 			process.exit(2);
 		}
-		writeFileSync(agreement, appendDecision(readFileSync(agreement, 'utf8'), answer));
-		recordDecision(toplevel, answer);
+		writeState(toplevel, (s) => ({ decisions: [...(s.decisions ?? []), { id: localDecisionId(s.decisions), text: answer, at: new Date().toISOString(), doc: 'agreement' as const }] }));
+		projectDecisions(toplevel, { recover: false });
 		console.log(`recorded in ${agreement} § Decisions`);
 		return;
 	}
@@ -187,7 +233,11 @@ export async function runDecide(argv: string[]): Promise<void> {
 			const result = closeQuestion(current, target, undefined, answer);
 			decided.question = result.question;
 			const said = revisionText(result.question, answer);
-			return a.revise ? reviseState(result.state, said, revisionSha(toplevel, result.state.class ?? null, result.state.folder ?? null)) : result.state;
+			// The answer and its decision record settle together: an interruption after this write leaves
+			// both, and the documents are projected from them.
+			const line = `${result.question.text} → ${result.question.to}: ${answer}`;
+			const keep = blocked || assessmentSource ? result.state : { ...result.state, decisions: [...(result.state.decisions ?? []), { id: `q${result.question.n}`, text: line, at: new Date().toISOString(), ...(existsSync(agreement) ? { doc: 'agreement' as const } : {}), ...(a.revise ? { revise: true as const } : {}) }] };
+			return a.revise ? reviseState(keep, said, revisionSha(toplevel, keep.class ?? null, keep.folder ?? null)) : keep;
 		});
 	} catch (e) {
 		console.error(`wf decide: ${(e as Error).message}`);
@@ -196,18 +246,16 @@ export async function runDecide(argv: string[]): Promise<void> {
 	const question = decided.question as Question;
 	if (blocked) {
 		const file = roundFile(toplevel, 'BLOCKED.md');
-		writeFileSync(file, appendAnswer(readFileSync(file, 'utf8'), answer));
+		writeFileSync(file, appendAnswer(readFileSync(file, 'utf8'), answer, undefined, `q${question.n}`));
 		console.log(`q${question.n} closed · answer in ${file} § Answer`);
 	} else if (assessmentSource) {
 		// An assessment ruling (fix or accept) stays in state: ASSESSMENT.md is the assessment's, not
 		// the person's, and `wf next` reads the ruling from `answered` (next.ts).
 		console.log(`q${question.n} closed · ruling recorded`);
 	} else {
-		const line = `${question.text} → ${question.to}: ${answer}`;
 		// No agreement yet (preAgreement): state.decisions is the only home; agree's brief carries it.
 		const written = existsSync(agreement);
-		if (written) writeFileSync(agreement, appendDecision(readFileSync(agreement, 'utf8'), line));
-		recordDecision(toplevel, line);
+		projectDecisions(toplevel, { recover: false });
 		console.log(written ? `q${question.n} closed · recorded in ${agreement} § Decisions` : `q${question.n} closed · recorded in state.decisions (agree's brief carries it)`);
 	}
 	if (a.revise) console.log('the round is back at agree: `wf next` sends it to a fresh agreement and T1 with this answer');
