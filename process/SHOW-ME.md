@@ -5,25 +5,31 @@ person must decide or know. Show relationships as a view; use prose for the reas
 
 ## Read less
 
-- **Decision first.** One line: proposed change, result, or question. Name the person's next action.
-- **Plain language.** Explain what the person sees or what changes, then the engineering reason
-  only where it affects their decision. Keep file names, workflow bookkeeping and logs in supporting
-  references.
-- **One claim per bullet.** Concrete subject + action. Use short labels and ordinary words; no new
-  controlled-language parser or mandatory response tokens.
-- **Change, proof, limits.** A small before/after or evidence table beats a narrative of the work.
-  Link commands, logs and captures; say `NOT MEASURED — <why>` where evidence is missing.
-- **Progressive detail.** Put supporting logs and routine implementation detail behind references or
-  expandable sections. Keep behavior, exclusions, consequential choices, unrequested additions,
-  material risks and the approval question visible.
-- **Same authority.** Preserve the requester's exact words and the complete agreed scope. A shorter
-  presentation must not silently drop a condition, turn a proposal into proof, or imply approval.
+Show, don't narrate. Length does not matter: a long diff or long text is fine when it sits behind
+one of the forms below. Prose alone is not an accepted handoff.
+
+- **Decision first.** One line: the change, the result or the question. Name the person's next action.
+- **Use these forms, not paragraphs:**
+  - **Code shape:** call stack (now and after), interfaces, types and signatures, data model, state
+    machine, sequence, dependency graph, architecture diagram, file tree of what changes.
+  - **Before/after:** side-by-side table, input→output examples, a diff of the contract.
+  - **Proof:** command with exact output, red→green pair, test names with results, the key log line
+    marked, before/after screenshots, recordings. Write `NOT MEASURED — <why>` where proof is missing.
+  - **Visual:** diagram, flow, mockup, annotated screenshot.
+  - **Decision:** one question, 2-4 options, a recommendation, the result of each option. Ask a
+    product question in product terms (what the user sees), not in code terms.
+- **Write in ASD-STE100.** Short sentences. One instruction per sentence. Active voice. Direct
+  commands. One word for one meaning, used the same way every time. Put "only" and "not" next to
+  the word they change. Make "it", "this" and "they" point at one thing.
+- **Do not write:** a story of the work ("I then..."), a summary that repeats the diff, hedged paragraphs.
+- **Same authority.** Keep the requester's exact words and the complete agreed scope. Do not drop a
+  condition, turn a proposal into proof, or imply approval.
 
 An agreement answers: **Now → Change · Keep/exclude · Choice/why · Proof · Your decision**.
 A review answers: **Result · Changed · Evidence · Limits/risks · Your action**.
 These are reading prompts, not new headings or workflow state. Keep the existing file sections,
-identity headers, comments and verdict syntax. Aim for one screen of decision material; split a
-large decision into named views rather than clipping it to fit.
+identity headers, comments and verdict syntax. Do not clip content to fit a screen; split a large
+decision into named views.
 
 ## Choose a view
 

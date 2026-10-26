@@ -108,8 +108,8 @@ if (!install(${JSON.stringify(join(installSource, '.git'))}, ${JSON.stringify(in
 			assert.match(brief.stdout, /Native presentation — T3 Code/, 'the actual skill entry must wire the native host');
 			assert.match(brief.stdout, /html_preview.*html_render/s);
 			assert.match(brief.stdout, /Decision first/);
-			assert.match(brief.stdout, /one screen/i);
-			assert.match(brief.stdout, /plain language/i);
+			assert.match(brief.stdout, /Show, don.t narrate/i);
+			assert.match(brief.stdout, /ASD-STE100/);
 			assert.ok(brief.stdout.indexOf('Decision first') < brief.stdout.indexOf("The requester's words"), 'presentation rules precede long ticket context');
 			assert.ok(!brief.stdout.includes('fixture-secret'));
 			assert.equal(JSON.parse(readFileSync(join(repo, '.wf/state.json'), 'utf8')).made_by, madeBy);
@@ -132,7 +132,7 @@ if (!install(${JSON.stringify(join(installSource, '.git'))}, ${JSON.stringify(in
 			const prompt = await run(entry, ['prompt', phase]);
 			assert.equal(prompt.code, 0, prompt.stderr);
 			assert.match(prompt.stdout, /Decision first/);
-			assert.match(prompt.stdout, /plain language/i);
+			assert.match(prompt.stdout, /ASD-STE100/);
 		}
 		const saved = readFileSync(join(repo, '.wf/state.json'), 'utf8');
 		writeFileSync(join(repo, '.wf/state.json'), JSON.stringify({ ...JSON.parse(saved), made_by: madeBy === 'kit' ? 'env' : 'kit' }));

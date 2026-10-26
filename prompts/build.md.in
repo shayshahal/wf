@@ -32,7 +32,7 @@ Implement the agreement at `{{folder}}/{{file}}`.
   "<recovery owner>" --note "<concrete blocker>"`. Reading this brief or acknowledging a message is
   not completion. Do not edit a person's historical verdict to carry an instruction.
 - Record commands, observed results and limitations as short evidence rows in the working document.
-  Use `{{wf}}/process/SHOW-ME.md` for compact handovers and visual demonstrations; link long logs. Read previous findings and recorded decisions; repair them through the work and its
+  Use `{{wf}}/process/SHOW-ME.md` for handovers: show, don't narrate (ASD-STE100, no prose-only handoffs). Read previous findings and recorded decisions; repair them through the work and its
   evidence, rather than a prescribed response form.
 - Use project setup/reset and diagnostic tools to reach the actual scenario. A check that could not
   run because the scenario or state was absent is this build's work — set it up with the project's
