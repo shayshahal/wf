@@ -382,8 +382,9 @@ try {
 		return { f, elapsed: Date.now() - started, error: e };
 	};
 	await failing('a server that never answers initialize', 'init-hang', 'timeout', /no answer to initialize within 300 ms/, { timeoutMs: 300 });
-	const hung = await failing('a server that never answers the tool call', 'call-hang', 'timeout', /no answer to tools\/call within 300 ms/, { timeoutMs: 300 });
-	check('the deadline is the deadline (not the long default)', hung.elapsed < 5_000, `${hung.elapsed} ms`);
+	// 3 s, not 300 ms: the deadline covers the child's own start, and under aggregate load a 300 ms one expired at initialize (#173, 2026-10-19).
+	const hung = await failing('a server that never answers the tool call', 'call-hang', 'timeout', /no answer to tools\/call within 3000 ms/, { timeoutMs: 3_000 });
+	check('the deadline is the deadline (not the long default)', hung.elapsed < 8_000, `${hung.elapsed} ms`);
 	await failing('a server that exits during initialize, with its reason on stderr', 'init-exit', 'exited', /exit code 2.*cannot open inbox registry/s);
 	await failing('a server that dies in the tool call', 'call-exit', 'exited', /exit code 3.*segfault in inbox store/s);
 	await failing('initialize rejected by JSON-RPC', 'init-error', 'protocol', /rejected initialize: -32600 unsupported protocol/);
