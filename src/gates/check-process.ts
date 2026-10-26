@@ -11,6 +11,11 @@ import { ownedProcessTree, parseProcessIdentities } from '../process-tree.ts';
 let cancellationRequested = false;
 const activeRecords = new Set<string>();
 
+/** The failed predicates of a refused release, in one bounded line. */
+export function releaseRefusal(d: { rootPresent: boolean; orphanedRunner: boolean; nativeKillOk: boolean; inventoryAfter: string; survivors: string[]; survivorCount: number }): string {
+	return `root identity ${d.rootPresent ? 'seen' : 'NOT seen'}; orphaned runner ${d.orphanedRunner ? 'YES' : 'no'}; native kill ${d.nativeKillOk ? 'ok' : 'FAILED'}; inventory after kill ${d.inventoryAfter}; surviving ${d.survivorCount}${d.survivors.length ? `: ${d.survivors.join(', ')}${d.survivorCount > d.survivors.length ? ', …' : ''}` : ''}`;
+}
+
 /** A failed cleanup always has null status, so its runner cannot supply green evidence. */
 export type CheckProcessResult = { status: number | null; stdout: string; stderr: string; error?: Error };
 
@@ -50,11 +55,15 @@ export async function runCheckProcess(cmd: string, args: string[], options: { cw
 				const orphanedRunner = runnerPid !== undefined && snapshot.kind === 'known' && snapshot.processes.some((p) => p.parent === runnerPid && !owners.some((owner) => owner.pid === p.pid));
 				const killed = seams.processes.kill(owners);
 				const after = seams.processes.snapshot();
-				const released = snapshot.kind === 'known' && snapshot.processes.some((p) => p.pid === root?.pid && p.born === root?.born) && !orphanedRunner && killed && after.kind === 'known' && !owners.some((owner) => after.processes.some((p) => p.pid === owner.pid && p.born === owner.born || p.parent === owner.pid && Date.parse(p.born) >= Date.parse(owner.born)));
+				const survivors = after.kind === 'known' ? owners.filter((owner) => after.processes.some((p) => p.pid === owner.pid && p.born === owner.born || p.parent === owner.pid && Date.parse(p.born) >= Date.parse(owner.born))) : [];
+				// Each predicate is kept apart: a refusal says which one failed (#173), by identity only (no command lines).
+				const diagnosis = { rootPresent: snapshot.kind === 'known' && snapshot.processes.some((p) => p.pid === root?.pid && p.born === root?.born), orphanedRunner, nativeKillOk: killed, inventoryAfter: after.kind, survivors: survivors.slice(0, 10).map((o) => `${o.pid}@${o.born}`), survivorCount: survivors.length };
+				const released = diagnosis.rootPresent && !orphanedRunner && killed && after.kind === 'known' && !survivors.length;
+				if (!released) writeFileSync(record, JSON.stringify({ state: 'releasing', processes: owners, diagnosis }));
 				if (orphanedRunner) writeFileSync(record, JSON.stringify({ state: 'unverified-orphans', runnerPid, processes: owners }));
 				if (released) unlinkSync(record);
 				await Promise.race([closed, new Promise<void>((done) => setTimeout(done, 1000))]);
-				resolve({ status: released && !cancelled ? status : null, stdout, stderr: `${stderr}${reason ? `\nwf check: ${reason}` : ''}${released ? '' : '\nwf check: descendant shutdown not confirmed; ownership retained'}` });
+				resolve({ status: released && !cancelled ? status : null, stdout, stderr: `${stderr}${reason ? `\nwf check: ${reason}` : ''}${released ? '' : `\nwf check: descendant shutdown not confirmed; ownership retained (${releaseRefusal(diagnosis)})`}` });
 			} catch { resolve({ status: null, stdout, stderr: `${stderr}\nwf check: release failed; inspect .wf/check-processes before retrying` }); }
 		};
 		child.stdout?.on('data', (data) => { stdout += data; if (stdout.length + stderr.length > options.maxBuffer) { cancelled = true; finish(null, 'output limit exceeded'); } });

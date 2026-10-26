@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { runCheckProcess } from './check-process.ts';
+import { releaseRefusal, runCheckProcess } from './check-process.ts';
+import { seams } from '../seams.ts';
 
 const root = mkdtempSync(join(tmpdir(), 'wf-check-lifetime-'));
 const options = { cwd: root, worktree: root, env: process.env, shell: false, maxBuffer: 100_000 };
@@ -31,5 +32,19 @@ try {
 	const timeout = runCheckProcess(process.execPath, ['-e', runner], { ...options, timeoutMs: 4000 });
 	await waitForDescendant();
 	assert.match((await timeout).stderr, /timed out/); await assertReleased();
+	// #173: a refused release names the predicate that failed, by identity, and keeps it in the ownership record.
+	assert.match(releaseRefusal({ rootPresent: false, orphanedRunner: true, nativeKillOk: false, inventoryAfter: 'unknown', survivors: ['1@t'], survivorCount: 12 }), /root identity NOT seen; orphaned runner YES; native kill FAILED; inventory after kill unknown; surviving 12: 1@t, …/);
+	const refused = mkdtempSync(join(tmpdir(), 'wf-check-refused-'));
+	const realKill = seams.processes.kill;
+	seams.processes.kill = (owners) => { realKill(owners); return false; };
+	try {
+		const run = await runCheckProcess(process.execPath, ['-e', 'console.log("x")'], { ...options, cwd: refused, worktree: refused });
+		assert.equal(run.status, null);
+		assert.match(run.stderr, /descendant shutdown not confirmed; ownership retained \(root identity seen; orphaned runner no; native kill FAILED; inventory after kill known; surviving 0\)/);
+		const folder = join(refused, '.wf', 'check-processes');
+		const kept = JSON.parse(readFileSync(join(folder, readdirSync(folder)[0]), 'utf8'));
+		assert.equal(kept.diagnosis.nativeKillOk, false); assert.equal(kept.diagnosis.rootPresent, true); assert.ok(Array.isArray(kept.processes));
+		assert.doesNotMatch(JSON.stringify(kept), /commandLine|command/i, 'identities only, no command lines');
+	} finally { seams.processes.kill = realKill; rmSync(refused, { recursive: true, force: true }); }
 	console.log('all real check output, cancellation and timeout descendant witnesses green');
 } finally { rmSync(root, { recursive: true, force: true }); }
