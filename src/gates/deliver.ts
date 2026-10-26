@@ -98,6 +98,25 @@ export function commitRows(commitLines: string[]) {
 // ASSESSMENT.md's verdict are the reviewer's minimum and are never cut. The agreement's working notes
 // (units, rulings, a repro) fold under `<details>`; over the budget they go first, then the
 // assessment's detail, then the oldest commits — and the body says where the rest is.
+/**
+ * The UI evidence's local images, for `gh --attach` (process/SHOW-ME.md#ui-changes-required-pr-images).
+ * A `![alt](proof/x.png)` that names a file in the round folder is rewritten to a path from the repo
+ * root and returned as `path#alt`; gh uploads it and rewrites the reference to the uploaded asset.
+ * A URL, or a path with no file behind it, stays as written.
+ */
+export function localImageAttachments(body: string, toplevel: string, folder: string): { body: string; attach: string[] } {
+	const attach: string[] = [];
+	const rewritten = body.replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (whole, alt: string, ref: string) => {
+		if (/^[a-z][a-z0-9+.-]*:|^\/\//i.test(ref)) return whole;
+		const fromRoot = join(folder, ref.replace(/^\.\//, '')).replace(/\\/g, '/');
+		if (!existsSync(join(toplevel, fromRoot))) return whole;
+		const spec = `./${fromRoot}`;
+		if (!attach.some((a) => a.startsWith(`${spec}#`))) attach.push(`${spec}#${alt || fromRoot.split('/').pop()}`);
+		return `![${alt}](${spec})`;
+	});
+	return { body: rewritten, attach };
+}
+
 /** Preserve the working document's UI evidence in the PR description, outside optional notes. */
 export function prBody({ ticket, agreement, commitLines, assessment, agreementPath: agreementFilePath, folder: roundFolder, budget = PR_BODY_BUDGET }: PrSources) {
 	const folder = roundFolder ?? agreementFilePath.replace(/\/[^/]+$/, '');
@@ -894,14 +913,17 @@ async function runLockedDelivery(toplevel: string) {
 	const assessment = existsSync(assessmentFile) ? readFileSync(assessmentFile, 'utf8') : '';
 	const ticketPath = join(toplevel, folder, TICKET_FILE);
 	const ticket = existsSync(ticketPath) ? readFileSync(ticketPath, 'utf8') : '';
-	writeFileSync(body, prBody({ ticket, agreement: agreementText, commitLines, assessment, agreementPath: `${folder}/${agreementPath(toplevel, state?.class ?? null, folder).split(/[\\/]/).pop()}`, folder }));
+	const rawBody = prBody({ ticket, agreement: agreementText, commitLines, assessment, agreementPath: `${folder}/${agreementPath(toplevel, state?.class ?? null, folder).split(/[\\/]/).pop()}`, folder });
+	const images = localImageAttachments(rawBody, toplevel, folder);
+	const attachArgs = images.attach.flatMap((a) => ['--attach', a]);
+	writeFileSync(body, images.body);
 	const title = prTitle({ ticket, agreement: agreementText, commitLines });
 	// An open PR is this delivery's own: edit its body, never create a second one (issue 108).
 	const url = resume.do === 'resume' ? resume.url : null;
 	requireApprovedContent('before PR create/edit');
 	const pr = url
-		? seams.gh(['pr', 'edit', url, '--body-file', body], toplevel)
-		: seams.gh(['pr', 'create', '--repo', repoName, '--base', baseBranch, '--title', title, '--body-file', body], toplevel);
+		? seams.gh(['pr', 'edit', url, '--body-file', body, ...attachArgs], toplevel)
+		: seams.gh(['pr', 'create', '--repo', repoName, '--base', baseBranch, '--title', title, '--body-file', body, ...attachArgs], toplevel);
 	if (pr.status !== 0) {
 		console.error(`FAILED: gh pr ${url ? 'edit' : 'create'}\n${(pr.stdout ?? '') + (pr.stderr ?? '')}`.trimEnd());
 		process.exit(1);

@@ -32,6 +32,9 @@ findings in the assessment.
 - **UI changes.** Before and after PR images are required under `## UI evidence` in the working
   document. Apply `{{wf}}/process/SHOW-ME.md#ui-changes-required-pr-images` to the actual UI diff.
   A missing, stale, incomplete or inaccessible pair is a repair finding.
+  Check each referenced `proof/` file exists and shows the final UI. After delivery, run
+  `gh pr view <n> --json body` and confirm every image URL in the body is a
+  `github.com/user-attachments` URL. A local path there is a finding.
 - **Design and standards.** Find consequential maintainability issues and broken project rules.
   Keep these findings separate from behavior and intent.
 - **T2 walk.** Validate the recorded recipe again against the current scenario. Use the
