@@ -13,8 +13,8 @@ process.on('message', (message: unknown) => {
 		|| !('shell' in message) || typeof message.shell !== 'boolean') return;
 	started = true;
 	const child = spawn(message.cmd, message.args, { shell: message.shell, windowsHide: true, stdio: ['ignore', 'inherit', 'inherit'] });
-	child.on('error', () => process.send?.({ status: null }));
-	child.on('exit', (status) => process.send?.({ status, pid: child.pid }));
+	child.on('error', (error) => process.send?.({ status: null, errorCode: 'code' in error && typeof error.code === 'string' ? error.code : 'UNKNOWN' }));
+	child.on('exit', (status, signal) => process.send?.({ status, pid: child.pid, signal }));
 });
 
 process.on('disconnect', () => {

@@ -7,13 +7,14 @@ import { join } from 'node:path';
 import { WF_ROOT } from '../paths.ts';
 import { seams } from '../seams.ts';
 import { ownedProcessTree, parseProcessIdentities } from '../process-tree.ts';
+import type { ProcessKillFailure } from '../process-tree.ts';
 
 let cancellationRequested = false;
 const activeRecords = new Set<string>();
 
 /** The failed predicates of a refused release, in one bounded line. */
-export function releaseRefusal(d: { rootPresent: boolean; orphanedRunner: boolean; nativeKillOk: boolean; inventoryAfter: string; survivors: string[]; survivorCount: number }): string {
-	return `root identity ${d.rootPresent ? 'seen' : 'NOT seen'}; orphaned runner ${d.orphanedRunner ? 'YES' : 'no'}; native kill ${d.nativeKillOk ? 'ok' : 'FAILED'}; inventory after kill ${d.inventoryAfter}; surviving ${d.survivorCount}${d.survivors.length ? `: ${d.survivors.join(', ')}${d.survivorCount > d.survivors.length ? ', …' : ''}` : ''}`;
+export function releaseRefusal(d: { rootPresent: boolean; orphanedRunner: boolean; nativeKillOk: boolean; inventoryAfter: string; survivors: string[]; survivorCount: number; nativeKillFailure?: ProcessKillFailure }): string {
+	return `root identity ${d.rootPresent ? 'seen' : 'NOT seen'}; orphaned runner ${d.orphanedRunner ? 'YES' : 'no'}; native kill ${d.nativeKillOk ? 'ok' : 'FAILED'}; inventory after kill ${d.inventoryAfter}; surviving ${d.survivorCount}${d.survivors.length ? `: ${d.survivors.join(', ')}${d.survivorCount > d.survivors.length ? ', …' : ''}` : ''}${d.nativeKillFailure ? `; kill failure ${JSON.stringify(d.nativeKillFailure)}` : ''}`;
 }
 
 /** A failed cleanup always has null status, so its runner cannot supply green evidence. */
@@ -40,8 +41,11 @@ export async function runCheckProcess(cmd: string, args: string[], options: { cw
 	const closed = new Promise<void>((resolve) => child.once('close', () => resolve()));
 	let stdout = '', stderr = '';
 	let cancelled = false;
+	let cancellationReason = '';
 	let runnerPid: number | undefined;
 	let finish: (status: number | null, reason?: string) => void = () => {};
+	// A deadline can fire while finish awaits native release; keep its reason even after the finishing guard (#173).
+	const cancelExecution = (reason: string) => { cancelled = true; cancellationReason = reason; finish(null); };
 	const result = new Promise<CheckProcessResult>((resolve) => {
 		let finishing = false;
 		finish = async (status, reason = '') => {
@@ -52,37 +56,46 @@ export async function runCheckProcess(cmd: string, args: string[], options: { cw
 				const owners = snapshot.kind === 'known' && root ? ownedProcessTree([root], snapshot.processes) : null;
 				if (!owners) { resolve({ status: null, stdout, stderr: `${stderr}\nwf check: process probe unavailable; ownership retained` }); return; }
 				writeFileSync(record, JSON.stringify({ state: 'releasing', processes: owners }));
-				const orphanedRunner = runnerPid !== undefined && snapshot.kind === 'known' && snapshot.processes.some((p) => p.parent === runnerPid && !owners.some((owner) => owner.pid === p.pid));
-				const killed = seams.processes.kill(owners);
+				const orphans = runnerPid !== undefined && snapshot.kind === 'known' ? snapshot.processes.filter((p) => p.parent === runnerPid && !owners.some((owner) => owner.pid === p.pid)) : [];
+				const orphanedRunner = orphans.length > 0;
+				let nativeKillFailure: ProcessKillFailure | undefined;
+				const killed = seams.processes.kill(owners, failure => { nativeKillFailure = failure; });
 				const after = seams.processes.snapshot();
 				const survivors = after.kind === 'known' ? owners.filter((owner) => after.processes.some((p) => p.pid === owner.pid && p.born === owner.born || p.parent === owner.pid && Date.parse(p.born) >= Date.parse(owner.born))) : [];
 				// Each predicate is kept apart: a refusal says which one failed (#173), by identity only (no command lines).
-				const diagnosis = { rootPresent: snapshot.kind === 'known' && snapshot.processes.some((p) => p.pid === root?.pid && p.born === root?.born), orphanedRunner, nativeKillOk: killed, inventoryAfter: after.kind, survivors: survivors.slice(0, 10).map((o) => `${o.pid}@${o.born}`), survivorCount: survivors.length };
+				const diagnosis = { rootPresent: snapshot.kind === 'known' && snapshot.processes.some((p) => p.pid === root?.pid && p.born === root?.born), orphanedRunner, nativeKillOk: killed, inventoryAfter: after.kind, survivors: survivors.slice(0, 10).map((o) => `${o.pid}@${o.born}`), survivorCount: survivors.length, orphanCount: orphans.length, orphans: orphans.slice(0, 10), ...(nativeKillFailure ? { nativeKillFailure } : {}) };
 				const released = diagnosis.rootPresent && !orphanedRunner && killed && after.kind === 'known' && !survivors.length;
 				if (!released) writeFileSync(record, JSON.stringify({ state: 'releasing', processes: owners, diagnosis }));
-				if (orphanedRunner) writeFileSync(record, JSON.stringify({ state: 'unverified-orphans', runnerPid, processes: owners }));
+				if (orphanedRunner) writeFileSync(record, JSON.stringify({ state: 'unverified-orphans', runnerPid, processes: owners, diagnosis }));
 				if (released) unlinkSync(record);
 				await Promise.race([closed, new Promise<void>((done) => setTimeout(done, 1000))]);
-				resolve({ status: released && !cancelled ? status : null, stdout, stderr: `${stderr}${reason ? `\nwf check: ${reason}` : ''}${released ? '' : `\nwf check: descendant shutdown not confirmed; ownership retained (${releaseRefusal(diagnosis)})`}` });
+				resolve({ status: released && !cancelled ? status : null, stdout, stderr: `${stderr}${reason ? `\nwf check: ${reason}` : ''}${cancellationReason ? `\nwf check: ${cancellationReason}` : ''}${released ? '' : `\nwf check: descendant shutdown not confirmed; ownership retained (${releaseRefusal(diagnosis)})`}` });
 			} catch { resolve({ status: null, stdout, stderr: `${stderr}\nwf check: release failed; inspect .wf/check-processes before retrying` }); }
 		};
-		child.stdout?.on('data', (data) => { stdout += data; if (stdout.length + stderr.length > options.maxBuffer) { cancelled = true; finish(null, 'output limit exceeded'); } });
-		child.stderr?.on('data', (data) => { stderr += data; if (stdout.length + stderr.length > options.maxBuffer) { cancelled = true; finish(null, 'output limit exceeded'); } });
+		child.stdout?.on('data', (data) => { stdout += data; if (stdout.length + stderr.length > options.maxBuffer) cancelExecution('output limit exceeded'); });
+		child.stderr?.on('data', (data) => { stderr += data; if (stdout.length + stderr.length > options.maxBuffer) cancelExecution('output limit exceeded'); });
 		child.on('error', () => finish(null, 'runner supervisor failed to start'));
 		child.on('exit', () => finish(null, 'runner supervisor exited without a measurement'));
 		child.on('message', (message) => {
-			if (typeof message === 'object' && message !== null && 'status' in message && (message.status === null || typeof message.status === 'number')) { if ('pid' in message && typeof message.pid === 'number') runnerPid = message.pid; finish(message.status); }
+			if (typeof message === 'object' && message !== null && 'status' in message && (message.status === null || typeof message.status === 'number')) {
+				if ('pid' in message && typeof message.pid === 'number') runnerPid = message.pid;
+				let reason = '';
+				if ('errorCode' in message && typeof message.errorCode === 'string' && /^[A-Z0-9_]{1,32}$/.test(message.errorCode)) reason = `runner failed to start: ${message.errorCode}`;
+				else if (message.status === null) reason = 'runner has no exit status';
+				if ('signal' in message && typeof message.signal === 'string' && /^SIG[A-Z0-9]{1,16}$/.test(message.signal)) reason += ` (${message.signal})`;
+				finish(message.status, reason);
+			}
 		});
 	});
 	const initial = seams.processes.snapshot();
 	const root = initial.kind === 'known' ? initial.processes.find((p) => p.pid === child.pid) : undefined;
 	// Even an unavailable initial probe leaves the known launch PID for manual recovery.
 	writeFileSync(record, JSON.stringify(root ? { state: 'running', processes: [root] } : { pid: child.pid, state: 'unverified' }));
-	const cancel = () => { cancelled = true; finish(null, 'cancelled'); };
+	const cancel = () => cancelExecution('cancelled');
 	const cancelAll = () => { cancellationRequested = true; cancel(); };
 	process.on('SIGINT', cancelAll); process.on('SIGTERM', cancelAll);
 	options.signal?.addEventListener('abort', cancel, { once: true });
-	const timer = setTimeout(() => { cancelled = true; finish(null, 'timed out'); }, options.timeoutMs ?? 30 * 60_000);
+	const timer = setTimeout(() => cancelExecution('timed out'), options.timeoutMs ?? 30 * 60_000);
 	try {
 		if (root) child.send({ cmd, args, shell: options.shell });
 		else finish(null, 'could not establish runner ownership');

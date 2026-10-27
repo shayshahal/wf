@@ -56,38 +56,64 @@ export function ownedProcessTree(owners: readonly ProcessIdentity[], processes: 
 	return [...selected.values()];
 }
 
-/** Kill only identities observed before release, rechecking creation time in the native operation. */
-export function killOwnedProcesses(owners: readonly ProcessIdentity[]): boolean {
+/** Bounded native kill failure evidence: identities/stages/codes only, never command lines or native stderr. */
+export type ProcessKillFailure =
+	| { kind: 'self' | 'inventory-unavailable' | 'identity-mismatch' | 'open-process' | 'pin-handle' | 'read-start-time' | 'kill' | 'wait-exit' | 'exit-timeout'; pid: number; nativeCode?: number }
+	| { kind: 'native-command'; status: number | null; signal: string | null; code: string | null };
+
+/** Kill only observed creation identities; optional failure evidence does not grant additional kill authority. */
+export function killOwnedProcesses(owners: readonly ProcessIdentity[], onFailure?: (failure: ProcessKillFailure) => void): boolean {
+	const refuse = (failure: ProcessKillFailure) => { onFailure?.(failure); return false; };
 	if (!owners.length) return true;
-	if (owners.some((p) => p.pid === process.pid)) return false;
+	if (owners.some((p) => p.pid === process.pid)) return refuse({ kind: 'self', pid: process.pid });
 	if (process.platform === 'win32') {
 		const encoded = Buffer.from(JSON.stringify(owners)).toString('base64');
 		// Pin an OS process handle before checking creation time. A PID can be reused between a
 		// CIM lookup and Stop-Process; killing through this same handle cannot target its successor.
 		const script = `$ErrorActionPreference='Stop'; $owners=[Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('${encoded}')) | ConvertFrom-Json;
+function Refuse($stage, $pidValue, $nativeCode, $exitCode) {
+  Write-Output "WF_KILL $stage $pidValue $nativeCode"
+  exit $exitCode
+}
 foreach($owner in $owners) {
-  try { $p=[Diagnostics.Process]::GetProcessById($owner.pid) } catch [ArgumentException] { continue }
+  try { $p=[Diagnostics.Process]::GetProcessById($owner.pid) }
+  catch [ArgumentException] { continue }
+  catch { Refuse 'open-process' $owner.pid $_.Exception.HResult 1 }
+  $stage='pin-handle'
   try {
     $handle=$p.SafeHandle
     if($p.HasExited) { continue }
+    $stage='read-start-time'
     $ticks=$p.StartTime.ToUniversalTime().Ticks
     # CIM's creation time truncates the kernel's 100 ns ticks to microseconds.
-    if(($ticks - ($ticks % 10)) -ne ([DateTimeOffset]::Parse($owner.born)).UtcTicks) { exit 2 }
+    if(($ticks - ($ticks % 10)) -ne ([DateTimeOffset]::Parse($owner.born)).UtcTicks) { Refuse 'identity-mismatch' $owner.pid 0 2 }
+    $stage='kill'
     $p.Kill()
-    if(!$p.WaitForExit(3000)) { exit 3 }
-  } finally { $p.Dispose() }
+    $stage='wait-exit'
+    if(!$p.WaitForExit(3000)) { Refuse 'exit-timeout' $owner.pid 0 3 }
+  } catch { Refuse $stage $owner.pid $_.Exception.HResult 1 }
+  finally { $p.Dispose() }
 }
 exit 0`;
-		return spawnSync('powershell', ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')], { windowsHide: true, stdio: 'ignore', timeout: 20_000 }).status === 0;
+		const run = spawnSync('powershell', ['-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')], { windowsHide: true, encoding: 'utf8', timeout: 20_000 });
+		if (run.status === 0) return true;
+		// Parse only the script's allowlisted failure token. Never retain native stderr or commands (#173).
+		const token = /^WF_KILL (open-process|pin-handle|read-start-time|identity-mismatch|kill|wait-exit|exit-timeout) (\d+) (-?\d+)\s*$/.exec(run.stdout ?? '');
+		if (token && owners.some(owner => owner.pid === Number(token[2]))) {
+			// The regexp admits exactly these stage names; retain that evidence in the discriminated union.
+			const kind = token[1];
+			if (kind === 'open-process' || kind === 'pin-handle' || kind === 'read-start-time' || kind === 'identity-mismatch' || kind === 'kill' || kind === 'wait-exit' || kind === 'exit-timeout') return refuse({ kind, pid: Number(token[2]), nativeCode: Number(token[3]) });
+		}
+		return refuse({ kind: 'native-command', status: run.status, signal: run.signal, code: run.error && 'code' in run.error && typeof run.error.code === 'string' ? run.error.code : null });
 	}
 	for (const owner of owners) {
 		const snapshot = snapshotProcesses();
-		if (snapshot.kind === 'unknown') return false;
+		if (snapshot.kind === 'unknown') return refuse({ kind: 'inventory-unavailable', pid: owner.pid });
 		const live = snapshot.processes.find((p) => p.pid === owner.pid);
 		if (!live) continue;
-		if (live.born !== owner.born) return false;
+		if (live.born !== owner.born) return refuse({ kind: 'identity-mismatch', pid: owner.pid });
 		try { process.kill(owner.pid, 'SIGKILL'); }
-		catch (e) { if (!(e instanceof Error && 'code' in e && e.code === 'ESRCH')) return false; }
+		catch (e) { if (!(e instanceof Error && 'code' in e && e.code === 'ESRCH')) return refuse({ kind: 'kill', pid: owner.pid }); }
 	}
 	return true;
 }
