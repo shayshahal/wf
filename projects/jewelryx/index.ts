@@ -20,6 +20,7 @@ import { closeBrowsers, installShim, linkVerifySkill, unlinkCompetingSkills, ver
 import type { VerificationProfile, VerificationRequirements } from './readiness.ts';
 export { parseVerificationProfile, probeVerificationEndpoint, verificationEndpoints, waitForVerificationReady } from './readiness.ts';
 export { trackerCompletionGap } from './post-completion.ts';
+export { releaseBaseCheck } from './release-base.ts';
 // The T2 walk's recipe grammar: `wf show` runs it, and the build/assess handoff refuses a line early (JX-436).
 export { walkRecipeGap } from './walk.ts';
 export type { VerificationProfile, VerificationRequirements } from './readiness.ts';
@@ -34,6 +35,8 @@ export const repo: string = 'github.com/Raynw-MediaTech/jeweleryx';
 export const baseBranch: string = 'dev';
 // Round work besides dev: a ticket id in these branches' subjects is earlier work on it (wf new --id).
 export const roundBranches: string[] = ['fix/*', 'feat/*'];
+// Release branches rounds are also built on (a ticket labelled v1.1); wf new looks for earlier work on them too.
+export const releaseBranches: string[] = ['v[0-9]*'];
 // Each round's folder is <roundsDir>/<slug> (the project's bug-reports/README.md).
 export const roundsDir: string = 'bug-reports';
 // The project's contract paths (wf classify: a change under one is class B), in the round's worktree.
