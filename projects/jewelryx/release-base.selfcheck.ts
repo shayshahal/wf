@@ -10,6 +10,8 @@ check('a v1.1 ticket on origin/v1.1 passes', releaseBaseGap({ 'JX-9': ['v1.1'] }
 check('a ticket with other labels passes on dev', releaseBaseGap({ 'JX-9': ['bug', 'urgent'] }, 'origin/dev') === null);
 check('a ticket with no labels passes on dev', releaseBaseGap({ 'JX-9': [] }, 'origin/dev') === null);
 check('one of several tickets labelled v1.1 refuses', releaseBaseGap({ 'JX-1': [], 'JX-2': ['v1.1'] }, 'origin/dev') !== null);
+check('a v1 label with no origin/v1 branch passes on dev', releaseBaseGap({ 'JX-9': ['v1'] }, 'origin/dev', (n) => n === 'v1.1') === null);
+check('v1.1 still refuses when its branch exists', releaseBaseGap({ 'JX-9': ['v1.1'] }, 'origin/dev', (n) => n === 'v1.1') !== null);
 
 if (failed) { console.log(`${failed} FAILURE(S)`); process.exit(1); }
 console.log('release-base: all checks passed');

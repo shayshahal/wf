@@ -1,12 +1,22 @@
 // release-base.ts — a ticket labelled with a release (v1.1) is built on that release's branch, not dev.
 // wf never reads a ticket's label by itself, and `wf new` branched every round off dev unless the person
 // remembered `--base origin/v1.1`: the round's PR then went to dev (JX-1534 follow-up, 2026-10-27).
+import { spawnSync } from 'node:child_process';
+
 const RELEASE_LABEL = /^v\d+(\.\d+)*$/;
 
+// A label names a release branch only if origin has that branch. `v1` labels the dev line (no
+// origin/v1 exists), so it must not demand a v1 base; v1.1 has a real branch. 2026-10-27.
+function remoteBranchExists(name: string): boolean {
+	const local = spawnSync('git', ['rev-parse', '--verify', '--quiet', `refs/remotes/origin/${name}`]);
+	if (local.status === 0) return true;
+	return spawnSync('git', ['ls-remote', '--exit-code', '--heads', 'origin', name], { timeout: 15000 }).status === 0;
+}
+
 // Pure: why `base` is wrong for these tickets' labels, or null. `labels` is each ticket id with its labels.
-export function releaseBaseGap(labels: Record<string, string[]>, base: string): string | null {
+export function releaseBaseGap(labels: Record<string, string[]>, base: string, isBranch: (name: string) => boolean = () => true): string | null {
 	for (const [key, own] of Object.entries(labels)) {
-		const release = own.find((l) => RELEASE_LABEL.test(l));
+		const release = own.find((l) => RELEASE_LABEL.test(l) && isBranch(l));
 		if (release && base !== `origin/${release}` && base !== release) {
 			return `${key} is labelled ${release}: its round is built on ${release}, not ${base}. Run wf new again with --base origin/${release}`;
 		}
@@ -33,7 +43,7 @@ export async function releaseBaseCheck(ids: string[], base: string): Promise<{ g
 			if (!list) return { gap: null, unchecked: `Jira did not answer ${key}'s labels, so it could not be checked for a release label` };
 			labels[key] = list.filter((l): l is string => typeof l === 'string');
 		}
-		return { gap: releaseBaseGap(labels, base), unchecked: null };
+		return { gap: releaseBaseGap(labels, base, remoteBranchExists), unchecked: null };
 	} catch (error) {
 		return { gap: null, unchecked: `could not ask Jira for ${keys.join(', ')}'s labels (${error instanceof Error ? error.message : String(error)}); v1.1 tickets need --base origin/v1.1` };
 	}
