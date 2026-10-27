@@ -14,7 +14,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { refuseCaller } from '../refusal.ts';
-import { baseBranch, newRound, roundBranches, roundsDir, secretsGap, stackUrls } from '../project.ts';
+import { baseBranch, newRound, releaseBaseCheck, releaseBranches, roundBranches, roundsDir, secretsGap, stackUrls } from '../project.ts';
 import { WF_ROOT } from '../paths.ts';
 import { basePortForBranch, createWorktree, excludeFromGit, listWorktrees, mainCheckout, slugForBranch, urlLines } from './worktree.ts';
 import { seams } from '../seams.ts';
@@ -24,7 +24,7 @@ type LaunchJson = { version?: string; configurations?: { name?: string; url?: st
 
 // Where round work lives: the base branch and the round branches. Not --all: the tooling branches
 // (tools/*, wf2/*) write *about* rounds in their subjects without being one (BJEW-603, 2026-09-23).
-const ROUND_REFS = [`origin/${baseBranch}`, ...roundBranches.flatMap((b) => [`--branches=${b}`, `--remotes=origin/${b}`])];
+const ROUND_REFS = [`origin/${baseBranch}`, ...roundBranches.flatMap((b) => [`--branches=${b}`, `--remotes=origin/${b}`]), ...releaseBranches.map((b) => `--remotes=origin/${b}`)];
 
 // The round folders are read from `base` in git, not from the folder wf runs in: that is Shay's bare
 // repo's root (no rounds folder) or a teammate's clone on main, where no round is merged.
@@ -152,6 +152,10 @@ export async function runNew(argv: string[]) {
 		const r = spawnSync('git', fetch, { encoding: 'utf8' });
 		if (r.status !== 0) console.error(`wf new: could not fetch ${base} (${(r.stderr ?? '').trim().split('\n').at(-1)}); branching off this clone's copy`);
 	}
+	// A ticket labelled v1.1 is built on origin/v1.1: a round cut off dev would put its PR on dev.
+	const release = await releaseBaseCheck(ids, base);
+	if (release.gap) { console.error(`wf new: nothing created — ${release.gap}`); process.exit(1); }
+	if (release.unchecked) console.error(`wf new: ${release.unchecked}`);
 	const dupes = findExistingRounds(ids, base);
 	// --reopen: the ticket came back (Failed QA). Earlier work is the research input, not a stop.
 	const reopen = argv.includes('--reopen');
