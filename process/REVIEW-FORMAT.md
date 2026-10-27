@@ -10,7 +10,7 @@ Both files have one shape: a header block, one line for each comment, and a fina
 round: <branch or round name>
 class: <A | B | C | —>
 base: <git ref the diff is against | n/a (agreement review)>
-agreement-sha: <sha256:<hex> of the agreement's agreed material (## Observed + ## Agreed) | absent on T2>
+agreement-sha: <sha256:<hex> of the agreement's agreed material (## Observed + ## Agreed, except the T2 walk recipe) | absent on T2>
 content-sha: <the worktree identity the verdict binds to (#106) | absent on T1>
 head-sha: <the HEAD identity the verdict binds to | absent on T1>
 scope: <checkpoint | absent on T1 and final T2>
@@ -88,3 +88,4 @@ Verdict mapping:
 - The `verdict: pending …` line of a skeleton is not a verdict. `wf review --done` exits 2 until a
   real verdict is set.
 - A dismissed verdict at `--done` also exits 2. Run the review again.
+- A dismissed T1 is not approval. Obtain the person's actual verdict, then use `wf agree <round> --verdict <approved|changes-requested|dismissed> --sha <agreement-sha> --note "<the person's words>"`. The sha must match the prepared review and current material.

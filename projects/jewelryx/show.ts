@@ -13,9 +13,8 @@ import { dirname, join } from 'node:path';
 import { opensWindows } from '../../src/worktrees/editor.ts';
 import { ensureServers } from '../../src/worktrees/serve.ts';
 import { readState, roundOf, toplevelOf } from '../../src/round/state.ts';
-import { agreementPath, agreementT2WalkLines, consequential, walkLines } from '../../src/round/agreement.ts';
-import { walkCommand, walkRecipeGap } from './walk.ts';
-import type { SeedRole } from './index.ts';
+import { agreementPath, agreementT2WalkLines, consequential, t2WalkRecipeGap, walkLines } from '../../src/round/agreement.ts';
+import { parseOpen, walkCommand, walkRecipeGap } from './walk.ts';
 import { VERIFY_SKILL } from './round.ts';
 
 // Pure: Git Bash rewrites an argument that starts with / into a Windows path under its own install
@@ -29,14 +28,8 @@ export function unMsys(arg: string, env: NodeJS.ProcessEnv): string {
 	return a.toLowerCase().startsWith(root.toLowerCase()) ? `/${a.slice(root.length)}` : arg;
 }
 
-// Pure: `b2b /catalog as buyer mobile` → { app, path, as, mobile }, or null. The path may drop its
-// slash (`wf show admin products`); a Windows path is refused rather than opened.
-export type Open = { app: 'b2b' | 'admin'; path: string; as: SeedRole; mobile: boolean };
-export function parseOpen(line: string | null | undefined): Open | null {
-	const m = /^(b2b|admin)\s+(\S+)(?:\s+as\s+(buyer|seller|admin))?(\s+mobile)?\s*$/.exec((line ?? '').trim());
-	if (!m || /^[A-Za-z]:[\\/]/.test(m[2])) return null;
-	return { app: m[1] as Open['app'], path: m[2].startsWith('/') ? m[2] : `/${m[2]}`, as: (m[3] as SeedRole | undefined) ?? (m[1] === 'admin' ? 'admin' : 'buyer'), mobile: Boolean(m[4]) };
-}
+// Keep show callers on the same open-target parser as pre-approval validation.
+export { parseOpen } from './walk.ts';
 
 /** Pure: the `open:` line of the explicit plain or bold T2 walk bullet, or null. Read its indented
  * continuations, never another bullet's facts. The bullet lives in Agreed for B/C or TICKET.md
@@ -72,6 +65,12 @@ export async function runShow(argv: string[]): Promise<void> {
 		const { folder } = roundOf(state, toplevel);
 		const agreement = folder && agreementPath(toplevel, state?.class ?? null, folder);
 		const text = agreement && existsSync(agreement) ? readFileSync(agreement, 'utf8') : null;
+		// Validate all declared targets and recipes before even the no-walk early return.
+		const gap = agreementT2WalkLines(text).length ? t2WalkRecipeGap(text) : null;
+		if (gap) {
+			console.error(`wf show: ${gap}. Fix it in the agreement's T2 walk bullet, then wf show again.`);
+			process.exit(gap.includes('`open:`') ? 2 : 1);
+		}
 		line = text && openLineOf(text);
 		ready = walkLines(text, /ready:/i);
 		resets = walkLines(text, /reset:/i);

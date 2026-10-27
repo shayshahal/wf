@@ -289,7 +289,7 @@ const cliRepo = (branch: string) => {
 	writeFileSync(join(repo, folder, 'TICKET.md'), '# 106 - ticket\n\n## Intent\n\n- "x": fix the thing\n\n## Notes\n- **T2 walk.** none — the review CLI fixture\n');
 	writeFileSync(join(repo, folder, 'ASSESSMENT.md'), `# 106 - assessment\nVerdict: clean\n\nhead: ${git('rev-parse', 'HEAD').trim()}\n\n## Intent\n- "x": met: src/x.ts:1 - before: a - after: b\n`);
 	mkdirSync(join(repo, '.wf'), { recursive: true });
-	writeFileSync(join(repo, '.wf', 'state.json'), `${JSON.stringify({ wf_version: 3, round: '106', id: '106', folder, base: 'main', step: 'review', class: 'A' }, null, 2)}\n`);
+	writeFileSync(join(repo, '.wf', 'state.json'), `${JSON.stringify({ wf_version: 3, round: '106', id: 'WF-106', folder, base: 'main', step: 'review', class: 'A' }, null, 2)}\n`);
 	// These approval tests start after verification; the handoff gate is tested in next.selfcheck.ts.
 	writeFileSync(join(repo, '.wf', 'checks.log'), `${JSON.stringify({ row: null, result: 'green', content: worktreeContentSha(repo, folder, null, 'row'), tasks: [] })}\n`);
 	return { repo, git };
@@ -340,7 +340,7 @@ const approve = async (repo: string, branch: string) => {
 		writeFileSync(join(repo, 'src/x.ts'), 'a\n');
 		const done = await runCli(repo, ['review', branch, '--done']);
 		check('a committed change hidden by a restored worktree → refused', done.status === 2 && done.out.includes('the committed implementation changed after T2 approved it'), done.out);
-		writeFileSync(join(repo, '.wf', 'state.json'), `${JSON.stringify({ wf_version: 3, round: '106', id: '106', folder, base: 'main', step: 'pr', class: 'A' }, null, 2)}\n`);
+		writeFileSync(join(repo, '.wf', 'state.json'), `${JSON.stringify({ wf_version: 3, round: '106', id: 'WF-106', folder, base: 'main', step: 'pr', class: 'A' }, null, 2)}\n`);
 		const delivered = await runCli(repo, ['deliver']);
 		check('deliver refuses it before any remote', delivered.status === 2 && delivered.out.includes('the committed implementation changed after T2 approved it') && !delivered.out.includes('git push'), delivered.out);
 	});
@@ -469,7 +469,7 @@ const approve = async (repo: string, branch: string) => {
 	await withStack(branch, async () => {
 		await approve(repo, branch);
 	});
-	writeFileSync(join(repo, '.wf', 'state.json'), `${JSON.stringify({ wf_version: 3, round: '106', id: '106', folder, base: 'main', step: 'pr', class: 'A' }, null, 2)}\n`);
+	writeFileSync(join(repo, '.wf', 'state.json'), `${JSON.stringify({ wf_version: 3, round: '106', id: 'WF-106', folder, base: 'main', step: 'pr', class: 'A' }, null, 2)}\n`);
 	const hook = join(repo, '.git', 'hooks', 'pre-push');
 	mkdirSync(join(repo, '.git', 'hooks'), { recursive: true });
 	writeFileSync(hook, '#!/bin/sh\necho h >> src/x.ts\n');

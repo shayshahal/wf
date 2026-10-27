@@ -29,7 +29,7 @@ Class: B
 - Behavior: remove the effect from every path. Excluding: unrelated signals.
 - Choice: remove the shared call (rejected: mute one caller).
 - Verification: all paths no longer fire the effect.
-- T2 walk: open: /detail
+- T2 walk: none — CLI assessment fixture
 - **Not asked for.** none — the ticket names every change
 ## Verification
 | # | case | files | check |

@@ -16,7 +16,7 @@
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { agreementCaseGap, walkRecipeGap } from '../project.ts';
+import { agreementCaseGap, walkGap } from '../project.ts';
 import type { RoundClass } from './state.ts';
 
 export const AGREEMENT_FILE = 'AGREEMENT.md';
@@ -56,25 +56,48 @@ export function anticipatedPaths(text: string | null | undefined): string[] {
 
 /** The `## Agreed` bullet labelled `label` (plain or bold) and its indented continuations; never
  * sibling facts or headings. Class A has no `## Agreed`, so its ticket is read whole. */
-function agreedBulletLines(text: string | null | undefined, label: string): string[] {
-	const normalized = (text ?? '').replace(/\r\n/g, '\n');
-	const body = section(normalized, 'Agreed') ?? normalized;
+function agreedBulletBlocks(body: string, label: string): { rows: number[]; lines: string[] }[] {
 	const bullet = new RegExp(`^([ \\t]*)[-*][ \\t]+(?:\\*\\*${label}[.:]?\\*\\*|${label})[.:]?(?:[ \\t]+(.*)|$)`, 'i');
-	const lines: string[] = [];
-	let indent: number | null = null;
-	for (const raw of body.split('\n')) {
-		if (indent === null) {
-			const marker = bullet.exec(raw);
-			if (!marker) continue;
-			indent = marker[1].length;
-			lines.push((marker[2] ?? '').trim());
-		} else {
+	const rows = body.split('\n');
+	const blocks: { rows: number[]; lines: string[] }[] = [];
+	for (let i = 0; i < rows.length; i++) {
+		const marker = bullet.exec(rows[i]);
+		if (!marker) continue;
+		const owned = [i];
+		const lines = [(marker[2] ?? '').trim()];
+		while (i + 1 < rows.length && !(i + 1 === rows.length - 1 && rows[i + 1] === '')) {
+			const raw = rows[i + 1];
+			if (raw.trim() && (raw.length - raw.trimStart().length <= marker[1].length || /^\s*#{1,6}\s/.test(raw))) break;
+			i++;
+			// Blank separators are not recipe bytes, even when parsing continues after them (#234 review).
 			if (!raw.trim()) continue;
-			if (raw.length - raw.trimStart().length <= indent) break;
+			owned.push(i);
 			lines.push(raw.trimStart().replace(/^[-*]\s+/, ''));
 		}
+		blocks.push({ rows: owned, lines: lines.filter((line) => line && !line.startsWith('<!--')) });
 	}
-	return lines.filter((line) => line && !line.startsWith('<!--'));
+	return blocks;
+}
+
+function agreedBulletLines(text: string | null | undefined, label: string): string[] {
+	const normalized = (text ?? '').replace(/\r\n/g, '\n');
+	return agreedBulletBlocks(section(normalized, 'Agreed') ?? normalized, label).flatMap((block) => block.lines);
+}
+
+/** Remove only the T2 walk blocks under Agreed, preserving every other byte for assessment reuse. */
+export function withoutT2Walk(text: string): string {
+	const rows = text.match(/[^\n]*\n|[^\n]+$/g) ?? [];
+	const heading = rows.findIndex((line) => /^## Agreed[ \t]*(?:\r?\n)?$/.test(line));
+	if (heading < 0) return text;
+	const start = heading + 1;
+	const next = rows.findIndex((line, i) => i >= start && /^## /.test(line));
+	const end = next < 0 ? rows.length : next;
+	const body = rows.slice(start, end).map((line) => line.replace(/\r?\n$/, '')).join('\n');
+	const removed = new Set<number>();
+	for (const block of agreedBulletBlocks(body, 'T2 walk')) {
+		for (const i of block.rows) if (start + i < end) removed.add(start + i);
+	}
+	return rows.filter((_, i) => !removed.has(i)).join('');
 }
 
 /** The explicit T2 walk bullet and its indented continuations. */
@@ -83,10 +106,12 @@ export const agreementT2WalkLines = (text: string | null | undefined): string[] 
 // The agreement owns the walk boundary (2026-10-10 F1: sibling facts must not execute) and labels;
 // the project owns command syntax. Plain labels failed on two delivered rounds, 2026-10-13.
 export function walkLines(text: string | null | undefined, key: RegExp): string[] {
-	const command = new RegExp(`^${key.source}[ \\t]*\`?([^\`\n]+?)\`?[ \\t]*$`, 'i');
+	const command = new RegExp(`^${key.source}[ \\t]*(.*)$`, 'i');
 	return agreementT2WalkLines(text).flatMap((line) => {
 		const match = command.exec(line);
-		return match ? [match[1]] : [];
+		if (!match) return [];
+		const value = match[1].trim();
+		return [value.startsWith('`') && value.endsWith('`') && value.length > 1 ? value.slice(1, -1) : value];
 	});
 }
 
@@ -143,16 +168,16 @@ export function concisenessGap(text: string | null | undefined): string | null {
  * B/C's under `## Agreed`; agreementT2WalkLines reads both. Shared by agreementGap (B/C before T1)
  * and `wf next` (class A before T2, #139 JX-1068: a class A round reached T2 with no walk at all). */
 export function hasT2Walk(text: string | null | undefined): boolean {
-	return agreementT2WalkLines(text).some((line) => /^open:[ \t]*`?[^`\s<]/i.test(line) || NONE_WITH_REASON.test(line));
+	return agreementT2WalkLines(text).some((line) => /^open:/i.test(line) || NONE_WITH_REASON.test(line)) && t2WalkRecipeGap(text) === null;
 }
 
-/** Pure: why the T2 walk's `ready:`/`reset:`/`setup:` lines would be refused at T2, or null. The
+/** Pure: why the declared T2 walk's target or preparation would be refused at T2, or null. The
  * grammar is the project's (`wf show` runs the recipe); reading it here means the handoff refuses a
  * malformed line while the build is still here to fix it. JX-436 (2026-10-25): `setup: cd packages/…
  * && uv run python …` passed build and assessment, and only `wf show` refused it at T2. */
 export function t2WalkRecipeGap(text: string | null | undefined): string | null {
-	if (!text) return null;
-	return walkRecipeGap({ ready: walkLines(text, /ready:/i), reset: walkLines(text, /reset:/i), setup: walkLines(text, /setup:/i) });
+	if (!agreementT2WalkLines(text).length) return null;
+	return walkGap({ open: walkLines(text, /open:/i), none: agreementT2WalkLines(text).some((line) => NONE_WITH_REASON.test(line)), ready: walkLines(text, /ready:/i), reset: walkLines(text, /reset:/i), setup: walkLines(text, /setup:/i) });
 }
 
 // A verification case: a table row under `## Verification` whose first cell is the case number. A
@@ -186,13 +211,15 @@ export function agreementClass(text: string | null | undefined): RoundClass | nu
 
 // Pure: sha256 of the agreement's *agreed material* — the bytes T1 approves. It binds `## Observed`
 // and `## Agreed`, never the mutable working detail (`## Verification` cases, a `## Files`
-// hint): adding a helper to a case, or refreshing progress, must not invalidate unchanged direction
+// hint), nor the explicit T2 walk bullet and its indented continuations: adding a helper to a case,
+// correcting a walk recipe, or refreshing progress must not invalidate unchanged direction
 // (#111.5). A genuinely new behavior changes `## Agreed` and so the sha. Null when the file is absent.
 export function agreementSha(toplevel: string, klass: RoundClass | null | undefined, folder: string | null | undefined): string | null {
 	const file = agreementPath(toplevel, klass, folder);
 	if (!existsSync(file)) return null;
 	const text = readFileSync(file, 'utf8');
-	const material = consequential(klass) ? [section(text, 'Observed'), section(text, 'Agreed')].join('\n---\n') : section(text, 'Intent') ?? text;
+	// #234: only the explicit recipe block is working detail; sibling direction stays T1-bound.
+	const material = consequential(klass) ? [section(text, 'Observed'), section(withoutT2Walk(text), 'Agreed')].join('\n---\n') : section(text, 'Intent') ?? text;
 	return createHash('sha256').update(material).digest('hex');
 }
 
@@ -224,6 +251,8 @@ export function agreementGap(text: string | null | undefined, klass: RoundClass 
 	if (!agreed) return `${AGREEMENT_FILE} has no \`## Agreed\` behavior — what changes, what is excluded, the choice, the verification promise`;
 	const cases = verificationCases(text);
 	if (!cases.length) return `${AGREEMENT_FILE} has no \`## Verification\` cases — one table row per case \`| # | case | files | check |\``;
+	const walk = t2WalkRecipeGap(text);
+	if (walk) return walk;
 	if (!hasT2Walk(text)) return `${AGREEMENT_FILE} needs a T2 walk: open: <the review target>, or none — <why no walk is needed>; plain or bold labels are accepted`;
 	// The project's own rule on what a case may touch (projects/<name>/index.ts agreementCaseGap): a fix/ case
 	// listing a verification/ file is refused, so the oracle tests cannot be edited.

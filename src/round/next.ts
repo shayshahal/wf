@@ -14,6 +14,7 @@
 //   review | deliver | check | done        the orchestrator runs it, then wf next
 // It does the bookkeeping itself (the step, a question the round now waits on).
 import { execFileSync } from 'node:child_process';
+import { assessmentRecipeOnlyCommits } from './assessment-reuse.ts';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { refuseCaller } from '../refusal.ts';
@@ -70,6 +71,8 @@ export type Snapshot = {
 	// Content identity captured at handoff, not mutable filesystem timestamps.
 	assessmentChangedSinceHandoff?: boolean;
 	assessmentBaselineMissing?: boolean;
+	/** Trusted git evidence: measured ancestor to HEAD changed only this round's T2 walk recipe. */
+	assessmentRecipeOnlyCommits?: boolean;
 	assessmentHandoffGap?: string | null;
 	buildReason?: State['build_reason'];
 	corrections?: State['corrections'];
@@ -277,7 +280,7 @@ export function nextAction(s: Snapshot, purpose: 'next' | 'brief' = 'next'): { s
 		const gap = assessmentGap(s.files.assessment);
 		if (gap) return work('assess', gap);
 		const measured = assessmentHead(s.files.assessment);
-		if (measured !== s.head) return work('assess', `ASSESSMENT.md is of ${measured?.slice(0, 10) ?? 'no head'}…, HEAD is ${s.head.slice(0, 10)}…`);
+		if (measured !== s.head && s.assessmentRecipeOnlyCommits !== true) return work('assess', `ASSESSMENT.md is of ${measured?.slice(0, 10) ?? 'no head'}…, HEAD is ${s.head.slice(0, 10)}…`);
 		const assessmentSource = assessmentRulingSource(s.files.assessment);
 		const verdict = assessmentVerdict(s.files.assessment);
 		if (verdict === 'blocked' || (verdict === 'repair' && (s.repairs ?? 0) >= MAX_REPAIRS)) {
@@ -307,18 +310,18 @@ ${s.files.assessment}`;
 			return work('build', s.assessmentHandoffGap, 'handoff');
 		}
 		if (s.step === 'review' && readVerdict(s.files.review ?? '') === 'dismissed') return act(`wait user: T2 was closed without a verdict — \`${wf} review ${s.branch}\` again when they are ready`);
+		// Keep the project's precise malformed-recipe reason ahead of the missing-walk fallback.
+		const walk = walkGap(s);
+		if (walk) {
+			effects.push({ step: ['build'] });
+			return work('build', walk);
+		}
 		// Class A's agreement is TICKET.md, so agreementGap never asked it for a T2 walk. `wf show` needs
 		// one to open the round's page, and a round with nothing visible must say so. The build records it
 		// (it knows the page it drove); enforced only at final T2 (#139 JX-1068).
 		if (!consequential(s.klass) && !hasT2Walk(s.files.agreement)) {
 			effects.push({ step: ['build'] });
 			return work('build', 'TICKET.md needs a T2 walk before T2: a `- **T2 walk.**` bullet with the `open:` line `wf show` follows and any `setup:` lines the scenario needs, or `none — <why no walk is needed>`');
-		}
-		// JX-436 (2026-10-25): a walk edited after the handoff must not reach T2 unreadable either.
-		const walk = walkGap(s);
-		if (walk) {
-			effects.push({ step: ['build'] });
-			return work('build', walk);
 		}
 		return act(t2);
 	}
@@ -345,6 +348,7 @@ export function snapshotOf(toplevel: string): Snapshot {
 	const agreementText = read(join(dir, AGREEMENT_FILE)) ?? read(agreementPath(toplevel, state.class ?? null, state.folder));
 	const assessmentFile = ASSESSMENT_FILE;
 	const assessment = read(join(dir, assessmentFile));
+	const head = headSha(toplevel);
 	const baseline = state.assessment_baseline?.file === assessmentFile ? state.assessment_baseline : null;
 	const assessmentBaselineMissing = !baseline && !!state.history?.some((visit) => visit.step === 'assess');
 	const assessmentChangedSinceHandoff = baseline ? assessment !== null && assessmentContentSha(assessment) !== baseline.sha : assessmentBaselineMissing ? false : undefined;
@@ -377,7 +381,8 @@ export function snapshotOf(toplevel: string): Snapshot {
 		assessmentChangedSinceHandoff,
 		assessmentBaselineMissing,
 		assessmentHandoffGap: assessmentHandoffGap(toplevel, state),
-		head: headSha(toplevel),
+		head,
+		assessmentRecipeOnlyCommits: assessmentRecipeOnlyCommits(toplevel, assessmentHead(assessment), head, state.folder),
 		files: {
 			// The agreement is AGREEMENT.md when the working session wrote one (it decided the work is
 			// consequential), else the class A ticket. Reading it here is what lets `wf next` measure the
