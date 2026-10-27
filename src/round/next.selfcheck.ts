@@ -24,7 +24,7 @@ Class: B
 - Behavior: two columns with a sidebar. Excluding: the data shown.
 - Choice: extract DetailsLayout (rejected: absolute-position).
 - Verification: the existing tests pass, plus the sidebar region renders.
-- T2 walk: open: /catalog as buyer
+- T2 walk: open: b2b /catalog as buyer
 - **Not asked for.** none — the ticket names every change
 ## Verification
 | # | case | files | check |
@@ -102,6 +102,13 @@ check('B/C a new agreement sha (material changed): T1 again, not approved', say(
 // ── the assessment
 check('no ASSESSMENT.md: dispatch assess', say(base({ step: 'assess' })).startsWith('work assess') && say(base({ step: 'assess' })).includes('no ASSESSMENT.md'), say(base({ step: 'assess' })));
 check('an assessment of an earlier HEAD is re-run', say(base({ step: 'assess', files: { agreement: null, assessment: ASSESS({ head: 'H3' }), review: null, blocked: null } })).startsWith('work assess') && say(base({ step: 'assess', files: { agreement: null, assessment: ASSESS({ head: 'H3' }), review: null, blocked: null } })).includes('HEAD is H4'), say(base({ step: 'assess' })));
+for (const step of ['assess', 'review']) {
+	const staleRecipe = base({ step, files: { agreement: TICKET_WALK, assessment: ASSESS({ head: 'H3' }), review: null, blocked: null } });
+	check(`${step}: trusted recipe-only commit evidence retains independent assessment`, say({ ...staleRecipe, assessmentRecipeOnlyCommits: true }).startsWith('review: T2'));
+	check(`${step}: absent recipe-only evidence fails closed`, say(staleRecipe).startsWith('work assess'));
+	check(`${step}: false recipe-only evidence fails closed`, say({ ...staleRecipe, assessmentRecipeOnlyCommits: false }).startsWith('work assess'));
+	check(`${step}: recipe evidence cannot bypass an unchanged handoff report`, say({ ...staleRecipe, assessmentRecipeOnlyCommits: true, assessmentChangedSinceHandoff: false }).startsWith('work assess'));
+}
 check('clean assessment → T2 review', say(base({ step: 'assess', files: { agreement: TICKET_WALK, assessment: ASSESS(), review: null, blocked: null } })).startsWith('review: T2'), say(base({ step: 'assess' })));
 
 // #151: only an explicitly recorded handoff return can recover without a build.
@@ -248,7 +255,9 @@ check('no state is not a legacy round', legacyStateGap(null) === null);
 // ── real CLI: an ordinary class A round reaches build through wf next; a legacy state is refused
 const git = (repo: string, ...args: string[]) => execFileSync('git', ['-C', repo, '-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { encoding: 'utf8' });
 const cli = (repo: string, ...args: string[]) => {
-	const r = wfSync(args, { cwd: repo });
+	// Fixture rounds are not the caller's live session; a build attempt otherwise records it.
+	const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('PI_SESSION') && key !== 'CLAUDE_CODE_SESSION_ID'));
+	const r = wfSync(args, { cwd: repo, env });
 	return r.status === 0 ? { out: r.stdout, code: 0 } : { out: `${r.stdout}${r.stderr}`, code: r.status };
 };
 {

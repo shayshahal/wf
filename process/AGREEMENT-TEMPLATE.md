@@ -99,8 +99,9 @@ bullet.
 ## T1 record
 
 `wf agree <round>` renders the agreed material. It records the comments and the verdict of the
-person in `AGREEMENT-REVIEW.md`. T1 binds `## Observed` + `## Agreed`. To refine a `## Verification`
-row does not renew it.
+person in `AGREEMENT-REVIEW.md`. T1 binds `## Observed` + `## Agreed`, except the T2 walk bullet
+and its indented recipe. Refining that recipe or a `## Verification` row does not renew T1.
+The approval command checks the walk syntax before opening T1. Final T2 still binds the full recipe.
 
 ## Check-only round
 

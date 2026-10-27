@@ -5,7 +5,7 @@
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { anticipatedPaths } from './agreement.ts';
+import { anticipatedPaths, withoutT2Walk } from './agreement.ts';
 import { agreementClass, agreementFile, agreementGap, agreementPath, agreementSha, revisionSha, assessmentGap, assessmentHead, assessmentContentSha, assessmentRulingSource, isAssessmentRulingSource, assessmentVerdict, ASSESSMENT_FILE, caseFiles, consequential, concisenessGap, notAskedFor, notAskedForGap, section, verificationCases } from './agreement.ts';
 
 let failures = 0;
@@ -24,7 +24,7 @@ Class: B
 - the header renders at the top — \`src/Page.svelte:12\`
 ## Agreed
 - Behavior: two columns. Excluding: the data shown.
-- T2 walk: open: /catalog as buyer
+- T2 walk: open: b2b /catalog as buyer
 ## Verification
 | # | case | files | check |
 |---|---|---|---|
@@ -36,9 +36,14 @@ check('a B/C agreement with observed, agreed and a case has no gap', agreementGa
 check('no AGREEMENT.md is a gap naming it', agreementGap(null, 'B') === `no AGREEMENT.md`);
 check('an agreement with no ## Observed is a gap', (agreementGap(AGREEMENT.replace(/## Observed\n- .*\n/, ''), 'B') ?? '').includes('## Observed'));
 check('an agreement with no ## Verification cases is a gap', (agreementGap(AGREEMENT.replace(/\| 1 \|[^\n]*\n/, ''), 'B') ?? '').includes('## Verification'));
-check('a B/C agreement missing the walk is refused before T1', (agreementGap(AGREEMENT.replace('- T2 walk: open: /catalog as buyer\n', ''), 'B') ?? '').includes('T2 walk'));
-check('a blank walk is refused before T1', (agreementGap(AGREEMENT.replace('open: /catalog as buyer', ''), 'C') ?? '').includes('T2 walk'));
-check('an explicit no-walk reason is valid for work without a page', agreementGap(AGREEMENT.replace('open: /catalog as buyer', 'none — the contract test is the proof'), 'B') === null);
+check('a B/C agreement missing the walk is refused before T1', (agreementGap(AGREEMENT.replace('- T2 walk: open: b2b /catalog as buyer\n', ''), 'B') ?? '').includes('T2 walk'));
+check('a blank walk is refused before T1', (agreementGap(AGREEMENT.replace('open: b2b /catalog as buyer', ''), 'C') ?? '').includes('T2 walk'));
+check('an explicit no-walk reason is valid for work without a page', agreementGap(AGREEMENT.replace('open: b2b /catalog as buyer', 'none — the contract test is the proof'), 'B') === null);
+// #234: T1 must admit exactly the target and preparation that show can read.
+for (const target of ['the catalog', 'b2b /catalog [review note]', 'b2b /catalog <!-- note -->', '`b2b /catalog` <!-- note -->', '`b2b /catalog']) {
+	check(`T1 refuses malformed open target: ${target}`, agreementGap(AGREEMENT.replace('open: b2b /catalog as buyer', `open: ${target}`), 'B') !== null);
+}
+check('T1 refuses malformed setup even with a valid target', agreementGap(AGREEMENT.replace('open: b2b /catalog as buyer', 'open: b2b /catalog as buyer\n  setup: cd backend && run setup'), 'B') !== null);
 check('an ordinary ticket needs no agreement document', agreementGap('# t\n## Intent\n- x\n', 'A') === null);
 // JX-1367 (2026-10-18): an addition no source asked for is listed on its own, so T1 rules on it.
 const UNASKED = (bullet: string) => `## Agreed\n- Behavior: hold VAT with the bid.\n${bullet}- T2 walk: none — backend\n`;
@@ -60,6 +65,23 @@ const s2 = write(AGREEMENT.replace('| 1 | layout: sidebar | src/Page.svelte | sr
 check('adding an ordinary helper to a case does not renew T1 (the case is working detail)', s2 === s0, `${s0} vs ${s2}`);
 const s3 = write(AGREEMENT.replace('two columns', 'three columns'));
 check('a behavior change in ## Agreed changes the sha (renewed agreement)', s3 !== s0);
+for (const marker of ['T2 walk:', '**T2 walk.**']) {
+	for (const newline of ['\n', '\r\n']) {
+		const base = AGREEMENT.replace('T2 walk:', marker).replace('## Verification', '- **Not asked for.** none - the request covers everything\n- Exclusions: preserve the data.\n## Verification').replace(/\n/g, newline);
+		const sha = write(base);
+		const edited = base.replace('open: b2b /catalog as buyer', `open: admin /orders${newline}  ready: script ["node","scenario.mjs","ready"]${newline}  setup: script ["node","scenario.mjs","prepare"]`);
+		check(`recipe-only edits preserve T1 sha (${marker}, ${JSON.stringify(newline)})`, write(edited) === sha);
+		for (const [before, after] of [['two columns', 'three columns'], ['the header renders', 'the header fails'], ['the request covers everything', 'a new control'], ['preserve the data', 'replace the data']]) {
+			check(`sibling material stays T1 bound: ${before}`, write(edited.replace(before, after)) !== sha);
+		}
+	}
+}
+for (const newline of ['\n', '\r\n']) {
+	const before = ['## Observed', '- a fact', '## Agreed', '- Behavior: keep this.', '- T2 walk: open: b2b /x', '  setup: a command', '- Note: keep this too.', '  Including this sibling continuation.', '## Verification', '| 1 | a | b | c |', ''].join(newline);
+	const expected = before.replace(['- T2 walk: open: b2b /x', '  setup: a command', ''].join(newline), '');
+	check(`walk stripping preserves every sibling byte (${JSON.stringify(newline)})`, withoutT2Walk(before) === expected);
+}
+check('walk stripping does not interpret an Observed walk as working detail', withoutT2Walk('## Observed\n- T2 walk: a fact\n## Agreed\n- Behavior: x\n') === '## Observed\n- T2 walk: a fact\n## Agreed\n- Behavior: x\n');
 check('a path is the agreement file for the class', agreementPath(dir, 'B', null) === join(dir, 'AGREEMENT.md'));
 const ticket = writeFileSync(join(dir, 'TICKET.md'), '# t\n\n## Intent\n- x\n\n## Repro\ncommand: yarn repro\n');
 void ticket;

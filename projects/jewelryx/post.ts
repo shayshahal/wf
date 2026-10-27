@@ -20,6 +20,7 @@ import { readState, roundFile, toplevelOf, writeState, WF_STATE_VERSION } from '
 import type { State } from '../../src/round/state.ts';
 import { baselineOf, changesOf, isOwnPost, jiraTime, refusalText } from './ticket-changes.ts';
 
+import { isTrackerId } from './tracker-id.ts';
 import { sectionsOf, sameDelivery, sectionSha, hasPrUrl, pendingCompletion } from './post-completion.ts';
 import type { Section } from './post-completion.ts';
 export { sectionsOf } from './post-completion.ts';
@@ -112,8 +113,6 @@ export async function jira(auth: string, path: string, init: RequestInit = {}) {
 	return r.status === 204 ? null : r.json();
 }
 
-const JIRA_KEY = /^[A-Z][A-Z0-9]*-\d+$/;
-
 async function trackerStatus(auth: string, key: string): Promise<string> {
 	const raw: unknown = await jira(auth, `3/issue/${key}?fields=status`);
 	if (typeof raw === 'object' && raw !== null && 'fields' in raw && typeof raw.fields === 'object' && raw.fields !== null && 'status' in raw.fields && typeof raw.fields.status === 'object' && raw.fields.status !== null && 'name' in raw.fields.status && typeof raw.fields.status.name === 'string' && raw.fields.status.name.trim()) return raw.fields.status.name;
@@ -147,7 +146,7 @@ async function ticketChangesOf(state: State | null, keys: string[], own: Own) {
 	const ownAccount = typeof me === 'object' && me !== null && 'accountId' in me && typeof me.accountId === 'string' ? me.accountId : undefined;
 	if (!ownAccount) throw new Error("Jira did not say which account this token is: cannot tell the round's own comments from other people's");
 	const found = [];
-	for (const key of keys.filter((k) => JIRA_KEY.test(k))) found.push({ key, changes: await changesOf((path) => jira(auth, path), key, since, own(key), ownAccount) });
+	for (const key of keys.filter(isTrackerId)) found.push({ key, changes: await changesOf((path) => jira(auth, path), key, since, own(key), ownAccount) });
 	return { since, checkedAt, found };
 }
 
@@ -208,7 +207,7 @@ async function runLockedPost(argv: string[]): Promise<void> {
 	const sections = sectionsOf(note);
 	const keys = new Set(sections.map((s) => s.key));
 	const expected = state?.ids ?? (state?.id ? [state.id] : []);
-	if (!sections.length || keys.size !== sections.length || sections.some((s) => !JIRA_KEY.test(s.key)) || expected.some((key) => !keys.has(key))) throw new Error('wf post: saved note has missing, duplicate or invalid ticket sections; restore it before retrying');
+	if (!sections.length || keys.size !== sections.length || sections.some((s) => !isTrackerId(s.key)) || expected.some((key) => !keys.has(key))) throw new Error('wf post: saved note has missing, duplicate or invalid ticket sections; restore it before retrying');
 	const todo = sections.filter((s) => !s.posted);
 	const proofDir = join(toplevel, state!.folder ?? '', 'proof');
 	const names = existsSync(proofDir) ? readdirSync(proofDir) : [];

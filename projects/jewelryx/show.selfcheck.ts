@@ -1,12 +1,13 @@
 // show.selfcheck.ts — node show.selfcheck.ts → exit 0 when green.
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { agreementSha, t2WalkRecipeGap } from '../../src/round/agreement.ts';
 import type { Origins } from './index.ts';
+import { worktreeContentSha } from '../../src/gates/content-identity.ts';
 import { noneLineOf, openLineOf, parseOpen, setupLinesOf, unMsys } from './show.ts';
 import { setupArgs, walkCommand, walkRecipeGap } from './walk.ts';
 
@@ -14,8 +15,10 @@ assert.deepEqual(parseOpen('b2b /catalog as buyer mobile'), { app: 'b2b', path: 
 assert.deepEqual(parseOpen('admin /orders'), { app: 'admin', path: '/orders', as: 'admin', mobile: false });
 assert.deepEqual(parseOpen('b2b /my-inventory as seller'), { app: 'b2b', path: '/my-inventory', as: 'seller', mobile: false });
 assert.equal(parseOpen('the catalog, logged in'), null);
+assert.equal(parseOpen('b2b /catalog?ids[]=1')?.path, '/catalog?ids[]=1', 'walk validation preserves existing target syntax, including query brackets');
 assert.deepEqual(parseOpen('admin products as admin'), { app: 'admin', path: '/products', as: 'admin', mobile: false });
 assert.equal(parseOpen('admin C:/Program Files/Git/products'), null);
+for (const target of ['b2b /catalog [review note]', 'b2b /catalog <!--note-->', 'b2b /catalog <!-- note -->']) assert.equal(parseOpen(target), null, target);
 // #114: the T2 walk is a `- **T2 walk.**` bullet under `## Agreed` (AGREEMENT-TEMPLATE.md), not the
 // old `## T2 walk` PLAN.md section — no shim for that heading.
 const agreement = '# AGREEMENT — T-1\n\n## Observed\n- x\n\n## Agreed\n\n- **Behavior.** goes two-column.\n- **T2 walk.** open: `b2b /catalog as buyer mobile`\n\n## Verification\n\n| # | case | files | check |\n|---|---|---|---|\n| 1 | a | b | c |\n';
@@ -74,6 +77,10 @@ assert.equal(t2WalkRecipeGap(walkText('  setup: api createVariant {} as seller\n
 assert.equal(t2WalkRecipeGap(walkText('  setup: script ["node","scenario.mjs","prepare"]\n', '  ready: script ["node","scenario.mjs","ready"]\n')), null);
 assert.equal(t2WalkRecipeGap(walkText('  setup: cd packages/backend && uv run python ../../tools/set-sales-count.py\n')), 'the T2 walk `setup:` line "cd packages/backend && uv run python ../../tools/set-sales-count.py" must be `api <fn> <json> as <buyer|seller|admin>` or `script ["executable","arg",...]`');
 assert.equal(t2WalkRecipeGap('# r\n## Notes\n- **T2 walk.** none — nothing visible\n'), null);
+for (const malformed of ['setup: `api createVariant {} as seller` <!-- note -->', 'ready: `script ["node","scenario.mjs"]', 'reset:']) {
+	assert.notEqual(t2WalkRecipeGap(walkText(`  ${malformed}\n`)), null, malformed);
+}
+assert.notEqual(t2WalkRecipeGap('# r\n- T2 walk: none — no page\n  setup: cd backend && run setup\n'), null);
 
 // A stray `setup:`/`open:` fact outside the walk is not a walk line (#114 closure, F1/F1b): the walk
 // is the `## Agreed` bullet, so a fact under `## Observed` neither hard-fails `wf show` nor shadows
@@ -107,9 +114,28 @@ assert.deepEqual(setupLinesOf('- **T2 walk.** open: b2b / as buyer\n\n## Facts\n
 		writeFileSync(join(repo, '.wf', 'state.json'), JSON.stringify({ wf_version: 3, round: 't-1', class: 'B', step: 'build', folder }));
 		const run = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'wf.mjs');
 		writeFileSync(join(repo, folder, 'AGREEMENT.md'), agreement);
+		const t1Before = agreementSha(repo, 'B', folder);
+		const t2Before = worktreeContentSha(repo, folder, null, 'approval');
+		const rowBefore = worktreeContentSha(repo, folder, null, 'row');
+		writeFileSync(join(repo, folder, 'AGREEMENT.md'), agreement.replace('/catalog as buyer mobile', '/orders as buyer'));
+		assert.equal(agreementSha(repo, 'B', folder), t1Before, 'recipe-only changes do not renew T1');
+		assert.notEqual(worktreeContentSha(repo, folder, null, 'approval'), t2Before, 'final T2 still binds the complete walk');
+		assert.equal(worktreeContentSha(repo, folder, null, 'row'), rowBefore, 'paper-only changes do not invalidate measured product checks');
+		writeFileSync(join(repo, folder, 'AGREEMENT.md'), agreement);
 		const out = execFileSync(process.execPath, [run, 'show'], { cwd: repo, encoding: 'utf8', env: { ...process.env, CLAUDECODE: '1' } });
 		assert.match(out, /b2b \/catalog as buyer/);
 		assert.match(out, /no window opened/);
+		// Malformed targets must fail before scenario execution or any persisted state changes.
+		const stateBefore = readFileSync(join(repo, '.wf', 'state.json'), 'utf8');
+		for (const target of ['b2b /catalog [review note]', 'b2b /catalog <!--note-->', '`b2b /catalog` <!-- note -->', '`b2b /catalog']) {
+			const recipe = '  ready: script ["node","-e","require(\'node:fs\').writeFileSync(\'walk-ran\',\'yes\')"]\n';
+			writeFileSync(join(repo, folder, 'AGREEMENT.md'), agreement.replace('`b2b /catalog as buyer mobile`\n', `${target}\n${recipe}`));
+			const rejected = spawnSync(process.execPath, [run, 'show'], { cwd: repo, encoding: 'utf8', env: { ...process.env, CLAUDECODE: '1' } });
+			assert.equal(rejected.status, 2, `${target}: ${rejected.stdout}\n${rejected.stderr}`);
+			assert.doesNotMatch(rejected.stdout, /scenario ready|setup:/);
+			assert.equal(existsSync(join(repo, 'walk-ran')), false);
+			assert.equal(readFileSync(join(repo, '.wf', 'state.json'), 'utf8'), stateBefore);
+		}
 		writeFileSync(join(repo, folder, 'AGREEMENT.md'), agreement.replace('**T2 walk.**', 'T2 walk:'));
 		const plain = execFileSync(process.execPath, [run, 'show'], { cwd: repo, encoding: 'utf8', env: { ...process.env, CLAUDECODE: '1' } });
 		assert.match(plain, /b2b \/catalog as buyer/);

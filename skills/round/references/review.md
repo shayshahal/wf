@@ -53,15 +53,15 @@ For B/C work, run `wf agree <branch>` when the agreement is ready.
 
 Record the response:
 - With a configured review UI, the command folds the response.
-- Without a review UI, show the files or the page with the available tools. Then record in the
-  named review file what you showed and the comments and verdict of the person.
+- Without a review UI, or after a `dismissed` result, show the prepared material and obtain the
+  person's actual verdict. Record it with `wf agree <branch> --verdict <approved|changes-requested|dismissed> --sha <agreement-sha> --note "<the person's words>"`. Use the sha from the prepared review. A dismissal is not approval.
 - Write only the actual ruling of the person. Editing the file is a transport. It does not give an
   agent permission to approve its own work.
 - After you record the verdict, run `wf next`.
 
 Done when the current agreed material has the approval of the person, or the requested changes
-have returned to agreement. An edit of working detail does not renew unchanged material. A change
-of behavior does.
+have returned to agreement. The T2 walk bullet and its indented recipe are working detail: a
+recipe-only edit does not renew T1. A behavior change does. Final T2 still binds the full recipe.
 
 ## T2 and agreed checkpoints
 

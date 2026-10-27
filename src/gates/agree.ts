@@ -13,8 +13,8 @@ import { refuseCaller } from '../refusal.ts';
 import { openInEditor, opensWindows } from '../worktrees/editor.ts';
 import { resolveWorktree } from '../worktrees/worktree.ts';
 import { roundWorkspaceGap } from '../worktrees/session-workspace.ts';
-import { appendDatedSection, devUrlsFor, foldFeedbackLine, renderHeader, renderSkeleton } from './review-format.ts';
-import { agreementGap, agreementPath, agreementSha, AGREEMENT_REVIEW_FILE, consequential, concisenessGap, notAskedFor, notAskedForGap, section } from '../round/agreement.ts';
+import { agreementApprovalBinding, appendDatedSection, devUrlsFor, foldFeedbackLine, readVerdict, renderHeader, renderSkeleton, VERDICTS } from './review-format.ts';
+import { agreementGap, agreementPath, agreementSha, AGREEMENT_REVIEW_FILE, consequential, concisenessGap, notAskedFor, notAskedForGap, section, t2WalkRecipeGap } from '../round/agreement.ts';
 import { seams } from '../seams.ts';
 import { readState, roundFile } from '../round/state.ts';
 import { runStep } from '../round/step.ts';
@@ -36,12 +36,24 @@ export function agreedOffset(text: string, klass: string | null): number {
 	return Math.max(0, text.replace(/\r\n/g, '\n').split('\n').findIndex((l) => l.trimEnd() === heading));
 }
 
-export async function runAgree(argv: string[]) {
-	const round = argv.find((a) => !a.startsWith('-'));
-	if (!round) {
-		console.error('usage: wf agree <round>');
-		refuseCaller();
+/** Prepare T1, or record the person's explicit verdict against the material already shown. */
+export async function runAgree(argv: string[]): Promise<void> {
+	const usage = (): never => {
+		console.error('usage: wf agree <round> [--verdict approved|changes-requested|dismissed --sha <agreement-sha> --note "<the person’s words>"]');
+		return refuseCaller();
+	};
+	const [round, ...args] = argv;
+	if (!round || round.startsWith('-')) usage();
+	const flags = new Map<string, string>();
+	for (let i = 0; i < args.length; i += 2) {
+		const key = args[i], value = args[i + 1];
+		if (!['--verdict', '--sha', '--note'].includes(key) || flags.has(key) || !value || value.startsWith('--')) usage();
+		flags.set(key, value);
 	}
+	const verdict = flags.get('--verdict');
+	const expectedSha = flags.get('--sha');
+	const note = flags.get('--note')?.replace(/\s+/g, ' ').trim();
+	if (args.length && (flags.size !== 3 || !VERDICTS.includes(verdict ?? '') || !expectedSha || !note)) usage();
 	const { path: worktree } = resolveWorktree(round);
 	const workspaceGap = await roundWorkspaceGap(worktree);
 	if (workspaceGap) {
@@ -56,10 +68,23 @@ export async function runAgree(argv: string[]) {
 		process.exit(2);
 	}
 	const text = readFileSync(agreement, 'utf8');
-	const gap = agreementGap(text, klass, round) ?? (consequential(klass) ? notAskedForGap(text) ?? concisenessGap(text) : null);
+	const gap = agreementGap(text, klass, round) ?? (consequential(klass) ? notAskedForGap(text) ?? concisenessGap(text) : t2WalkRecipeGap(text));
 	if (gap) {
 		console.error(`wf agree: ${gap} — finish the agreement before T1`);
 		process.exit(2);
+	}
+	const sha = agreementSha(worktree, klass, state?.folder ?? null);
+	const header = () => renderHeader({ round, klass, agreementSha: sha, urls: devUrlsFor(worktree) });
+	const file = roundFile(worktree, AGREEMENT_REVIEW_FILE);
+	if (verdict) {
+		if (expectedSha !== sha) {
+			console.error('wf agree: agreement sha changed — show the current material and obtain the person’s verdict again');
+			process.exit(2);
+		}
+		if (!existsSync(file) || agreementApprovalBinding(readFileSync(file, 'utf8')).agreementSha !== sha) {
+			console.error(`wf agree: no prepared review for this material — run wf agree ${round}, then show it to the person`);
+			process.exit(2);
+		}
 	}
 	const previous = process.cwd();
 	process.chdir(worktree);
@@ -68,9 +93,12 @@ export async function runAgree(argv: string[]) {
 	} finally {
 		process.chdir(previous);
 	}
-	const sha = agreementSha(worktree, klass, state?.folder ?? null);
-	const header = () => renderHeader({ round, klass, agreementSha: sha, urls: devUrlsFor(worktree) });
-	const file = roundFile(worktree, AGREEMENT_REVIEW_FILE);
+	if (verdict) {
+		// Newlines in quoted feedback cannot inject a review header or a second verdict.
+		appendDatedSection(file, `${header()}note — ${note}\nverdict: ${verdict}`);
+		console.log(`wf agree: recorded ${verdict} for agreement-sha ${sha} in ${file}`);
+		return;
+	}
 	mkdirSync(join(worktree, '.wf'), { recursive: true });
 	const material = agreedSection(text, klass);
 	const toAnnotate = join(worktree, '.wf', 'AGREEMENT-T1.md');
@@ -89,11 +117,18 @@ export async function runAgree(argv: string[]) {
 	}
 	if (seams.reviewUI?.available()) {
 		const line = seams.reviewUI.annotate({ worktree, file: toAnnotate, since: new Date().toISOString() });
-		appendDatedSection(file, `${header()}${line ? foldFeedbackLine(line) : 'verdict: dismissed'}`);
+		const feedback = line ? foldFeedbackLine(line) : 'verdict: dismissed';
+		appendDatedSection(file, `${header()}${feedback}`);
 		console.log(`wrote ${file}`);
+		if (readVerdict(feedback) === 'dismissed') {
+			console.log(`wf agree: review dismissed — no approval was recorded. Ask the person for their verdict, then record only what they actually said:\n  wf agree ${round} --verdict <approved|changes-requested|dismissed> --sha ${sha} --note "<the person’s words>"`);
+		}
 		return;
 	}
-	if (!existsSync(file)) appendDatedSection(file, renderSkeleton({ round, klass, agreementSha: sha, urls: devUrlsFor(worktree) }));
+	if (!existsSync(file) || agreementApprovalBinding(readFileSync(file, 'utf8')).agreementSha !== sha) {
+		appendDatedSection(file, renderSkeleton({ round, klass, agreementSha: sha, urls: devUrlsFor(worktree) }));
+	}
+	console.log(`record the person's actual verdict:\n  wf agree ${round} --verdict <approved|changes-requested|dismissed> --sha ${sha} --note "<the person’s words>"`);
 	if (!opensWindows()) {
 		console.log(`to annotate: ${toAnnotate}
 review file: ${file}

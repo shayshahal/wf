@@ -16,7 +16,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { refuseCaller } from '../refusal.ts';
 import { seams } from '../seams.ts';
-import { prBaseOf, protectedFilesGap, roundFolderSubject, trackerNote } from '../project.ts';
+import { prBaseOf, protectedFilesGap, roundFolderSubject, trackerIdsGap, trackerNote } from '../project.ts';
 import { agreementPath, agreementT2WalkLines, assessmentGap, ASSESSMENT_FILE, TICKET_FILE, verificationCases } from '../round/agreement.ts';
 import { randomUUID } from 'node:crypto';
 import { captureCorrection, correctionGate, outstandingCorrections } from '../round/corrections.ts';
@@ -767,6 +767,13 @@ async function runLockedDelivery(toplevel: string) {
 	// The id names the commit and the tracker note: without it they said docs(null) and `## null`.
 	if (!id) {
 		console.error('wf deliver: .wf/state.json has no id or round — run `wf step <step>` in this worktree first, or recreate the round with `wf new --id`');
+		refuseCaller();
+	}
+	// A branch fallback can name a round but not its tracker note (#234). Keep this after
+	// retained-delivery recovery: already-published effects must still be reconciled, not hidden.
+	const idsGap = trackerIdsGap(state?.ids ?? [id]);
+	if (idsGap) {
+		console.error(`wf deliver: ${idsGap}; restore the round's ticket IDs in .wf/state.json, or recreate it with \`wf new --id <ticket>\` before delivery; nothing was published`);
 		refuseCaller();
 	}
 	const reviewFile = join(toplevel, folder, 'REVIEW.md');

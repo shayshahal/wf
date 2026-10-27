@@ -27,7 +27,7 @@ Class: B
 - Behavior: two columns with a sidebar. Excluding: the data shown.
 - Choice: extract DetailsLayout (rejected: absolute-position).
 - Verification: the existing tests pass, plus the sidebar region renders.
-- T2 walk: open: /catalog as buyer
+- T2 walk: none — CLI routing fixture
 - **Not asked for.** none — the ticket names every change
 ## Verification
 | # | case | files | check |
