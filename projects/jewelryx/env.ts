@@ -29,9 +29,11 @@ export function copySecrets(worktree: string, from: string): void {
 }
 
 // MEDIA_STORAGE_BACKEND defaults to "s3" in app/core/config.py, so a missing key is as unsafe as a
-// wrong one: it must be present and set to "local".
-const FORCED: Record<string, string> = { MEDIA_STORAGE_BACKEND: 'local' };
-const BLANKED = ['AWS_S3_ACCESS_KEY_ID', 'AWS_S3_SECRET_ACCESS_KEY', 'AWS_S3_BUCKET_NAME', 'AWS_SES_ACCESS_KEY_ID', 'AWS_SES_SECRET_ACCESS_KEY'];
+// wrong one: it must be present and set to "local". The secrets also carry live Hallo SMS
+// credentials with HALLO_SMS_ENABLED=true: a worktree that keeps them texts real phones (login by SMS,
+// financing phone checks, SMS notifications), so SMS is forced off and its credentials blanked.
+const FORCED: Record<string, string> = { MEDIA_STORAGE_BACKEND: 'local', HALLO_SMS_ENABLED: 'false' };
+const BLANKED = ['AWS_S3_ACCESS_KEY_ID', 'AWS_S3_SECRET_ACCESS_KEY', 'AWS_S3_BUCKET_NAME', 'AWS_SES_ACCESS_KEY_ID', 'AWS_SES_SECRET_ACCESS_KEY', 'HALLO_SMS_USERNAME', 'HALLO_SMS_TOKEN'];
 
 // Pure. `db` ({ url, name }) points the backend at the worktree's own database; without it the
 // database keys are left alone.
@@ -61,5 +63,5 @@ export function sanitizeWorktreeEnv(worktree: string, db: WorktreeDb): void {
 	const envPath = join(worktree, 'packages', 'backend', '.env');
 	if (!existsSync(envPath)) return console.log('No packages/backend/.env to sanitize');
 	writeFileSync(envPath, sanitizeEnv(readFileSync(envPath, 'utf8'), db));
-	console.log(`Sanitized packages/backend/.env: media storage local, AWS keys blanked, database ${db.name}`);
+	console.log(`Sanitized packages/backend/.env: media storage local, AWS and SMS keys blanked, SMS off, database ${db.name}`);
 }

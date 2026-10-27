@@ -83,12 +83,14 @@ check('one section per id, each with the PR url', note.text.includes('## JX-1112
 check('the scaffold carries no code: it is filled for the reporter, in Hebrew', !/Cause|Approach|\.py|\.ts|:\d/.test(note.text.replace(/https:\/\/\S+/g, '')) && note.text.includes('מה היה:') && note.text.includes('לבדיקה:'), note.text);
 
 // ── the worktree's .env (cases from the project's sanitize-worktree-env test)
-const prod = '# Backend configuration\r\nMONGODB_URL=mongodb+srv://u:secret@cluster.mongodb.net\r\nDATABASE_NAME=jewelryx_dev\r\nMEDIA_STORAGE_BACKEND=s3\r\nAWS_S3_ACCESS_KEY_ID=AKIAPROD\r\nAWS_S3_SECRET_ACCESS_KEY=prodsecret\r\nAWS_S3_BUCKET_NAME=jewelryx-prod-static-content\r\nAWS_SES_ACCESS_KEY_ID=AKIASES\r\nAWS_SES_SECRET_ACCESS_KEY=sessecret\r\nAWS_S3_REGION=eu-central-1\r\nOTP_DEV_EXPOSE=true\r\n';
+const prod = '# Backend configuration\r\nMONGODB_URL=mongodb+srv://u:secret@cluster.mongodb.net\r\nDATABASE_NAME=jewelryx_dev\r\nMEDIA_STORAGE_BACKEND=s3\r\nAWS_S3_ACCESS_KEY_ID=AKIAPROD\r\nAWS_S3_SECRET_ACCESS_KEY=prodsecret\r\nAWS_S3_BUCKET_NAME=jewelryx-prod-static-content\r\nAWS_SES_ACCESS_KEY_ID=AKIASES\r\nAWS_SES_SECRET_ACCESS_KEY=sessecret\r\nAWS_S3_REGION=eu-central-1\r\nOTP_DEV_EXPOSE=true\r\nHALLO_SMS_ENABLED=true\r\nHALLO_SMS_USERNAME=halloprod\r\nHALLO_SMS_TOKEN=hallotoken\r\nHALLO_SMS_SENDER=JewelryX\r\n';
 const db = { url: 'mongodb://localhost:47554', name: worktreeDatabase('probe-wf2c') };
 const env = sanitizeEnv(prod, db);
 check('production credentials are blanked, storage is local', !/prodsecret|sessecret|AKIA|prod-static/.test(env) && /^MEDIA_STORAGE_BACKEND=local\r?$/m.test(env), env);
 check('the database is the worktree\'s own: the machine\'s URL, jewelryx_<slug>', /^MONGODB_URL=mongodb:\/\/localhost:47554\r?$/m.test(env) && /^DATABASE_NAME=jewelryx_probe-wf2c\r?$/m.test(env), env);
 check('comments, unrelated keys and CRLF are kept', env.startsWith('# Backend configuration\r\n') && /^OTP_DEV_EXPOSE=true\r?$/m.test(env) && /^AWS_S3_REGION=eu-central-1\r?$/m.test(env));
+check('SMS is forced off and its credentials blanked (live Hallo keys would text real phones)', /^HALLO_SMS_ENABLED=false\r?$/m.test(env) && !/halloprod|hallotoken/.test(env) && /^HALLO_SMS_SENDER=JewelryX\r?$/m.test(env), env);
+check('a missing HALLO_SMS_ENABLED is added as false', /^HALLO_SMS_ENABLED=false$/m.test(sanitizeEnv('A=1\n', db)));
 check('a missing MEDIA_STORAGE_BACKEND is added (the backend defaults to s3)', /^MEDIA_STORAGE_BACKEND=local$/m.test(sanitizeEnv('A=1\n', db)));
 check('sanitizing twice changes nothing', sanitizeEnv(env, db) === env);
 
