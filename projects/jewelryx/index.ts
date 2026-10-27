@@ -386,6 +386,23 @@ export function trackerNote({ ids, url }: { ids: string[]; url: string }): { fil
 	return { file: 'JIRA.md', text: `${[head, ...ids.map(section)].join('\n\n')}\n` };
 }
 
+// The branch a round's PR is opened against and looked up on: the round's own base ref (`wf new --base
+// origin/v1.1` for a ticket labelled v1.1) without its `origin/`, else the project base. deliver asked
+// the project base for every round, so a v1.1 round's PR was opened against dev and the reconciliation
+// of an already-open v1.1 PR (`gh pr list --base dev`) could never find it.
+export function prBaseOf(roundBase: string | null | undefined): string {
+	return roundBase ? roundBase.replace(/^origin\//, '') : baseBranch;
+}
+
+// The subject of wf deliver's round-folder commit. JewelryX's commit-msg hook (ticket-id) wants a
+// ticketed branch's subject to start with its ticket, `JX-1081: <what>`; `docs(fix/JX-1534-…)` was
+// refused, so deliver died after T2 and the round folder had to be committed by hand (JX-1534,
+// 2026-10-26). A round with no ticket (chore/*) keeps `docs(<id>)`.
+export function roundFolderSubject({ id, ids }: { id: string; ids?: string[] }): string {
+	const ticket = ids?.find((one) => /^JX-\d+$/.test(one)) ?? id.match(/JX-\d+/)?.[0];
+	return `${ticket ? `${ticket}:` : `docs(${id}):`} round folder: ticket, agreement, assessment, repro`;
+}
+
 /** Why the round's tickets no longer say what the round read (an edited description or title, a comment added or edited since the round began), or null. Throws when it cannot look. wf review asks it at T2's opening; wf post asks it again before posting (post.ts). */
 export async function ticketChanges(state: State | null): Promise<string | null> {
 	const { ticketRefusal } = await import('./post.ts');

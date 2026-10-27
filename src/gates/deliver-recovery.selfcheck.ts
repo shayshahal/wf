@@ -113,7 +113,8 @@ const gh = (args, cwd) => {
     // A create that also changes the product (a hook, or a concurrent task): deliver's approval
     // recheck after the PR roundtrip must catch it before the merge (#106/#108).
     if (mode === 'mutate-create') writeFileSync('CHANGED.md', 'gh mutated the product\\n');
-    r.prs[branch] = [row('OPEN', head(cwd))];
+    // The PR answers on the base it was opened against, as GitHub does.
+    r.prs[branch] = [{ ...row('OPEN', head(cwd)), baseRefName: args[args.indexOf('--base') + 1] }];
     writeRemote(r);
     return { status: 0, stdout: 'https://github.com/o/r/pull/108\\n', stderr: '' };
   }
@@ -608,6 +609,7 @@ const pendingOf = (f: Fixture) => ((readState(f).corrections ?? []) as Array<{ i
 	setRemote(f, empty());
 	const r = attempt(f);
 	check('a round whose base is main (origin/dev absent) delivers', r.code === 0 && readState(f).step === 'pr' && readRemote(f).create === 1 && readRemote(f).merge === 0, `${r.code}: ${r.out}`);
+	check('…the PR is opened against the round own base, not the project base (a v1.1 round answers on v1.1)', (readRemote(f).creates ?? []).every((a) => a[a.indexOf('--base') + 1] === 'main') && (readRemote(f).creates ?? []).length === 1, JSON.stringify(readRemote(f).creates));
 	check('…the open PR branch stays pushed', remoteBranches(f.work).includes(BRANCH), remoteBranches(f.work).join(','));
 	// A worker died after signalling cleanup but before clearing ownership. Delivery is already
 	// open; a fresh worker must finish that release without merging (#154).

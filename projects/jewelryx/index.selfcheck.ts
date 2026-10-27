@@ -6,7 +6,7 @@ import { strandedTestDatabases, worktreeDatabase } from './db.ts';
 import { devCommands } from './dev.ts';
 import { includedFiles, sanitizeEnv } from './env.ts';
 import { agreementGap } from '../../src/round/agreement.ts';
-import { protectedFilesGap, directUrls, pageOf, agreementCaseGap, baselineRunnerEnv, baselineStackEnv, runnerEnv, secretsGap, setup, stackUrls, teardown, trackerNote, verificationStackEnv } from './index.ts';
+import { protectedFilesGap, directUrls, pageOf, agreementCaseGap, prBaseOf, roundFolderSubject, baselineRunnerEnv, baselineStackEnv, runnerEnv, secretsGap, setup, stackUrls, teardown, trackerNote, verificationStackEnv } from './index.ts';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -74,6 +74,9 @@ const stranded = strandedTestDatabases(['jewelryx', 'jewelryx_fix-bjew-1', 'jewe
 check('stranded: a dead run\'s database and its suffixed one; not a running run\'s, a worktree\'s or one named by hand', stranded.join() === 'jewelryx_test_9304_2cb586fe,jewelryx_bench-suites_test_15260_b50c2d2b,jewelryx_test_9304_2cb586fe_fx', stranded.join());
 
 // ── the tracker note
+check('round-folder subject: a ticketed branch starts with its ticket, as the ticket-id hook asks', roundFolderSubject({ id: 'fix/JX-1534-admin-media-import' }).startsWith('JX-1534: round folder'), roundFolderSubject({ id: 'fix/JX-1534-admin-media-import' }));
+check('round-folder subject: the first ticket id of a round on sub-tasks', roundFolderSubject({ id: 'feat/JX-1-x', ids: ['JX-1112', 'JX-1113'] }).startsWith('JX-1112: '));
+check('round-folder subject: a round with no ticket keeps docs(id)', roundFolderSubject({ id: 'chore/cjx-files' }).startsWith('docs(chore/cjx-files): round folder'));
 const note = trackerNote({ ids: ['JX-1112', 'JX-1113'], url: 'https://github.com/x/y/pull/7' });
 check('the note is JIRA.md', note.file === 'JIRA.md');
 check('one section per id, each with the PR url', note.text.includes('## JX-1112\nהשינוי מוכן ב-PR וממתין למיזוג.') && note.text.includes('## JX-1113\nהשינוי מוכן ב-PR וממתין למיזוג.') && note.text.split('PR: https://github.com/x/y/pull/7').length === 3, note.text);

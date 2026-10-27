@@ -16,7 +16,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { refuseCaller } from '../refusal.ts';
 import { seams } from '../seams.ts';
-import { baseBranch, protectedFilesGap, trackerNote } from '../project.ts';
+import { prBaseOf, protectedFilesGap, roundFolderSubject, trackerNote } from '../project.ts';
 import { agreementPath, agreementT2WalkLines, assessmentGap, ASSESSMENT_FILE, TICKET_FILE, verificationCases } from '../round/agreement.ts';
 import { randomUUID } from 'node:crypto';
 import { captureCorrection, correctionGate, outstandingCorrections } from '../round/corrections.ts';
@@ -664,7 +664,7 @@ export async function reconcilePublishedDelivery(toplevel: string): Promise<{ ki
 		const target = originTarget(gitConfigAll(toplevel, 'remote.origin.url'), gitConfigAll(toplevel, 'remote.origin.pushurl'), gitPushUrls(toplevel));
 		if (target.kind === 'refuse') return { kind: 'refused', why: target.why };
 		const repo = target.repo;
-		const lookup = prLookup(seams.gh(['pr', 'list', '--repo', `${repo.owner}/${repo.name}`, '--head', branch, '--base', baseBranch, '--state', 'all', '--json', 'url,state,headRefOid,headRefName,baseRefName,isCrossRepository'], toplevel), { headRefName: branch, baseRefName: baseBranch, repo });
+		const lookup = prLookup(seams.gh(['pr', 'list', '--repo', `${repo.owner}/${repo.name}`, '--head', branch, '--base', prBaseOf(state?.base), '--state', 'all', '--json', 'url,state,headRefOid,headRefName,baseRefName,isCrossRepository'], toplevel), { headRefName: branch, baseRefName: prBaseOf(state?.base), repo });
 		const headNow = headSha(toplevel);
 		const verdict = publishedDeliveryVerdict(lookup, candidate, headNow);
 		if (verdict.kind === 'refused') return { kind: 'refused', why: `${verdict.why}; retain candidate and instructions, fix the remote and retry wf deliver` };
@@ -714,7 +714,7 @@ async function runLockedDelivery(toplevel: string) {
 		const target = originTarget(gitConfigAll(toplevel, 'remote.origin.url'), gitConfigAll(toplevel, 'remote.origin.pushurl'), gitPushUrls(toplevel));
 		if (target.kind === 'refuse') { console.error(`wf deliver: ${target.why}; merge outcome remains uncertain`); process.exit(2); }
 		const repo = target.repo;
-		const lookup = prLookup(seams.gh(['pr', 'list', '--repo', `${repo.owner}/${repo.name}`, '--head', branch, '--base', baseBranch, '--state', 'all', '--json', 'url,state,headRefOid,headRefName,baseRefName,isCrossRepository'], toplevel), { headRefName: branch, baseRefName: baseBranch, repo });
+		const lookup = prLookup(seams.gh(['pr', 'list', '--repo', `${repo.owner}/${repo.name}`, '--head', branch, '--base', prBaseOf(state?.base), '--state', 'all', '--json', 'url,state,headRefOid,headRefName,baseRefName,isCrossRepository'], toplevel), { headRefName: branch, baseRefName: prBaseOf(state?.base), repo });
 		if (lookup.kind !== 'found' || lookup.url !== attempt.url || (lookup.state === 'MERGED' && lookup.headRefOid !== attempt.head)) {
 			console.error('wf deliver: merge outcome remains uncertain; retain attempt and instructions, retry remote reconciliation'); process.exit(2);
 		}
@@ -836,7 +836,7 @@ async function runLockedDelivery(toplevel: string) {
 	// the response's head, base and repository are checked against them, so a same-named branch from a
 	// fork or a PR against another base or repository is not taken for this delivery's.
 	const resume = deliveryResume(
-		prLookup(seams.gh(['pr', 'list', '--repo', repoName, '--head', branch, '--base', baseBranch, '--state', 'all', '--json', 'url,state,headRefOid,headRefName,baseRefName,isCrossRepository'], toplevel), { headRefName: branch, baseRefName: baseBranch, repo }),
+		prLookup(seams.gh(['pr', 'list', '--repo', repoName, '--head', branch, '--base', prBaseOf(state?.base), '--state', 'all', '--json', 'url,state,headRefOid,headRefName,baseRefName,isCrossRepository'], toplevel), { headRefName: branch, baseRefName: prBaseOf(state?.base), repo }),
 		head,
 	);
 	if (resume.do === 'refuse') {
@@ -885,7 +885,7 @@ async function runLockedDelivery(toplevel: string) {
 		git(toplevel, ['add', ...keep]);
 		// Pathspec, not a bare commit: a product file staged for another purpose is not swept into the
 		// round-folder commit and pushed under an approval that never covered it (#106 review).
-		git(toplevel, ['commit', '-q', '-m', `docs(${id}): round folder: ticket, agreement, assessment, repro`, ...keep]);
+		git(toplevel, ['commit', '-q', '-m', roundFolderSubject({ id, ids: state?.ids }), ...keep]);
 	}
 	requireApprovedContent('the round-folder commit');
 	// gh pr create cannot push without a terminal; push first (BJEW-603, the first real deliver).
@@ -923,7 +923,7 @@ async function runLockedDelivery(toplevel: string) {
 	requireApprovedContent('before PR create/edit');
 	const pr = url
 		? seams.gh(['pr', 'edit', url, '--body-file', body, ...attachArgs], toplevel)
-		: seams.gh(['pr', 'create', '--repo', repoName, '--base', baseBranch, '--title', title, '--body-file', body, ...attachArgs], toplevel);
+		: seams.gh(['pr', 'create', '--repo', repoName, '--base', prBaseOf(state?.base), '--title', title, '--body-file', body, ...attachArgs], toplevel);
 	if (pr.status !== 0) {
 		console.error(`FAILED: gh pr ${url ? 'edit' : 'create'}\n${(pr.stdout ?? '') + (pr.stderr ?? '')}`.trimEnd());
 		process.exit(1);
@@ -942,8 +942,8 @@ async function runLockedDelivery(toplevel: string) {
 	// head is that commit before recording the open PR handoff.
 	const headNow = headSha(toplevel);
 	const fresh = prLookup(
-		seams.gh(['pr', 'list', '--repo', repoName, '--head', branch, '--base', baseBranch, '--state', 'all', '--json', 'url,state,headRefOid,headRefName,baseRefName,isCrossRepository'], toplevel),
-		{ headRefName: branch, baseRefName: baseBranch, repo },
+		seams.gh(['pr', 'list', '--repo', repoName, '--head', branch, '--base', prBaseOf(state?.base), '--state', 'all', '--json', 'url,state,headRefOid,headRefName,baseRefName,isCrossRepository'], toplevel),
+		{ headRefName: branch, baseRefName: prBaseOf(state?.base), repo },
 	);
 	if (fresh.kind === 'unknown') {
 		console.error(`wf deliver: the remote could not be asked about PR ${prUrl} before the PR handoff (${fresh.why}); nothing was merged`);
