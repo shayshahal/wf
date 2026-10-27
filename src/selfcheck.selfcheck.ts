@@ -1,6 +1,7 @@
 // Exercise the actual selfcheck entry in an inert tree: native child checks, no module mocks.
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
+import { once } from 'node:events';
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -20,9 +21,10 @@ const run = (...args: string[]) => {
 	return { ...result, calls: readFileSync(join(root, 'calls.log'), 'utf8').trim().split('\n').filter(Boolean).sort() };
 };
 try {
-	for (const dir of ['src', 'projects', 'env']) mkdirSync(join(root, dir));
+	for (const dir of ['src', 'projects', 'env', 'bin']) mkdirSync(join(root, dir));
 	put('package.json', '{"type":"module"}');
 	for (const file of ['selfcheck.ts', 'paths.ts']) copyFileSync(join(WF_ROOT, 'src', file), join(root, 'src', file));
+	copyFileSync(join(WF_ROOT, 'bin/wfk.mjs'), join(root, 'bin/wfk.mjs'));
 	put('src/alpha.selfcheck.ts', program('alpha'));
 	put('env/bravo.selfcheck.ts', program('bravo'));
 	// These executables implement only the runner's child-exit contract, not compiler/linter semantics.
@@ -66,6 +68,43 @@ try {
 	assert.match(red.stderr, /FAIL env\/bravo\.selfcheck\.ts/);
 	assert.equal(run('src/alpha.selfcheck.ts').status, 0);
 	console.log('  ok   no-argument manual suite still runs everything and propagates red independently of focused selection');
+
+	// #173: the failed release predicate must reach stderr while another check still runs.
+	put('src/alpha.selfcheck.ts', `import { existsSync } from 'node:fs'; const timer = setInterval(() => { if (existsSync('release-alpha')) { clearInterval(timer); } }, 10);`);
+	put('env/bravo.selfcheck.ts', `console.error('release predicate witness'); process.exit(3);`);
+	const live = spawn(process.execPath, [join(root, 'src/selfcheck.ts')], { cwd: root, env: { ...env, WF_SELFCHECK_JOBS: '2' }, timeout: 20_000 });
+	const closed = once(live, 'close');
+	let diagnostic = '';
+	let early = false;
+	let expired = false;
+	live.stdout.resume();
+	const watchdog = setTimeout(() => { expired = true; writeFileSync(join(root, 'release-alpha'), 'release after missing diagnostic'); }, 15_000);
+	live.stderr.on('data', (data) => {
+		diagnostic += data;
+		if (diagnostic.includes('release predicate witness')) {
+			early = !expired;
+			writeFileSync(join(root, 'release-alpha'), 'diagnostic received');
+		}
+	});
+	try {
+		const [code] = await closed;
+		assert.equal(code, 1, diagnostic);
+		assert.ok(early, 'failed check output must arrive before the blocked sibling completes');
+		assert.equal(diagnostic.split('release predicate witness').length - 1, 1, 'report each failure once');
+	} finally { clearTimeout(watchdog); }
+	put('src/alpha.selfcheck.ts', program('alpha'));
+	put('env/bravo.selfcheck.ts', program('bravo'));
+	console.log('  ok   a failed check reports its predicate before waiting for another check');
+
+	// Fault injection changes only the executable input; spawn still reaches the real OS.
+	put('src/missing-executable.mjs', `process.execPath = ${JSON.stringify(join(root, 'missing-node'))}; await import('./selfcheck.ts');`);
+	const spawnRed = spawnSync(process.execPath, [join(root, 'src/missing-executable.mjs'), 'src/alpha.selfcheck.ts'], { cwd: root, env, encoding: 'utf8', timeout: 20_000 });
+	assert.ifError(spawnRed.error);
+	assert.equal(spawnRed.status, 1, spawnRed.stderr);
+	assert.match(spawnRed.stderr, /selfcheck: child failed to start.*ENOENT/);
+	assert.match(spawnRed.stdout, /3 of 3 selfchecks red/);
+	assert.doesNotMatch(spawnRed.stderr, /Unhandled 'error' event/);
+	console.log('  ok   native spawn errors are reported as failed checks, not an aggregate crash');
 
 	put('node_modules/typescript/bin/tsc', program('tsc', 5));
 	const typeRed = run('src/alpha.selfcheck.ts');

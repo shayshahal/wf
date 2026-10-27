@@ -96,6 +96,11 @@ const killTree = (pid: number | undefined) => {
 	if (process.platform === 'win32') { spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { stdio: 'ignore' }); return; }
 	try { process.kill(-pid, 'SIGKILL'); } catch (e) { if ((e as NodeJS.ErrnoException).code !== 'ESRCH') throw e; }
 };
+// #173 (2026-10-27): a later spawn crash lost an earlier release predicate buffered until suite end.
+const reportFailure = (result: Result): Result => {
+	if (result.code !== 0) console.error(`\n── FAIL ${result.file}\n${result.out.trimEnd()}`);
+	return result;
+};
 const run = async (label: string, args: string[]) => {
 	await slot();
 	return new Promise<Result>((resolve) => {
@@ -106,12 +111,14 @@ const run = async (label: string, args: string[]) => {
 		const timer = setTimeout(() => { timedOut = true; killTree(child.pid); }, timeoutS * 1000);
 		child.stdout.on('data', (d) => { out += d; });
 		child.stderr.on('data', (d) => { out += d; });
+		child.on('error', (error) => { out += `\nselfcheck: child failed to start: ${error.message}`; });
 		child.on('close', (code) => {
 			clearTimeout(timer);
 			finished++;
 			console.log(`selfcheck: ${timedOut ? 'TIMEOUT' : code === 0 ? 'PASS' : 'FAIL'} ${label} (${((performance.now() - started) / 1000).toFixed(1)}s) [${finished}/${total}]`);
+			const result = reportFailure({ file: label, code: timedOut ? 124 : code, out: timedOut ? `${out}\nTIMEOUT: killed after ${timeoutS}s (WF_SELFCHECK_TIMEOUT_S)` : out });
 			release();
-			resolve({ file: label, code: timedOut ? 124 : code, out: timedOut ? `${out}\nTIMEOUT: killed after ${timeoutS}s (WF_SELFCHECK_TIMEOUT_S)` : out });
+			resolve(result);
 		});
 	});
 };
@@ -120,17 +127,16 @@ const run = async (label: string, args: string[]) => {
 const TSC = join(root, 'node_modules', 'typescript', 'bin', 'tsc');
 const typecheck = existsSync(TSC)
 	? run('tsc', [TSC, '-p', root])
-	: Promise.resolve({ file: 'tsc', code: 1, out: 'no node_modules/typescript: run `npm ci` in this clone' });
+	: Promise.resolve(reportFailure({ file: 'tsc', code: 1, out: 'no node_modules/typescript: run `npm ci` in this clone' }));
 // lint-kit's error-handling set (eslint.config.js): a catch that drops the error says why, or is fixed.
 const ESLINT = join(root, 'node_modules', 'eslint', 'bin', 'eslint.js');
 const lint = existsSync(ESLINT)
 	? run('eslint', ['--disable-warning=ExperimentalWarning', ESLINT, root])
-	: Promise.resolve({ file: 'eslint', code: 1, out: 'no node_modules/eslint: run `npm ci` in this clone' });
+	: Promise.resolve(reportFailure({ file: 'eslint', code: 1, out: 'no node_modules/eslint: run `npm ci` in this clone' }));
 
 console.log(`selfcheck: ${total} checks (tsc and eslint included), ${jobs} at a time, ${timeoutS}s each`);
 const t0 = Date.now();
 const results = await Promise.all([...selected.map((f) => run(relative(root, f).replace(/\\/g, '/'), [f])), typecheck, lint]);
 const red = results.filter((r) => r.code !== 0);
-for (const r of red) console.error(`\n── FAIL ${r.file}\n${r.out.split('\n').filter((l) => !l.startsWith('  ok ')).join('\n').trimEnd()}`);
 console.log(`${red.length ? `${red.length} of ${results.length} selfchecks red` : `${results.length} selfchecks green`} (${partial ? 'focused; ' : ''}tsc and eslint included) in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
 process.exit(red.length ? 1 : 0);

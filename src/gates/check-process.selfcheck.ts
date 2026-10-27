@@ -24,7 +24,7 @@ async function assertReleased() {
 }
 try {
 	const happy = await runCheckProcess(process.execPath, ['-e', 'console.log("measured output")'], options);
-	assert.equal(happy.status, 0); assert.match(happy.stdout, /measured output/);
+	assert.equal(happy.status, 0, happy.stderr); assert.match(happy.stdout, /measured output/);
 	const cancel = new AbortController();
 	const cancelled = runCheckProcess(process.execPath, ['-e', runner], { ...options, signal: cancel.signal });
 	await waitForDescendant(); cancel.abort();
