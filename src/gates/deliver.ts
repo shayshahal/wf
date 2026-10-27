@@ -16,7 +16,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { refuseCaller } from '../refusal.ts';
 import { seams } from '../seams.ts';
-import { baseBranch, protectedFilesGap, trackerNote } from '../project.ts';
+import { baseBranch, protectedFilesGap, roundFolderSubject, trackerNote } from '../project.ts';
 import { agreementPath, agreementT2WalkLines, assessmentGap, ASSESSMENT_FILE, TICKET_FILE, verificationCases } from '../round/agreement.ts';
 import { randomUUID } from 'node:crypto';
 import { captureCorrection, correctionGate, outstandingCorrections } from '../round/corrections.ts';
@@ -885,7 +885,7 @@ async function runLockedDelivery(toplevel: string) {
 		git(toplevel, ['add', ...keep]);
 		// Pathspec, not a bare commit: a product file staged for another purpose is not swept into the
 		// round-folder commit and pushed under an approval that never covered it (#106 review).
-		git(toplevel, ['commit', '-q', '-m', `docs(${id}): round folder: ticket, agreement, assessment, repro`, ...keep]);
+		git(toplevel, ['commit', '-q', '-m', roundFolderSubject({ id, ids: state?.ids }), ...keep]);
 	}
 	requireApprovedContent('the round-folder commit');
 	// gh pr create cannot push without a terminal; push first (BJEW-603, the first real deliver).
