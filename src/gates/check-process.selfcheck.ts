@@ -25,6 +25,9 @@ async function assertReleased() {
 try {
 	const happy = await runCheckProcess(process.execPath, ['-e', 'console.log("measured output")'], options);
 	assert.equal(happy.status, 0, happy.stderr); assert.match(happy.stdout, /measured output/);
+	const missing = await runCheckProcess(join(root, 'absent-runner'), [], options);
+	assert.equal(missing.status, null);
+	assert.match(missing.stderr, /runner failed to start: ENOENT/);
 	const cancel = new AbortController();
 	const cancelled = runCheckProcess(process.execPath, ['-e', runner], { ...options, signal: cancel.signal });
 	await waitForDescendant(); cancel.abort();
@@ -36,15 +39,33 @@ try {
 	assert.match(releaseRefusal({ rootPresent: false, orphanedRunner: true, nativeKillOk: false, inventoryAfter: 'unknown', survivors: ['1@t'], survivorCount: 12 }), /root identity NOT seen; orphaned runner YES; native kill FAILED; inventory after kill unknown; surviving 12: 1@t, …/);
 	const refused = mkdtempSync(join(tmpdir(), 'wf-check-refused-'));
 	const realKill = seams.processes.kill;
-	seams.processes.kill = (owners) => { realKill(owners); return false; };
+	seams.processes.kill = (owners, onFailure) => {
+		realKill(owners);
+		assert.ok(owners[0]);
+		onFailure?.({ kind: 'exit-timeout', pid: owners[0].pid });
+		return false;
+	};
 	try {
 		const run = await runCheckProcess(process.execPath, ['-e', 'console.log("x")'], { ...options, cwd: refused, worktree: refused });
 		assert.equal(run.status, null);
-		assert.match(run.stderr, /descendant shutdown not confirmed; ownership retained \(root identity seen; orphaned runner no; native kill FAILED; inventory after kill known; surviving 0\)/);
+		assert.match(run.stderr, /descendant shutdown not confirmed; ownership retained \(root identity seen; orphaned runner no; native kill FAILED; inventory after kill known; surviving 0; kill failure .*exit-timeout/);
 		const folder = join(refused, '.wf', 'check-processes');
 		const kept = JSON.parse(readFileSync(join(folder, readdirSync(folder)[0]), 'utf8'));
 		assert.equal(kept.diagnosis.nativeKillOk, false); assert.equal(kept.diagnosis.rootPresent, true); assert.ok(Array.isArray(kept.processes));
+		assert.deepEqual(kept.diagnosis.nativeKillFailure, { kind: 'exit-timeout', pid: kept.processes[0].pid });
 		assert.doesNotMatch(JSON.stringify(kept), /commandLine|command/i, 'identities only, no command lines');
 	} finally { seams.processes.kill = realKill; rmSync(refused, { recursive: true, force: true }); }
+	// #173: cancellation during native release must invalidate the measurement AND keep its reason.
+	const late = new AbortController();
+	seams.processes.kill = (owners, onFailure) => {
+		const released = realKill(owners, onFailure);
+		late.abort();
+		return released;
+	};
+	try {
+		const result = await runCheckProcess(process.execPath, ['-e', 'process.exit(0)'], { ...options, signal: late.signal });
+		assert.equal(result.status, null);
+		assert.match(result.stderr, /wf check: cancelled/, 'a late cancellation must not become an unexplained no-exit-status');
+	} finally { seams.processes.kill = realKill; }
 	console.log('all real check output, cancellation and timeout descendant witnesses green');
 } finally { rmSync(root, { recursive: true, force: true }); }
