@@ -268,6 +268,16 @@ changed reviewed content requires fresh T2, while an unchanged transient interru
 A correction racing an attempted merge waits for remote reconciliation; confirmed delivered product
 work uses a fresh follow-up, never the old approval. Worker wake/launch is not provided here (#159).
 
+For an idle published round, `wf next` refreshes the exact PR through the delivery owner before
+reporting that it awaits human merge. A confirmed conflict records a system correction bound to the
+PR, head and observed base commit; `wf deliver` checks the same boundary. Repeated observations do
+not duplicate or reopen resolved corrections. A still-conflicting candidate cannot be reported ready
+for merge. Unknown mergeability or an unavailable/mismatched remote produces explicit retry guidance,
+not an inferred conflict or successful handoff. Holds and open questions retain their route. This is
+an invocation-time check, not background polling. Project guidance owns integration/regeneration;
+changed reviewed content still requires checks, independent assessment and fresh T2. Merge remains
+human-owned.
+
 ## Async round questions
 
 On Shay's entry, `wf inbox` sends open `wf ask` questions addressed to `user` to Plannotator

@@ -1,0 +1,107 @@
+selfcheck: focused (1 of 96 files); full suite not run.
+selfcheck: 3 checks (tsc and eslint included), 1 at a time, 900s each
+selfcheck: PASS tsc (0.3s) [1/3]
+selfcheck: PASS eslint (1.9s) [2/3]
+selfcheck: TIMEOUT src/gates/deliver-recovery.selfcheck.ts (901.4s) [3/3]
+
+── FAIL src/gates/deliver-recovery.selfcheck.ts
+  ok   #190 CLI publishes a real open handoff
+  ok   #190 verdict: merged at the published head → merged
+  ok   #190 verdict: open at the published head → open
+  ok   #190 verdict: merged at this round’s own later HEAD → merged
+  ok   #190 verdict: open at this round’s own later HEAD → superseded
+  ok   #190 verdict: merged at a third head → refused
+  ok   #190 verdict: open at a third head → refused
+  ok   #190 verdict: merged with no head recorded → refused
+  ok   #190 verdict: another PR on the branch → refused
+  ok   #190 verdict: closed → refused
+  ok   #190 verdict: the known candidate absent → refused
+  ok   #190 verdict: gh failed → refused
+  ok   #190 admits without remote work and does not route published work to build
+  ok   #190 duplicate intake keeps exact durable identity and bytes
+  ok   #190 fences repair/disposition before reconciliation: next
+  ok   #190 fences repair/disposition before reconciliation: brief build
+  ok   #190 fences repair/disposition before reconciliation: step build
+  ok   #190 fences repair/disposition before reconciliation: correct --address
+  ok   #190 gh failed: reconciliation refuses and retains candidate, instruction and no repair authority
+  ok   #190 not JSON: reconciliation refuses and retains candidate, instruction and no repair authority
+  ok   #190 unreadable row: reconciliation refuses and retains candidate, instruction and no repair authority
+  ok   #190 the candidate absent: reconciliation refuses and retains candidate, instruction and no repair authority
+  ok   #190 another head: reconciliation refuses and retains candidate, instruction and no repair authority
+  ok   #190 another PR: reconciliation refuses and retains candidate, instruction and no repair authority
+  ok   #190 two PRs: reconciliation refuses and retains candidate, instruction and no repair authority
+  ok   #190 closed: reconciliation refuses and retains candidate, instruction and no repair authority
+  ok   #190 another repository: reconciliation refuses and retains candidate, instruction and no repair authority
+  ok   #190 another base: reconciliation refuses and retains candidate, instruction and no repair authority
+  ok   #190 no refusal released repair: next reports unavailable reconciliation
+https://github.com/o/r/pull/108 confirmed merged from published handoff; tracker note: bug-reports/bjew-1/JIRA.md
+{"wf_version":6,"round":"fix/108","class":"A","id":"BJEW-1","ids":["BJEW-1"],"folder":"bug-reports/bjew-1","base":"dev","step":"merged","made_by":"kit","note":"bug-reports/bjew-1/JIRA.md","pr_handoff":{"url":"https://github.com/o/r/pull/108","head":"382a81c2d6fcc593f8214374c61ffa6176db85d6","contentSha":"tree:cc1bdfa1894337da8480f5a64a42dbde30c80912"},"pr_repair":null,"corrections":[{"kind":"human","author":"Shay","source":"test:190","relay":"selfcheck","text":"Keep this late instruction verbatim.","scope":"round","reason":"late feedback","id":"c-c44d01bbfe02b1086ebf","at":"2026-10-28T07:44:31.809Z","outcome":{"kind":"pending"}}],"delivery":{"url":"https://github.com/o/r/pull/108","head":"382a81c2d6fcc593f8214374c61ffa6176db85d6","contentSha":"tree:cc1bdfa1894337da8480f5a64a42dbde30c80912"},"merge_attempt":null,"build_reason":null,"since":"2026-10-28T07:45:13.250Z","waiting_on":null,"history":[{"step":"merged","at":"2026-10-28T07:45:13.250Z"}]}
+wf deliver: merged with retained corrections; a fresh follow-up is required, not reopening this approval.
+  ok   #190 merge recovers the published delivery and routes the retained words to a fresh follow-up
+  ok   #190 recovery republishes nothing
+  ok   #190 post-receipt correction stays a fresh follow-up
+  ok   #190 a matching OPEN candidate permits ordinary scoped repair
+  ok   #190 a correction after confirmed OPEN routes to ordinary build without another lookup
+wf deliver: published PR mergeability is unknown (GitHub is still computing PR mergeability); continuing only scoped repair/replacement, not reporting this PR ready for human merge
+  ok   #149 UNKNOWN mergeability does not block known-OPEN scoped instruction repair
+  ok   #190 disposition after OPEN keeps the instruction history and stays in ordinary repair
+  ok   #190 a changed reviewed subject still needs fresh approval
+wf deliver: published PR mergeability is unknown (GitHub is still computing PR mergeability); continuing only scoped repair/replacement, not reporting this PR ready for human merge
+  ok   #149 old published head UNKNOWN permits replacement to reach ordinary approval gates
+https://github.com/o/r/pull/108 confirmed merged from published handoff; tracker note: bug-reports/bjew-1/JIRA.md
+{"wf_version":6,"round":"fix/108","class":"A","id":"BJEW-1","ids":["BJEW-1"],"folder":"bug-reports/bjew-1","base":"dev","step":"merged","made_by":"kit","note":"bug-reports/bjew-1/JIRA.md","pr_handoff":{"url":"https://github.com/o/r/pull/108","head":"382a81c2d6fcc593f8214374c61ffa6176db85d6","contentSha":"tree:cc1bdfa1894337da8480f5a64a42dbde30c80912"},"pr_repair":null,"corrections":[{"kind":"human","author":"Shay","source":"test:190","relay":"selfcheck","text":"Keep this late instruction verbatim.","scope":"round","reason":"late feedback","id":"c-c44d01bbfe02b1086ebf","at":"2026-10-28T07:45:24.617Z","outcome":{"kind":"addressed","note":"measured scoped repair","at":"2026-10-28T07:45:44.815Z","contentSha":"tree:f4c481f98d550cb8d0fb25f35f9c28408e0edbf0"},"history":[{"kind":"pending"}]},{"kind":"human","author":"Shay","source":"test:190-open-later","relay":"selfcheck","text":"Keep this late instruction verbatim.","scope":"round","reason":"late feedback","id":"c-f466ec9e1cdbcaebfb00","at":"2026-10-28T07:45:40.305Z","outcome":{"kind":"addressed","note":"measured scoped repair","at":"2026-10-28T07:45:48.096Z","contentSha":"tree:f4c481f98d550cb8d0fb25f35f9c28408e0edbf0"},"history":[{"kind":"pending"}]}],"merge_attempt":null,"since":"2026-10-28T07:46:29.518Z","correction_return_to":null,"history":[{"step":"build","at":"2026-10-28T07:45:31.401Z"},{"step":"merged","at":"2026-10-28T07:46:29.518Z"}],"build_reason":null,"waiting_on":null,"delivery":{"url":"https://github.com/o/r/pull/108","head":"382a81c2d6fcc593f8214374c61ffa6176db85d6","contentSha":"tree:cc1bdfa1894337da8480f5a64a42dbde30c80912"}}
+  ok   #190 a later human merge recovers the published head, never the changed local HEAD
+  ok   #190 stale lookup authorizes no repair after a new instruction
+  ok   #190 words admitted during a stale lookup survive it
+  ok   #190 stale lookup authorizes no repair after an uncommitted product edit
+  ok   #190 stale lookup authorizes no repair after a staged product edit
+  ok   #190 stale lookup authorizes no repair after a moved candidate
+  ok   #190 stale lookup authorizes no repair after a held round
+  ok   #190 an interrupted push moves the branch while the handoff still names the earlier head
+  ok   #190 a new instruction after an interrupted push adopts the approved head and repairs
+  ok   #190 a PR at this round’s own head over unreviewed bytes is refused, not recorded
+  ok   #190 unreviewed bytes are never announced as awaiting merge
+  ok   #190 a failed refresh clears the earlier OPEN authorization
+  ok   #190 CLI retains the instruction
+  ok   #190 CLI fences repair when next cannot refresh the published candidate
+  ok   #190 CLI recovers the merged delivery and keeps the instruction for follow-up
+  ok   #190 CLI recovery creates no second PR and merges nothing
+  ok   #190 crash setup retains the instruction
+  ok   #190 a crash after recognition keeps the candidate and the instruction before the receipt
+  ok   #190 the retry finishes once without republishing
+  ok   a retry after a completed merge exits clean
+  ok   …finishes the local step at merged
+  ok   …records the actual remote PR, merged head and product content for follow-up detection
+  ok   …writes the tracker note and records it
+  ok   …does not merge a merged PR again
+  ok   …does not push the merged branch back
+  ok   …does not create a second PR
+  ok   …the lookup that recognized the merge was pinned to the repository
+    (stdout) https://github.com/o/r/pull/108 was already merged; tracker note: bug-reports/bjew-1/JIRA.md | {"wf_version":6,"round":"fix/108","class":"A","id":"BJEW-1","ids":["BJEW-1"],"folder":"bug-reports/bjew-1","base":"dev","step":"merged","made_by":"kit","note":"bug-reports/bjew-1/JIRA.md","delivery":{"url":"https://github.com/o/r/pull/108","head":"022d73660be7a6bec5b4ffb347855059985cb6b0","contentSha":"tree:cc1bdfa1894337da8480f5a64a42dbde30c80912"},"merge_attempt":null,"pr_repair":null,"build_reason":null,"since":"2026-10-28T07:51:30.422Z","waiting_on":null,"history":[{"step":"merged","at":"2026-10-28T07:51:30.422Z"}]}
+  ok   a retry with the merged branch still there finishes
+  ok   …and deletes the merged branch it left behind
+  ok   delivery leaves the PR and branch open with a durable handoff
+  FAIL open handoff routes to tracker posting — wait remote: the remote could not be asked about published PR https://github.com/o/r/pull/108 (gh pr list exited 1: GraphQL: Could not resolve to a Repository with the name 'o/r'. (repository)); retain candidate and instructions, fix the remote and retry wf deliver; retry wf next when the remote can settle the published candidate
+
+  ok   retry retains one open PR without merging
+  ok   delivery publishes both UI images on create and retry
+  ok   human merge is reconciled into the existing merged lifecycle
+  ok   a retry with an open PR exits clean
+  ok   …edits the existing PR, never creates a second
+  ok   …names the selected PR url on the edit, not the current branch default
+  ok   …the lookups are pinned to the repository and the handoff to the pushed head
+  ok   …keeps it open and writes the note without claiming a merge
+  ok   a retry after push, before PR, creates exactly one PR
+  ok   …the create is pinned to the repository and the handoff to the pushed head
+  ok   a retry after the round-folder commit resumes without a fresh review
+  ok   a round whose base is main (origin/dev absent) delivers
+  ok   …the PR is opened against the round own base, not the project base (a v1.1 round answers on v1.1)
+  ok   …the open PR branch stays pushed
+  ok   a fresh delivery worker confirms an interrupted cleanup and clears its ownership
+  ok   …a retry neither creates a second PR nor merges again
+  ok   control: a round whose base is origin/dev, with origin/dev present, delivers
+  ok   an unresolved round base refuses before the push
+  ok   …the refusal is one actionable line naming the base
+
+TIMEOUT: killed after 900s (WF_SELFCHECK_TIMEOUT_S)
+1 of 3 selfchecks red (focused; tsc and eslint included) in 903.6s

@@ -1,0 +1,212 @@
+[
+  {
+    "comments": [],
+    "number": 190,
+    "state": "CLOSED",
+    "stateReason": "COMPLETED",
+    "url": "https://github.com/shayshahal/wf/issues/190"
+  },
+  {
+    "comments": [],
+    "number": 191,
+    "state": "CLOSED",
+    "stateReason": "COMPLETED",
+    "url": "https://github.com/shayshahal/wf/issues/191"
+  },
+  {
+    "comments": [
+      {
+        "id": "IC_kwDOUnxap88AAAABfTCXzg",
+        "author": {
+          "login": "shayshahal"
+        },
+        "authorAssociation": "OWNER",
+        "body": "Implemented in #197 (commit 287fd3ad2c0c3aba96fcc29e3da8e007b4e2c974), now open and awaiting Shay's merge. Final human T2 approved publication; no merge performed. Verification: 15/15 focused checks including TypeScript/eslint (not the full suite), plus the separate isolated real env-entry create \u05d2\u2020\u2019 answering stack \u05d2\u2020\u2019 reap cycle with exact installed-hook restoration and task-container release. Fresh independent assessment found no outstanding in-scope findings and accepted lifecycle evidence. The PR documents the explicitly approved legacy-journal refusal and retained diagnostic history.",
+        "createdAt": "2026-10-25T08:16:57Z",
+        "includesCreatedEdit": false,
+        "isMinimized": false,
+        "minimizedReason": "",
+        "reactionGroups": [],
+        "url": "https://github.com/shayshahal/wf/issues/192#issuecomment-6395303886",
+        "viewerDidAuthor": true
+      }
+    ],
+    "number": 192,
+    "state": "CLOSED",
+    "stateReason": "COMPLETED",
+    "url": "https://github.com/shayshahal/wf/issues/192"
+  },
+  {
+    "comments": [
+      {
+        "id": "IC_kwDOUnxap88AAAABdGykcQ",
+        "author": {
+          "login": "shayshahal"
+        },
+        "authorAssociation": "OWNER",
+        "body": "Another occurrence, 2026-10-18, on the branch of PR #171 (tree before merge): full `node src/selfcheck.ts` \u05d2\u2020\u2019 **1 of 76 red, 560.5s**, in `projects/jewelryx/check.cli.selfcheck.ts`, case *\"a failure on a precondition inside the selected test reds the row: not proof of the named assertion\"*. Different symptom from the descendant-release refusal: the red-base run recorded `runner-failure` / `no-exit-status: pytest never started (missing executable or spawn failure)`, while the current run passed. The fixer's own first full run on the same branch was also 1 of 76 red (case not captured); its second full run had no FAIL lines. `node projects/jewelryx/check.cli.selfcheck.ts` alone on the same tree: exit 0, no FAIL, 9m18s. So again aggregate-load-only; possibly the same spawn/ownership path (`check-process.ts` / `process-tree.ts`) showing as a spawn failure instead of a release refusal.",
+        "createdAt": "2026-10-18T09:28:29Z",
+        "includesCreatedEdit": false,
+        "isMinimized": false,
+        "minimizedReason": "",
+        "reactionGroups": [],
+        "url": "https://github.com/shayshahal/wf/issues/173#issuecomment-6248244337",
+        "viewerDidAuthor": true
+      },
+      {
+        "id": "IC_kwDOUnxap88AAAABdG8ImA",
+        "author": {
+          "login": "shayshahal"
+        },
+        "authorAssociation": "OWNER",
+        "body": "Additional measurement, not a fix: an external copy of the runner limited all work to four concurrent jobs on the merged #172 tree. All 79 checks passed in 685.5 seconds, slower than recent unbounded runs. The largest individual elapsed check was projects/jewelryx/check.cli.selfcheck.ts at 422.7 seconds (within the concurrent run, not an isolated measurement). The four-worker setting is not being adopted; this one green does not explain the prior release refusals. Separate work is adding focused development selection and per-check timing while preserving the unchanged complete pre-push gate.",
+        "createdAt": "2026-10-18T09:46:41Z",
+        "includesCreatedEdit": false,
+        "isMinimized": false,
+        "minimizedReason": "",
+        "reactionGroups": [],
+        "url": "https://github.com/shayshahal/wf/issues/173#issuecomment-6248401048",
+        "viewerDidAuthor": true
+      },
+      {
+        "id": "IC_kwDOUnxap88AAAABdHbiFw",
+        "author": {
+          "login": "shayshahal"
+        },
+        "authorAssociation": "OWNER",
+        "body": "Publication of the independently reviewed focused-feedback patch is now blocked by the mandatory pre-push gate. Integrated candidate 3328f86 (on main b098b08): 3 of 80 checks red in 899.5 seconds. The new runner regression test, real tsc and eslint passed. Failures: src/worktrees/serve.selfcheck.ts stack-listener/ownership assertion; projects/jewelryx/checks.selfcheck.ts descendant shutdown not confirmed; projects/jewelryx/check.cli.selfcheck.ts proof-reuse runs 6 and 7 hit spawnSync ETIMEDOUT, then fixture removal failed with EPERM. No repeat full run and no hook bypass. Full evidence: C:/Users/Shay/AppData/Local/Temp/wf-selfcheck-feedback/publish.log. Partial fixture wf-check-reuse-TGspaQ remains with only packages/ and no surviving .wf/check-processes records; it was left intact, with no process kill inferred from its path. The branch was not published. This adds observations, not a confirmed common root cause for all three failures.",
+        "createdAt": "2026-10-18T10:46:53Z",
+        "includesCreatedEdit": false,
+        "isMinimized": false,
+        "minimizedReason": "",
+        "reactionGroups": [],
+        "url": "https://github.com/shayshahal/wf/issues/173#issuecomment-6248915479",
+        "viewerDidAuthor": true
+      },
+      {
+        "id": "IC_kwDOUnxap88AAAABdWMZLA",
+        "author": {
+          "login": "shayshahal"
+        },
+        "authorAssociation": "OWNER",
+        "body": "## Another occurrence, 2026-10-19 \u05d2\u20ac\u201d different predicate, same shape\n\nFull run on `f01a24a` (main, after the #180 fix landed): **1 of 79 red, 275.5s**, in `env/adapters/plannotator-inbox.selfcheck.ts`, case *\"a server that never answers the tool call: the message says why\"*.\n\nUnlike the earlier reports, this one **did capture the failing predicate**, because it is an assertion on a message rather than on process release:\n\n```\nFAIL a server that never answers the tool call: the message says why \u05d2\u20ac\u201d\nwf inbox: send_message: no answer to initialize within 300 ms from C:\\Program Files\\nodejs\\node.exe\nC:\\Users\\Shay\\AppData\\Local\\Temp\\wf-inbox-0LVCYp\\fake-inbox.cjs (cwd \u05d2\u20ac\u00a6\\wf-inbox-0LVCYp\\wt); killed it\n```\n\nThe fixture (`call-hang`) answers `initialize` and then stops: the check expects the message to name `tools/call`. Under the aggregate run the fake child had not answered its **own** `initialize` before that 300 ms deadline expired, so the adapter correctly reported the initialize timeout and the assertion on the wording failed. The behaviour was right; the expectation lost a race.\n\n- Isolated, same tree: 3 consecutive runs of `node env/adapters/plannotator-inbox.selfcheck.ts`, exit 0, zero FAIL lines.\n- Unchanged retry, full suite: **79 green in 247.7s**.\n\nSo this is the same family as the release refusals \u05d2\u20ac\u201d a short deadline in a selfcheck that holds only when its own child gets scheduled in time \u05d2\u20ac\u201d but it is a different module and a different predicate from the descendant-release path (`check-process.ts`/`process-tree.ts`). Recording it here rather than opening a second issue, since the fix likely belongs to the same class (a selfcheck that asserts on a 300 ms transport deadline while the suite runs its modules in parallel). It is not evidence that the inbox adapter leaked a process: the case's own \"no process left behind\" arm passed.\n",
+        "createdAt": "2026-10-19T09:48:05Z",
+        "includesCreatedEdit": false,
+        "isMinimized": false,
+        "minimizedReason": "",
+        "reactionGroups": [],
+        "url": "https://github.com/shayshahal/wf/issues/173#issuecomment-6264396076",
+        "viewerDidAuthor": true
+      },
+      {
+        "id": "IC_kwDOUnxap88AAAABfiK5uA",
+        "author": {
+          "login": "shayshahal"
+        },
+        "authorAssociation": "OWNER",
+        "body": "PR for the diagnostics step and the inbox fixture race: the release refusal now names its failed predicate. The cause is still open; waiting for the next occurrence.",
+        "createdAt": "2026-10-26T08:05:01Z",
+        "includesCreatedEdit": false,
+        "isMinimized": false,
+        "minimizedReason": "",
+        "reactionGroups": [],
+        "url": "https://github.com/shayshahal/wf/issues/173#issuecomment-6411172280",
+        "viewerDidAuthor": true
+      },
+      {
+        "id": "IC_kwDOUnxap88AAAABgAQY0Q",
+        "author": {
+          "login": "shayshahal"
+        },
+        "authorAssociation": "OWNER",
+        "body": "## Diagnostic attempt, 2026-10-27 \u05d2\u20ac\u201d main `84b66d3`\n\n**Keep open: no spontaneous descendant-release refusal captured, no cause established, no production change.**\n\nMeasured in a separate `diagnose/173-release` worktree:\n\n| Execution | Observation |\n| --- | --- |\n| Focused process-tree + check-process, with tsc/eslint | 4 green, 29.0s |\n| Six simultaneous copies of the real check-process selfcheck | All six green |\n| Twelve simultaneous copies | All twelve green |\n| First normal aggregate | check-process red, but runner then crashed spawning node.exe (ENOENT) before printing the failed check's buffered diagnostic; isolated rerun green. The decisive predicate was not recovered. |\n| External aggregate runner (same six-job scheduling, 300s per-check limit), output buffered until end | 9/92 red, 731.2s; check-process green |\n| Focused first-eight-module aggregate with verified immediate output capture | check-process green; content-identity timed out at 300s; 1/10 red overall |\n| Final aggregate with verified per-check immediate output files and happy-path stderr in check-process assertion | 83/92 green, 9 red, 692.5s; tsc/eslint green, check-process green in 34.5s |\n\nThe first baseline began on Node 26.10.0; subsequent attempts used 26.12.1. Final aggregate observed 26.12.1 before and after. A runtime replacement may have affected the initial ENOENT, but this is not proof of its cause or of the release failure's cause.\n\n### Separate signatures in the final aggregate\n\n- boundary: `bin/wfk.selfcheck.ts` imports `../env/shim.ts`; reproduced isolated.\n- selfcheck fixture: missing `bin/wfk.mjs` in the copied inert tree, ERR_MODULE_NOT_FOUND.\n- next / route: expected output no longer matches missing-ticket/Intent/no-measurement behavior; route then reads nonexistent checks.log.\n- delivered-round / post-lifecycle: tracker-account-readback fixture mismatch (`/rest/api/2/myself`) and dependent assertions.\n- serve: compound assertions on CI-wait preservation and copied PID refusal failed, but did not identify the failed subpredicate. CLI output showed refusal of the unverified PID with ownership retained. Not a captured native release refusal.\n- content-identity / deliver-recovery / post-lifecycle: per-check 300s timeouts. Do not count these as release predicates.\n\n### Evidence retained locally\n\n`C:/Users/Shay/work/wf-173-evidence/` holds aggregate logs, focused/stress logs, per-module final output, external capture scripts and `aggregate-captured-final-report.md`. No pre-existing process was manually killed, no guard weakened, no production timeout changed, and no branch published.\n\nThe diagnostic gap is concrete: the normal suite buffers a failed check's output until every check finishes, and check-process's happy-status assertion omits its stderr. A runner crash can therefore lose the release predicate despite the existing production diagnostics. The external capture scripts close that gap for further reproduction attempts; they are diagnostic artifacts, not a proposed production fix.\n",
+        "createdAt": "2026-10-27T13:10:36Z",
+        "includesCreatedEdit": false,
+        "isMinimized": false,
+        "minimizedReason": "",
+        "reactionGroups": [],
+        "url": "https://github.com/shayshahal/wf/issues/173#issuecomment-6442719441",
+        "viewerDidAuthor": true
+      },
+      {
+        "id": "IC_kwDOUnxap88AAAABgAhF2Q",
+        "author": {
+          "login": "shayshahal"
+        },
+        "authorAssociation": "OWNER",
+        "body": "Diagnostic evidence-loss fix merged in #231 (merge commit 683e648). Failures now print as each check finishes; native spawn errors become failed results rather than aggregate crashes; process happy-status failures include stderr. Focused checks and independent review passed. This is not a fix or a root-cause determination for the intermittent release refusal: keep #173 open. Diagnostic scripts, logs and reports remain at C:/Users/Shay/work/wf-173-evidence/. The clean diagnostic worktree has been removed.",
+        "createdAt": "2026-10-27T13:23:35Z",
+        "includesCreatedEdit": false,
+        "isMinimized": false,
+        "minimizedReason": "",
+        "reactionGroups": [],
+        "url": "https://github.com/shayshahal/wf/issues/173#issuecomment-6442993113",
+        "viewerDidAuthor": true
+      },
+      {
+        "id": "IC_kwDOUnxap88AAAABgBcopQ",
+        "author": {
+          "login": "shayshahal"
+        },
+        "authorAssociation": "OWNER",
+        "body": "# #173 native follow-up: fix lost deadline reason and retain release evidence\n\n## Result\n\nA confirmed timeout/cancellation reporting defect is fixed. The historical spontaneous descendant-release refusal is still not established as the same cause. Keep #173 open.\n\n```text\nObserved before\n  runner exits 0 -> finish begins native cleanup\n  deadline fires -> cancelled=true -> second finish call returns at finishing guard\n  cleanup confirms release -> status=null, stderr=\"\"\n\nAfter\n  cancellation records its reason before calling finish\n  finishing guard still prevents duplicate cleanup\n  result remains status=null and reports timed out/cancelled\n```\n\nThe timeout budget, status invalidation, native identity checks and release predicates stay in place.\n\n## Additional diagnostic gaps fixed\n\n| Before | After |\n| --- | --- |\n| Native kill returns only false | Optional bounded failure evidence identifies the native stage, PID and native error code; boolean callers remain compatible |\n| Orphan-state write drops the release diagnosis | The retained record includes the diagnosis, orphan count and at most ten observed orphan identities |\n| Runner-start error is discarded | Native error code and exit signal are filtered before rendering; no full error message or command is retained |\n\nOrphan identities remain evidence only. They are not added to the authorized kill set. Unknown inventory remains a refusal.\n\n## Reproduction and proof\n\n| Command or witness | Before | After |\n| --- | --- | --- |\n| Controlled native identity mismatch | false with no failure evidence; regression red | false with identity-mismatch; mismatched process stays alive |\n| Abort during native cleanup through a wrapper around the real kill operation | null status with empty stderr; regression red | null status with cancelled; regression green |\n| Native orphan fixture | orphan refusal record lacks diagnosis; removing retention makes the new regression red | refusal and observed orphan identity retained |\n| Four concurrent workers, eight immediate-exit runs each | 30 zero exits, two unexplained null results | 32/32 zero exits; no null results or release refusals |\n| Three native runs with a 1500ms deadline | Debug trace captured the deadline while finishing; two had empty reasons | Three explicit timeouts; all remain nonmeasurements, not green proof |\n\nKey trace in `native-missing-status-debug.log`:\n\n```text\nfinish: status=0, reason='', finishing=false\nlate timer: reason='timed out', finishing=true\nresolve: released=true, cancelled=true, status=0\nreturned: status=null, stderr=''\n```\n\nThe native kill diagnostic callback also has real missing-executable coverage. Runner-start errors have real ENOENT coverage. Self-PID and mismatched creation identities remain protected.\n\n## Focused verification\n\n- Native/process/browser checks plus tsc and ESLint: **7 green**, 58.3s.\n- Server interruption/recovery/startup/verification plus tsc and ESLint: **6 green**, 44.4s.\n- Final process-tree/check-process/check-orphan plus tsc and ESLint after test cleanup correction: **5 green**, 41.7s.\n- Independent reviewer ran native checks plus tsc/ESLint: **5 green** and found no production blockers.\n- `git diff --check`: passed.\n\nThese are focused results. No new complete aggregate result is claimed. The nine previously recorded baseline aggregate failures are not represented as fixed by this patch.\n\n## Scope and files\n\n```text\n~ src/process-tree.ts                    bounded kill-failure callback; handle/creation-time guard retained\n~ src/gates/check-process.ts             preserve late cancellation reason and refusal diagnostics\n~ src/gates/check-supervisor.ts          report native runner-start code and exit signal\n~ src/process-tree.selfcheck.ts          native mismatch/self/absent-probe witnesses and recovery-safe fixture\n~ src/gates/check-process.selfcheck.ts   ENOENT, retained failure metadata and late-cancel regression\n+ src/gates/check-orphan.selfcheck.ts    real orphan refusal and retained diagnosis\n```\n\n## Evidence and next action\n\nWorktree: `C:/Users/Shay/work/wf-173-native`, branch `diagnose/173-native-release`.\n\nEvidence directory: `C:/Users/Shay/work/wf-173-evidence/`.\n\n- `reproduce-native-release.mjs`: bounded manual harness. Run from the editing checkout. It retains per-case result JSON and ownership records. Only established fixture identities may be cleaned up.\n- `native-repro-baseline.log`: initial controlled scenarios; the initial harness verdict had an immediate-case fallthrough bug, so use the individual rows, not its worker summary.\n- `native-repro-instrumented.log`: four-worker mixed cases; first missing-status observation.\n- `native-immediate-instrumented.log`: two unexplained null results in 32 runs.\n- `native-missing-status-debug.log`: tagged trace confirms deadline/finish interleaving. Debug instrumentation exists only in external artifacts, not in the patch.\n- `native-missing-status-fixed.log`: three explicit short-budget timeouts.\n- `native-immediate-fixed-stress.log`: 32/32 zero exits; Node 26.12.1; no refused cleanup or retained records. Per-case elapsed was 11.5\u05d2\u20ac\u201c43.6 seconds; those values include initial ownership acquisition before the execution timer is armed.\n- `native-diagnostic-before.log`, `late-cancel-before.log`, `orphan-regression-before.log`: failing regression evidence.\n- `native-focused-fixed.log`, `native-serve-focused.log`, `native-final-focused.log`: focused checks.\n\nNo production timeout, hook, worktree lifecycle configuration or verification guard was weakened. No PR has been published for this follow-up.\n",
+        "createdAt": "2026-10-27T14:03:05Z",
+        "includesCreatedEdit": false,
+        "isMinimized": false,
+        "minimizedReason": "",
+        "reactionGroups": [],
+        "url": "https://github.com/shayshahal/wf/issues/173#issuecomment-6443968677",
+        "viewerDidAuthor": true
+      },
+      {
+        "id": "IC_kwDOUnxap88AAAABgByoxA",
+        "author": {
+          "login": "shayshahal"
+        },
+        "authorAssociation": "OWNER",
+        "body": "Native follow-up merged in #233, merge commit 7eb05b8. This fixes the reproduced late cancellation/deadline reason-loss race and retains bounded native kill failure and orphan evidence. Focused native/server checks and independent review passed; the post-fix targeted batch returned 32 zero exits out of 32 executions. No complete-suite result is claimed, and the historical spontaneous descendant-release refusal is not established as the same cause. Keep #173 open. Removed the clean follow-up worktree and local branch; retained reports, per-case JSON, logs and the cwd-relative manual reproduction harness in C:/Users/Shay/work/wf-173-evidence/.",
+        "createdAt": "2026-10-27T14:15:38Z",
+        "includesCreatedEdit": false,
+        "isMinimized": false,
+        "minimizedReason": "",
+        "reactionGroups": [],
+        "url": "https://github.com/shayshahal/wf/issues/173#issuecomment-6444329156",
+        "viewerDidAuthor": true
+      },
+      {
+        "id": "IC_kwDOUnxap88AAAABgHC2JQ",
+        "author": {
+          "login": "shayshahal"
+        },
+        "authorAssociation": "OWNER",
+        "body": "Further bounded diagnosis completed; keep open, cause still unestablished. Current shell/.cmd reproduction: 32/32 zero exits. Current complete suite: 83 pass, 7 fail, 4 timeout out of 94, with no unexpected diagnosed release refusal. Restored original eebf639 workload with only merged diagnostic overlays: isolated original checks module passed all 73 arms; original unbounded aggregate on Node 26.12.1 returned 69 pass / 6 fail / 4 safety caps. Repeated the historical workload once with checksum-verified private Node 26.10.0 (matching an old failure log): again 69 pass / 6 fail / 4 caps. No spontaneous descendant-shutdown refusal or native-kill failure was captured in either historical run. The last run had one 1ms inventory ENOENT without established attribution; it is not demonstrated release-failure evidence. Retained projections in state releasing alone are not refusals. No complete-suite green or cause is claimed. No production edits or PR from this investigation. Stop broad retries until a fresh occurrence supplies the bounded failed-predicate stderr and corresponding .wf/check-processes JSON. All logs, traces, runtime checks and replay overlays retained in C:/Users/Shay/work/wf-173-evidence/; consolidated report: refusal-investigation-handoff.md. Removed only disposable diagnostic checkouts/local branch; no global Node/PATH/hook changes.",
+        "createdAt": "2026-10-27T18:06:24Z",
+        "includesCreatedEdit": false,
+        "isMinimized": false,
+        "minimizedReason": "",
+        "reactionGroups": [],
+        "url": "https://github.com/shayshahal/wf/issues/173#issuecomment-6449837605",
+        "viewerDidAuthor": true
+      },
+      {
+        "id": "IC_kwDOUnxap88AAAABgHGEkA",
+        "author": {
+          "login": "shayshahal"
+        },
+        "authorAssociation": "OWNER",
+        "body": "Shay requested closing this investigation. The issue was already closed at the time #233 merged, despite the follow-up reports intending to leave it open. Its closure reason is now explicitly NOT_PLANNED, not fixed/completed. The historical descendant-release refusal remains unestablished after the bounded reproductions. #231 and #233 fixed separate, demonstrated reporting defects; they do not prove the historical refusal was fixed. Retain this history and the local evidence if a new occurrence supplies a failed predicate.",
+        "createdAt": "2026-10-27T18:08:55Z",
+        "includesCreatedEdit": false,
+        "isMinimized": false,
+        "minimizedReason": "",
+        "reactionGroups": [],
+        "url": "https://github.com/shayshahal/wf/issues/173#issuecomment-6449890448",
+        "viewerDidAuthor": true
+      }
+    ],
+    "number": 173,
+    "state": "CLOSED",
+    "stateReason": "NOT_PLANNED",
+    "url": "https://github.com/shayshahal/wf/issues/173"
+  }
+]

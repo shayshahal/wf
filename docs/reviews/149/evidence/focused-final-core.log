@@ -1,0 +1,8 @@
+selfcheck: focused (3 of 96 files); full suite not run.
+selfcheck: 5 checks (tsc and eslint included), 2 at a time, 600s each
+selfcheck: PASS tsc (1.3s) [1/5]
+selfcheck: PASS src/gates/deliver.selfcheck.ts (0.9s) [2/5]
+selfcheck: PASS eslint (2.1s) [3/5]
+selfcheck: PASS src/round/next.selfcheck.ts (45.0s) [4/5]
+selfcheck: PASS src/round/corrections.selfcheck.ts (231.8s) [5/5]
+5 selfchecks green (focused; tsc and eslint included) in 233.9s

@@ -1,0 +1,100 @@
+selfcheck: focused (2 of 95 files); full suite not run.
+selfcheck: 4 checks (tsc and eslint included), 2 at a time, 120s each
+selfcheck: PASS tsc (1.2s) [1/4]
+selfcheck: PASS eslint (2.1s) [2/4]
+selfcheck: FAIL src/boundary.selfcheck.ts (0.9s) [3/4]
+
+── FAIL src/boundary.selfcheck.ts
+  ok   envImports sees static and dynamic imports of env/
+  ok   machinePaths skips comments and sees code
+  ok   machineText reads prose, bullets included, and sees an env-only tool
+  ok   the walk skips a nested checkout, and the env/ beside it
+  FAIL no kit file imports env/ (163 files) — bin\wfk.selfcheck.ts: ../env/shim.ts
+  ok   no kit file names Shay's machine (~/.herdr, .bare, LOCALAPPDATA, ~/.config/wf, ~/work/wf)
+  ok   no text a round's agent reads names Shay's machine or an env-only tool (30 files)
+
+1 FAILURE(S)
+selfcheck: TIMEOUT projects/jewelryx/post-lifecycle.selfcheck.ts (122.0s) [4/4]
+
+── FAIL projects/jewelryx/post-lifecycle.selfcheck.ts
+  ok   continuous publish creates OPEN candidate, not delivery
+  FAIL continuous OPEN post notifies each ticket once, selects exact proof and never transitions — X-1: comment:
+  השינוי מוכן ב-PR וממתין למיזוג.
+  מה היה: filled
+  מה שונה: filled
+  לבדיקה: filled
+  PR: https://github.com/o/r/pull/191
+X-1: pictures (1): after-1.png
+X-1: not posted, kept as round evidence (1): after-old.png
+X-2: comment:
+  השינוי מוכן ב-PR וממתין למיזוג.
+  מה היה: filled
+  מה שונה: filled
+  לבדיקה: filled
+  PR: https://github.com/o/r/pull/191
+X-2: pictures (1): after-1.png
+X-2: not posted, kept as round evidence (1): after-old.png
+wf post: could not check the ticket for changes: unexpected controlled ticket https://raynw.atlassian.net/rest/api/2/myself; nothing posted
+
+  FAIL OPEN next waits for human merge, not cleanup
+  FAIL OPEN retry does not repost or complete
+  ok   continuous delivery reconciliation records confirmed merge
+  ok   continuous before completion: next routes completion, direct reap refuses without deleting recovery evidence
+  FAIL continuous previously-posted tickets complete after readback, no duplicate notification — X-1: comment:
+  השינוי מוכן ב-PR וממתין למיזוג.
+  מה היה: filled
+  מה שונה: filled
+  לבדיקה: filled
+  PR: https://github.com/o/r/pull/191
+X-1: pictures (1): after-1.png
+X-1: not posted, kept as round evidence (1): after-old.png
+X-2: comment:
+  השינוי מוכן ב-PR וממתין למיזוג.
+  מה היה: filled
+  מה שונה: filled
+  לבדיקה: filled
+  PR: https://github.com/o/r/pull/191
+X-2: pictures (1): after-1.png
+X-2: not posted, kept as round evidence (1): after-old.png
+wf post: could not check the ticket for changes: unexpected controlled ticket https://raynw.atlassian.net/rest/api/2/myself; nothing posted
+
+  FAIL completed next offers cleanup
+  FAIL repeated post/reconcile preserves receipts and one publication — X-1: comment:
+  השינוי מוכן ב-PR וממתין למיזוג.
+  מה היה: filled
+  מה שונה: filled
+  לבדיקה: filled
+  PR: https://github.com/o/r/pull/191
+X-1: pictures (1): after-1.png
+X-1: not posted, kept as round evidence (1): after-old.png
+X-2: comment:
+  השינוי מוכן ב-PR וממתין למיזוג.
+  מה היה: filled
+  מה שונה: filled
+  לבדיקה: filled
+  PR: https://github.com/o/r/pull/191
+X-2: pictures (1): after-1.png
+X-2: not posted, kept as round evidence (1): after-old.png
+wf post: could not check the ticket for changes: unexpected controlled ticket https://raynw.atlassian.net/rest/api/2/myself; nothing posted
+wf deliver: already merged (tracker note: bug-reports/191/JIRA.md); `wf next` says what is left
+X-1: comment:
+  השינוי מוכן ב-PR וממתין למיזוג.
+  מה היה: filled
+  מה שונה: filled
+  לבדיקה: filled
+  PR: https://github.com/o/r/pull/191
+X-1: pictures (1): after-1.png
+X-1: not posted, kept as round evidence (1): after-old.png
+X-2: comment:
+  השינוי מוכן ב-PR וממתין למיזוג.
+  מה היה: filled
+  מה שונה: filled
+  לבדיקה: filled
+  PR: https://github.com/o/r/pull/191
+X-2: pictures (1): after-1.png
+X-2: not posted, kept as round evidence (1): after-old.png
+wf post: could not check the ticket for changes: unexpected controlled ticket https://raynw.atlassian.net/rest/api/2/myself; nothing posted
+
+
+TIMEOUT: killed after 120s (WF_SELFCHECK_TIMEOUT_S)
+2 of 4 selfchecks red (focused; tsc and eslint included) in 123.2s

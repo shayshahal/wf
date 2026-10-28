@@ -1,0 +1,10 @@
+file:///C:/Users/Shay/work/wf-149/src/round/state.ts:232
+		if (gap) throw new CorruptStateError(file, `invalid PR handoff: ${gap}`);
+		               ^
+
+CorruptStateError: corrupt round state: C:\Users\Shay\AppData\Local\Temp\wf-149-conflict-repro-g4MPPR\work\.wf\state.json is not the round's state (invalid PR handoff: invalid delivery receipt contentSha) — restore it from git, or delete it and run `wf step <step>` to start the round over
+    at readState (file:///C:/Users/Shay/work/wf-149/src/round/state.ts:232:18)
+    at reconcilePublishedDelivery (file:///C:/Users/Shay/work/wf-149/src/gates/deliver.ts:643:14)
+    at file:///C:/Users/Shay/work/wf-149-evidence/repro-published-conflict.mjs:58:32
+
+Node.js v26.12.1

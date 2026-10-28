@@ -28,7 +28,7 @@ import { readVerdict, approvalBinding, approvalContentGap, lastField, reviewScop
 import { commitContentSha, headContentSha, trackerNotePath, worktreeContentSha } from './content-identity.ts';
 import type { ContentIdentity } from './content-identity.ts';
 import type { DeliveryReceipt } from '../round/delivered-round.ts';
-import { readState, resolveRoundBase, roundOf, toplevelOf, writeState } from '../round/state.ts';
+import { readState, resolveRoundBase, roundOf, toplevelOf, writeState, WF_STATE_VERSION } from '../round/state.ts';
 import { runStep } from '../round/step.ts';
 import type { GhResult } from '../seams.ts';
 import type { State } from '../round/state.ts';
@@ -297,8 +297,21 @@ export type PrState = 'OPEN' | 'MERGED' | 'CLOSED';
 // answered something unusable, from which no safe delivery decision can be made.
 export type PrLookup =
 	| { kind: 'none' }
-	| { kind: 'found'; url: string; state: PrState; headRefOid: string | null }
+	| { kind: 'found'; url: string; state: PrState; headRefOid: string | null; mergeability?: PrMergeability }
 	| { kind: 'unknown'; why: string };
+
+// A provider answer is usable only with the base commit it describes. Existing commit strings
+// remain the owner's representation; this parser checks full OIDs before granting new authority.
+type PrMergeability =
+	| { readonly kind: 'mergeable' | 'conflicting'; readonly baseRefOid: string }
+	| { readonly kind: 'unknown'; readonly why: string };
+
+function parsePrMergeability(row: { mergeable?: unknown; baseRefOid?: unknown }): PrMergeability {
+	if (typeof row.baseRefOid !== 'string' || !commitOid.test(row.baseRefOid)) return { kind: 'unknown', why: 'missing or invalid PR base commit' };
+	if (row.mergeable === 'MERGEABLE') return { kind: 'mergeable', baseRefOid: row.baseRefOid };
+	if (row.mergeable === 'CONFLICTING') return { kind: 'conflicting', baseRefOid: row.baseRefOid };
+	return { kind: 'unknown', why: row.mergeable === 'UNKNOWN' ? 'GitHub is still computing PR mergeability' : 'missing or invalid PR mergeability' };
+}
 
 // What a delivery retry may do: create the PR (`deliver`), finish an open one (`resume`), finish the
 // note and the step of an already merged one (`finish`), or stop (`refuse`).
@@ -446,10 +459,11 @@ export function prLookup(result: GhResult, expected?: { headRefName: string; bas
 	if (!Array.isArray(parsed)) return { kind: 'unknown', why: 'gh pr list did not answer a JSON array' };
 	// An empty array is a real answer, and the only one that lets deliver create a PR.
 	if (!parsed.length) return { kind: 'none' };
-	const rows: Array<{ url: string; state: PrState; headRefOid: string | null }> = [];
+	const rows: Array<{ url: string; state: PrState; headRefOid: string | null; mergeability: PrMergeability }> = [];
 	for (const p of parsed) {
 		if (typeof p !== 'object' || p === null) return { kind: 'unknown', why: 'gh pr list answered a row that is not an object' };
-		const row = p as { url?: unknown; state?: unknown; headRefOid?: unknown; headRefName?: unknown; baseRefName?: unknown; isCrossRepository?: unknown };
+		// SAFETY: the object check above establishes the record; every field used below is refined from unknown.
+		const row = p as { url?: unknown; state?: unknown; headRefOid?: unknown; headRefName?: unknown; baseRefName?: unknown; isCrossRepository?: unknown; mergeable?: unknown; baseRefOid?: unknown };
 		if (typeof row.url !== 'string' || !row.url.trim()) return { kind: 'unknown', why: 'gh pr list answered a row without a url' };
 		if (typeof row.state !== 'string' || !['OPEN', 'MERGED', 'CLOSED'].includes(row.state)) return { kind: 'unknown', why: `gh pr list answered a PR in state ${JSON.stringify(row.state)}, which deliver cannot act on` };
 		if (row.headRefOid !== undefined && row.headRefOid !== null && (typeof row.headRefOid !== 'string' || !commitOid.test(row.headRefOid))) {
@@ -464,14 +478,15 @@ export function prLookup(result: GhResult, expected?: { headRefName: string; bas
 				if (!got || !sameRepo(got, expected.repo)) return { kind: 'unknown', why: `gh pr list answered a PR at ${row.url}, which is not a pull request in ${expected.repo.owner}/${expected.repo.name}` };
 			}
 		}
-		rows.push({ url: row.url, state: row.state as PrState, headRefOid: typeof row.headRefOid === 'string' ? row.headRefOid : null });
+		// SAFETY: the closed state whitelist above checked the protocol string; TypeScript does not retain includes() refinement.
+		rows.push({ url: row.url, state: row.state as PrState, headRefOid: typeof row.headRefOid === 'string' ? row.headRefOid : null, mergeability: parsePrMergeability(row) });
 	}
 	// Branch reuse is real: an old merged PR and a fresh open one on the same branch are two deliveries,
 	// and picking the merged one would write this round's note over work it did not do. A lone PR is
 	// this delivery; several are ambiguous, so deliver refuses rather than rank them (issue 108).
 	if (rows.length > 1) return { kind: 'unknown', why: `gh pr list answered ${rows.length} PRs for this branch; which is this delivery's cannot be told` };
 	const pr = rows[0];
-	return { kind: 'found', url: pr.url, state: pr.state, headRefOid: pr.headRefOid };
+	return { kind: 'found', url: pr.url, state: pr.state, headRefOid: pr.headRefOid, mergeability: pr.mergeability };
 }
 
 // Pure: what a delivery retry does with the remote's answer for its branch, at `head`. An `unknown`
@@ -625,6 +640,18 @@ export async function runDeliver() {
 	finally { process.removeListener('exit', lock.release); lock.release(); }
 }
 
+/** A published PR observation either reconciles its identity or preserves it for an explicit retry. */
+export type PublishedReconciliationResult = { readonly kind: 'none' | 'open' | 'finished' } | { readonly kind: 'refused'; readonly why: string };
+
+/** Refresh a published PR under delivery exclusion; never publish new work from a next-action query. */
+export async function refreshPublishedDelivery(toplevel: string): Promise<PublishedReconciliationResult> {
+	const lock = acquireProcessLock(git(toplevel, ['rev-parse', '--path-format=absolute', '--git-path', 'wf-deliver.lock']));
+	if (lock.kind === 'refused') return { kind: 'refused', why: lock.why };
+	process.once('exit', lock.release);
+	try { return await reconcilePublishedDelivery(toplevel); }
+	finally { process.removeListener('exit', lock.release); lock.release(); }
+}
+
 // A lookup is not a lease. Bind its answer to the exact round, candidate, instructions and local
 // subject that were queried (#190); intake stays available while gh runs outside the state lock.
 class PublishedReconciliationRefused extends Error {}
@@ -639,7 +666,7 @@ class PublishedReconciliationRefused extends Error {}
  * delivery at the merged head, so published work is never rebuilt. Callers must already hold the
  * delivery process lock (`runDeliver` takes it); this function serializes only its own state writes.
  */
-export async function reconcilePublishedDelivery(toplevel: string): Promise<{ kind: 'none' | 'open' | 'finished' } | { kind: 'refused'; why: string }> {
+export async function reconcilePublishedDelivery(toplevel: string): Promise<PublishedReconciliationResult> {
 	let state = readState(toplevel);
 	if (!state?.pr_handoff || state.delivery) return { kind: 'none' };
 	const candidate = state.pr_handoff;
@@ -649,7 +676,7 @@ export async function reconcilePublishedDelivery(toplevel: string): Promise<{ ki
 		// to clear would leave the stale answer standing exactly when the round is moving (#190 review).
 		if (state.pr_repair) state = writeState(toplevel, () => ({ pr_repair: null }));
 		const snapshot = state;
-		const stateIdentity = JSON.stringify(state);
+		let stateIdentity = JSON.stringify(state);
 		const subject = () => JSON.stringify({
 			head: headSha(toplevel), branch: currentBranch(toplevel),
 			index: git(toplevel, ['write-tree']),
@@ -664,7 +691,7 @@ export async function reconcilePublishedDelivery(toplevel: string): Promise<{ ki
 		const target = originTarget(gitConfigAll(toplevel, 'remote.origin.url'), gitConfigAll(toplevel, 'remote.origin.pushurl'), gitPushUrls(toplevel));
 		if (target.kind === 'refuse') return { kind: 'refused', why: target.why };
 		const repo = target.repo;
-		const lookup = prLookup(seams.gh(['pr', 'list', '--repo', `${repo.owner}/${repo.name}`, '--head', branch, '--base', prBaseOf(state?.base), '--state', 'all', '--json', 'url,state,headRefOid,headRefName,baseRefName,isCrossRepository'], toplevel), { headRefName: branch, baseRefName: prBaseOf(state?.base), repo });
+		const lookup = prLookup(seams.gh(['pr', 'list', '--repo', `${repo.owner}/${repo.name}`, '--head', branch, '--base', prBaseOf(state?.base), '--state', 'all', '--json', 'url,state,headRefOid,headRefName,baseRefName,isCrossRepository,mergeable,baseRefOid'], toplevel), { headRefName: branch, baseRefName: prBaseOf(state?.base), repo });
 		const headNow = headSha(toplevel);
 		const verdict = publishedDeliveryVerdict(lookup, candidate, headNow);
 		if (verdict.kind === 'refused') return { kind: 'refused', why: `${verdict.why}; retain candidate and instructions, fix the remote and retry wf deliver` };
@@ -681,6 +708,35 @@ export async function reconcilePublishedDelivery(toplevel: string): Promise<{ ki
 		// unreviewed commit is never announced as awaiting merge, and a round that pushed a repair and
 		// then took one more instruction is not left refusing its own branch (#190 review 2/3).
 		const superseded = verdict.kind === 'superseded';
+		const mergeability = lookup.kind === 'found' ? lookup.mergeability : undefined;
+		if (!mergeability || mergeability.kind === 'unknown') {
+			const why = `published PR mergeability is unknown (${mergeability?.why ?? 'metadata unavailable'})`;
+			if (lookup.kind !== 'found' || (lookup.headRefOid === headNow && !outstandingCorrections(state).length)) return { kind: 'refused', why: `${why}; retain candidate and instructions, retry wf next or wf deliver` };
+			// OPEN identity settles repair authority even while GitHub computes mergeability. The old
+			// remote head must not block publishing its newly reviewed replacement (#149 independent R1).
+			console.error(`wf deliver: ${why}; continuing only scoped repair/replacement, not reporting this PR ready for human merge`);
+		}
+		// The old published head may still conflict while a locally repaired head awaits publication.
+		// Its correction is history, not a reason to block shipping the freshly reviewed repair (#149).
+		if (mergeability?.kind === 'conflicting' && lookup.kind === 'found' && lookup.headRefOid === headNow) {
+			const base = prBaseOf(state.base);
+			const result = captureCorrection(toplevel, {
+				kind: 'system', author: 'wf published PR conflict', relay: null,
+				source: `wf:published-conflict:${candidate.url}:${branch}:${base}:${headNow}:${mergeability.baseRefOid}`,
+				text: `Published PR ${candidate.url} conflicts at head ${headNow} against ${base} (${mergeability.baseRefOid}). Integrate that base while preserving both sides' behavior; follow project-owned conflict resolution and regeneration guidance. Run current checks and fresh independent assessment, then obtain fresh T2 approval before republishing the changed subject. Merge remains human-owned.`,
+				scope: `published PR ${candidate.url}; head ${headNow}; base ${base} at ${mergeability.baseRefOid}`,
+				reason: 'GitHub confirmed CONFLICTING for this exact published candidate and observed base commit.',
+			}, [], revalidate);
+			if (result.kind === 'refused') return { kind: 'refused', why: result.reason };
+			if (result.kind === 'recorded') {
+				// Intake cannot route before pr_repair is granted. Account for exactly our guarded append,
+				// including writeState's version fence; any other intervening write still fails revalidation.
+				state = { ...state, wf_version: WF_STATE_VERSION, corrections: [...(state.corrections ?? []), result.correction] };
+				stateIdentity = JSON.stringify(state);
+			} else if ((result.correction.outcome.kind === 'addressed' || result.correction.outcome.kind === 'superseded') && !outstandingCorrections(state).length) {
+				return { kind: 'refused', why: 'published PR still conflicts at the addressed conflict identity; retain history, finish the repair and obtain fresh approval before republishing; it is not ready for human merge' };
+			}
+		}
 		const waiting = outstandingCorrections(state).length > 0;
 		if (superseded) {
 			const folder = state.folder ?? null;
@@ -714,7 +770,7 @@ async function runLockedDelivery(toplevel: string) {
 		const target = originTarget(gitConfigAll(toplevel, 'remote.origin.url'), gitConfigAll(toplevel, 'remote.origin.pushurl'), gitPushUrls(toplevel));
 		if (target.kind === 'refuse') { console.error(`wf deliver: ${target.why}; merge outcome remains uncertain`); process.exit(2); }
 		const repo = target.repo;
-		const lookup = prLookup(seams.gh(['pr', 'list', '--repo', `${repo.owner}/${repo.name}`, '--head', branch, '--base', prBaseOf(state?.base), '--state', 'all', '--json', 'url,state,headRefOid,headRefName,baseRefName,isCrossRepository'], toplevel), { headRefName: branch, baseRefName: prBaseOf(state?.base), repo });
+		const lookup = prLookup(seams.gh(['pr', 'list', '--repo', `${repo.owner}/${repo.name}`, '--head', branch, '--base', prBaseOf(state?.base), '--state', 'all', '--json', 'url,state,headRefOid,headRefName,baseRefName,isCrossRepository,mergeable,baseRefOid'], toplevel), { headRefName: branch, baseRefName: prBaseOf(state?.base), repo });
 		if (lookup.kind !== 'found' || lookup.url !== attempt.url || (lookup.state === 'MERGED' && lookup.headRefOid !== attempt.head)) {
 			console.error('wf deliver: merge outcome remains uncertain; retain attempt and instructions, retry remote reconciliation'); process.exit(2);
 		}
@@ -843,7 +899,7 @@ async function runLockedDelivery(toplevel: string) {
 	// the response's head, base and repository are checked against them, so a same-named branch from a
 	// fork or a PR against another base or repository is not taken for this delivery's.
 	const resume = deliveryResume(
-		prLookup(seams.gh(['pr', 'list', '--repo', repoName, '--head', branch, '--base', prBaseOf(state?.base), '--state', 'all', '--json', 'url,state,headRefOid,headRefName,baseRefName,isCrossRepository'], toplevel), { headRefName: branch, baseRefName: prBaseOf(state?.base), repo }),
+		prLookup(seams.gh(['pr', 'list', '--repo', repoName, '--head', branch, '--base', prBaseOf(state?.base), '--state', 'all', '--json', 'url,state,headRefOid,headRefName,baseRefName,isCrossRepository,mergeable,baseRefOid'], toplevel), { headRefName: branch, baseRefName: prBaseOf(state?.base), repo }),
 		head,
 	);
 	if (resume.do === 'refuse') {
@@ -949,7 +1005,7 @@ async function runLockedDelivery(toplevel: string) {
 	// head is that commit before recording the open PR handoff.
 	const headNow = headSha(toplevel);
 	const fresh = prLookup(
-		seams.gh(['pr', 'list', '--repo', repoName, '--head', branch, '--base', prBaseOf(state?.base), '--state', 'all', '--json', 'url,state,headRefOid,headRefName,baseRefName,isCrossRepository'], toplevel),
+		seams.gh(['pr', 'list', '--repo', repoName, '--head', branch, '--base', prBaseOf(state?.base), '--state', 'all', '--json', 'url,state,headRefOid,headRefName,baseRefName,isCrossRepository,mergeable,baseRefOid'], toplevel),
 		{ headRefName: branch, baseRefName: prBaseOf(state?.base), repo },
 	);
 	if (fresh.kind === 'unknown') {
@@ -976,6 +1032,11 @@ async function runLockedDelivery(toplevel: string) {
 		process.exit(1);
 	}
 	await finishDelivery({ toplevel, state, folder, ids: state?.ids ?? [id], url: prUrl, head: headNow, because: 'opened', open: true });
+	if (fresh.mergeability?.kind !== 'mergeable') {
+		const observed = await reconcilePublishedDelivery(toplevel);
+		if (observed.kind === 'refused') { console.error(`wf deliver: ${observed.why}`); process.exitCode = 2; }
+		else if (outstandingCorrections(readState(toplevel)).length) console.log('wf deliver: published conflict retained as a system correction; run wf next for scoped repair.');
+	}
 }
 
 if (process.argv[1]?.endsWith('deliver.ts')) await runDeliver();

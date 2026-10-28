@@ -136,8 +136,8 @@ export function correctionContext(state: Pick<State, 'corrections'> | null): str
 // public correction operations return values, and refused writes never replace the state file.
 class CorrectionRefused extends Error {}
 
-/** Capture once under the state lock, retaining holds and uncertain/confirmed merge identity. */
-export function captureCorrection(toplevel: string, input: CorrectionInput, supersedes: readonly string[] = []): CorrectionResult {
+/** Capture once under the state lock; a remote observation must revalidate its snapshot there. */
+export function captureCorrection(toplevel: string, input: CorrectionInput, supersedes: readonly string[] = [], revalidate?: (current: State) => void): CorrectionResult {
 	if (!['human', 'system'].includes(input.kind) || ![input.author, input.source, input.text, input.scope, input.reason].every(nonempty) || !(input.relay === null || nonempty(input.relay))) return { kind: 'refused', reason: 'wf correct: kind, author, source, instruction, scope and reason are required' };
 	const id = correctionId(input.source);
 	const at = new Date().toISOString();
@@ -146,6 +146,7 @@ export function captureCorrection(toplevel: string, input: CorrectionInput, supe
 	let duplicate = false;
 	try {
 		writeState(toplevel, (current) => {
+			revalidate?.(current);
 			if (!current.id || !current.folder) throw new CorrectionRefused('wf correct: no identified round here');
 			const previous = current.corrections ?? [];
 			const found = previous.find((c) => c.source === input.source || c.id === id);

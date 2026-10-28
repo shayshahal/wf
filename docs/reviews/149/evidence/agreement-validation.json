@@ -1,0 +1,9 @@
+{
+  "base": "9992d542ae4a41f0aed887756c1e06922ccb8ce5",
+  "agreementSha": "654ad52059c72772189c69b53a1d0fb7964aebc26f88efe9e3175c75aa7126cc",
+  "gaps": {
+    "agreement": null,
+    "conciseness": null,
+    "notAskedFor": null
+  }
+}

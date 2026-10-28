@@ -1,0 +1,185 @@
+selfcheck: focused (4 of 96 files); full suite not run.
+selfcheck: 6 checks (tsc and eslint included), 2 at a time, 300s each
+selfcheck: PASS tsc (3.2s) [1/6]
+selfcheck: PASS eslint (1.5s) [2/6]
+selfcheck: TIMEOUT src/gates/deliver-recovery.selfcheck.ts (302.4s) [3/6]
+
+── FAIL src/gates/deliver-recovery.selfcheck.ts
+  ok   #190 CLI publishes a real open handoff
+  ok   #190 verdict: merged at the published head → merged
+  ok   #190 verdict: open at the published head → open
+  ok   #190 verdict: merged at this round’s own later HEAD → merged
+  ok   #190 verdict: open at this round’s own later HEAD → superseded
+  ok   #190 verdict: merged at a third head → refused
+  ok   #190 verdict: open at a third head → refused
+  ok   #190 verdict: merged with no head recorded → refused
+  ok   #190 verdict: another PR on the branch → refused
+  ok   #190 verdict: closed → refused
+  ok   #190 verdict: the known candidate absent → refused
+  ok   #190 verdict: gh failed → refused
+  ok   #190 admits without remote work and does not route published work to build
+  ok   #190 duplicate intake keeps exact durable identity and bytes
+  ok   #190 fences repair/disposition before reconciliation: next
+  ok   #190 fences repair/disposition before reconciliation: brief build
+  ok   #190 fences repair/disposition before reconciliation: step build
+  ok   #190 fences repair/disposition before reconciliation: correct --address
+  ok   #190 gh failed: reconciliation refuses and retains candidate, instruction and no repair authority
+  ok   #190 not JSON: reconciliation refuses and retains candidate, instruction and no repair authority
+  ok   #190 unreadable row: reconciliation refuses and retains candidate, instruction and no repair authority
+  ok   #190 the candidate absent: reconciliation refuses and retains candidate, instruction and no repair authority
+  ok   #190 another head: reconciliation refuses and retains candidate, instruction and no repair authority
+  ok   #190 another PR: reconciliation refuses and retains candidate, instruction and no repair authority
+  ok   #190 two PRs: reconciliation refuses and retains candidate, instruction and no repair authority
+  ok   #190 closed: reconciliation refuses and retains candidate, instruction and no repair authority
+  ok   #190 another repository: reconciliation refuses and retains candidate, instruction and no repair authority
+  ok   #190 another base: reconciliation refuses and retains candidate, instruction and no repair authority
+  ok   #190 no refusal released repair: next reports unavailable reconciliation
+https://github.com/o/r/pull/108 confirmed merged from published handoff; tracker note: bug-reports/bjew-1/JIRA.md
+{"wf_version":6,"round":"fix/108","class":"A","id":"BJEW-1","ids":["BJEW-1"],"folder":"bug-reports/bjew-1","base":"dev","step":"merged","made_by":"kit","note":"bug-reports/bjew-1/JIRA.md","pr_handoff":{"url":"https://github.com/o/r/pull/108","head":"a57246c8476f363d7408aa6fcde06e4476964713","contentSha":"tree:cc1bdfa1894337da8480f5a64a42dbde30c80912"},"pr_repair":null,"corrections":[{"kind":"human","author":"Shay","source":"test:190","relay":"selfcheck","text":"Keep this late instruction verbatim.","scope":"round","reason":"late feedback","id":"c-c44d01bbfe02b1086ebf","at":"2026-10-28T07:31:12.716Z","outcome":{"kind":"pending"}}],"delivery":{"url":"https://github.com/o/r/pull/108","head":"a57246c8476f363d7408aa6fcde06e4476964713","contentSha":"tree:cc1bdfa1894337da8480f5a64a42dbde30c80912"},"merge_attempt":null,"build_reason":null,"since":"2026-10-28T07:31:43.607Z","waiting_on":null,"history":[{"step":"merged","at":"2026-10-28T07:31:43.607Z"}]}
+wf deliver: merged with retained corrections; a fresh follow-up is required, not reopening this approval.
+  ok   #190 merge recovers the published delivery and routes the retained words to a fresh follow-up
+  ok   #190 recovery republishes nothing
+  ok   #190 post-receipt correction stays a fresh follow-up
+  ok   #190 a matching OPEN candidate permits ordinary scoped repair
+  ok   #190 a correction after confirmed OPEN routes to ordinary build without another lookup
+  ok   #190 disposition after OPEN keeps the instruction history and stays in ordinary repair
+  ok   #190 a changed reviewed subject still needs fresh approval
+
+TIMEOUT: killed after 300s (WF_SELFCHECK_TIMEOUT_S)
+selfcheck: TIMEOUT projects/jewelryx/post-lifecycle.selfcheck.ts (302.4s) [4/6]
+
+── FAIL projects/jewelryx/post-lifecycle.selfcheck.ts
+  ok   continuous publish creates OPEN candidate, not delivery
+  FAIL continuous OPEN post notifies each ticket once, selects exact proof and never transitions — X-1: comment:
+  השינוי מוכן ב-PR וממתין למיזוג.
+  מה היה: filled
+  מה שונה: filled
+  לבדיקה: filled
+  PR: https://github.com/o/r/pull/191
+X-1: pictures (1): after-1.png
+X-1: not posted, kept as round evidence (1): after-old.png
+X-2: comment:
+  השינוי מוכן ב-PR וממתין למיזוג.
+  מה היה: filled
+  מה שונה: filled
+  לבדיקה: filled
+  PR: https://github.com/o/r/pull/191
+X-2: pictures (1): after-1.png
+X-2: not posted, kept as round evidence (1): after-old.png
+wf post: could not check the ticket for changes: unexpected controlled ticket https://raynw.atlassian.net/rest/api/2/myself; nothing posted
+
+  FAIL OPEN next waits for human merge, not cleanup
+  FAIL OPEN retry does not repost or complete
+  ok   continuous delivery reconciliation records confirmed merge
+  ok   continuous before completion: next routes completion, direct reap refuses without deleting recovery evidence
+  FAIL continuous previously-posted tickets complete after readback, no duplicate notification — X-1: comment:
+  השינוי מוכן ב-PR וממתין למיזוג.
+  מה היה: filled
+  מה שונה: filled
+  לבדיקה: filled
+  PR: https://github.com/o/r/pull/191
+X-1: pictures (1): after-1.png
+X-1: not posted, kept as round evidence (1): after-old.png
+X-2: comment:
+  השינוי מוכן ב-PR וממתין למיזוג.
+  מה היה: filled
+  מה שונה: filled
+  לבדיקה: filled
+  PR: https://github.com/o/r/pull/191
+X-2: pictures (1): after-1.png
+X-2: not posted, kept as round evidence (1): after-old.png
+wf post: could not check the ticket for changes: unexpected controlled ticket https://raynw.atlassian.net/rest/api/2/myself; nothing posted
+
+  FAIL completed next offers cleanup
+  FAIL repeated post/reconcile preserves receipts and one publication — X-1: comment:
+  השינוי מוכן ב-PR וממתין למיזוג.
+  מה היה: filled
+  מה שונה: filled
+  לבדיקה: filled
+  PR: https://github.com/o/r/pull/191
+X-1: pictures (1): after-1.png
+X-1: not posted, kept as round evidence (1): after-old.png
+X-2: comment:
+  השינוי מוכן ב-PR וממתין למיזוג.
+  מה היה: filled
+  מה שונה: filled
+  לבדיקה: filled
+  PR: https://github.com/o/r/pull/191
+X-2: pictures (1): after-1.png
+X-2: not posted, kept as round evidence (1): after-old.png
+wf post: could not check the ticket for changes: unexpected controlled ticket https://raynw.atlassian.net/rest/api/2/myself; nothing posted
+wf deliver: already merged (tracker note: bug-reports/191/JIRA.md); `wf next` says what is left
+X-1: comment:
+  השינוי מוכן ב-PR וממתין למיזוג.
+  מה היה: filled
+  מה שונה: filled
+  לבדיקה: filled
+  PR: https://github.com/o/r/pull/191
+X-1: pictures (1): after-1.png
+X-1: not posted, kept as round evidence (1): after-old.png
+X-2: comment:
+  השינוי מוכן ב-PR וממתין למיזוג.
+  מה היה: filled
+  מה שונה: filled
+  לבדיקה: filled
+  PR: https://github.com/o/r/pull/191
+X-2: pictures (1): after-1.png
+X-2: not posted, kept as round evidence (1): after-old.png
+wf post: could not check the ticket for changes: unexpected controlled ticket https://raynw.atlassian.net/rest/api/2/myself; nothing posted
+
+  FAIL remote-prefix: unrelated remote comment never suppresses notification or selected uploads — https://github.com/o/r/pull/191 confirmed merged from published handoff; tracker note: bug-reports/191/JIRA.md
+{"wf_version":6,"round":"fix/191","class":"A","id":"X-1","ids":["X-1","X-2"],"folder":"bug-reports/191","base":"dev","step":"merged","made_by":"kit","history":[{"step":"classify","at":"2026-10-01T00:00:00Z"},{"step":"merged","at":"2026-10-28T07:32:02.441Z"}],"note":"bug-reports/191/JIRA.md","pr_handoff":{"url":"https://github.com/o/r/pull/191","head":"f9159bed5e524ef6ec7ff4a937d2a51ca4f8c663","contentSha":"tree:9dc86cc7649ce4fe56416fd04f985b85590adc04"},"pr_repair":null,"delivery":{"url":"https://github.com/o/r/pull/191","head":"f9159bed5e524ef6ec7ff4a937d2a51ca4f8c663","contentSha":"tree:9dc86cc7649ce4fe56416fd04f985b85590adc04"},"merge_attempt":null,"build_reason":null,"since":"2026-10-28T07:32:02.441Z","waiting_on":null}
+X-1: comment:
+  השינוי מוכן ב-PR וממתין למיזוג.
+  מה היה: filled
+  מה שונה: filled
+  לבדיקה: filled
+  PR: https://github.com/o/r/pull/191
+X-1: pictures (1): after-1.png
+X-1: not posted, kept as round evidence (1): after-old.png
+X-2: comment:
+  השינוי מוכן ב-PR וממתין למיזוג.
+  מה היה: filled
+  מה שונה: filled
+  לבדיקה: filled
+  PR: https://github.com/o/r/pull/191
+X-2: pictures (1): after-1.png
+X-2: not posted, kept as round evidence (1): after-old.png
+wf post: could not check the ticket for changes: unexpected controlled ticket https://raynw.atlassian.net/rest/api/2/myself; nothing posted
+
+  FAIL remote-repository: unrelated remote comment never suppresses notification or selected uploads — https://github.com/o/r/pull/191 confirmed merged from published handoff; tracker note: bug-reports/191/JIRA.md
+{"wf_version":6,"round":"fix/191","class":"A","id":"X-1","ids":["X-1","X-2"],"folder":"bug-reports/191","base":"dev","step":"merged","made_by":"kit","history":[{"step":"classify","at":"2026-10-01T00:00:00Z"},{"step":"merged","at":"2026-10-28T07:32:38.319Z"}],"note":"bug-reports/191/JIRA.md","pr_handoff":{"url":"https://github.com/o/r/pull/191","head":"f9159bed5e524ef6ec7ff4a937d2a51ca4f8c663","contentSha":"tree:9dc86cc7649ce4fe56416fd04f985b85590adc04"},"pr_repair":null,"delivery":{"url":"https://github.com/o/r/pull/191","head":"f9159bed5e524ef6ec7ff4a937d2a51ca4f8c663","contentSha":"tree:9dc86cc7649ce4fe56416fd04f985b85590adc04"},"merge_attempt":null,"build_reason":null,"since":"2026-10-28T07:32:38.319Z","waiting_on":null}
+X-1: comment:
+  השינוי מוכן ב-PR וממתין למיזוג.
+  מה היה: filled
+  מה שונה: filled
+  לבדיקה: filled
+  PR: https://github.com/o/r/pull/191
+X-1: pictures (1): after-1.png
+X-1: not posted, kept as round evidence (1): after-old.png
+X-2: comment:
+  השינוי מוכן ב-PR וממתין למיזוג.
+  מה היה: filled
+  מה שונה: filled
+  לבדיקה: filled
+  PR: https://github.com/o/r/pull/191
+X-2: pictures (1): after-1.png
+X-2: not posted, kept as round evidence (1): after-old.png
+wf post: could not check the ticket for changes: unexpected controlled ticket https://raynw.atlassian.net/rest/api/2/myself; nothing posted
+
+
+TIMEOUT: killed after 300s (WF_SELFCHECK_TIMEOUT_S)
+selfcheck: FAIL src/boundary.selfcheck.ts (0.2s) [5/6]
+
+── FAIL src/boundary.selfcheck.ts
+  ok   envImports sees static and dynamic imports of env/
+  ok   machinePaths skips comments and sees code
+  ok   machineText reads prose, bullets included, and sees an env-only tool
+  ok   the walk skips a nested checkout, and the env/ beside it
+  FAIL no kit file imports env/ (164 files) — bin\wfk.selfcheck.ts: ../env/shim.ts
+  ok   no kit file names Shay's machine (~/.herdr, .bare, LOCALAPPDATA, ~/.config/wf, ~/work/wf)
+  ok   no text a round's agent reads names Shay's machine or an env-only tool (30 files)
+
+1 FAILURE(S)
+selfcheck: PASS src/gates/deliver-id.selfcheck.ts (191.1s) [6/6]
+3 of 6 selfchecks red (focused; tsc and eslint included) in 496.7s

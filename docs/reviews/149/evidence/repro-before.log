@@ -1,0 +1,8 @@
+Baseline: 9fe6690cc035df27a3d3b03d89e4f44008052bc6 (disposable fixture head)
+Controlled remote: OPEN, matching published head, mergeable=CONFLICTING
+Requested fields: url,state,headRefOid,headRefName,baseRefName,isCrossRepository
+Reconciliation result: {"kind":"none"}
+Recorded corrections: 0
+Next action: wait user: PR https://github.com/o/r/pull/149 remains open for human merge; after it merges run `node "C:/Users/Shay/work/wf-149//wf.mjs" deliver` to reconcile, then `node "C:/Users/Shay/work/wf-149//wf.mjs" next`
+Candidate retained: true
+FAIL: confirmed conflict is not routed to scoped repair
