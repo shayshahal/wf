@@ -14,6 +14,7 @@
 //   review | deliver | check | done        the orchestrator runs it, then wf next
 // It does the bookkeeping itself (the step, a question the round now waits on).
 import { execFileSync } from 'node:child_process';
+import { refreshPublishedDelivery } from '../gates/deliver.ts';
 import { assessmentRecipeOnlyCommits } from './assessment-reuse.ts';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -413,6 +414,17 @@ export async function runNext() {
 		refuseCaller();
 	}
 	recoverProjections(toplevel);
+	const published = readState(toplevel);
+	// #149: an idle published round otherwise waits forever without seeing base movement. A refresh
+	// shares delivery exclusion and never publishes. Active repair, holds and questions keep their route.
+	if (published?.step === 'pr' && published.pr_handoff && !published.delivery && !published.merge_attempt && !(published.questions ?? []).length) {
+		const observed = await refreshPublishedDelivery(toplevel);
+		if (observed.kind === 'refused') {
+			console.log(`wait remote: ${observed.why}; retry wf next when the remote can settle the published candidate`);
+			process.exitCode = 2;
+			return;
+		}
+	}
 	const snapshot = snapshotOf(toplevel);
 	const expectedCorrections = correctionStateSha({ corrections: snapshot.corrections });
 	let { say, effects } = nextAction(snapshot);

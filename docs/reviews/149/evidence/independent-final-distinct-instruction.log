@@ -1,0 +1,10 @@
+Baseline: 1ad35503ba703fc59aa1c64b63d4e91347f801f5 (disposable fixture head)
+Controlled remote: OPEN, matching published head, mergeable=CONFLICTING
+Requested fields: url,state,headRefOid,headRefName,baseRefName,isCrossRepository,mergeable,baseRefOid
+Reconciliation result: {"kind":"open"}
+Recorded corrections: 1
+Next action: work build: run `node "C:/Users/Shay/work/wf-149/wf.mjs" brief build` in this worktree and do exactly what it prints (again: address recorded corrections: c-9d9876f529ea5e84db8d: Published PR https://github.com/o/r/pull/149 conflicts at head 1ad35503ba703fc59aa1c64b63d4e91347f801f5 against dev (15bb1a70bfcfe05debf55723ffcf4349500e1cd1). Integrate that base while preserving both sides' behavior; follow project-owned conflict resolution and regeneration guidance. Run current checks and fresh independent assessment, then obtain fresh T2 approval before republishing the changed subject. Merge remains human-owned.; record each disposition with evidence or a concrete blocker, not merely a transport acknowledgement)
+Candidate retained: true
+PASS: confirmed conflict has an actionable system correction
+Addressed conflict plus fresh authored instruction: {"reconciliation":{"kind":"open"},"oldOutcome":"addressed","pending":1,"step":"build"}
+PASS: separate scoped instruction can repair without reopening addressed conflict

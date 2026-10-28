@@ -141,7 +141,7 @@ check('before T2, T2 pending or changes requested: refused', ([[{ step: 'impleme
 const gh = (status: number | null, stdout: string, stderr = '') => ({ status, stdout, stderr });
 const SHA = 'a'.repeat(40);
 const OTHER = 'b'.repeat(40);
-const prRow = (over: Record<string, unknown>) => ({ url: 'https://x/pull/1', state: 'OPEN', headRefName: 'fix/108', baseRefName: 'dev', isCrossRepository: false, ...over });
+const prRow = (over: Record<string, unknown>) => ({ url: 'https://x/pull/1', state: 'OPEN', headRefName: 'fix/108', baseRefName: 'dev', isCrossRepository: false, mergeable: 'MERGEABLE', baseRefOid: OTHER, ...over });
 check('a gh failure is unknown, not none', prLookup(gh(1, '', 'error connecting to api.github.com')).kind === 'unknown');
 check('a non-JSON answer is unknown', prLookup(gh(0, 'not json')).kind === 'unknown');
 check('a JSON answer that is not an array is unknown', prLookup(gh(0, '{"url":"x"}')).kind === 'unknown');
@@ -151,7 +151,16 @@ check('a row without a state is unknown', prLookup(gh(0, JSON.stringify([prRow({
 check('a row in a state deliver cannot act on is unknown', prLookup(gh(0, JSON.stringify([prRow({ state: 'DRAFT' })]))).kind === 'unknown');
 check('a head commit that is not a commit id is unknown', prLookup(gh(0, JSON.stringify([prRow({ state: 'MERGED', headRefOid: 'aaa' })]))).kind === 'unknown');
 const merged = gh(0, JSON.stringify([prRow({ state: 'MERGED', headRefOid: SHA })]));
-check('a lone merged PR is found with its state and head', JSON.stringify(prLookup(merged)) === JSON.stringify({ kind: 'found', url: 'https://x/pull/1', state: 'MERGED', headRefOid: SHA }));
+check('a lone merged PR is found with its state and head', JSON.stringify(prLookup(merged)) === JSON.stringify({ kind: 'found', url: 'https://x/pull/1', state: 'MERGED', headRefOid: SHA, mergeability: { kind: 'mergeable', baseRefOid: OTHER } }));
+// #149: identity and mergeability are separate observations. Exhaust the protocol values and base
+// shapes: missing or malformed data never grants conflict/merge-ready authority by default.
+for (const mergeable of ['MERGEABLE', 'CONFLICTING', 'UNKNOWN', 'unexpected', null, undefined, 1]) {
+	for (const baseRefOid of [OTHER, '', 'short', null, undefined, 1]) {
+		const parsed = prLookup(gh(0, JSON.stringify([prRow({ headRefOid: SHA, mergeable, baseRefOid })])));
+		const expectedKind = baseRefOid === OTHER && mergeable === 'MERGEABLE' ? 'mergeable' : baseRefOid === OTHER && mergeable === 'CONFLICTING' ? 'conflicting' : 'unknown';
+		check(`#149 mergeability ${String(mergeable)} / base ${String(baseRefOid)} → ${expectedKind}`, parsed.kind === 'found' && parsed.mergeability?.kind === expectedKind);
+	}
+}
 check('the head, base and repository are checked against the query', prLookup(merged, { headRefName: 'fix/108', baseRefName: 'dev' }).kind === 'found' && prLookup(merged, { headRefName: 'other', baseRefName: 'dev' }).kind === 'unknown' && prLookup(merged, { headRefName: 'fix/108', baseRefName: 'main' }).kind === 'unknown' && prLookup(gh(0, JSON.stringify([prRow({ state: 'OPEN', isCrossRepository: true })])), { headRefName: 'fix/108', baseRefName: 'dev' }).kind === 'unknown');
 // The repository identity (issue 108): origin's own target, never gh's inferred default. A remote
 // deliver cannot read as a github.com repository is no target at all, and a PR url in another

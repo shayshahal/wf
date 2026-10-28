@@ -1,14 +1,14 @@
 // #150: real CLI processes over disposable repositories prove correction authority survives a
 // fresh worker without rewriting the person's approval. No external transport is claimed here.
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { wfSync } from '../in-process-wf.ts';
 import { WF_ROOT } from '../paths.ts';
 import { approvalIdentity } from '../gates/content-identity.ts';
 import { agreementSha } from './agreement.ts';
-import { correctionContext, correctionGate, correctionStateGap, outstandingCorrections, publishedCorrectionGate, publishedRepairGap } from './corrections.ts';
+import { captureCorrection, correctionContext, correctionGate, correctionStateGap, outstandingCorrections, publishedCorrectionGate, publishedRepairGap } from './corrections.ts';
 import type { RoundCorrectionId } from './corrections.ts';
 import { readState, WF_STATE_VERSION, writeState } from './state.ts';
 import type { State } from './state.ts';
@@ -80,6 +80,13 @@ function fixture(klass: 'A' | 'B' = 'A') {
 {
  const f = fixture();
  try {
+  const beforeObservation = f.bytes();
+  let checkedUnderLock = false;
+  const staleObservation = captureCorrection(f.dir, { kind: 'system', author: 'controlled PR observation', source: 'test:149-stale-observation', relay: null, text: 'Do not admit this stale observation.', scope: 'published candidate', reason: 'snapshot changed' }, [], () => {
+   checkedUnderLock = existsSync(`${f.statePath}.lock`);
+   throw new Error('Controlled published observation became stale');
+  });
+  check('#149 stale remote capture checks under state lock and changes no authority', checkedUnderLock && staleObservation.kind === 'refused' && f.bytes() === beforeObservation, JSON.stringify(staleObservation));
   check('approved baseline dispatches delivery', f.cli('next').out.startsWith('deliver:'));
   const captured = f.cli(...admission());
   const first = readState(f.dir)?.corrections?.[0];

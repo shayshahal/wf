@@ -1,0 +1,6 @@
+  ok   delivery leaves the PR and branch open with a durable handoff
+  ok   open handoff routes to tracker posting
+  ok   retry retains one open PR without merging
+  ok   delivery publishes both UI images on create and retry
+  ok   human merge is reconciled into the existing merged lifecycle
+Isolated open-handoff assertions: PASS

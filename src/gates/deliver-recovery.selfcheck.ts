@@ -75,7 +75,7 @@ const branch = process.env.WF_TEST_BRANCH;
 const readRemote = () => (existsSync(remoteFile) ? JSON.parse(readFileSync(remoteFile, 'utf8')) : { prs: {}, create: 0, edit: 0, merge: 0, edits: [] });
 const writeRemote = (r) => writeFileSync(remoteFile, JSON.stringify(r, null, 2));
 const head = (cwd) => execFileSync('git', ['-C', cwd, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
-const row = (state, oid) => ({ number: 108, url: 'https://github.com/o/r/pull/108', state, headRefOid: oid, headRefName: branch, baseRefName: 'dev', isCrossRepository: false });
+const row = (state, oid) => ({ number: 108, url: 'https://github.com/o/r/pull/108', state, headRefOid: oid, headRefName: branch, baseRefName: 'dev', isCrossRepository: false, mergeable: 'MERGEABLE', baseRefOid: execFileSync('git', ['rev-parse', 'dev'], { encoding: 'utf8' }).trim() });
 
 // GitHub moves an open PR's head when its branch is pushed; a merged PR's head is fixed. The
 // stale-open and crash-edit modes hold an OPEN PR at its stored head, to model a PR the branch has
@@ -160,7 +160,7 @@ await run(JSON.parse(process.env.WF_TEST_ARGS || '["deliver"]'), { gh });
 `;
 writeFileSync(join(ROOT, 'harness.mjs'), HARNESS);
 
-type RemotePr = { number: number; url: string; state: string; headRefOid: string | null; headRefName: string; baseRefName: string; isCrossRepository: boolean };
+type RemotePr = { number: number; url: string; state: string; headRefOid: string | null; headRefName: string; baseRefName: string; isCrossRepository: boolean; mergeable?: string; baseRefOid?: string };
 type Remote = { prs: Record<string, RemotePr[]>; create: number; edit: number; merge: number; lists?: string[][]; creates?: string[][]; edits?: string[][]; merges?: string[][]; bodies?: string[] };
 
 const UI_EVIDENCE = '## UI evidence\n\n### The changed view — 1280px, LTR\n\n| Before | After |\n|---|---|\n| ![Before](https://example.com/before.png) | ![After](https://example.com/after.png) |\n';
@@ -232,7 +232,7 @@ const setRemote = (f: Fixture, remote: Remote) => writeFileSync(f.remote, JSON.s
 const readRemote = (f: Fixture): Remote => (existsSync(f.remote) ? JSON.parse(readFileSync(f.remote, 'utf8')) : empty());
 const readState = (f: Fixture): Record<string, unknown> => JSON.parse(readFileSync(join(f.work, '.wf', 'state.json'), 'utf8'));
 const empty = (): Remote => ({ prs: {}, create: 0, edit: 0, merge: 0 });
-const pr = (state: string, oid: string | null): RemotePr => ({ number: 108, url: PR_URL, state, headRefOid: oid, headRefName: BRANCH, baseRefName: 'dev', isCrossRepository: false });
+const pr = (state: string, oid: string | null): RemotePr => ({ number: 108, url: PR_URL, state, headRefOid: oid, headRefName: BRANCH, baseRefName: 'dev', isCrossRepository: false, mergeable: 'MERGEABLE', baseRefOid: 'c'.repeat(40) });
 const mergedAt = (head: string): Remote => ({ prs: { [BRANCH]: [pr('MERGED', head)] }, create: 1, edit: 0, merge: 1 });
 
 // One delivery attempt through the real CLI. `mode` drives the fake gh's answer.
@@ -265,7 +265,7 @@ function clonePublished(): Fixture {
 	setRemote(clone, empty());
 	return clone;
 }
-const handoffRow = (over: Partial<RemotePr> = {}): RemotePr => ({ number: 108, url: PR_URL, state: 'OPEN', headRefOid: publishedBase.head, headRefName: BRANCH, baseRefName: 'dev', isCrossRepository: false, ...over });
+const handoffRow = (over: Partial<RemotePr> = {}): RemotePr => ({ number: 108, url: PR_URL, state: 'OPEN', headRefOid: publishedBase.head, headRefName: BRANCH, baseRefName: 'dev', isCrossRepository: false, mergeable: 'MERGEABLE', baseRefOid: 'c'.repeat(40), ...over });
 // wf's own seam: the reconciliation asks whatever gh is plugged in, so a scenario never captures it.
 // Commands inside the seam resolve their round from the working directory (runStep does), so the run
 // happens inside the fixture — never in this checkout, which is a round of its own.
@@ -349,7 +349,7 @@ const pendingOf = (f: Fixture) => ((readState(f).corrections ?? []) as Array<{ i
 			result.kind === 'refused' && after.pr_repair == null && after.delivery == null && JSON.stringify(after.pr_handoff) === before.handoff && JSON.stringify(after.corrections) === before.corrections,
 			JSON.stringify(result));
 	}
-	check('#190 no refusal released repair: wf next still asks for reconciliation', attempt(f, 'no-remote', ['next']).out.startsWith('deliver:'), '');
+	check('#190 no refusal released repair: next reports unavailable reconciliation', attempt(f, 'no-remote', ['next']).out.startsWith('wait remote:'), '');
 }
 
 // The two answers that do settle it: a merge recovers the published delivery, an open candidate
@@ -377,6 +377,8 @@ const pendingOf = (f: Fixture) => ((readState(f).corrections ?? []) as Array<{ i
 	const laterId = pendingOf(f).find((id) => !idsBefore.includes(id));
 	const routed = JSON.stringify(readState(f).build_reason).includes(laterId ?? 'no-id');
 	check('#190 a correction after confirmed OPEN routes to ordinary build without another lookup', later.code === 0 && readState(f).step === 'build' && routed, later.out + JSON.stringify(readState(f).build_reason));
+	const unknownPending = await inFixture(f, () => withGh(() => rowsAnswer([handoffRow({ mergeable: 'UNKNOWN' })]), () => reconcilePublishedDelivery(f.work)));
+	check('#149 UNKNOWN mergeability does not block known-OPEN scoped instruction repair', unknownPending.kind === 'open' && readState(f).step === 'build' && pendingOf(f).length === 2, JSON.stringify(unknownPending));
 	writeFileSync(join(f.work, 'README.md'), 'scoped repair\n');
 	let addressed = true;
 	const ids = pendingOf(f);
@@ -386,6 +388,8 @@ const pendingOf = (f: Fixture) => ((readState(f).corrections ?? []) as Array<{ i
 	const staleApproval = attempt(f, 'stale-open');
 	check('#190 a changed reviewed subject still needs fresh approval', staleApproval.code === 2 && readRemote(f).edit === 0 && /approved/.test(staleApproval.out), staleApproval.out);
 	must(['add', 'README.md'], f.work); must(['commit', '-qm', 'later local repair'], f.work);
+	const unknownOldHead = await inFixture(f, () => withGh(() => rowsAnswer([handoffRow({ mergeable: 'UNKNOWN' })]), () => reconcilePublishedDelivery(f.work)));
+	check('#149 old published head UNKNOWN permits replacement to reach ordinary approval gates', unknownOldHead.kind === 'none' && pendingOf(f).length === 0, JSON.stringify(unknownOldHead));
 	const merged = await inFixture(f, () => withGh(() => rowsAnswer([handoffRow({ state: 'MERGED' })]), () => reconcilePublishedDelivery(f.work)));
 	check('#190 a later human merge recovers the published head, never the changed local HEAD',
 		merged.kind === 'finished' && JSON.stringify(readState(f).delivery).includes(publishedBase.head) && (readState(f).delivery as { head: string }).head !== must(['rev-parse', 'HEAD'], f.work) && readRemote(f).edit === 0,
@@ -486,7 +490,7 @@ const pendingOf = (f: Fixture) => ((readState(f).corrections ?? []) as Array<{ i
 	const publishedHead = publishedBase.head;
 	setRemote(f, mergedAt(publishedHead));
 	check('#190 CLI retains the instruction', attempt(f, 'no-remote', lateInstruction()).code === 0);
-	check('#190 CLI fences repair before reconciliation', attempt(f, 'no-remote', ['next']).out.startsWith('deliver:'));
+	check('#190 CLI fences repair when next cannot refresh the published candidate', attempt(f, 'no-remote', ['next']).out.startsWith('wait remote:'));
 	const recovered = attempt(f);
 	const next = attempt(f, 'no-remote', ['next']);
 	check('#190 CLI recovers the merged delivery and keeps the instruction for follow-up',
@@ -550,8 +554,9 @@ const pendingOf = (f: Fixture) => ((readState(f).corrections ?? []) as Array<{ i
  setRemote(f, empty());
  const first = attempt(f, 'crash-merge');
  check('delivery leaves the PR and branch open with a durable handoff', first.code === 0 && readRemote(f).merge === 0 && readState(f).step === 'pr' && !!readState(f).pr_handoff && !readState(f).delivery && remoteBranches(f.work).includes(BRANCH), first.out);
- const next = wfSync(['next'], { cwd: f.work, env: ENV });
- check('open handoff routes to tracker posting', next.stdout.startsWith('post:'), next.stdout + next.stderr);
+ // next now refreshes the published candidate too: retain the controlled gh edge, not live gh.
+ const next = attempt(f, 'ok', ['next']);
+ check('open handoff routes to tracker posting', next.out.startsWith('post:'), next.out);
  const second = attempt(f);
  check('retry retains one open PR without merging', second.code === 0 && readRemote(f).create === 1 && readRemote(f).merge === 0 && !!readState(f).pr_handoff, second.out);
  const bodies = readRemote(f).bodies ?? [];

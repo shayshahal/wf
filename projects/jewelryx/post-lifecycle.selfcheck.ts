@@ -52,7 +52,7 @@ const gh = (args) => {
  const r=read(); r.gh.push(args); save(r);
  if(args[0]==='pr' && args[1]==='list') return {status:0,stdout:JSON.stringify(r.pr?[r.pr]:[]),stderr:''};
  if(args[0]==='pr' && args[1]==='create') {
-  r.create++; r.pr={url:${JSON.stringify(url)},state:'OPEN',headRefOid:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),headRefName:${JSON.stringify(branch)},baseRefName:'dev',isCrossRepository:false};save(r);
+  r.create++; r.pr={url:${JSON.stringify(url)},state:'OPEN',headRefOid:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),headRefName:${JSON.stringify(branch)},baseRefName:'dev',isCrossRepository:false,mergeable:'MERGEABLE',baseRefOid:execFileSync('git',['rev-parse','dev'],{encoding:'utf8'}).trim()};save(r);
   return {status:0,stdout:${JSON.stringify(url)},stderr:''};
  }
  return {status:1,stdout:'',stderr:'unexpected controlled gh: '+args.join(' ')};
