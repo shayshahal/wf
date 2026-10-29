@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { State } from '../../src/round/state.ts';
+import { isTicketless } from './tracker-id.ts';
 
 /** A tracker note section retains notification separately from status completion. */
 export type Section = { key: string; posted: boolean; text: string };
@@ -28,6 +29,8 @@ export const pendingCompletion = (state: State | null, note: string): Section[] 
 /** Report unfinished tracker completion without network work; notification alone is never a receipt. */
 export function trackerCompletionGap(state: State | null, note: string | null): string | null {
 	if (state?.step !== 'merged' && !state?.delivery) return null;
+	// No ticket and no note: nothing was ever addressed to the tracker. A note that exists is still completed.
+	if (!note && isTicketless(state)) return null;
 	const sections = sectionsOf(note ?? '');
 	const keys = [...new Set([...(state?.ids ?? (state?.id ? [state.id] : [])), ...sections.map((s) => s.key)])];
 	if (!keys.length) return null;

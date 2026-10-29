@@ -120,7 +120,8 @@ Keep these guarantees on every harness:
 - A UI change requires before and after images in the PR description. Follow
   `process/SHOW-ME.md#ui-changes-required-pr-images` from the wf root during build and review.
 - `wf deliver` publishes the approved PR and leaves it open. Post the project note that says the
-  work is in the PR and awaits merge. Merge and deploy remain the authority of the person. When you
+  work is in the PR and awaits merge. A ticketless round, one with no tracker ticket, has no note and
+  no post step. Merge and deploy remain the authority of the person. When you
   need an enforcement boundary that is stronger than instructions and local checks, restrict the
   repository permissions and credentials.
 - Keep the scope, the unanswered questions, the corrections, the evidence references and the

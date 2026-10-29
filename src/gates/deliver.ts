@@ -16,7 +16,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { refuseCaller } from '../refusal.ts';
 import { seams } from '../seams.ts';
-import { prBaseOf, protectedFilesGap, roundFolderSubject, trackerIdsGap, trackerNote } from '../project.ts';
+import { prBaseOf, protectedFilesGap, roundFolderSubject, isTicketless, trackerIdsGap, trackerNote } from '../project.ts';
 import { agreementPath, agreementT2WalkLines, assessmentGap, ASSESSMENT_FILE, TICKET_FILE, verificationCases } from '../round/agreement.ts';
 import { randomUUID } from 'node:crypto';
 import { captureCorrection, correctionGate, outstandingCorrections } from '../round/corrections.ts';
@@ -571,9 +571,11 @@ export function existingNoteAction(text: string, noteText: string, ids: string[]
 async function finishDelivery({ toplevel, state, folder, ids, url, head, because, open = false, revalidate }: { toplevel: string; state: State | null; folder: string; ids: string[]; url: string; head: string; because: string; open?: boolean; revalidate?: (current: State) => void }) {
 	const note = trackerNote({ ids, url });
 	const rel = `${folder}/${note.file}`;
+	// A ticketless round has no note: the path stays only as the identity exclusion, never written.
+	const noteless = isTicketless(state, currentBranch(toplevel));
 	const recorded = state?.note && existsSync(join(toplevel, state.note)) ? state.note : null;
-	const existing = recorded ?? (existsSync(join(toplevel, rel)) ? rel : null);
-	let kept = rel;
+	const existing = noteless ? null : recorded ?? (existsSync(join(toplevel, rel)) ? rel : null);
+	let kept: string | null = noteless ? null : rel;
 	if (existing) {
 		const path = join(toplevel, existing);
 		const text = readFileSync(path, 'utf8');
@@ -588,16 +590,16 @@ async function finishDelivery({ toplevel, state, folder, ids, url, head, because
 		// A prefix cannot hold a posted section: deliver wrote it and was cut off, so completing it is safe.
 		if (action === 'replace') writeAtomic(path, note.text);
 		kept = existing;
-	} else {
+	} else if (!noteless) {
 		writeAtomic(join(toplevel, rel), note.text);
 	}
 	if (open) {
 		const contentSha = commitContentSha(toplevel, head, folder, rel, 'row');
 		writeState(toplevel, (current) => {
 			if (correctionGate(current) || openQuestionGate(current) || current.step !== 'pr') throw new Error('wf deliver: round changed before PR handoff; run wf next');
-			return { note: kept, pr_handoff: { url, head, contentSha }, pr_repair: null };
+			return { ...(kept ? { note: kept } : {}), pr_handoff: { url, head, contentSha }, pr_repair: null };
 		});
-		console.log(`${url} remains open; tracker note: ${kept}; run wf next`);
+		console.log(`${url} remains open; ${kept ? `tracker note: ${kept}` : 'no tracker note (ticketless round)'}; run wf next`);
 		const released = await stopWorktreeServers(toplevel);
 		if (released.kind === 'refused') { console.error(released.why); process.exitCode = 1; }
 		return;
@@ -614,9 +616,9 @@ async function finishDelivery({ toplevel, state, folder, ids, url, head, because
 	const contentSha = commitContentSha(toplevel, head, folder, rel, 'row');
 	writeState(toplevel, (current) => {
 		revalidate?.(current);
-		return { note: kept, delivery: { url, head, contentSha }, merge_attempt: null, pr_repair: null };
+		return { ...(kept ? { note: kept } : {}), delivery: { url, head, contentSha }, merge_attempt: null, pr_repair: null };
 	});
-	console.log(`${url} ${because}; tracker note: ${kept}`);
+	console.log(`${url} ${because}; ${kept ? `tracker note: ${kept}` : 'no tracker note (ticketless round)'}`);
 	await completeDeliveryStep(toplevel);
 }
 
@@ -827,7 +829,8 @@ async function runLockedDelivery(toplevel: string) {
 	}
 	// A branch fallback can name a round but not its tracker note (#234). Keep this after
 	// retained-delivery recovery: already-published effects must still be reconciled, not hidden.
-	const idsGap = trackerIdsGap(state?.ids ?? [id]);
+	// A round with no ticket at all (a chore) has no tracker note to address, so there is nothing to refuse.
+	const idsGap = isTicketless(state, branch) ? null : trackerIdsGap(state?.ids ?? [id]);
 	if (idsGap) {
 		console.error(`wf deliver: ${idsGap}; restore the round's ticket IDs in .wf/state.json, or recreate it with \`wf new --id <ticket>\` before delivery; nothing was published`);
 		refuseCaller();

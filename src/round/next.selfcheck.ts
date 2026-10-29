@@ -174,6 +174,12 @@ const handedOff = base({ step: 'pr', head: 'h1', prHandoff: { url: 'https://gith
 check('posted open PR waits for human merge without reap', say(handedOff).startsWith('wait user: PR') && !say(handedOff).includes('reap'), say(handedOff));
 check('unposted open PR posts before waiting', say({ ...handedOff, note: { file: 'NOTE.md', text: '## JX-1\n' } }).startsWith('post:'));
 check('changed HEAD cannot reuse the open handoff', say({ ...handedOff, head: 'h2' }).startsWith('deliver:'));
+const chorePr = { url: 'https://github.com/o/r/pull/2', head: 'h1', contentSha: 'tree:' + 'a'.repeat(40) };
+const choreOpen = base({ branch: 'chore/verify', id: 'chore/verify', step: 'pr', head: 'h1', prHandoff: chorePr });
+check('ticketless open PR waits for the human merge, no post step', say(choreOpen).startsWith('wait user: PR') && !say(choreOpen).includes('post'), say(choreOpen));
+const choreMerged = base({ branch: 'chore/verify', id: 'chore/verify', step: 'merged', delivery: chorePr });
+check('ticketless merged round goes straight to reap', say(choreMerged).startsWith('done:') && say(choreMerged).includes('reap chore/verify'), say(choreMerged));
+check('a branch with a key and no ids still needs its note after merge', say(base({ branch: 'fix/JX-9-x', id: 'fix/JX-9-x', step: 'merged', delivery: chorePr })).startsWith('post:'), say(base({ branch: 'fix/JX-9-x', id: 'fix/JX-9-x', step: 'merged', delivery: chorePr })));
 check('pr → deliver', say(base({ step: 'pr' })).startsWith('deliver: T2 approved'));
 check('legacy posted note without delivery authority asks to restore it, never retry-loop or reap', say(base({ step: 'merged', note: { file: 'bug-reports/r/NOTE.md', text: '## JX-1 (posted)\n' } })).startsWith('wait user: confirmed delivery receipt missing'));
 const mergedNote = { file: 'NOTE.md', text: '## X-1 (posted)\nPR: https://github.com/o/r/pull/191\n' };

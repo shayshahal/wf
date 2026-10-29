@@ -47,6 +47,7 @@ before *Start*.
 | `wf deliver` opens the PR (after T2) | Keep *In Progress*; post that the change is in the linked PR awaiting merge |
 | Human merged the PR; `wf deliver` reconciled it | *Fixed in Local*, with the tracker note: the last thing a round does before reap. Shay sets the QA statuses himself when he moves `dev` to QA |
 
+- A ticketless round (no `--id`, and no ticket key in its branch name) has no tracker note: `wf deliver` writes no `JIRA.md`, `wf next` has no post step, and `wf post` says there is nothing to post.
 - The tracker note is `JIRA.md` in the round folder (`wf deliver` writes it): one `## <id>` section
   per issue. Fill each section's lines in plain Hebrew from `TICKET.md` and what the round changed, with
   no file path, code name or line number. Its `pictures:` line names the `proof/` files the reporter
