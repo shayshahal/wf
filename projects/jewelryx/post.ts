@@ -20,7 +20,7 @@ import { readState, roundFile, toplevelOf, writeState, WF_STATE_VERSION } from '
 import type { State } from '../../src/round/state.ts';
 import { baselineOf, changesOf, isOwnPost, jiraTime, refusalText } from './ticket-changes.ts';
 
-import { isTrackerId } from './tracker-id.ts';
+import { isTicketless, isTrackerId } from './tracker-id.ts';
 import { sectionsOf, sameDelivery, sectionSha, hasPrUrl, pendingCompletion } from './post-completion.ts';
 import type { Section } from './post-completion.ts';
 export { sectionsOf } from './post-completion.ts';
@@ -198,6 +198,10 @@ async function runTicketReread(): Promise<void> {
 async function runLockedPost(argv: string[]): Promise<void> {
 	const toplevel = toplevelOf();
 	let state = readState(toplevel);
+	if (isTicketless(state)) {
+		console.log('wf post: this round has no tracker ticket, so there is nothing to post');
+		return;
+	}
 	const notePath = state?.note ? join(toplevel, state.note) : null;
 	if (!notePath || !existsSync(notePath)) {
 		console.error('wf post: no tracker note recorded for this round (wf deliver writes it)');

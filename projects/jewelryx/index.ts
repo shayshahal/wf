@@ -20,7 +20,7 @@ import { closeBrowsers, installShim, linkVerifySkill, unlinkCompetingSkills, ver
 import type { VerificationProfile, VerificationRequirements } from './readiness.ts';
 export { parseVerificationProfile, probeVerificationEndpoint, verificationEndpoints, waitForVerificationReady } from './readiness.ts';
 export { trackerCompletionGap } from './post-completion.ts';
-export { trackerIdsGap } from './tracker-id.ts';
+export { isTicketless, trackerIdsGap } from './tracker-id.ts';
 export { releaseBaseCheck } from './release-base.ts';
 // The T2 walk's recipe grammar: `wf show` runs it, and the build/assess handoff refuses a line early (JX-436).
 export { walkRecipeGap, walkGap } from './walk.ts';

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { pendingCompletion, sectionSha, sectionsOf, trackerCompletionGap } from './post-completion.ts';
+import { isTicketless } from './tracker-id.ts';
 import type { State } from '../../src/round/state.ts';
 
 const delivery = {url:'https://github.com/o/r/pull/191',head:'a'.repeat(40),contentSha:'tree:'+'b'.repeat(40)};
@@ -29,4 +30,18 @@ for(let mask=0;mask<16;mask++) {
 	assert.equal(trackerCompletionGap(state,text)===null,mask===15);
 	assert.equal(trackerCompletionGap(state,note([...keys].reverse()))===null,mask===15);
 }
+// A ticketless round (no ids, no key in id/round/branch) has no note to complete; a key anywhere is a ticket (#234).
+assert.equal(trackerCompletionGap({step:'merged',id:'chore/x',round:'chore/x',delivery},null),null,'ticketless merged round has no tracker completion');
+assert.match(trackerCompletionGap({step:'merged',id:'fix/JX-1534-gap',round:'fix/JX-1534-gap',delivery},null) ?? '',/unknown/,'a key in the branch still needs its note');
+for (const [state, branch, expected] of [
+	[{ id: 'chore/verify-suite-in-round' }, undefined, true],
+	[{ round: 'chore/verify-suite-in-round' }, 'chore/verify-suite-in-round', true],
+	[{}, undefined, true],
+	[{ id: 'fix/jx-1449' }, undefined, false],
+	[{ id: 'chore/x', round: 'fix/JX-1534-gap' }, undefined, false],
+	[{ id: 'chore/x' }, 'fix/JX-1534-gap', false],
+	[{ id: 'chore/x', ids: [] }, undefined, false],
+	[{ id: 'JX-1534', ids: ['JX-1534'] }, undefined, false],
+	[null, undefined, false],
+] as const) assert.equal(isTicketless(state, branch), expected, JSON.stringify([state, branch]));
 console.log('tracker completion routing, identity and acknowledgement subset checks green');

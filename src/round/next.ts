@@ -141,7 +141,7 @@ export function nextAction(s: Snapshot, purpose: 'next' | 'brief' = 'next'): { s
 		if (!s.delivery && s.prHandoff) return act(`deliver: reconcile the retained published candidate before tracker completion — \`${wf} deliver\``);
 		if (s.mergedGap) return act(`wait user: ${s.mergedGap.reason}`);
 		if (!s.delivery && s.note) return act('wait user: confirmed delivery receipt missing; restore original delivery evidence before tracker completion, or use WF_FORCE_REAP=1 only to intentionally discard unfinished work');
-		const completionGap = trackerCompletionGap({ step: s.step, delivery: s.delivery, id: s.id, ids: s.ids, post_completion: s.postCompletion }, s.note?.text ?? null);
+		const completionGap = trackerCompletionGap({ step: s.step, delivery: s.delivery, id: s.id, ids: s.ids, round: s.branch, post_completion: s.postCompletion }, s.note?.text ?? null);
 		if (completionGap) return act(`post: ${completionGap}. Then \`${wf} next\``);
 		return act(`done: \`${wf} reap ${s.branch}\``);
 	}

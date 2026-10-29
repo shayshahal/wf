@@ -134,7 +134,7 @@ before you install the replacement.
 
 - One round is one PR to the base branch.
 - After T2, `wf deliver` publishes the PR and leaves it open. Then the project tracker note says
-  that the work is in the linked PR and awaits merge.
+  that the work is in the linked PR and awaits merge. A ticketless round has no note.
 - The worktree and the branch stay until the person merges.
 - After that merge, run `wf deliver` again. It records the confirmed receipt and unlocks the normal
   reap.
