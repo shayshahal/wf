@@ -1,0 +1,19 @@
+Copied 5 secret file(s) from C:\Users\Shay\.config\wf\jewelryx
+Sanitized packages/backend/.env: media storage local, AWS and SMS keys blanked, SMS off, database jewelryx_bench-194-tool-api
+{
+  "kind": "observed",
+  "execution": {
+    "status": 0,
+    "stdout": "API schema readback: HTTP 200; 331 paths; dependency observation only\n",
+    "stderr": ""
+  },
+  "disposition": "owned",
+  "ref": "929c219e660aee89d8387a2a17d3591af3f3694b",
+  "path": "C:\\Users\\Shay\\work\\jeweleryx\\.claude\\worktrees\\bench-194-tool-api",
+  "receipt": "C:\\Users\\Shay\\work\\jeweleryx\\.bare\\wf-workspace-8df4e955b03aefe4420e589d356d37b9585d37d378d6e66a3c1ca67d0c8ebdf6.owner.json",
+  "cleanup": {
+    "kind": "refused",
+    "journal": "C:\\Users\\Shay\\work\\jeweleryx\\.bare\\wf-workspace-8df4e955b03aefe4420e589d356d37b9585d37d378d6e66a3c1ca67d0c8ebdf6.cleanup.json",
+    "reason": "branch is now owned by another worktree; recovery journal retained"
+  }
+}

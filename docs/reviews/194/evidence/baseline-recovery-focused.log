@@ -1,0 +1,7 @@
+selfcheck: focused (2 of 96 files); full suite not run.
+selfcheck: 4 checks (tsc and eslint included), 2 at a time, 300s each
+selfcheck: PASS tsc (1.3s) [1/4]
+selfcheck: PASS eslint (1.2s) [2/4]
+selfcheck: PASS src/worktrees/reap-recovery.selfcheck.ts (7.4s) [3/4]
+selfcheck: PASS src/worktrees/reap-interruption.selfcheck.ts (8.7s) [4/4]
+4 selfchecks green (focused; tsc and eslint included) in 10.9s

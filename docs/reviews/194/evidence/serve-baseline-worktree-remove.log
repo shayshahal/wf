@@ -1,0 +1,20 @@
+{
+  "command": "git",
+  "args": [
+    "-c",
+    "core.hooksPath=C:\\Users\\Shay\\AppData\\Local\\Temp\\wf-194-serve-base-control-0aeuUR\\empty-hooks",
+    "worktree",
+    "remove",
+    "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf-194-serve-base-control-0aeuUR\\base"
+  ],
+  "cwd": "C:\\Users\\Shay\\work\\wf-194",
+  "started": "2026-10-30T08:40:19.653Z",
+  "elapsedSeconds": 0.10606549999999697,
+  "status": 0,
+  "signal": null,
+  "logfile": "serve-baseline-worktree-remove.log"
+}
+
+STDOUT
+
+STDERR

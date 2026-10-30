@@ -1,0 +1,17 @@
+{
+  "command": "git",
+  "args": [
+    "status",
+    "--porcelain"
+  ],
+  "cwd": "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf-194-serve-base-control-0aeuUR\\base",
+  "started": "2026-10-30T08:37:27.052Z",
+  "elapsedSeconds": 0.08678159999999979,
+  "status": 0,
+  "signal": null,
+  "logfile": "serve-baseline-status-before.log"
+}
+
+STDOUT
+
+STDERR

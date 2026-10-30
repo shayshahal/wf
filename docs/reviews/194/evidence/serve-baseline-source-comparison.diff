@@ -1,0 +1,346 @@
+diff --git a/projects/jewelryx/index.ts b/projects/jewelryx/index.ts
+index a0ccb70..e1c443a 100644
+--- a/projects/jewelryx/index.ts
++++ b/projects/jewelryx/index.ts
+@@ -3,7 +3,7 @@
+ // A second project gets a folder like this one. What the two then share is the interface; until
+ // then this file's exports are simply what JewelryX needed (Shay, 2026-09-24).
+ import { spawnSync } from 'node:child_process';
+-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
++import { appendFileSync, closeSync, existsSync, openSync, readFileSync, writeFileSync } from 'node:fs';
+ import { createConnection } from 'node:net';
+ import { join } from 'node:path';
+ import { checkTasks, oracleEdits, parseStackEnv, oracleCaseGap, PRODUCT_BRANCH, seedActorsEnv, realPkgFor } from './checks.ts';
+@@ -104,7 +104,7 @@ export type Machine = {
+ 	secretsFrom: (worktree: string) => string;
+ 	database: {
+ 		url: (o: { slug: string; port?: Port }) => string;
+-		up: (o: { worktree: string } & Stack) => Promise<void>;
++		up: (o: { worktree: string; log?: string } & Stack) => Promise<void>;
+ 		seedUrl?: (o: Stack) => string;
+ 		teardown: (o: { slug: string; worktree: string }) => RemovalStep[];
+ 	};
+@@ -133,10 +133,11 @@ const KIT: Machine = {
+ 		// project name a clone folder named jeweleryx gives it, so a person's `docker compose up` and
+ 		// wf's are one container and one volume. Shay, 2026-10-04: "make wf bring it up"; before, a
+ 		// stopped one stopped `wf new` with "start one".
+-		async up({ worktree, slug, port }) {
++		async up({ worktree, slug, port, log }) {
+ 			const url = KIT.database.url({ slug, port });
+ 			if (process.env.MONGO_URL || (await answers(url))) return mongoAnswers(url);
+-			const r = spawnSync('docker', ['compose', '-p', 'jeweleryx', '--profile', 'local-db', 'up', '-d', '--wait', 'mongodb'], { cwd: worktree, stdio: 'inherit', windowsHide: true });
++			const r = spawnSync('docker', ['compose', '-p', 'jeweleryx', '--profile', 'local-db', 'up', '-d', '--wait', 'mongodb'], { cwd: worktree, stdio: log ? 'pipe' : 'inherit', encoding: 'utf8', windowsHide: true });
++			if (log) appendFileSync(log, `${r.stdout ?? ''}${r.stderr ?? ''}`);
+ 			if (r.status !== 0) throw new Error(`no MongoDB answers at ${url}, and the repo's (docker compose --profile local-db up -d mongodb) did not start: exit ${r.status ?? r.error?.message}. Start one, or set MONGO_URL to yours`);
+ 			return mongoAnswers(url);
+ 		},
+@@ -197,9 +198,22 @@ export function pageOf(file: string): { app: 'b2b' | 'admin'; path: string } | n
+ 
+ // ── a worktree's stack ───────────────────────────────────────────────────────
+ 
+-function sh(command: string, cwd: string) {
+-	const r = spawnSync(command, { stdio: 'inherit', shell: true, cwd });
+-	if (r.status !== 0) throw new Error(`${command} failed (exit ${r.status})`);
++function sh(command: string, cwd: string, log?: string) {
++	const fd = log ? openSync(log, 'a') : undefined;
++	try {
++		const r = spawnSync(command, { stdio: fd === undefined ? 'inherit' : ['ignore', fd, fd], shell: true, cwd });
++		if (r.status !== 0) throw new Error(`${command} failed (exit ${r.status ?? r.error?.message})`);
++	} finally { if (fd !== undefined) closeSync(fd); }
++}
++
++/** Prepare project environment without installing machine shims or linking behavioral tools. */
++export async function setupWorkspaceEnvironment({ worktree, slug, port }: { worktree: string } & Stack): Promise<void> {
++	const { copySecrets, sanitizeWorktreeEnv } = await import('./env.ts');
++	const m = machine();
++	copySecrets(worktree, m.secretsFrom(worktree));
++	sanitizeWorktreeEnv(worktree, { url: m.database.url({ slug, port }), name: worktreeDatabase(slug) });
++	// The verification skill's CLI finds this checkout's stack here (round.ts VERIFY_SKILL).
++	writeFileSync(join(worktree, '.verify-stack.env'), verifyStackEnv(directUrls(port), join(worktree, '.wf', 'logs', 'dev.log') /* dev.ts writes it */.replace(/\\/g, '/')));
+ }
+ 
+ // The pre-start steps, run by wt in parallel: a command, or a function of { worktree, slug, port }.
+@@ -207,15 +221,10 @@ function sh(command: string, cwd: string) {
+ // the same node_modules/.pnpm and killed the first with EPERM (measured 2026-09-20, three runs).
+ // `tools` is the project's own linker. The python environment is synced inside `db`, because the
+ // seeder runs in it.
+-export type SetupStep = string | ((o: { worktree: string } & Stack) => Promise<void>);
++export type SetupStep = string | ((o: { worktree: string; log?: string } & Stack) => Promise<void>);
+ export const setup: Record<string, SetupStep> = {
+ 	async env({ worktree, slug, port }: { worktree: string } & Stack) {
+-		const { copySecrets, sanitizeWorktreeEnv } = await import('./env.ts');
+-		const m = machine();
+-		copySecrets(worktree, m.secretsFrom(worktree));
+-		sanitizeWorktreeEnv(worktree, { url: m.database.url({ slug, port }), name: worktreeDatabase(slug) });
+-		// The verification skill's CLI finds this checkout's stack here (round.ts VERIFY_SKILL).
+-		writeFileSync(join(worktree, '.verify-stack.env'), verifyStackEnv(directUrls(port), join(worktree, '.wf', 'logs', 'dev.log') /* dev.ts writes it */.replace(/\\/g, '/')));
++		await setupWorkspaceEnvironment({ worktree, slug, port });
+ 		// The bare `control-jewelryx` (round.ts SHIM_SH): in a folder of the person's own that is already on PATH.
+ 		const norm = (p: string) => p.replaceAll('\\', '/').replace(/\/$/, '').toLowerCase();
+ 		const onPath = (process.env.PATH ?? '').split(delimiter).map(norm);
+@@ -226,17 +235,39 @@ export const setup: Record<string, SetupStep> = {
+ 	node: 'pnpm install --frozen-lockfile && pnpm build:types && pnpm build:data && pnpm build:filters && pnpm --filter jewelryx-admin-dashboard check:prep && pnpm --filter jewelryx-frontend check:prep',
+ 	verify: 'pnpm --dir verification install --ignore-workspace',
+ 	tools: 'node scripts/link-tools.mjs',
+-	async db({ worktree, slug, port }: { worktree: string } & Stack) {
++	async db({ worktree, slug, port, log }: { worktree: string; log?: string } & Stack) {
+ 		const { seedDatabase } = await import('./db.ts');
+ 		const { database } = machine();
+ 		// cwd: the kit runs this step from `wf new`, not from inside the worktree as wt does. --quiet:
+ 		// there the output is the agent's, and a fresh sync listed ~60 packages into it (2026-09-27).
+-		sh('uv sync --quiet --dev --directory packages/backend', worktree);
+-		await database.up({ worktree, slug, port });
+-		seedDatabase({ worktree, database: worktreeDatabase(slug), mongoUrl: seedUrl({ slug, port }) });
++		sh('uv sync --quiet --dev --directory packages/backend', worktree, log);
++		await database.up({ worktree, slug, port, log });
++		seedDatabase({ worktree, database: worktreeDatabase(slug), mongoUrl: seedUrl({ slug, port }), log });
+ 	},
+ };
+ 
++/** Run existing project setup without machine shims, behavioral links, or package lifecycle hooks. */
++export async function setupWorkspaceResources(context: import('../../src/worktrees/workspace-project.ts').WorkspaceProjectContext): Promise<void> {
++	appendFileSync(context.log, 'JewelryX setup: environment, node builds, verification packages, seeded database; no behavioral tools\n');
++	await setupWorkspaceEnvironment(context);
++	for (const key of ['node', 'verify']) {
++		const command = setup[key];
++		if (typeof command !== 'string') throw new Error('JewelryX workspace setup: expected shared package setup commands');
++		sh(command.replace(' install ', ' install --ignore-scripts '), context.worktree, context.log);
++	}
++	const database = setup.db;
++	if (typeof database !== 'function') throw new Error('JewelryX workspace setup: expected shared database setup function');
++	await database(context);
++}
++
++/** Neutral cleanup drops only this allocated workspace database, never globally stranded test databases. */
++export function workspaceResourceTeardown({ worktree, slug, log }: import('../../src/worktrees/workspace-project.ts').WorkspaceProjectContext): RemovalStep[] {
++	const mongoUrl = machine().database.url({ slug });
++	return [{ label: 'drop workspace database', run: () => dropDatabase({ worktree, database: worktreeDatabase(slug), mongoUrl, log }) }];
++}
++
++export { createJewelryxWorkspaceProject } from './workspace-resources.ts';
++
+ /** Prepare shared infrastructure before acquiring a worktree's server process tree. */
+ export function prepareServe(): void { machine().prepareServe?.(); }
+ 
+@@ -326,7 +357,7 @@ export function runnerEnv(ambient: NodeJS.ProcessEnv): Record<string, string> {
+ // these point at the LIVE round; the baseline branch's own values must replace them, and a key with no
+ // baseline value (STACK_LOG, MONGO_URL from the host) is dropped rather than leaking the live
+ // URL/database (the scratch's own `.env` then supplies its identifiers).
+-export const stackEnvOwnedKeys = (): string[] => [...Object.keys(seedActorsEnv(logins)), 'B2B_URL', 'ADMIN_URL', 'API_URL', 'STACK_LOG', 'MONGO_URL', 'MONGO_URI', 'DATABASE_URL', 'DATABASE_NAME', 'REDIS_URL'];
++export const stackEnvOwnedKeys = (): string[] => [...Object.keys(seedActorsEnv(logins)), 'B2B_URL', 'ADMIN_URL', 'API_URL', 'STACK_LOG', 'MONGO_URL', 'MONGO_URI', 'MONGODB_URL', 'DATABASE_URL', 'DATABASE_NAME', 'REDIS_URL'];
+ 
+ // The stack env a task gets in an isolated baseline worktree for `branch`: the seed actors and the
+ // baseline stack's own URLs, computed from the branch (ports are pure functions of it). Core can bind
+diff --git a/src/seams.ts b/src/seams.ts
+index 9dae8f2..0290ca3 100644
+--- a/src/seams.ts
++++ b/src/seams.ts
+@@ -53,7 +53,7 @@ export type Seams = {
+ 	processes: { snapshot: typeof snapshotProcesses; kill: typeof killOwnedProcesses };
+ 	entry: string;
+ 	madeBy: string;
+-	createWorktree: ((o: { branch: string; base: string; log: string; path: string }) => Worktree | Promise<Worktree>) | null;
++	createWorktree: ((o: { branch: string; base: string; log: string; path: string; repository?: string; setup?: 'project' | 'none' }) => Worktree | Promise<Worktree>) | null;
+ 	removalPlan: ((o: { branch: string; path: string; slug: string; pid: number }) => RemovalStep[] | Promise<RemovalStep[]>) | null;
+ 	reviewUI: ReviewUI | null;
+ 	presentation: NativePresentation | null;
+diff --git a/src/worktrees/git-worktree.ts b/src/worktrees/git-worktree.ts
+index 1827fec..62ab7b1 100644
+--- a/src/worktrees/git-worktree.ts
++++ b/src/worktrees/git-worktree.ts
+@@ -5,7 +5,8 @@
+ //   remove: stop the stack, close the show browser, the project's teardown while the worktree is still
+ //           there, then the folder
+ import { closeSync, openSync, readFileSync } from 'node:fs';
+-import { execFileSync, spawn, spawnSync } from 'node:child_process';
++import { addWorktree } from './workspace-allocation.ts';
++import { spawn } from 'node:child_process';
+ import { setup, teardown } from '../project.ts';
+ import type { RemovalStep, Seams, Worktree } from '../seams.ts';
+ import { stopWorktreeServers } from './serve.ts';
+@@ -23,28 +24,12 @@ async function runSetup({ worktree, slug, port, fd }: { worktree: string; slug:
+ 	return (await Promise.all(runs)).filter(Boolean);
+ }
+ 
+-// A `git worktree add -b` whose checkout fails removes the worktree but leaves the branch: BJEW-602's
+-// first try (2026-09-27), deleted by hand before the second. Only a branch this call made goes: -b
+-// also fails when the branch already exists, and that one is someone's work.
+-export function addWorktree({ branch, path, base, cwd }: { branch: string; path: string; base: string; cwd?: string }) {
+-	const existed = spawnSync('git', ['show-ref', '--verify', '--quiet', `refs/heads/${branch}`], { cwd }).status === 0;
+-	try {
+-		// --quiet: git's checkout progress was ~100 lines of the agent's output (2026-09-27).
+-		execFileSync('git', ['worktree', 'add', '--quiet', '-b', branch, path, base], { cwd, stdio: 'inherit' });
+-	} catch (e) {
+-		if (!existed) spawnSync('git', ['branch', '-D', branch], { cwd, stdio: 'ignore' });
+-		throw e;
+-	}
+-}
++export { addWorktree } from './workspace-allocation.ts';
+ 
+ /** Create at the supplied destination; failed setup leaves the worktree for inspection and `wf reap`. */
+-export async function createWorktree({ branch, base, log, path }: Parameters<NonNullable<Seams['createWorktree']>>[0]): Promise<Worktree> {
+-	// Windows: the clone's .claude/worktrees/<slug>/ is 89 characters before a tracked path starts, and
+-	// a project's 185-character one put the checkout past 260: "Filename too long", exit 128, on
+-	// BJEW-602 (2026-09-27). In the clone's config, not -c: `-c core.longpaths=false` did not reach
+-	// the checkout, and every later git command in the worktree needs it too.
+-	if (process.platform === 'win32') execFileSync('git', ['config', 'core.longpaths', 'true']);
+-	addWorktree({ branch, path, base });
++export async function createWorktree({ branch, base, log, path, repository, setup: setupMode }: Parameters<NonNullable<Seams['createWorktree']>>[0]): Promise<Worktree> {
++	addWorktree({ branch, path, base, cwd: repository, hooks: setupMode === 'none' ? 'disabled' : undefined });
++	if (setupMode === 'none') return { path, branch };
+ 	excludeWfFolder(path);
+ 	// The person's clone must not show the rounds as untracked files: JewelryX's main branch ignores
+ 	// no .claude/ (its .gitignore was five weeks behind dev's, 2026-09-27), and a clone on main is
+diff --git a/src/worktrees/serve.ts b/src/worktrees/serve.ts
+index 6797da0..02743aa 100644
+--- a/src/worktrees/serve.ts
++++ b/src/worktrees/serve.ts
+@@ -176,7 +176,7 @@ export function startServers(worktree: string): number {
+ 
+ // Keep the exact launch token inside the acquisition operation: reading it back after startup could
+ // accidentally adopt a replacement owner's receipt (#146, temporary verification servers).
+-function startOwnedServers(worktree: string, profile?: VerificationProfile): { pid: number; token: string } {
++function startOwnedServers(worktree: string, profile?: VerificationProfile, launchEnv?: NodeJS.ProcessEnv): { pid: number; token: string } {
+ 	prepareServe();
+ 	const release = reserveServerOwnership(worktree);
+ 	try {
+@@ -186,7 +186,7 @@ function startOwnedServers(worktree: string, profile?: VerificationProfile): { p
+ 		const token = randomUUID();
+ 		const selected = profile ? { verificationProfile: profile } : {};
+ 		writeFileSync(join(worktree, '.wf', 'serve-owner.json'), JSON.stringify({ token, state: 'starting', processes: [], ...selected }));
+-		const child = spawn(process.execPath, [seams.entry, 'serve', '--foreground', ...(profile ? ['--verification-profile', profile] : [])], { cwd: worktree, detached: true, stdio: ['ignore', fd, fd], windowsHide: true });
++		const child = spawn(process.execPath, [seams.entry, 'serve', '--foreground', ...(profile ? ['--verification-profile', profile] : [])], { cwd: worktree, env: launchEnv, detached: true, stdio: ['ignore', fd, fd], windowsHide: true });
+ 		closeSync(fd);
+ 		child.once('error', () => appendFileSync(join(worktree, '.wf', 'logs', 'serve.log'), 'wf serve: foreground launch failed; ownership retained\n'));
+ 		child.unref();
+@@ -200,19 +200,22 @@ function startOwnedServers(worktree: string, profile?: VerificationProfile): { p
+ 	} finally { release(); }
+ }
+ 
+-/** A verification lease releases only its own temporary servers, never a borrowed stack. */
++/** A verification lease releases only its own temporary servers; borrowed means no release authority, including persistent startup. */
+ export type VerificationServers =
+-	| { readonly kind: 'acquired'; readonly release: () => Promise<string | null>; readonly signal?: AbortSignal }
++	| ({ readonly kind: 'acquired'; readonly release: () => Promise<string | null>; readonly signal?: AbortSignal } & (
++		| { readonly disposition: 'none' | 'borrowed' }
++		| { readonly disposition: 'owned'; readonly ownershipToken: string }
++	))
+ 	| { readonly kind: 'refused'; readonly why: string };
+ 
+ /** Acquire the project's declared verification dependencies; unknown ownership never grants a kill. */
+-export async function acquireVerificationServers(worktree: string, env: Record<string, string>, requirements: VerificationRequirements = defaultVerificationRequirements, { stack = ensureServers, ready = waitForVerificationReady }: { stack?: typeof ensureServers; ready?: typeof waitForVerificationReady } = {}): Promise<VerificationServers> {
+-	if (requirements.kind === 'none') return { kind: 'acquired', release: async () => null };
++export async function acquireVerificationServers(worktree: string, env: Record<string, string>, requirements: VerificationRequirements = defaultVerificationRequirements, { stack = ensureServers, ready = waitForVerificationReady, launchEnv }: { stack?: typeof ensureServers; ready?: typeof waitForVerificationReady; launchEnv?: NodeJS.ProcessEnv } = {}): Promise<VerificationServers> {
++	if (requirements.kind === 'none') return { kind: 'acquired', disposition: 'none', release: async () => null };
+ 	if (!requirements.temporary) {
+ 		try {
+ 			await stack(worktree, { wait: true });
+ 			await ready(worktree, env, { profile: requirements.profile });
+-			return { kind: 'acquired', release: async () => null };
++			return { kind: 'acquired', disposition: 'borrowed', release: async () => null };
+ 		} catch (error) { return { kind: 'refused', why: error instanceof Error ? error.message : String(error) }; }
+ 	}
+ 	const controller = new AbortController();
+@@ -250,11 +253,13 @@ export async function acquireVerificationServers(worktree: string, env: Record<s
+ 		}
+ 		const answering = (await Promise.all(endpoints.map((endpoint) => probeVerificationEndpoint(endpoint, 2000, controller.signal)))).every((why) => why === null);
+ 		if (!answering) {
+-			if (!pid && !existsSync(record)) token = startOwnedServers(worktree, requirements.profile).token;
++			if (!pid && !existsSync(record)) token = startOwnedServers(worktree, requirements.profile, launchEnv).token;
+ 			await ready(worktree, env, { profile: requirements.profile, signal: controller.signal });
+ 		}
+ 		if (controller.signal.aborted) throw new Error('wf verification: cancelled before execution');
+-		return { kind: 'acquired', release, signal: controller.signal };
++		return token === undefined
++			? { kind: 'acquired', disposition: 'borrowed', release, signal: controller.signal }
++			: { kind: 'acquired', disposition: 'owned', ownershipToken: token, release, signal: controller.signal };
+ 	} catch (error) {
+ 		const cleanup = await release();
+ 		return { kind: 'refused', why: `${error instanceof Error ? error.message : String(error)}${cleanup ? `; temporary server release unconfirmed: ${cleanup}` : ''}` };
+diff --git a/src/worktrees/worktree.ts b/src/worktrees/worktree.ts
+index d8f353c..d77820e 100644
+--- a/src/worktrees/worktree.ts
++++ b/src/worktrees/worktree.ts
+@@ -7,66 +7,15 @@
+ //   create, remove: through the seams (seams.ts): Shay's are worktrunk and wf's hooks
+ //           (env/worktrees.ts), the kit's own plain git (git-worktree.ts)
+ // Ports: P = hash_port(branch), 10000-19999; the project spreads its apps from there.
+-import { execFileSync } from 'node:child_process';
+ import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
+-import { basename, dirname, join } from 'node:path';
+-import { hashPort, sanitizeBranch } from './ports.ts';
++import { join } from 'node:path';
+ import { seams } from '../seams.ts';
+ import { approvalExclusions } from '../gates/content-identity.ts';
+ import type { RemovalStep, Seams, Worktree } from '../seams.ts';
+ 
+-const norm = (p: string) => p.replace(/\\/g, '/').replace(/\/+$/, '');
+-
+-// ── read ─────────────────────────────────────────────────────────────────────
+-
+-export type WorktreeEntry = { path: string; branch: string | null; detached: boolean; bare: boolean };
+-
+-// Pure: `git worktree list --porcelain` → [{ path, branch, detached, bare }]; branch is null when detached or bare.
+-export function parseWorktreeList(porcelain: string): WorktreeEntry[] {
+-	return porcelain.replace(/\r\n/g, '\n').split('\n\n').flatMap((block) => {
+-		const path = /^worktree (.+)$/m.exec(block)?.[1]?.trim();
+-		return path ? [{ path, branch: /^branch refs\/heads\/(.+)$/m.exec(block)?.[1]?.trim() ?? null, detached: /^detached$/m.test(block), bare: /^bare$/m.test(block) }] : [];
+-	});
+-}
+-
+-export function listWorktrees(cwd?: string) {
+-	return parseWorktreeList(execFileSync('git', ['worktree', 'list', '--porcelain'], { encoding: 'utf8', cwd }));
+-}
+-
+-// Pure: the repository's main checkout, where a person keeps their clone: the first worktree git
+-// lists. Null when that is a bare repository (Shay's layout), which checks nothing out.
+-export function mainCheckout(trees: Pick<WorktreeEntry, 'path' | 'bare'>[]) {
+-	return trees[0] && !trees[0].bare ? trees[0].path : null;
+-}
+-
+-// Pure: the folder the kit's worktrees go in, <repo>/.claude/worktrees: Claude Code Desktop's own
+-// place for them (kit and env plan, decided 2026-09-27). <repo> is the main checkout, or the folder
+-// holding a bare repository.
+-export function worktreesHome(trees: Pick<WorktreeEntry, 'path' | 'bare'>[]) {
+-	const first = norm(trees[0].path);
+-	return `${trees[0].bare ? dirname(first) : first}/.claude/worktrees`;
+-}
+-
+-// A round, branch, folder name or absolute path → { path, branch }. Throws listing the candidates.
+-export function resolveWorktree(name: string, trees = listWorktrees()) {
+-	const n = norm(String(name));
+-	const abs = /^[a-zA-Z]:\//.test(n) || n.startsWith('/');
+-	const hits = trees.filter((t) => (abs ? norm(t.path) === n : t.branch === n || basename(norm(t.path)) === n));
+-	if (hits.length === 1) return hits[0];
+-	const cands = trees.map((t) => `  ${t.branch ?? '(detached)'}  ${t.path}`).join('\n');
+-	throw new Error(`${hits.length ? `ambiguous "${name}"` : `no worktree for "${name}"`} — candidates:\n${cands}`);
+-}
+-
+-// ── names ────────────────────────────────────────────────────────────────────
+-
+-export const basePortForBranch = hashPort;
+-export const slugForBranch = sanitizeBranch;
+-
+-// Both values for many branches. It batched `wt step eval` calls when they cost ~0.5 s each (wf
+-// status, 23 worktrees, 2026-09-23: 28 s); it is pure now and kept for status's single call site.
+-export function portsAndSlugsForBranches(branches: string[]) {
+-	return new Map(branches.map((b) => [b, { port: hashPort(b), slug: sanitizeBranch(b) }]));
+-}
++import { listWorktrees, slugForBranch, worktreesHome } from './worktree-registry.ts';
++export { parseWorktreeList, listWorktrees, mainCheckout, worktreesHome, resolveWorktree, basePortForBranch, slugForBranch, portsAndSlugsForBranches, excludeFromGit } from './worktree-registry.ts';
++export type { WorktreeEntry } from './worktree-registry.ts';
+ 
+ // Pure: the lines wf prints under a round's header, one per app: `<app>: <url>`.
+ export function urlLines(urls: Record<string, string>) {
+@@ -97,11 +46,3 @@ export function excludeWfFolder(worktree: string): void {
+ 	const missing = approvalExclusions(null, null, 'row').map((p) => `/${p.slice('.wf/'.length)}`).filter((p) => !existing.includes(p));
+ 	if (missing.length) appendFileSync(ignore, `\n${missing.join('\n')}\n`);
+ }
+-
+-// `pattern` joins the repository's exclude file (info/exclude, shared by all its worktrees), once.
+-export function excludeFromGit(worktree: string, pattern: string) {
+-	const common = execFileSync('git', ['-C', worktree, 'rev-parse', '--path-format=absolute', '--git-common-dir'], { encoding: 'utf8' }).trim();
+-	const exclude = join(common, 'info', 'exclude');
+-	mkdirSync(dirname(exclude), { recursive: true });
+-	if (!(existsSync(exclude) ? readFileSync(exclude, 'utf8') : '').split(/\r?\n/).includes(pattern)) appendFileSync(exclude, `\n${pattern}\n`);
+-}

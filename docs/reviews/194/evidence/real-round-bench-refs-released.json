@@ -1,0 +1,14 @@
+[
+  {
+    "branch": "bench/194-round-cycle",
+    "head": "929c219e660aee89d8387a2a17d3591af3f3694b",
+    "registered": false,
+    "disposition": "CAS deleted only own unchanged bench branch after complete reap; archive kept"
+  },
+  {
+    "branch": "bench/194-round-final",
+    "head": "929c219e660aee89d8387a2a17d3591af3f3694b",
+    "registered": false,
+    "disposition": "CAS deleted only own unchanged bench branch after complete reap; archive kept"
+  }
+]

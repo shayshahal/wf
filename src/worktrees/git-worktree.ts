@@ -5,7 +5,8 @@
 //   remove: stop the stack, close the show browser, the project's teardown while the worktree is still
 //           there, then the folder
 import { closeSync, openSync, readFileSync } from 'node:fs';
-import { execFileSync, spawn, spawnSync } from 'node:child_process';
+import { addWorktree } from './workspace-allocation.ts';
+import { spawn } from 'node:child_process';
 import { setup, teardown } from '../project.ts';
 import type { RemovalStep, Seams, Worktree } from '../seams.ts';
 import { stopWorktreeServers } from './serve.ts';
@@ -23,28 +24,12 @@ async function runSetup({ worktree, slug, port, fd }: { worktree: string; slug: 
 	return (await Promise.all(runs)).filter(Boolean);
 }
 
-// A `git worktree add -b` whose checkout fails removes the worktree but leaves the branch: BJEW-602's
-// first try (2026-09-27), deleted by hand before the second. Only a branch this call made goes: -b
-// also fails when the branch already exists, and that one is someone's work.
-export function addWorktree({ branch, path, base, cwd }: { branch: string; path: string; base: string; cwd?: string }) {
-	const existed = spawnSync('git', ['show-ref', '--verify', '--quiet', `refs/heads/${branch}`], { cwd }).status === 0;
-	try {
-		// --quiet: git's checkout progress was ~100 lines of the agent's output (2026-09-27).
-		execFileSync('git', ['worktree', 'add', '--quiet', '-b', branch, path, base], { cwd, stdio: 'inherit' });
-	} catch (e) {
-		if (!existed) spawnSync('git', ['branch', '-D', branch], { cwd, stdio: 'ignore' });
-		throw e;
-	}
-}
+export { addWorktree } from './workspace-allocation.ts';
 
 /** Create at the supplied destination; failed setup leaves the worktree for inspection and `wf reap`. */
-export async function createWorktree({ branch, base, log, path }: Parameters<NonNullable<Seams['createWorktree']>>[0]): Promise<Worktree> {
-	// Windows: the clone's .claude/worktrees/<slug>/ is 89 characters before a tracked path starts, and
-	// a project's 185-character one put the checkout past 260: "Filename too long", exit 128, on
-	// BJEW-602 (2026-09-27). In the clone's config, not -c: `-c core.longpaths=false` did not reach
-	// the checkout, and every later git command in the worktree needs it too.
-	if (process.platform === 'win32') execFileSync('git', ['config', 'core.longpaths', 'true']);
-	addWorktree({ branch, path, base });
+export async function createWorktree({ branch, base, log, path, repository, setup: setupMode }: Parameters<NonNullable<Seams['createWorktree']>>[0]): Promise<Worktree> {
+	addWorktree({ branch, path, base, cwd: repository, hooks: setupMode === 'none' ? 'disabled' : undefined });
+	if (setupMode === 'none') return { path, branch };
 	excludeWfFolder(path);
 	// The person's clone must not show the rounds as untracked files: JewelryX's main branch ignores
 	// no .claude/ (its .gitignore was five weeks behind dev's, 2026-09-27), and a clone on main is

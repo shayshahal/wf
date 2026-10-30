@@ -43,7 +43,9 @@ try {
 	assert.equal(journals.length, 1, 'unregistered target remains durably discoverable');
 	const original = join(root, 'original-directory');
 	renameSync(target, original); mkdirSync(target);
-	await assert.rejects(runReap(['bench/partial']), /ownership changed/);
+	await runReap(['bench/partial']);
+	assert.equal(process.exitCode, 1, 'replacement refusal is an expected failure');
+	process.exitCode = 0;
 	assert.ok(existsSync(target), 'stale recovery cannot delete a replacement checkout');
 	rmSync(target, { recursive: true }); renameSync(original, target);
 

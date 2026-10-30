@@ -1,0 +1,9 @@
+{
+  "kind": "unavailable",
+  "why": "workspace allocation: ✗ Directory already exists: ~/work/jeweleryx/.claude/worktrees/bench-194-tool-api\n↳ To remove manually, run rm -rf ~/work/jeweleryx/.claude/worktrees/bench-194-tool-api; to overwrite (with backup), run wt switch --create --clobber bench/194-tool-api\nwt switch --create failed (exit 1)",
+  "receipt": null,
+  "cleanup": {
+    "kind": "complete",
+    "journal": "C:\\Users\\Shay\\work\\jeweleryx\\.bare\\wf-workspace-8df4e955b03aefe4420e589d356d37b9585d37d378d6e66a3c1ca67d0c8ebdf6.cleanup.json"
+  }
+}

@@ -114,7 +114,8 @@ try {
 	const replacementRecord = JSON.stringify({ branch: replacement.branch, path: replacement.path, token: randomUUID(), directory: null, next: 0, merged: false });
 	writeFileSync(replacement.journal, replacementRecord);
 	process.exitCode = 0;
-	await assert.rejects(runReap([replacement.branch]), /has no target identity/);
+	await runReap([replacement.branch]);
+	assert.equal(process.exitCode, 1, 'null-identity replacement refusal is an expected failure');
 	assert.ok(existsSync(replacement.path), 'a stale null-identity journal cannot delete a replacement checkout');
 	assert.equal(readFileSync(replacement.journal, 'utf8'), replacementRecord, 'the refused journal is retained');
 	rmSync(replacement.journal);

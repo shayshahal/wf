@@ -3,7 +3,7 @@
 // A second project gets a folder like this one. What the two then share is the interface; until
 // then this file's exports are simply what JewelryX needed (Shay, 2026-09-24).
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, closeSync, existsSync, openSync, readFileSync, writeFileSync } from 'node:fs';
 import { createConnection } from 'node:net';
 import { join } from 'node:path';
 import { checkTasks, oracleEdits, parseStackEnv, oracleCaseGap, PRODUCT_BRANCH, seedActorsEnv, realPkgFor } from './checks.ts';
@@ -104,7 +104,7 @@ export type Machine = {
 	secretsFrom: (worktree: string) => string;
 	database: {
 		url: (o: { slug: string; port?: Port }) => string;
-		up: (o: { worktree: string } & Stack) => Promise<void>;
+		up: (o: { worktree: string; log?: string } & Stack) => Promise<void>;
 		seedUrl?: (o: Stack) => string;
 		teardown: (o: { slug: string; worktree: string }) => RemovalStep[];
 	};
@@ -133,10 +133,11 @@ const KIT: Machine = {
 		// project name a clone folder named jeweleryx gives it, so a person's `docker compose up` and
 		// wf's are one container and one volume. Shay, 2026-10-04: "make wf bring it up"; before, a
 		// stopped one stopped `wf new` with "start one".
-		async up({ worktree, slug, port }) {
+		async up({ worktree, slug, port, log }) {
 			const url = KIT.database.url({ slug, port });
 			if (process.env.MONGO_URL || (await answers(url))) return mongoAnswers(url);
-			const r = spawnSync('docker', ['compose', '-p', 'jeweleryx', '--profile', 'local-db', 'up', '-d', '--wait', 'mongodb'], { cwd: worktree, stdio: 'inherit', windowsHide: true });
+			const r = spawnSync('docker', ['compose', '-p', 'jeweleryx', '--profile', 'local-db', 'up', '-d', '--wait', 'mongodb'], { cwd: worktree, stdio: log ? 'pipe' : 'inherit', encoding: 'utf8', windowsHide: true });
+			if (log) appendFileSync(log, `${r.stdout ?? ''}${r.stderr ?? ''}`);
 			if (r.status !== 0) throw new Error(`no MongoDB answers at ${url}, and the repo's (docker compose --profile local-db up -d mongodb) did not start: exit ${r.status ?? r.error?.message}. Start one, or set MONGO_URL to yours`);
 			return mongoAnswers(url);
 		},
@@ -197,9 +198,22 @@ export function pageOf(file: string): { app: 'b2b' | 'admin'; path: string } | n
 
 // ── a worktree's stack ───────────────────────────────────────────────────────
 
-function sh(command: string, cwd: string) {
-	const r = spawnSync(command, { stdio: 'inherit', shell: true, cwd });
-	if (r.status !== 0) throw new Error(`${command} failed (exit ${r.status})`);
+function sh(command: string, cwd: string, log?: string) {
+	const fd = log ? openSync(log, 'a') : undefined;
+	try {
+		const r = spawnSync(command, { stdio: fd === undefined ? 'inherit' : ['ignore', fd, fd], shell: true, cwd });
+		if (r.status !== 0) throw new Error(`${command} failed (exit ${r.status ?? r.error?.message})`);
+	} finally { if (fd !== undefined) closeSync(fd); }
+}
+
+/** Prepare project environment without installing machine shims or linking behavioral tools. */
+export async function setupWorkspaceEnvironment({ worktree, slug, port }: { worktree: string } & Stack): Promise<void> {
+	const { copySecrets, sanitizeWorktreeEnv } = await import('./env.ts');
+	const m = machine();
+	copySecrets(worktree, m.secretsFrom(worktree));
+	sanitizeWorktreeEnv(worktree, { url: m.database.url({ slug, port }), name: worktreeDatabase(slug) });
+	// The verification skill's CLI finds this checkout's stack here (round.ts VERIFY_SKILL).
+	writeFileSync(join(worktree, '.verify-stack.env'), verifyStackEnv(directUrls(port), join(worktree, '.wf', 'logs', 'dev.log') /* dev.ts writes it */.replace(/\\/g, '/')));
 }
 
 // The pre-start steps, run by wt in parallel: a command, or a function of { worktree, slug, port }.
@@ -207,15 +221,10 @@ function sh(command: string, cwd: string) {
 // the same node_modules/.pnpm and killed the first with EPERM (measured 2026-09-20, three runs).
 // `tools` is the project's own linker. The python environment is synced inside `db`, because the
 // seeder runs in it.
-export type SetupStep = string | ((o: { worktree: string } & Stack) => Promise<void>);
+export type SetupStep = string | ((o: { worktree: string; log?: string } & Stack) => Promise<void>);
 export const setup: Record<string, SetupStep> = {
 	async env({ worktree, slug, port }: { worktree: string } & Stack) {
-		const { copySecrets, sanitizeWorktreeEnv } = await import('./env.ts');
-		const m = machine();
-		copySecrets(worktree, m.secretsFrom(worktree));
-		sanitizeWorktreeEnv(worktree, { url: m.database.url({ slug, port }), name: worktreeDatabase(slug) });
-		// The verification skill's CLI finds this checkout's stack here (round.ts VERIFY_SKILL).
-		writeFileSync(join(worktree, '.verify-stack.env'), verifyStackEnv(directUrls(port), join(worktree, '.wf', 'logs', 'dev.log') /* dev.ts writes it */.replace(/\\/g, '/')));
+		await setupWorkspaceEnvironment({ worktree, slug, port });
 		// The bare `control-jewelryx` (round.ts SHIM_SH): in a folder of the person's own that is already on PATH.
 		const norm = (p: string) => p.replaceAll('\\', '/').replace(/\/$/, '').toLowerCase();
 		const onPath = (process.env.PATH ?? '').split(delimiter).map(norm);
@@ -226,16 +235,38 @@ export const setup: Record<string, SetupStep> = {
 	node: 'pnpm install --frozen-lockfile && pnpm build:types && pnpm build:data && pnpm build:filters && pnpm --filter jewelryx-admin-dashboard check:prep && pnpm --filter jewelryx-frontend check:prep',
 	verify: 'pnpm --dir verification install --ignore-workspace',
 	tools: 'node scripts/link-tools.mjs',
-	async db({ worktree, slug, port }: { worktree: string } & Stack) {
+	async db({ worktree, slug, port, log }: { worktree: string; log?: string } & Stack) {
 		const { seedDatabase } = await import('./db.ts');
 		const { database } = machine();
 		// cwd: the kit runs this step from `wf new`, not from inside the worktree as wt does. --quiet:
 		// there the output is the agent's, and a fresh sync listed ~60 packages into it (2026-09-27).
-		sh('uv sync --quiet --dev --directory packages/backend', worktree);
-		await database.up({ worktree, slug, port });
-		seedDatabase({ worktree, database: worktreeDatabase(slug), mongoUrl: seedUrl({ slug, port }) });
+		sh('uv sync --quiet --dev --directory packages/backend', worktree, log);
+		await database.up({ worktree, slug, port, log });
+		seedDatabase({ worktree, database: worktreeDatabase(slug), mongoUrl: seedUrl({ slug, port }), log });
 	},
 };
+
+/** Run existing project setup without machine shims, behavioral links, or package lifecycle hooks. */
+export async function setupWorkspaceResources(context: import('../../src/worktrees/workspace-project.ts').WorkspaceProjectContext): Promise<void> {
+	appendFileSync(context.log, 'JewelryX setup: environment, node builds, verification packages, seeded database; no behavioral tools\n');
+	await setupWorkspaceEnvironment(context);
+	for (const key of ['node', 'verify']) {
+		const command = setup[key];
+		if (typeof command !== 'string') throw new Error('JewelryX workspace setup: expected shared package setup commands');
+		sh(command.replace(' install ', ' install --ignore-scripts '), context.worktree, context.log);
+	}
+	const database = setup.db;
+	if (typeof database !== 'function') throw new Error('JewelryX workspace setup: expected shared database setup function');
+	await database(context);
+}
+
+/** Neutral cleanup drops only this allocated workspace database, never globally stranded test databases. */
+export function workspaceResourceTeardown({ worktree, slug, log }: import('../../src/worktrees/workspace-project.ts').WorkspaceProjectContext): RemovalStep[] {
+	const mongoUrl = machine().database.url({ slug });
+	return [{ label: 'drop workspace database', run: () => dropDatabase({ worktree, database: worktreeDatabase(slug), mongoUrl, log }) }];
+}
+
+export { createJewelryxWorkspaceProject } from './workspace-resources.ts';
 
 /** Prepare shared infrastructure before acquiring a worktree's server process tree. */
 export function prepareServe(): void { machine().prepareServe?.(); }
@@ -326,7 +357,7 @@ export function runnerEnv(ambient: NodeJS.ProcessEnv): Record<string, string> {
 // these point at the LIVE round; the baseline branch's own values must replace them, and a key with no
 // baseline value (STACK_LOG, MONGO_URL from the host) is dropped rather than leaking the live
 // URL/database (the scratch's own `.env` then supplies its identifiers).
-export const stackEnvOwnedKeys = (): string[] => [...Object.keys(seedActorsEnv(logins)), 'B2B_URL', 'ADMIN_URL', 'API_URL', 'STACK_LOG', 'MONGO_URL', 'MONGO_URI', 'DATABASE_URL', 'DATABASE_NAME', 'REDIS_URL'];
+export const stackEnvOwnedKeys = (): string[] => [...Object.keys(seedActorsEnv(logins)), 'B2B_URL', 'ADMIN_URL', 'API_URL', 'STACK_LOG', 'MONGO_URL', 'MONGO_URI', 'MONGODB_URL', 'DATABASE_URL', 'DATABASE_NAME', 'REDIS_URL'];
 
 // The stack env a task gets in an isolated baseline worktree for `branch`: the seed actors and the
 // baseline stack's own URLs, computed from the branch (ports are pure functions of it). Core can bind

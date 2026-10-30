@@ -55,7 +55,9 @@ const cli = (repo: string, ...args: string[]) => {
 type Listener = { pid: number; port: number };
 const listeners = (repo: string): Listener[] => ['stack.json', 'descendant.json'].map((file) => JSON.parse(readFileSync(join(repo, '.wf', file), 'utf8')));
 async function answers(port: number) {
-	try { return (await fetch(`http://127.0.0.1:${port}`, { signal: AbortSignal.timeout(2000) })).ok; }
+	// #194: pooled fetch reset while the same PID answered a fresh connection (2026-10-30).
+	// This fixture checks listener lifetime across synchronous CLI calls, not pooled-socket reuse.
+	try { return (await fetch(`http://127.0.0.1:${port}`, { headers: { Connection: 'close' }, signal: AbortSignal.timeout(2000) })).ok; }
 	catch { return false; /* connection refused is the expected shutdown observation */ }
 }
 async function waitFor(predicate: () => boolean | Promise<boolean>, timeout = 15_000) {

@@ -1,0 +1,14 @@
+[
+  {
+    "result": "jewelryx-tool-f4-result.json",
+    "checkoutAbsent": true,
+    "ownerAbsent": true,
+    "journalAbsent": true
+  },
+  {
+    "result": "lint-kit-portable-f4-result.json",
+    "checkoutAbsent": true,
+    "ownerAbsent": true,
+    "journalAbsent": true
+  }
+]

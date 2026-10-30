@@ -1,0 +1,9 @@
+selfcheck: focused (4 of 105 files); full suite not run.
+selfcheck: 6 checks (tsc and eslint included), 2 at a time, 300s each
+selfcheck: PASS tsc (0.3s) [1/6]
+selfcheck: PASS src/worktrees/workspace-probes.selfcheck.ts (0.1s) [2/6]
+selfcheck: PASS eslint (1.2s) [3/6]
+selfcheck: PASS src/worktrees/git-worktree.selfcheck.ts (1.6s) [4/6]
+selfcheck: PASS src/skill/skill-installed-export.selfcheck.ts (2.4s) [5/6]
+selfcheck: PASS src/skill/skill-export.selfcheck.ts (17.2s) [6/6]
+6 selfchecks green (focused; tsc and eslint included) in 18.4s

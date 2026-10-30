@@ -1,0 +1,6 @@
+{"args": ["node", "C:\\Users\\Shay\\work\\wf-194\\env\\wf.mjs", "serve", "--wait"], "cwd": "C:\\Users\\Shay\\.herdr\\worktrees\\jeweleryx\\dev\\.claude\\worktrees\\bench-194-round-reviewed"}
+wf serve: starting (pid 51860; logs in C:\Users\Shay\.herdr\worktrees\jeweleryx\dev\.claude\worktrees\bench-194-round-reviewed\.wf\logs)
+b2b:   http://bench-194-round-reviewed.b2b.jewelryx.localhost
+admin: http://bench-194-round-reviewed.admin.jewelryx.localhost
+api:   http://bench-194-round-reviewed.api.jewelryx.localhost
+wf serve: the stack answers (36 s)

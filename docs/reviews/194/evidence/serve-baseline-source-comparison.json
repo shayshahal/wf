@@ -1,0 +1,88 @@
+{
+  "capturedAt": "2026-10-30T08:41:29.491Z",
+  "base": "8622ce7de2a1243f0dc34c806f5bc7682bc508fe",
+  "currentHEAD": "8622ce7de2a1243f0dc34c806f5bc7682bc508fe",
+  "entries": [
+    {
+      "path": "src/worktrees/serve.selfcheck.ts",
+      "baseSHA256": "cf8e0d11985876322a04ef4424590607b61bd4073cec100aea0b40d46219616e",
+      "currentSHA256": "60bb7cea3648331cb1a19ff1992751f5660dd57662b6a4242cb55dc3b7013133"
+    },
+    {
+      "path": "src/worktrees/serve.ts",
+      "baseSHA256": "28e767165f21c30f2583926398a5f9c8de6ba98a67bb7df2b54c5076475ede69",
+      "currentSHA256": "897585987166a05bde39d513216748709380f722ec48fba43b5db5a5c84a872f"
+    },
+    {
+      "path": "src/seams.ts",
+      "baseSHA256": "284b0ddbecad0b8846fdac1d12d7e1571fa229aeb8a49472fa263c60f98f8371",
+      "currentSHA256": "263fd6076a0412a2115d975bb15bd06caebc8edcaf33f3e861739372d645a2b1"
+    },
+    {
+      "path": "src/run.ts",
+      "baseSHA256": "e4ac15108dd8c90917062437f14b3de1a33085f80ba84a9a77c98cf6525a9604",
+      "currentSHA256": "65adac079d5d6862e82b06d013ed25711994332ad88cbf0de6453ed45420dec1"
+    },
+    {
+      "path": "src/paths.ts",
+      "baseSHA256": "ee69361dc9ccaff55ee22bf1b26e2c1306a88796bf3a468d5f24ef7cdfdc5733",
+      "currentSHA256": "c9e6b5835bbb4c226ba3d50c719515bcd867f9cebcb84c768e5ec3b34ea0e98d"
+    },
+    {
+      "path": "src/round/next.ts",
+      "baseSHA256": "b4dbce63f145e788d9f0b70a8ce441afe16d418b733485d94d75e486341683e5",
+      "currentSHA256": "163cdd16f4ca0148d111504272b6706ef2f1bce0d6b6679e7cb8085106274339"
+    },
+    {
+      "path": "src/round/step.ts",
+      "baseSHA256": "8fc4afe5ec02577b18490b3c6f5bd43675fb71b92a1e20f029b696971f0abcb7",
+      "currentSHA256": "63a4a6788111f7cf2303d801d6f75724c042314bff5fd2e8d7823f53c7c69d75"
+    },
+    {
+      "path": "src/round/round-servers.ts",
+      "baseSHA256": "0e25f5236a685f373d46913ac11757e8e8294f2ff21ee14a5a9f9d0adf02aa5c",
+      "currentSHA256": "5e5689f1e39f2c7292b55bf16d21992f1ff69ada2fb989e995843709074d53a5"
+    },
+    {
+      "path": "src/process-tree.ts",
+      "baseSHA256": "6341a1626591e1abdbc181ec4da7103a5e2dd5056a284df8d998dc0d647382c9",
+      "currentSHA256": "210d9c3c7fb4c7690bbc41b35bd428f0dacfb89543cbed91b46dd31717fd3e6c"
+    },
+    {
+      "path": "src/process-cwd.ts",
+      "baseSHA256": "23ff70550401dc719dc22f8a29e7875dc9d37244e8d3f3d787d461521760ddfd",
+      "currentSHA256": "5e071d077bc9ac3fcdab44c453662a2cf1776591b0a3e2ad7e92ddc33bbe949f"
+    },
+    {
+      "path": "src/process-lock.ts",
+      "baseSHA256": "57e4f582f6fdbd12763984249c7e322c5ee1123f819215aa6014350abf79884d",
+      "currentSHA256": "816808dd4327a90b5366464424b00aaa1a33015099b4907a67c10b6052c83018"
+    },
+    {
+      "path": "src/project.ts",
+      "baseSHA256": "a0b5fe96e1c07a6cca2eb4cf3126ae1f1258741ad2f8ea039ddd242c965b2067",
+      "currentSHA256": "db4084eda9aac7c83e1668fb183695edd047803dfe51f35c430f50fca5a54569"
+    },
+    {
+      "path": "src/worktrees/worktree.ts",
+      "baseSHA256": "2490a4e3882609d0c9e1eac88f8908ee0c053feb88d64e1cdc3f0a54caae4103",
+      "currentSHA256": "15a981090615bfb631ba601aafe1e434301d31d1494ff21014a6d0004f9c14a2"
+    },
+    {
+      "path": "src/worktrees/ports.ts",
+      "baseSHA256": "53ccc13cfa81737a51abe213b3621134cb95178e6c201b5aca61a53f9a607806",
+      "currentSHA256": "05491d471ff5ad33f58c534c0bcdf19cc85548ab41478608650589ffc7190dbc"
+    },
+    {
+      "path": "projects/jewelryx/index.ts",
+      "baseSHA256": "a4313654c829485ea554de4c9f2ee5e48a8573de062237ca943960697681ff31",
+      "currentSHA256": "b0b551913bc48974211d890fff56b5a16de3c4f59b6724eaa80357e7bcc0ae73"
+    },
+    {
+      "path": "src/worktrees/git-worktree.ts",
+      "baseSHA256": "d9ee2845fe5ee85eb18ab68a6e6aaae100c758a8443bf4aba65f9cf311da4206",
+      "currentSHA256": "2dba28bdd455a05d8449471ea94cf38a1965d67893c17f98a921ae6d570ced85"
+    }
+  ],
+  "ownedTemporaryWorkspaceExists": false
+}

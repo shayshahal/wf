@@ -1,0 +1,8 @@
+selfcheck: focused (3 of 101 files); full suite not run.
+selfcheck: 5 checks (tsc and eslint included), 6 at a time, 300s each
+selfcheck: PASS tsc (1.1s) [1/5]
+selfcheck: PASS eslint (1.9s) [2/5]
+selfcheck: PASS projects/jewelryx/workspace-resources.selfcheck.ts (9.5s) [3/5]
+selfcheck: PASS projects/lint-kit/index.selfcheck.ts (9.9s) [4/5]
+selfcheck: PASS src/worktrees/serve-verification.selfcheck.ts (56.2s) [5/5]
+5 selfchecks green (focused; tsc and eslint included) in 57.1s

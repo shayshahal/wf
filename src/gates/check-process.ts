@@ -2,7 +2,7 @@
 // The supervisor waits for ownership to be persisted before starting the runner (#154).
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { mkdirSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { WF_ROOT } from '../paths.ts';
 import { seams } from '../seams.ts';
@@ -20,20 +20,37 @@ export function releaseRefusal(d: { rootPresent: boolean; orphanedRunner: boolea
 /** A failed cleanup always has null status, so its runner cannot supply green evidence. */
 export type CheckProcessResult = { status: number | null; stdout: string; stderr: string; error?: Error };
 
-/** Run a check with a bounded lifetime and a durable, identity-scoped cancellation record. */
-export async function runCheckProcess(cmd: string, args: string[], options: { cwd: string; worktree: string; env: NodeJS.ProcessEnv; shell: boolean; maxBuffer: number; timeoutMs?: number; signal?: AbortSignal }): Promise<CheckProcessResult> {
-	const folder = join(options.worktree, '.wf', 'check-processes');
-	mkdirSync(folder, { recursive: true });
+function reconcileProcessRecords(worktree: string, allowActive: boolean): string | null {
+	const folder = join(worktree, '.wf', 'check-processes');
+	if (!existsSync(folder)) return null;
 	// A previous interrupted owner must be reconciled, never overwritten by a new execution.
-	for (const name of readdirSync(folder).filter((n) => n.endsWith('.json') && !activeRecords.has(join(folder, n)))) {
+	for (const name of readdirSync(folder).filter((n) => n.endsWith('.json'))) {
+		if (activeRecords.has(join(folder, name))) {
+			if (allowActive) continue;
+			return 'wf check: active execution owns this workspace; wait for its release';
+		}
 		try {
 			const saved: unknown = JSON.parse(readFileSync(join(folder, name), 'utf8'));
 			const owners = typeof saved === 'object' && saved !== null && 'state' in saved && saved.state === 'releasing' && 'processes' in saved ? parseProcessIdentities(saved.processes) : null;
 			const snapshot = seams.processes.snapshot();
-			if (!owners?.length || snapshot.kind === 'unknown' || owners.some((owner) => snapshot.processes.some((p) => p.pid === owner.pid || p.parent === owner.pid && Date.parse(p.born) >= Date.parse(owner.born)))) return { status: null, stdout: '', stderr: 'wf check: unresolved execution ownership in .wf/check-processes; inspect before retrying' };
+			if (!owners?.length || snapshot.kind === 'unknown' || owners.some((owner) => snapshot.processes.some((p) => p.pid === owner.pid || p.parent === owner.pid && Date.parse(p.born) >= Date.parse(owner.born)))) return 'wf check: unresolved execution ownership in .wf/check-processes; inspect before retrying';
 			unlinkSync(join(folder, name));
-		} catch { return { status: null, stdout: '', stderr: 'wf check: unreadable execution ownership; retained for recovery' }; }
+		} catch { return 'wf check: unreadable execution ownership; retained for recovery'; }
 	}
+	return null;
+}
+
+/** Confirm interrupted diagnostic process release before workspace teardown; unknown owners retain all records. */
+export function reconcileCheckProcesses(worktree: string): string | null {
+	return reconcileProcessRecords(worktree, false);
+}
+
+/** Run a check with a bounded lifetime and a durable, identity-scoped cancellation record. */
+export async function runCheckProcess(cmd: string, args: string[], options: { cwd: string; worktree: string; env: NodeJS.ProcessEnv; shell: boolean; maxBuffer: number; timeoutMs?: number; signal?: AbortSignal }): Promise<CheckProcessResult> {
+	const folder = join(options.worktree, '.wf', 'check-processes');
+	mkdirSync(folder, { recursive: true });
+	const recoveryGap = reconcileProcessRecords(options.worktree, true);
+	if (recoveryGap) return { status: null, stdout: '', stderr: recoveryGap };
 	if (cancellationRequested || options.signal?.aborted) return { status: null, stdout: '', stderr: 'wf check: cancelled before execution' };
 	const record = join(folder, `${randomUUID()}.json`);
 	activeRecords.add(record);

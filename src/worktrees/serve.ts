@@ -176,7 +176,7 @@ export function startServers(worktree: string): number {
 
 // Keep the exact launch token inside the acquisition operation: reading it back after startup could
 // accidentally adopt a replacement owner's receipt (#146, temporary verification servers).
-function startOwnedServers(worktree: string, profile?: VerificationProfile): { pid: number; token: string } {
+function startOwnedServers(worktree: string, profile?: VerificationProfile, launchEnv?: NodeJS.ProcessEnv): { pid: number; token: string } {
 	prepareServe();
 	const release = reserveServerOwnership(worktree);
 	try {
@@ -186,7 +186,7 @@ function startOwnedServers(worktree: string, profile?: VerificationProfile): { p
 		const token = randomUUID();
 		const selected = profile ? { verificationProfile: profile } : {};
 		writeFileSync(join(worktree, '.wf', 'serve-owner.json'), JSON.stringify({ token, state: 'starting', processes: [], ...selected }));
-		const child = spawn(process.execPath, [seams.entry, 'serve', '--foreground', ...(profile ? ['--verification-profile', profile] : [])], { cwd: worktree, detached: true, stdio: ['ignore', fd, fd], windowsHide: true });
+		const child = spawn(process.execPath, [seams.entry, 'serve', '--foreground', ...(profile ? ['--verification-profile', profile] : [])], { cwd: worktree, env: launchEnv, detached: true, stdio: ['ignore', fd, fd], windowsHide: true });
 		closeSync(fd);
 		child.once('error', () => appendFileSync(join(worktree, '.wf', 'logs', 'serve.log'), 'wf serve: foreground launch failed; ownership retained\n'));
 		child.unref();
@@ -200,19 +200,22 @@ function startOwnedServers(worktree: string, profile?: VerificationProfile): { p
 	} finally { release(); }
 }
 
-/** A verification lease releases only its own temporary servers, never a borrowed stack. */
+/** A verification lease releases only its own temporary servers; borrowed means no release authority, including persistent startup. */
 export type VerificationServers =
-	| { readonly kind: 'acquired'; readonly release: () => Promise<string | null>; readonly signal?: AbortSignal }
+	| ({ readonly kind: 'acquired'; readonly release: () => Promise<string | null>; readonly signal?: AbortSignal } & (
+		| { readonly disposition: 'none' | 'borrowed' }
+		| { readonly disposition: 'owned'; readonly ownershipToken: string }
+	))
 	| { readonly kind: 'refused'; readonly why: string };
 
 /** Acquire the project's declared verification dependencies; unknown ownership never grants a kill. */
-export async function acquireVerificationServers(worktree: string, env: Record<string, string>, requirements: VerificationRequirements = defaultVerificationRequirements, { stack = ensureServers, ready = waitForVerificationReady }: { stack?: typeof ensureServers; ready?: typeof waitForVerificationReady } = {}): Promise<VerificationServers> {
-	if (requirements.kind === 'none') return { kind: 'acquired', release: async () => null };
+export async function acquireVerificationServers(worktree: string, env: Record<string, string>, requirements: VerificationRequirements = defaultVerificationRequirements, { stack = ensureServers, ready = waitForVerificationReady, launchEnv }: { stack?: typeof ensureServers; ready?: typeof waitForVerificationReady; launchEnv?: NodeJS.ProcessEnv } = {}): Promise<VerificationServers> {
+	if (requirements.kind === 'none') return { kind: 'acquired', disposition: 'none', release: async () => null };
 	if (!requirements.temporary) {
 		try {
 			await stack(worktree, { wait: true });
 			await ready(worktree, env, { profile: requirements.profile });
-			return { kind: 'acquired', release: async () => null };
+			return { kind: 'acquired', disposition: 'borrowed', release: async () => null };
 		} catch (error) { return { kind: 'refused', why: error instanceof Error ? error.message : String(error) }; }
 	}
 	const controller = new AbortController();
@@ -250,11 +253,13 @@ export async function acquireVerificationServers(worktree: string, env: Record<s
 		}
 		const answering = (await Promise.all(endpoints.map((endpoint) => probeVerificationEndpoint(endpoint, 2000, controller.signal)))).every((why) => why === null);
 		if (!answering) {
-			if (!pid && !existsSync(record)) token = startOwnedServers(worktree, requirements.profile).token;
+			if (!pid && !existsSync(record)) token = startOwnedServers(worktree, requirements.profile, launchEnv).token;
 			await ready(worktree, env, { profile: requirements.profile, signal: controller.signal });
 		}
 		if (controller.signal.aborted) throw new Error('wf verification: cancelled before execution');
-		return { kind: 'acquired', release, signal: controller.signal };
+		return token === undefined
+			? { kind: 'acquired', disposition: 'borrowed', release, signal: controller.signal }
+			: { kind: 'acquired', disposition: 'owned', ownershipToken: token, release, signal: controller.signal };
 	} catch (error) {
 		const cleanup = await release();
 		return { kind: 'refused', why: `${error instanceof Error ? error.message : String(error)}${cleanup ? `; temporary server release unconfirmed: ${cleanup}` : ''}` };

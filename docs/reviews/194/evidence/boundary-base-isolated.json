@@ -1,0 +1,5 @@
+{
+  "base": "8622ce7de2a1243f0dc34c806f5bc7682bc508fe",
+  "exit": 1,
+  "method": "read-only git archive; direct boundary selfcheck; temporary files removed"
+}

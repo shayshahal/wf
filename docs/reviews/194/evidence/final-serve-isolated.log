@@ -1,0 +1,112 @@
+selfcheck: focused (1 of 106 files); full suite not run.
+selfcheck: 3 checks (tsc and eslint included), 6 at a time, 300s each
+selfcheck: PASS tsc (0.3s) [1/3]
+selfcheck: PASS eslint (1.0s) [2/3]
+selfcheck: FAIL src/worktrees/serve.selfcheck.ts (87.5s) [3/3]
+
+── FAIL src/worktrees/serve.selfcheck.ts
+  ok   explicit stop closes the tracked stack and its descendant, without removing the worktree
+  ok   repeating stop is harmless and does not restart the stack
+  ok   an agreement dispatch releases an idle stack instead of leaving it until reap
+  ok   parking a round closes its whole stack
+  ok   an active build dispatch keeps both stack listeners and its ownership
+  ok   a blocked non-review human wait releases its stack
+  ok   real CI waiting metadata preserves the stack through step and next
+  ok   explicit helper stop overrides a CI wait
+  ok   legacy/foreign round state does not prevent a verified stop or get rewritten
+  ok   malformed ownership is refused and left intact
+  FAIL a copied/recycled PID cannot stop another worktree or erase its authority — wf serve: PID 102612 is not a verified foreground server in this worktree; ownership retained
+
+  ok   an unowned stale PID warns without refusing agreement dispatch
+  ok   an unowned stale PID also warns without invalidating the committed held phase
+  ok   an agent in the same checkout is not a server even with the workflow command in its prompt
+  ok   a lazy start refuses unresolved ownership without stopping either unrelated process
+
+1 FAILURE(S)
+1 of 3 selfchecks red (focused; tsc and eslint included) in 87.5s
+
+=== Isolated diagnostic replay: observation-only fetch and PID-read tracing; original failure above remains unexplained by any later green ===
+diagnostic conditions {"time":"2026-10-30T07:35:44.753Z","node":"v26.12.1","platform":"win32","arch":"x64"}
+HTTP http://127.0.0.1:61737 200 elapsed_ms 22
+HTTP http://127.0.0.1:61738 200 elapsed_ms 8
+HTTP http://127.0.0.1:61738 elapsed_ms 4 error TypeError fetch failed cause ECONNREFUSED
+HTTP http://127.0.0.1:61737 elapsed_ms 4 error TypeError fetch failed cause ECONNRESET
+  ok   explicit stop closes the tracked stack and its descendant, without removing the worktree
+HTTP http://127.0.0.1:61737 elapsed_ms 1 error TypeError fetch failed cause ECONNREFUSED
+HTTP http://127.0.0.1:61738 elapsed_ms 1 error TypeError fetch failed cause ECONNREFUSED
+  ok   repeating stop is harmless and does not restart the stack
+HTTP http://127.0.0.1:61737 elapsed_ms 1 error TypeError fetch failed cause ECONNREFUSED
+HTTP http://127.0.0.1:61738 elapsed_ms 1 error TypeError fetch failed cause ECONNREFUSED
+HTTP http://127.0.0.1:61754 200 elapsed_ms 5
+HTTP http://127.0.0.1:61753 200 elapsed_ms 5
+HTTP http://127.0.0.1:61753 elapsed_ms 1 error TypeError fetch failed cause ECONNREFUSED
+HTTP http://127.0.0.1:61754 elapsed_ms 2 error TypeError fetch failed cause ECONNREFUSED
+  ok   an agreement dispatch releases an idle stack instead of leaving it until reap
+HTTP http://127.0.0.1:61753 elapsed_ms 1 error TypeError fetch failed cause ECONNREFUSED
+HTTP http://127.0.0.1:61754 elapsed_ms 0 error TypeError fetch failed cause ECONNREFUSED
+HTTP http://127.0.0.1:58224 200 elapsed_ms 4
+HTTP http://127.0.0.1:58225 200 elapsed_ms 4
+HTTP http://127.0.0.1:58225 elapsed_ms 2 error TypeError fetch failed cause ECONNREFUSED
+HTTP http://127.0.0.1:58224 elapsed_ms 2 error TypeError fetch failed cause ECONNRESET
+  ok   parking a round closes its whole stack
+HTTP http://127.0.0.1:58224 elapsed_ms 1 error TypeError fetch failed cause ECONNREFUSED
+HTTP http://127.0.0.1:58225 elapsed_ms 0 error TypeError fetch failed cause ECONNREFUSED
+HTTP http://127.0.0.1:58344 200 elapsed_ms 4
+HTTP http://127.0.0.1:58345 200 elapsed_ms 4
+HTTP http://127.0.0.1:58344 200 elapsed_ms 1
+HTTP http://127.0.0.1:58345 200 elapsed_ms 1
+  ok   an active build dispatch keeps both stack listeners and its ownership
+HTTP http://127.0.0.1:58345 elapsed_ms 1 error TypeError fetch failed cause ECONNRESET
+HTTP http://127.0.0.1:58344 elapsed_ms 1 error TypeError fetch failed cause ECONNRESET
+  ok   a blocked non-review human wait releases its stack
+HTTP http://127.0.0.1:58344 elapsed_ms 0 error TypeError fetch failed cause ECONNREFUSED
+HTTP http://127.0.0.1:58345 elapsed_ms 1 error TypeError fetch failed cause ECONNREFUSED
+HTTP http://127.0.0.1:58358 200 elapsed_ms 4
+HTTP http://127.0.0.1:58357 200 elapsed_ms 4
+HTTP http://127.0.0.1:58358 elapsed_ms 1 error TypeError fetch failed cause ECONNRESET
+HTTP http://127.0.0.1:58357 200 elapsed_ms 2
+  FAIL real CI waiting metadata preserves the stack through step and next — {"wf_version":6,"round":"fix/stack","id":"X-1","folder":"round","base":"main","class":"A","step":"held","build_reason":null,"since":"2026-10-30T07:36:25.179Z","waiting_on":"ci","history":[{"step":"held","at":"2026-10-30T07:36:10.429Z"},{"step":"build","at":"2026-10-30T07:36:16.961Z"},{"step":"held","at":"2026-10-30T07:36:25.179Z"}]}
+
+wait user: the round is held (wf step <name> resumes it)
+
+HTTP http://127.0.0.1:58357 elapsed_ms 2 error TypeError fetch failed cause ECONNREFUSED
+HTTP http://127.0.0.1:58358 elapsed_ms 1 error TypeError fetch failed cause ECONNREFUSED
+  ok   explicit helper stop overrides a CI wait
+HTTP http://127.0.0.1:58357 elapsed_ms 0 error TypeError fetch failed cause ECONNREFUSED
+HTTP http://127.0.0.1:58358 elapsed_ms 0 error TypeError fetch failed cause ECONNREFUSED
+HTTP http://127.0.0.1:58422 200 elapsed_ms 4
+HTTP http://127.0.0.1:58423 200 elapsed_ms 5
+HTTP http://127.0.0.1:58423 elapsed_ms 1 error TypeError fetch failed cause ECONNREFUSED
+HTTP http://127.0.0.1:58422 elapsed_ms 1 error TypeError fetch failed cause ECONNRESET
+  ok   legacy/foreign round state does not prevent a verified stop or get rewritten
+HTTP http://127.0.0.1:58422 elapsed_ms 0 error TypeError fetch failed cause ECONNREFUSED
+HTTP http://127.0.0.1:58423 elapsed_ms 0 error TypeError fetch failed cause ECONNREFUSED
+PID_READ C:\Users\Shay\AppData\Local\Temp\wf-stack-lifetime-uc55Il\idle '[]&\.wf\serve.pid not-a-pid
+  ok   malformed ownership is refused and left intact
+HTTP http://127.0.0.1:58438 200 elapsed_ms 4
+HTTP http://127.0.0.1:58439 200 elapsed_ms 4
+PID_READ C:\Users\Shay\AppData\Local\Temp\wf-stack-lifetime-uc55Il\other\.wf\serve.pid 66780
+PID_READ C:\Users\Shay\AppData\Local\Temp\wf-stack-lifetime-uc55Il\idle '[]&\.wf\serve.pid 66780
+HTTP http://127.0.0.1:58438 200 elapsed_ms 2
+HTTP http://127.0.0.1:58439 200 elapsed_ms 1
+PID_READ C:\Users\Shay\AppData\Local\Temp\wf-stack-lifetime-uc55Il\idle '[]&\.wf\serve.pid 66780
+  ok   a copied/recycled PID cannot stop another worktree or erase its authority
+PID_READ C:\Users\Shay\AppData\Local\Temp\wf-stack-lifetime-uc55Il\idle '[]&\.wf\serve.pid 66780
+  ok   an unowned stale PID warns without refusing agreement dispatch
+PID_READ C:\Users\Shay\AppData\Local\Temp\wf-stack-lifetime-uc55Il\idle '[]&\.wf\serve.pid 66780
+  ok   an unowned stale PID also warns without invalidating the committed held phase
+HTTP http://127.0.0.1:61447 200 elapsed_ms 3
+PID_READ C:\Users\Shay\AppData\Local\Temp\wf-stack-lifetime-uc55Il\idle '[]&\.wf\serve.pid 20136
+  ok   an agent in the same checkout is not a server even with the workflow command in its prompt
+PID_READ C:\Users\Shay\AppData\Local\Temp\wf-stack-lifetime-uc55Il\idle '[]&\.wf\serve.pid 20136
+HTTP http://127.0.0.1:61447 200 elapsed_ms 1
+HTTP http://127.0.0.1:58438 200 elapsed_ms 1
+HTTP http://127.0.0.1:58439 200 elapsed_ms 1
+  ok   a lazy start refuses unresolved ownership without stopping either unrelated process
+HTTP http://127.0.0.1:58438 200 elapsed_ms 1
+HTTP http://127.0.0.1:58439 elapsed_ms 3 error TypeError fetch failed cause ECONNRESET
+HTTP http://127.0.0.1:61447 200 elapsed_ms 1
+
+1 FAILURE(S)
+
+Diagnostic replay exit code: 1

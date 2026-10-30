@@ -1,0 +1,9 @@
+{
+  "root": "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf-194-portable g5bXxg",
+  "moved": "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf-194-portable g5bXxg\\relocated",
+  "runtime": "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf-194-portable g5bXxg\\relocated\\scripts\\runtime",
+  "oldSourceRemoved": true,
+  "envAbsent": true,
+  "runtimePackagesAbsent": true,
+  "diagnosticConsumer": "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf-194-portable g5bXxg\\relocated\\scripts\\runtime\\projects\\lint-kit\\baseline-example.mjs"
+}

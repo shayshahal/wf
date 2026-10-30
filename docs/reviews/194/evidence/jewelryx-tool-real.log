@@ -1,0 +1,10 @@
+✗ Directory already exists: ~/work/jeweleryx/.claude/worktrees/bench-194-tool-api
+↳ To remove manually, run rm -rf ~/work/jeweleryx/.claude/worktrees/bench-194-tool-api; to overwrite (with backup), run wt switch --create --clobber bench/194-tool-api
+
+disposable workspace acquisition failed: workspace allocation: ✗ Directory already exists: ~/work/jeweleryx/.claude/worktrees/bench-194-tool-api
+↳ To remove manually, run rm -rf ~/work/jeweleryx/.claude/worktrees/bench-194-tool-api; to overwrite (with backup), run wt switch --create --clobber bench/194-tool-api
+wt switch --create failed (exit 1)
+
+confirm disposable workspace authority: ok
+remove disposable workspace: ok
+prune disposable workspace registration: ok

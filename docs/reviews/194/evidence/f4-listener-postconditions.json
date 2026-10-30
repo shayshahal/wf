@@ -1,0 +1,17 @@
+{
+  "branch": "bench/194-tool-f4",
+  "endpoints": {
+    "b2b": {
+      "reachable": false,
+      "reason": "ECONNREFUSED"
+    },
+    "admin": {
+      "reachable": false,
+      "reason": "ECONNREFUSED"
+    },
+    "api": {
+      "reachable": false,
+      "reason": "ECONNREFUSED"
+    }
+  }
+}

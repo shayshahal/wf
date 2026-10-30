@@ -1,0 +1,1270 @@
+[36m◎[39m [36mCreating worktree for [1mbench/194-tool-f4[22m...[39m
+Preparing worktree (new branch 'bench/194-tool-f4')
+Updating files:  23% (3022/12793)Updating files:  24% (3071/12793)Updating files:  25% (3199/12793)Updating files:  26% (3327/12793)Updating files:  27% (3455/12793)Updating files:  28% (3583/12793)Updating files:  29% (3710/12793)Updating files:  30% (3838/12793)Updating files:  31% (3966/12793)Updating files:  32% (4094/12793)Updating files:  33% (4222/12793)Updating files:  34% (4350/12793)Updating files:  34% (4399/12793)Updating files:  35% (4478/12793)Updating files:  36% (4606/12793)Updating files:  37% (4734/12793)Updating files:  38% (4862/12793)Updating files:  39% (4990/12793)Updating files:  40% (5118/12793)Updating files:  41% (5246/12793)Updating files:  42% (5374/12793)Updating files:  43% (5501/12793)Updating files:  44% (5629/12793)Updating files:  45% (5757/12793)Updating files:  46% (5885/12793)Updating files:  47% (6013/12793)Updating files:  48% (6141/12793)Updating files:  49% (6269/12793)Updating files:  50% (6397/12793)Updating files:  50% (6481/12793)Updating files:  51% (6525/12793)Updating files:  52% (6653/12793)Updating files:  53% (6781/12793)Updating files:  54% (6909/12793)Updating files:  55% (7037/12793)Updating files:  56% (7165/12793)Updating files:  57% (7293/12793)Updating files:  58% (7420/12793)Updating files:  59% (7548/12793)Updating files:  60% (7676/12793)Updating files:  61% (7804/12793)Updating files:  62% (7932/12793)Updating files:  63% (8060/12793)Updating files:  64% (8188/12793)Updating files:  65% (8316/12793)Updating files:  66% (8444/12793)Updating files:  67% (8572/12793)Updating files:  68% (8700/12793)Updating files:  69% (8828/12793)Updating files:  70% (8956/12793)Updating files:  70% (9073/12793)Updating files:  71% (9084/12793)Updating files:  72% (9211/12793)Updating files:  73% (9339/12793)Updating files:  74% (9467/12793)Updating files:  75% (9595/12793)Updating files:  76% (9723/12793)Updating files:  77% (9851/12793)Updating files:  78% (9979/12793)Updating files:  79% (10107/12793)Updating files:  80% (10235/12793)Updating files:  81% (10363/12793)Updating files:  81% (10424/12793)Updating files:  82% (10491/12793)Updating files:  83% (10619/12793)Updating files:  84% (10747/12793)Updating files:  85% (10875/12793)Updating files:  86% (11002/12793)Updating files:  87% (11130/12793)Updating files:  88% (11258/12793)Updating files:  89% (11386/12793)Updating files:  90% (11514/12793)Updating files:  91% (11642/12793)Updating files:  92% (11770/12793)Updating files:  93% (11898/12793)Updating files:  94% (12026/12793)Updating files:  95% (12154/12793)Updating files:  96% (12282/12793)Updating files:  97% (12410/12793)Updating files:  98% (12538/12793)Updating files:  98% (12659/12793)Updating files:  99% (12666/12793)Updating files: 100% (12793/12793)Updating files: 100% (12793/12793), done.
+HEAD is now at 929c219e6 Merge pull request #615 from Raynw-MediaTech/chore/agent-observability-controls
+✓ Created branch bench/194-tool-f4 from 929c219e660aee89d8387a2a17d3591af3f3694b and worktree @ ~/work/jeweleryx/.claude/worktrees/bench-194-tool-f4
+JewelryX setup: environment, node builds, verification packages, seeded database; no behavioral tools
+Scope: all 8 workspace projects
+Lockfile is up to date, resolution step is skipped
+Progress: resolved 1, reused 0, downloaded 0, added 0
+Packages: +645
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+Progress: resolved 645, reused 630, downloaded 0, added 103
+Progress: resolved 645, reused 630, downloaded 0, added 238
+Progress: resolved 645, reused 630, downloaded 0, added 308
+Progress: resolved 645, reused 630, downloaded 0, added 362
+Progress: resolved 645, reused 630, downloaded 0, added 439
+Progress: resolved 645, reused 630, downloaded 0, added 540
+Progress: resolved 645, reused 630, downloaded 0, added 562
+Progress: resolved 645, reused 630, downloaded 0, added 631
+Progress: resolved 645, reused 630, downloaded 0, added 643
+Progress: resolved 645, reused 630, downloaded 0, added 644
+Progress: resolved 645, reused 630, downloaded 0, added 645, done
+
+devDependencies:
++ @hey-api/openapi-ts 0.94.3
++ @oxlint/plugins 1.81.0
++ @shadcn/lint 0.2.0
++ @types/node 25.5.0
++ @typescript-eslint/parser 8.71.0
++ @typescript/native <- typescript 7.0.2
++ ajv 8.20.0
++ concurrently 9.2.1
++ eslint 10.11.0
++ eslint-plugin-svelte 3.23.0
++ fallow 3.33.0
++ jsrepo 3.7.0
++ knip 5.88.1
++ lefthook 2.1.4
++ oxlint 1.81.0
++ oxlint-tsgolint 7.0.2002
++ prettier 3.8.1
++ prettier-plugin-svelte 4.1.1
++ prettier-plugin-tailwindcss 0.7.2
++ svelte-eslint-parser 1.8.1
++ typescript 5.9.3
++ yaml 2.9.1
+
+Done in 11.1s using pnpm v11.3.0
+$ pnpm --filter @jewelryx/types build
+$ tsc
+$ pnpm --filter @jewelryx/data build
+$ tsc
+$ pnpm --filter @jewelryx/filters build
+$ tsc
+$ node scripts/compile-paraglide.mjs && svelte-kit sync
+[paraglide] compiled in place: 3847 file(s) written, 0 removed
+(node:72356) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+$ node scripts/compile-paraglide.mjs && svelte-kit sync
+[paraglide] compiled in place: 2253 file(s) written, 0 removed
+(node:22888) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+Progress: resolved 1, reused 0, downloaded 0, added 0
+Packages: +7
++++++++
+Progress: resolved 7, reused 7, downloaded 0, added 7, done
+
+devDependencies:
++ @playwright/cli 0.1.21
++ @playwright/test 1.63.0 (1.64.1 is available)
++ typescript 5.9.3 (7.0.2 is available)
+
+Done in 4.8s using pnpm v11.3.0
+B2B_SHARED_SECRET is unset or under 32 characters: private storefronts cannot be unlocked and the b2b server's forwarded visitor IPs are ignored
+seed_fixtures: db=jewelryx_bench-194-tool-f4 categories=9 users=3 products=11 stones=1 listings=2 auctions=1 bids=1 scrap=6 orders=6 in 2.2s
+worktree db: seeded jewelryx_bench-194-tool-f4 in 4.7s
+
+--- baseline diagnostic output b28c83d6-0b08-42bd-aeca-7cea67f87109 ---
+API schema readback: HTTP 200; 331 paths; dependency observation only
+
+--- exit 0 ---
+
+JewelryX serve.log:
+[backend] 
+[backend] portless
+[backend] 
+[backend] -- Proxy is running
+[backend] -- bench-194-tool-f4.api.jewelryx.localhost (auto-resolves to 127.0.0.1)
+[backend] -- Using port 24826 (fixed)
+[backend] 
+[backend]   -> http://bench-194-tool-f4.api.jewelryx.localhost
+[backend] 
+[backend] Running: PORT=24826 HOST=127.0.0.1 PORTLESS_URL=http://bench-194-tool-f4.api.jewelryx.localhost pnpm dev:backend
+[backend] 
+[backend] $ uv run --directory packages/backend python scripts/dev.py
+[backend] 2026-10-30 10:33:42,209 [dev] INFO watching C:\Users\Shay\.herdr\worktrees\jeweleryx\dev\.claude\worktrees\bench-194-tool-f4\packages\backend\app
+[backend] 2026-10-30 10:33:42,210 [dev] INFO command: C:\Users\Shay\.herdr\worktrees\jeweleryx\dev\.claude\worktrees\bench-194-tool-f4\packages\backend\.venv\Scripts\python.exe -X utf8 -m uvicorn app.main:app --host 0.0.0.0 --port 24826
+[backend] 2026-10-30 10:33:42,857 [dev] INFO 3 changes detected
+[backend] B2B_SHARED_SECRET is unset or under 32 characters: private storefronts cannot be unlocked and the b2b server's forwarded visitor IPs are ignored
+[backend] 2026-10-30 10:33:47,057 [dev] INFO 1 change detected
+[backend] B2B_SHARED_SECRET is unset or under 32 characters: private storefronts cannot be unlocked and the b2b server's forwarded visitor IPs are ignored
+[backend] 2026-10-30 10:33:49,433 [dev] INFO 1 change detected
+[backend] B2B_SHARED_SECRET is unset or under 32 characters: private storefronts cannot be unlocked and the b2b server's forwarded visitor IPs are ignored
+[backend] INFO:     Started server process [12088]
+[backend] INFO:     Waiting for application startup.
+[backend] 2026-10-30 10:33:52,794 INFO app.db.init Using local MongoDB connection
+[backend] 2026-10-30 10:33:52,880 WARNING app.main migrations: applying 0001 (0001_backfill_shared_variant_skus)
+[backend] 🔄 Migration 0001 — backfill shared-variant SKU suffixes
+[backend]    Database : jewelryx_bench-194-tool-f4
+[backend]    Dry-run  : False
+[backend] 
+[backend] 
+[backend] ============================================================
+[backend] 📈 Migration 0001 COMPLETE
+[backend] ============================================================
+[backend]   Products scanned          : 1
+[backend]   Products changed          : 0
+[backend]   Variants updated          : 0
+[backend]   Variants skipped (collis.): 0
+[backend]   Variants already correct  : 2
+[backend] 
+[backend] ✅ Migration complete.
+[backend] 2026-10-30 10:33:52,888 WARNING app.main migrations: applied 0001
+[backend] 2026-10-30 10:33:52,888 WARNING app.main migrations: applying 0002 (0002_normalize_fixed_categories)
+[backend] Database: jewelryx_bench-194-tool-f4
+[backend] [APPLY]
+[backend]   = fixed category 'rings' already normalized
+[backend]   = fixed category 'earrings' already normalized
+[backend]   = fixed category 'bracelets' already normalized
+[backend]   = fixed category 'pendants' already normalized
+[backend]   = fixed category 'necklaces' already normalized
+[backend]   ~ update fixed category 'diamonds'
+[backend]       name: 'יהלומים' -> 'אבני יהלום'
+[backend]   = fixed category 'gemstones' already normalized
+[backend] 
+[backend] Summary:
+[backend]   created: 0
+[backend]   updated: 1
+[backend]   unchanged: 6
+[backend] 2026-10-30 10:33:52,898 WARNING app.main migrations: applied 0002
+[backend] 2026-10-30 10:33:52,898 WARNING app.main migrations: applying 0003 (0003_backfill_listing_fixed_categories)
+[backend] scanned=2 updated=2 skipped_no_product=0 skipped_unmapped=0
+[backend] 2026-10-30 10:33:52,904 WARNING app.main migrations: applied 0003
+[backend] 2026-10-30 10:33:52,904 WARNING app.main migrations: applying 0004 (0004_retarget_admin_auction_notifications)
+[backend] scanned=0 retargeted=0 unrouted=0
+[backend] 2026-10-30 10:33:52,910 WARNING app.main migrations: applied 0004
+[backend] 2026-10-30 10:33:52,910 WARNING app.main migrations: applying 0005 (0005_retarget_admin_approval_notifications)
+[backend] scanned=0 retargeted=0 left_alone=0
+[backend] 2026-10-30 10:33:52,916 WARNING app.main migrations: applied 0005
+[backend] 2026-10-30 10:33:52,916 WARNING app.main migrations: applying 0006 (0006_collapse_user_roles_to_three)
+[backend] scanned=0 migrated=0
+[backend] 2026-10-30 10:33:52,921 WARNING app.main migrations: applied 0006
+[backend] 2026-10-30 10:33:52,921 WARNING app.main migrations: applying 0007 (0007_repoint_dead_notification_urls)
+[backend] BEFORE  {'orders': 0, 'auctions': 0, 'products_b2b': 0, 'scrap_gold': 0, 'marketplace_collection_shadow': 0, 'admin_marketplace_listing': 0, 'app_prefixed': 0, 'marketplace_index': 0, 'credit_settings_tab': 0}  (total 0, admin users 1)
+[backend] scanned=0 retargeted=0 left_alone=0
+[backend] AFTER   {'orders': 0, 'auctions': 0, 'products_b2b': 0, 'scrap_gold': 0, 'marketplace_collection_shadow': 0, 'admin_marketplace_listing': 0, 'app_prefixed': 0, 'marketplace_index': 0, 'credit_settings_tab': 0}  (total 0)
+[backend] 2026-10-30 10:33:52,937 WARNING app.main migrations: applied 0007
+[backend] 2026-10-30 10:33:52,938 WARNING app.main migrations: applying 0008 (0008_release_channel_rows_over_cancelled_listings)
+[backend] BEFORE  {'cancelled_listings': 0, 'stale_channel_rows': 0, 'live_auctions': 0}
+[backend] {'rows_released': 0, 'products': 0, 'auctions_retired': 0, 'auctions_with_bids': 0}
+[backend] AFTER   {'cancelled_listings': 0, 'stale_channel_rows': 0, 'live_auctions': 0}
+[backend] 2026-10-30 10:33:52,946 WARNING app.main migrations: applied 0008
+[backend] 2026-10-30 10:33:52,946 WARNING app.main migrations: applying 0009 (0009_reactivate_carts_the_expiry_job_deactivated)
+[backend] BEFORE  {'inactive_carts': 0, 'inactive_carts_holding_items': 0}
+[backend] {'carts_reactivated': 0, 'items_returned': 0, 'empty_replacements_retired': 0, 'superseded_left_alone': 0, 'older_duplicates_left_alone': 0}
+[backend] AFTER   {'inactive_carts': 0, 'inactive_carts_holding_items': 0}
+[backend] 2026-10-30 10:33:52,954 WARNING app.main migrations: applied 0009
+[backend] 2026-10-30 10:33:52,954 WARNING app.main migrations: applying 0010 (0010_repoint_approvals_notifications)
+[backend] BEFORE  {'notifications_on_dead_route': 0, 'templates_on_dead_route': 0}
+[backend] {'notifications': 0, 'templates': 0}
+[backend] AFTER   {'notifications_on_dead_route': 0, 'templates_on_dead_route': 0}
+[backend] 2026-10-30 10:33:52,963 WARNING app.main migrations: applied 0010
+[backend] 2026-10-30 10:33:52,964 WARNING app.main migrations: applying 0011 (0011_collapse_marketplace_pins_to_one_row_per_listing)
+[backend] BEFORE  {'overlay_rows': 0, 'distinct_listings': 0, 'backed_up_rows': 0}
+[backend] {'rows_removed': 0, 'ranks_rewritten': 0, 'old_indexes_dropped': 0}
+[backend] AFTER   {'overlay_rows': 0, 'distinct_listings': 0, 'backed_up_rows': 0}
+[backend] 2026-10-30 10:33:52,982 WARNING app.main migrations: applied 0011
+[backend] 2026-10-30 10:33:52,983 WARNING app.main migrations: applying 0012 (0012_remove_marketplace_display_settings)
+[backend] {'rows_removed': 0}
+[backend] 2026-10-30 10:33:52,990 WARNING app.main migrations: applied 0012
+[backend] 2026-10-30 10:33:52,990 WARNING app.main migrations: applying 0013 (0013_remove_cart_saved_items)
+[backend] 2026-10-30 10:33:52,994 WARNING 0013_remove_cart_saved_items migration 0013: {'carts_with_field': 0, 'carts_with_saved_items': 0, 'saved_items_removed': 0}
+[backend] 2026-10-30 10:33:52,995 WARNING app.main migrations: applied 0013
+[backend] 2026-10-30 10:33:52,996 WARNING app.main migrations: applying 0014 (0014_one_wishlist_row_per_like)
+[backend] 2026-10-30 10:33:53,002 WARNING 0014_one_wishlist_row_per_like migration 0014 BEFORE  {'wishlist_rows': 0, 'backed_up_rows': 0}
+[backend] 2026-10-30 10:33:53,015 WARNING 0014_one_wishlist_row_per_like migration 0014: {'rows_removed': 0, 'indexes_created': 2}
+[backend] 2026-10-30 10:33:53,016 WARNING 0014_one_wishlist_row_per_like migration 0014 AFTER   {'wishlist_rows': 0, 'backed_up_rows': 0}
+[backend] 2026-10-30 10:33:53,017 WARNING app.main migrations: applied 0014
+[backend] 2026-10-30 10:33:53,018 WARNING app.main migrations: applying 0015 (0015_record_collected_commissions)
+[backend] 2026-10-30 10:33:53,025 WARNING 0015_record_collected_commissions migration 0015: {'settled_orders': 0, 'records_marked_paid': 0, 'records_written_paid': 0, 'rates_filled': 0}
+[backend] 2026-10-30 10:33:53,026 WARNING app.main migrations: applied 0015
+[backend] 2026-10-30 10:33:53,027 WARNING app.main migrations: applying 0016 (0016_relabel_self_registration_audit)
+[backend] 2026-10-30 10:33:53,031 WARNING 0016_relabel_self_registration_audit migration 0016: {'self_registrations_relabelled': 0}
+[backend] 2026-10-30 10:33:53,032 WARNING app.main migrations: applied 0016
+[backend] 2026-10-30 10:33:53,033 WARNING app.main migrations: applying 0017 (0017_freeze_consignment_listing_prices)
+[backend] 2026-10-30 10:33:53,036 WARNING 0017_freeze_consignment_listing_prices migration 0017: {'listings_stamped': 0}
+[backend] 2026-10-30 10:33:53,036 WARNING app.main migrations: applied 0017
+[backend] 2026-10-30 10:33:53,037 WARNING app.main migrations: applying 0018 (0018_outgoing_awaiting_charge)
+[backend] 2026-10-30 10:33:53,042 WARNING 0018_outgoing_awaiting_charge migration 0018: {'orders_marked': 0}
+[backend] 2026-10-30 10:33:53,044 WARNING app.main migrations: applied 0018
+[backend] 2026-10-30 10:33:53,044 WARNING app.main migrations: applying 0019 (0019_open_sale_commission_records)
+[backend] 2026-10-30 10:33:53,051 WARNING 0019_open_sale_commission_records migration 0019: {'open_sales': 0, 'records_written': 0}
+[backend] 2026-10-30 10:33:53,052 WARNING app.main migrations: applied 0019
+[backend] 2026-10-30 10:33:53,053 WARNING app.main migrations: applying 0020 (0020_product_fixed_category_field)
+[backend] 2026-10-30 10:33:53,058 WARNING 0020_product_fixed_category_field migration 0020: {'fixed_field_set': 0, 'category_ids_cleaned': 0}
+[backend] 2026-10-30 10:33:53,059 WARNING app.main migrations: applied 0020
+[backend] 2026-10-30 10:33:53,059 WARNING app.main migrations: applying 0021 (0021_relabel_cash_paid_credit_orders)
+[backend] 2026-10-30 10:33:53,066 WARNING 0021_relabel_cash_paid_credit_orders migration 0021: {'relabelled': 0, 'already_reversed': 0, 'skipped_ambiguous': 0}
+[backend] 2026-10-30 10:33:53,067 WARNING app.main migrations: applied 0021
+[backend] 2026-10-30 10:33:53,068 WARNING app.main migrations: applying 0022 (0022_listing_fixed_category_only)
+[backend] 2026-10-30 10:33:53,076 WARNING 0022_listing_fixed_category_only migration 0022: {'category_ids_emptied': 2, 'fixed_field_set': 0}; category_ids emptied on ['d5ec1f59c927c0478805aca8', '654ff621b5dace7c76eb91ad']; fixed_category_id set on []
+[backend] 2026-10-30 10:33:53,077 WARNING app.main migrations: applied 0022
+[backend] 2026-10-30 10:33:53,078 WARNING app.main migrations: applying 0023 (0023_product_business_sku_key)
+[backend] 2026-10-30 10:33:53,084 WARNING 0023_product_business_sku_key migration 0023: {'keys_set': 0, 'left_without_key': 0}; products left without a key (an older product of the same owner has the same SKU): []
+[backend] 2026-10-30 10:33:53,085 WARNING app.main migrations: applied 0023
+[backend] 2026-10-30 10:33:53,085 WARNING app.main migrations: applying 0024 (0024_remove_oos_discontinued_status)
+[backend] 2026-10-30 10:33:53,090 WARNING 0024_remove_oos_discontinued_status migration 0024: {'discontinued_to_inactive': 0, 'out_of_stock_to_active': 0}
+[backend] 2026-10-30 10:33:53,092 WARNING app.main migrations: applied 0024
+[backend] 2026-10-30 10:33:53,093 WARNING app.main migrations: applying 0025 (0025_catalog_draft_to_paused)
+[backend] 2026-10-30 10:33:53,099 WARNING 0025_catalog_draft_to_paused migration 0025: {'draft_to_paused': 0, 'marked': 0}
+[backend] 2026-10-30 10:33:53,100 WARNING app.main migrations: applied 0025
+[backend] 2026-10-30 10:33:53,160 INFO app.services.notification_service Seeded/updated 46 notification templates
+[backend] 2026-10-30 10:33:53,160 INFO app.db.init Seeded/updated 46 notification templates
+[backend] 2026-10-30 10:33:53,166 INFO app.db.init Fixed categories seeded/normalized: created=0 updated=9
+[backend] 2026-10-30 10:33:53,396 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,396 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,396 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,396 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,396 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO app.jobs.scheduler Scheduler configured with 19 jobs
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Complete pending wallet entries" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Check auctions ending soon" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Check stale orders" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Cleanup old notifications" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Retry failed sends" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Process scheduled notifications" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Process scheduled reports" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Process newsletter deliveries" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Sample daily FX + gold prices" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Notify owners of abandoned carts" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Notify on approaching deliveries" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Notify on auctions starting soon" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Start auctions whose start_time arrived" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Finalize auctions past end_time" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Auto-approve expired pending marketplace listings" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Publish catalogs whose start date arrived" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Unpublish catalogs whose end date passed" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Auto-approve incoming orders (>24h, opted-in)" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Auto-cancel unapproved orders (>4d)" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Scheduler started
+[backend] 2026-10-30 10:33:53,398 INFO app.main Background job scheduler started
+[backend] 2026-10-30 10:33:53,400 INFO apscheduler.scheduler Added job "Boot-time price sample" to job store "default"
+[backend] 2026-10-30 10:33:53,400 INFO app.services.ws_backplane WS backplane ws:push disabled (redis_enabled=False)
+[backend] 2026-10-30 10:33:53,401 INFO app.services.ws_backplane WS backplane ws:auction disabled (redis_enabled=False)
+[backend] INFO:     Application startup complete.
+[backend] 2026-10-30 10:33:53,401 INFO apscheduler.executors.default Running job "Complete pending wallet entries (trigger: interval[0:01:00], next run at: 2026-10-30 10:34:53 IST)" (scheduled at 2026-10-30 08:33:53.396497+00:00)
+[backend] INFO:     Uvicorn running on http://0.0.0.0:24826 (Press CTRL+C to quit)
+[backend] 2026-10-30 10:33:53,401 INFO apscheduler.executors.default Job "Complete pending wallet entries (trigger: interval[0:01:00], next run at: 2026-10-30 10:34:53 IST)" executed successfully
+[backend] 2026-10-30 10:33:58,406 INFO apscheduler.scheduler Removed job sample_daily_prices_boot
+[backend] 2026-10-30 10:33:58,406 INFO apscheduler.executors.default Running job "Boot-time price sample (trigger: date[2026-10-30 08:33:58 UTC], next run at: 2026-10-30 08:33:58 UTC)" (scheduled at 2026-10-30 08:33:58.398498+00:00)
+[backend] 2026-10-30 10:33:58,607 INFO httpx HTTP Request: GET https://boi.org.il/PublicApi/GetExchangeRate?key=USD "HTTP/1.1 200 OK"
+[backend] 2026-10-30 10:33:59,728 INFO httpx HTTP Request: GET https://api.gold-api.com/price/XAU "HTTP/1.1 200 OK"
+[backend] 2026-10-30 10:33:59,731 INFO apscheduler.executors.default Job "Boot-time price sample (trigger: date[2026-10-30 08:33:58 UTC], next run at: 2026-10-30 08:33:58 UTC)" executed successfully
+
+
+JewelryX dev.log:
+[backend] 
+[backend] portless
+[backend] 
+[backend] -- Proxy is running
+[backend] -- bench-194-tool-f4.api.jewelryx.localhost (auto-resolves to 127.0.0.1)
+[backend] -- Using port 24826 (fixed)
+[backend] 
+[backend]   -> http://bench-194-tool-f4.api.jewelryx.localhost
+[backend] 
+[backend] Running: PORT=24826 HOST=127.0.0.1 PORTLESS_URL=http://bench-194-tool-f4.api.jewelryx.localhost pnpm dev:backend
+[backend] 
+[backend] $ uv run --directory packages/backend python scripts/dev.py
+[backend] 2026-10-30 10:33:42,209 [dev] INFO watching C:\Users\Shay\.herdr\worktrees\jeweleryx\dev\.claude\worktrees\bench-194-tool-f4\packages\backend\app
+[backend] 2026-10-30 10:33:42,210 [dev] INFO command: C:\Users\Shay\.herdr\worktrees\jeweleryx\dev\.claude\worktrees\bench-194-tool-f4\packages\backend\.venv\Scripts\python.exe -X utf8 -m uvicorn app.main:app --host 0.0.0.0 --port 24826
+[backend] 2026-10-30 10:33:42,857 [dev] INFO 3 changes detected
+[backend] B2B_SHARED_SECRET is unset or under 32 characters: private storefronts cannot be unlocked and the b2b server's forwarded visitor IPs are ignored
+[backend] 2026-10-30 10:33:47,057 [dev] INFO 1 change detected
+[backend] B2B_SHARED_SECRET is unset or under 32 characters: private storefronts cannot be unlocked and the b2b server's forwarded visitor IPs are ignored
+[backend] 2026-10-30 10:33:49,433 [dev] INFO 1 change detected
+[backend] B2B_SHARED_SECRET is unset or under 32 characters: private storefronts cannot be unlocked and the b2b server's forwarded visitor IPs are ignored
+[backend] INFO:     Started server process [12088]
+[backend] INFO:     Waiting for application startup.
+[backend] 2026-10-30 10:33:52,794 INFO app.db.init Using local MongoDB connection
+[backend] 2026-10-30 10:33:52,880 WARNING app.main migrations: applying 0001 (0001_backfill_shared_variant_skus)
+[backend] 🔄 Migration 0001 — backfill shared-variant SKU suffixes
+[backend]    Database : jewelryx_bench-194-tool-f4
+[backend]    Dry-run  : False
+[backend] 
+[backend] 
+[backend] ============================================================
+[backend] 📈 Migration 0001 COMPLETE
+[backend] ============================================================
+[backend]   Products scanned          : 1
+[backend]   Products changed          : 0
+[backend]   Variants updated          : 0
+[backend]   Variants skipped (collis.): 0
+[backend]   Variants already correct  : 2
+[backend] 
+[backend] ✅ Migration complete.
+[backend] 2026-10-30 10:33:52,888 WARNING app.main migrations: applied 0001
+[backend] 2026-10-30 10:33:52,888 WARNING app.main migrations: applying 0002 (0002_normalize_fixed_categories)
+[backend] Database: jewelryx_bench-194-tool-f4
+[backend] [APPLY]
+[backend]   = fixed category 'rings' already normalized
+[backend]   = fixed category 'earrings' already normalized
+[backend]   = fixed category 'bracelets' already normalized
+[backend]   = fixed category 'pendants' already normalized
+[backend]   = fixed category 'necklaces' already normalized
+[backend]   ~ update fixed category 'diamonds'
+[backend]       name: 'יהלומים' -> 'אבני יהלום'
+[backend]   = fixed category 'gemstones' already normalized
+[backend] 
+[backend] Summary:
+[backend]   created: 0
+[backend]   updated: 1
+[backend]   unchanged: 6
+[backend] 2026-10-30 10:33:52,898 WARNING app.main migrations: applied 0002
+[backend] 2026-10-30 10:33:52,898 WARNING app.main migrations: applying 0003 (0003_backfill_listing_fixed_categories)
+[backend] scanned=2 updated=2 skipped_no_product=0 skipped_unmapped=0
+[backend] 2026-10-30 10:33:52,904 WARNING app.main migrations: applied 0003
+[backend] 2026-10-30 10:33:52,904 WARNING app.main migrations: applying 0004 (0004_retarget_admin_auction_notifications)
+[backend] scanned=0 retargeted=0 unrouted=0
+[backend] 2026-10-30 10:33:52,910 WARNING app.main migrations: applied 0004
+[backend] 2026-10-30 10:33:52,910 WARNING app.main migrations: applying 0005 (0005_retarget_admin_approval_notifications)
+[backend] scanned=0 retargeted=0 left_alone=0
+[backend] 2026-10-30 10:33:52,916 WARNING app.main migrations: applied 0005
+[backend] 2026-10-30 10:33:52,916 WARNING app.main migrations: applying 0006 (0006_collapse_user_roles_to_three)
+[backend] scanned=0 migrated=0
+[backend] 2026-10-30 10:33:52,921 WARNING app.main migrations: applied 0006
+[backend] 2026-10-30 10:33:52,921 WARNING app.main migrations: applying 0007 (0007_repoint_dead_notification_urls)
+[backend] BEFORE  {'orders': 0, 'auctions': 0, 'products_b2b': 0, 'scrap_gold': 0, 'marketplace_collection_shadow': 0, 'admin_marketplace_listing': 0, 'app_prefixed': 0, 'marketplace_index': 0, 'credit_settings_tab': 0}  (total 0, admin users 1)
+[backend] scanned=0 retargeted=0 left_alone=0
+[backend] AFTER   {'orders': 0, 'auctions': 0, 'products_b2b': 0, 'scrap_gold': 0, 'marketplace_collection_shadow': 0, 'admin_marketplace_listing': 0, 'app_prefixed': 0, 'marketplace_index': 0, 'credit_settings_tab': 0}  (total 0)
+[backend] 2026-10-30 10:33:52,937 WARNING app.main migrations: applied 0007
+[backend] 2026-10-30 10:33:52,938 WARNING app.main migrations: applying 0008 (0008_release_channel_rows_over_cancelled_listings)
+[backend] BEFORE  {'cancelled_listings': 0, 'stale_channel_rows': 0, 'live_auctions': 0}
+[backend] {'rows_released': 0, 'products': 0, 'auctions_retired': 0, 'auctions_with_bids': 0}
+[backend] AFTER   {'cancelled_listings': 0, 'stale_channel_rows': 0, 'live_auctions': 0}
+[backend] 2026-10-30 10:33:52,946 WARNING app.main migrations: applied 0008
+[backend] 2026-10-30 10:33:52,946 WARNING app.main migrations: applying 0009 (0009_reactivate_carts_the_expiry_job_deactivated)
+[backend] BEFORE  {'inactive_carts': 0, 'inactive_carts_holding_items': 0}
+[backend] {'carts_reactivated': 0, 'items_returned': 0, 'empty_replacements_retired': 0, 'superseded_left_alone': 0, 'older_duplicates_left_alone': 0}
+[backend] AFTER   {'inactive_carts': 0, 'inactive_carts_holding_items': 0}
+[backend] 2026-10-30 10:33:52,954 WARNING app.main migrations: applied 0009
+[backend] 2026-10-30 10:33:52,954 WARNING app.main migrations: applying 0010 (0010_repoint_approvals_notifications)
+[backend] BEFORE  {'notifications_on_dead_route': 0, 'templates_on_dead_route': 0}
+[backend] {'notifications': 0, 'templates': 0}
+[backend] AFTER   {'notifications_on_dead_route': 0, 'templates_on_dead_route': 0}
+[backend] 2026-10-30 10:33:52,963 WARNING app.main migrations: applied 0010
+[backend] 2026-10-30 10:33:52,964 WARNING app.main migrations: applying 0011 (0011_collapse_marketplace_pins_to_one_row_per_listing)
+[backend] BEFORE  {'overlay_rows': 0, 'distinct_listings': 0, 'backed_up_rows': 0}
+[backend] {'rows_removed': 0, 'ranks_rewritten': 0, 'old_indexes_dropped': 0}
+[backend] AFTER   {'overlay_rows': 0, 'distinct_listings': 0, 'backed_up_rows': 0}
+[backend] 2026-10-30 10:33:52,982 WARNING app.main migrations: applied 0011
+[backend] 2026-10-30 10:33:52,983 WARNING app.main migrations: applying 0012 (0012_remove_marketplace_display_settings)
+[backend] {'rows_removed': 0}
+[backend] 2026-10-30 10:33:52,990 WARNING app.main migrations: applied 0012
+[backend] 2026-10-30 10:33:52,990 WARNING app.main migrations: applying 0013 (0013_remove_cart_saved_items)
+[backend] 2026-10-30 10:33:52,994 WARNING 0013_remove_cart_saved_items migration 0013: {'carts_with_field': 0, 'carts_with_saved_items': 0, 'saved_items_removed': 0}
+[backend] 2026-10-30 10:33:52,995 WARNING app.main migrations: applied 0013
+[backend] 2026-10-30 10:33:52,996 WARNING app.main migrations: applying 0014 (0014_one_wishlist_row_per_like)
+[backend] 2026-10-30 10:33:53,002 WARNING 0014_one_wishlist_row_per_like migration 0014 BEFORE  {'wishlist_rows': 0, 'backed_up_rows': 0}
+[backend] 2026-10-30 10:33:53,015 WARNING 0014_one_wishlist_row_per_like migration 0014: {'rows_removed': 0, 'indexes_created': 2}
+[backend] 2026-10-30 10:33:53,016 WARNING 0014_one_wishlist_row_per_like migration 0014 AFTER   {'wishlist_rows': 0, 'backed_up_rows': 0}
+[backend] 2026-10-30 10:33:53,017 WARNING app.main migrations: applied 0014
+[backend] 2026-10-30 10:33:53,018 WARNING app.main migrations: applying 0015 (0015_record_collected_commissions)
+[backend] 2026-10-30 10:33:53,025 WARNING 0015_record_collected_commissions migration 0015: {'settled_orders': 0, 'records_marked_paid': 0, 'records_written_paid': 0, 'rates_filled': 0}
+[backend] 2026-10-30 10:33:53,026 WARNING app.main migrations: applied 0015
+[backend] 2026-10-30 10:33:53,027 WARNING app.main migrations: applying 0016 (0016_relabel_self_registration_audit)
+[backend] 2026-10-30 10:33:53,031 WARNING 0016_relabel_self_registration_audit migration 0016: {'self_registrations_relabelled': 0}
+[backend] 2026-10-30 10:33:53,032 WARNING app.main migrations: applied 0016
+[backend] 2026-10-30 10:33:53,033 WARNING app.main migrations: applying 0017 (0017_freeze_consignment_listing_prices)
+[backend] 2026-10-30 10:33:53,036 WARNING 0017_freeze_consignment_listing_prices migration 0017: {'listings_stamped': 0}
+[backend] 2026-10-30 10:33:53,036 WARNING app.main migrations: applied 0017
+[backend] 2026-10-30 10:33:53,037 WARNING app.main migrations: applying 0018 (0018_outgoing_awaiting_charge)
+[backend] 2026-10-30 10:33:53,042 WARNING 0018_outgoing_awaiting_charge migration 0018: {'orders_marked': 0}
+[backend] 2026-10-30 10:33:53,044 WARNING app.main migrations: applied 0018
+[backend] 2026-10-30 10:33:53,044 WARNING app.main migrations: applying 0019 (0019_open_sale_commission_records)
+[backend] 2026-10-30 10:33:53,051 WARNING 0019_open_sale_commission_records migration 0019: {'open_sales': 0, 'records_written': 0}
+[backend] 2026-10-30 10:33:53,052 WARNING app.main migrations: applied 0019
+[backend] 2026-10-30 10:33:53,053 WARNING app.main migrations: applying 0020 (0020_product_fixed_category_field)
+[backend] 2026-10-30 10:33:53,058 WARNING 0020_product_fixed_category_field migration 0020: {'fixed_field_set': 0, 'category_ids_cleaned': 0}
+[backend] 2026-10-30 10:33:53,059 WARNING app.main migrations: applied 0020
+[backend] 2026-10-30 10:33:53,059 WARNING app.main migrations: applying 0021 (0021_relabel_cash_paid_credit_orders)
+[backend] 2026-10-30 10:33:53,066 WARNING 0021_relabel_cash_paid_credit_orders migration 0021: {'relabelled': 0, 'already_reversed': 0, 'skipped_ambiguous': 0}
+[backend] 2026-10-30 10:33:53,067 WARNING app.main migrations: applied 0021
+[backend] 2026-10-30 10:33:53,068 WARNING app.main migrations: applying 0022 (0022_listing_fixed_category_only)
+[backend] 2026-10-30 10:33:53,076 WARNING 0022_listing_fixed_category_only migration 0022: {'category_ids_emptied': 2, 'fixed_field_set': 0}; category_ids emptied on ['d5ec1f59c927c0478805aca8', '654ff621b5dace7c76eb91ad']; fixed_category_id set on []
+[backend] 2026-10-30 10:33:53,077 WARNING app.main migrations: applied 0022
+[backend] 2026-10-30 10:33:53,078 WARNING app.main migrations: applying 0023 (0023_product_business_sku_key)
+[backend] 2026-10-30 10:33:53,084 WARNING 0023_product_business_sku_key migration 0023: {'keys_set': 0, 'left_without_key': 0}; products left without a key (an older product of the same owner has the same SKU): []
+[backend] 2026-10-30 10:33:53,085 WARNING app.main migrations: applied 0023
+[backend] 2026-10-30 10:33:53,085 WARNING app.main migrations: applying 0024 (0024_remove_oos_discontinued_status)
+[backend] 2026-10-30 10:33:53,090 WARNING 0024_remove_oos_discontinued_status migration 0024: {'discontinued_to_inactive': 0, 'out_of_stock_to_active': 0}
+[backend] 2026-10-30 10:33:53,092 WARNING app.main migrations: applied 0024
+[backend] 2026-10-30 10:33:53,093 WARNING app.main migrations: applying 0025 (0025_catalog_draft_to_paused)
+[backend] 2026-10-30 10:33:53,099 WARNING 0025_catalog_draft_to_paused migration 0025: {'draft_to_paused': 0, 'marked': 0}
+[backend] 2026-10-30 10:33:53,100 WARNING app.main migrations: applied 0025
+[backend] 2026-10-30 10:33:53,160 INFO app.services.notification_service Seeded/updated 46 notification templates
+[backend] 2026-10-30 10:33:53,160 INFO app.db.init Seeded/updated 46 notification templates
+[backend] 2026-10-30 10:33:53,166 INFO app.db.init Fixed categories seeded/normalized: created=0 updated=9
+[backend] 2026-10-30 10:33:53,396 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,396 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,396 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,396 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,396 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO app.jobs.scheduler Scheduler configured with 19 jobs
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Complete pending wallet entries" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Check auctions ending soon" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Check stale orders" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Cleanup old notifications" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Retry failed sends" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Process scheduled notifications" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Process scheduled reports" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Process newsletter deliveries" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Sample daily FX + gold prices" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Notify owners of abandoned carts" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Notify on approaching deliveries" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Notify on auctions starting soon" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Start auctions whose start_time arrived" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Finalize auctions past end_time" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Auto-approve expired pending marketplace listings" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Publish catalogs whose start date arrived" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Unpublish catalogs whose end date passed" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Auto-approve incoming orders (>24h, opted-in)" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Auto-cancel unapproved orders (>4d)" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Scheduler started
+[backend] 2026-10-30 10:33:53,398 INFO app.main Background job scheduler started
+[backend] 2026-10-30 10:33:53,400 INFO apscheduler.scheduler Added job "Boot-time price sample" to job store "default"
+[backend] 2026-10-30 10:33:53,400 INFO app.services.ws_backplane WS backplane ws:push disabled (redis_enabled=False)
+[backend] 2026-10-30 10:33:53,401 INFO app.services.ws_backplane WS backplane ws:auction disabled (redis_enabled=False)
+[backend] INFO:     Application startup complete.
+[backend] 2026-10-30 10:33:53,401 INFO apscheduler.executors.default Running job "Complete pending wallet entries (trigger: interval[0:01:00], next run at: 2026-10-30 10:34:53 IST)" (scheduled at 2026-10-30 08:33:53.396497+00:00)
+[backend] INFO:     Uvicorn running on http://0.0.0.0:24826 (Press CTRL+C to quit)
+[backend] 2026-10-30 10:33:53,401 INFO apscheduler.executors.default Job "Complete pending wallet entries (trigger: interval[0:01:00], next run at: 2026-10-30 10:34:53 IST)" executed successfully
+[backend] 2026-10-30 10:33:58,406 INFO apscheduler.scheduler Removed job sample_daily_prices_boot
+[backend] 2026-10-30 10:33:58,406 INFO apscheduler.executors.default Running job "Boot-time price sample (trigger: date[2026-10-30 08:33:58 UTC], next run at: 2026-10-30 08:33:58 UTC)" (scheduled at 2026-10-30 08:33:58.398498+00:00)
+[backend] 2026-10-30 10:33:58,607 INFO httpx HTTP Request: GET https://boi.org.il/PublicApi/GetExchangeRate?key=USD "HTTP/1.1 200 OK"
+[backend] 2026-10-30 10:33:59,728 INFO httpx HTTP Request: GET https://api.gold-api.com/price/XAU "HTTP/1.1 200 OK"
+[backend] 2026-10-30 10:33:59,731 INFO apscheduler.executors.default Job "Boot-time price sample (trigger: date[2026-10-30 08:33:58 UTC], next run at: 2026-10-30 08:33:58 UTC)" executed successfully
+
+
+confirm disposable workspace authority: ok
+JewelryX serve.log:
+[backend] 
+[backend] portless
+[backend] 
+[backend] -- Proxy is running
+[backend] -- bench-194-tool-f4.api.jewelryx.localhost (auto-resolves to 127.0.0.1)
+[backend] -- Using port 24826 (fixed)
+[backend] 
+[backend]   -> http://bench-194-tool-f4.api.jewelryx.localhost
+[backend] 
+[backend] Running: PORT=24826 HOST=127.0.0.1 PORTLESS_URL=http://bench-194-tool-f4.api.jewelryx.localhost pnpm dev:backend
+[backend] 
+[backend] $ uv run --directory packages/backend python scripts/dev.py
+[backend] 2026-10-30 10:33:42,209 [dev] INFO watching C:\Users\Shay\.herdr\worktrees\jeweleryx\dev\.claude\worktrees\bench-194-tool-f4\packages\backend\app
+[backend] 2026-10-30 10:33:42,210 [dev] INFO command: C:\Users\Shay\.herdr\worktrees\jeweleryx\dev\.claude\worktrees\bench-194-tool-f4\packages\backend\.venv\Scripts\python.exe -X utf8 -m uvicorn app.main:app --host 0.0.0.0 --port 24826
+[backend] 2026-10-30 10:33:42,857 [dev] INFO 3 changes detected
+[backend] B2B_SHARED_SECRET is unset or under 32 characters: private storefronts cannot be unlocked and the b2b server's forwarded visitor IPs are ignored
+[backend] 2026-10-30 10:33:47,057 [dev] INFO 1 change detected
+[backend] B2B_SHARED_SECRET is unset or under 32 characters: private storefronts cannot be unlocked and the b2b server's forwarded visitor IPs are ignored
+[backend] 2026-10-30 10:33:49,433 [dev] INFO 1 change detected
+[backend] B2B_SHARED_SECRET is unset or under 32 characters: private storefronts cannot be unlocked and the b2b server's forwarded visitor IPs are ignored
+[backend] INFO:     Started server process [12088]
+[backend] INFO:     Waiting for application startup.
+[backend] 2026-10-30 10:33:52,794 INFO app.db.init Using local MongoDB connection
+[backend] 2026-10-30 10:33:52,880 WARNING app.main migrations: applying 0001 (0001_backfill_shared_variant_skus)
+[backend] 🔄 Migration 0001 — backfill shared-variant SKU suffixes
+[backend]    Database : jewelryx_bench-194-tool-f4
+[backend]    Dry-run  : False
+[backend] 
+[backend] 
+[backend] ============================================================
+[backend] 📈 Migration 0001 COMPLETE
+[backend] ============================================================
+[backend]   Products scanned          : 1
+[backend]   Products changed          : 0
+[backend]   Variants updated          : 0
+[backend]   Variants skipped (collis.): 0
+[backend]   Variants already correct  : 2
+[backend] 
+[backend] ✅ Migration complete.
+[backend] 2026-10-30 10:33:52,888 WARNING app.main migrations: applied 0001
+[backend] 2026-10-30 10:33:52,888 WARNING app.main migrations: applying 0002 (0002_normalize_fixed_categories)
+[backend] Database: jewelryx_bench-194-tool-f4
+[backend] [APPLY]
+[backend]   = fixed category 'rings' already normalized
+[backend]   = fixed category 'earrings' already normalized
+[backend]   = fixed category 'bracelets' already normalized
+[backend]   = fixed category 'pendants' already normalized
+[backend]   = fixed category 'necklaces' already normalized
+[backend]   ~ update fixed category 'diamonds'
+[backend]       name: 'יהלומים' -> 'אבני יהלום'
+[backend]   = fixed category 'gemstones' already normalized
+[backend] 
+[backend] Summary:
+[backend]   created: 0
+[backend]   updated: 1
+[backend]   unchanged: 6
+[backend] 2026-10-30 10:33:52,898 WARNING app.main migrations: applied 0002
+[backend] 2026-10-30 10:33:52,898 WARNING app.main migrations: applying 0003 (0003_backfill_listing_fixed_categories)
+[backend] scanned=2 updated=2 skipped_no_product=0 skipped_unmapped=0
+[backend] 2026-10-30 10:33:52,904 WARNING app.main migrations: applied 0003
+[backend] 2026-10-30 10:33:52,904 WARNING app.main migrations: applying 0004 (0004_retarget_admin_auction_notifications)
+[backend] scanned=0 retargeted=0 unrouted=0
+[backend] 2026-10-30 10:33:52,910 WARNING app.main migrations: applied 0004
+[backend] 2026-10-30 10:33:52,910 WARNING app.main migrations: applying 0005 (0005_retarget_admin_approval_notifications)
+[backend] scanned=0 retargeted=0 left_alone=0
+[backend] 2026-10-30 10:33:52,916 WARNING app.main migrations: applied 0005
+[backend] 2026-10-30 10:33:52,916 WARNING app.main migrations: applying 0006 (0006_collapse_user_roles_to_three)
+[backend] scanned=0 migrated=0
+[backend] 2026-10-30 10:33:52,921 WARNING app.main migrations: applied 0006
+[backend] 2026-10-30 10:33:52,921 WARNING app.main migrations: applying 0007 (0007_repoint_dead_notification_urls)
+[backend] BEFORE  {'orders': 0, 'auctions': 0, 'products_b2b': 0, 'scrap_gold': 0, 'marketplace_collection_shadow': 0, 'admin_marketplace_listing': 0, 'app_prefixed': 0, 'marketplace_index': 0, 'credit_settings_tab': 0}  (total 0, admin users 1)
+[backend] scanned=0 retargeted=0 left_alone=0
+[backend] AFTER   {'orders': 0, 'auctions': 0, 'products_b2b': 0, 'scrap_gold': 0, 'marketplace_collection_shadow': 0, 'admin_marketplace_listing': 0, 'app_prefixed': 0, 'marketplace_index': 0, 'credit_settings_tab': 0}  (total 0)
+[backend] 2026-10-30 10:33:52,937 WARNING app.main migrations: applied 0007
+[backend] 2026-10-30 10:33:52,938 WARNING app.main migrations: applying 0008 (0008_release_channel_rows_over_cancelled_listings)
+[backend] BEFORE  {'cancelled_listings': 0, 'stale_channel_rows': 0, 'live_auctions': 0}
+[backend] {'rows_released': 0, 'products': 0, 'auctions_retired': 0, 'auctions_with_bids': 0}
+[backend] AFTER   {'cancelled_listings': 0, 'stale_channel_rows': 0, 'live_auctions': 0}
+[backend] 2026-10-30 10:33:52,946 WARNING app.main migrations: applied 0008
+[backend] 2026-10-30 10:33:52,946 WARNING app.main migrations: applying 0009 (0009_reactivate_carts_the_expiry_job_deactivated)
+[backend] BEFORE  {'inactive_carts': 0, 'inactive_carts_holding_items': 0}
+[backend] {'carts_reactivated': 0, 'items_returned': 0, 'empty_replacements_retired': 0, 'superseded_left_alone': 0, 'older_duplicates_left_alone': 0}
+[backend] AFTER   {'inactive_carts': 0, 'inactive_carts_holding_items': 0}
+[backend] 2026-10-30 10:33:52,954 WARNING app.main migrations: applied 0009
+[backend] 2026-10-30 10:33:52,954 WARNING app.main migrations: applying 0010 (0010_repoint_approvals_notifications)
+[backend] BEFORE  {'notifications_on_dead_route': 0, 'templates_on_dead_route': 0}
+[backend] {'notifications': 0, 'templates': 0}
+[backend] AFTER   {'notifications_on_dead_route': 0, 'templates_on_dead_route': 0}
+[backend] 2026-10-30 10:33:52,963 WARNING app.main migrations: applied 0010
+[backend] 2026-10-30 10:33:52,964 WARNING app.main migrations: applying 0011 (0011_collapse_marketplace_pins_to_one_row_per_listing)
+[backend] BEFORE  {'overlay_rows': 0, 'distinct_listings': 0, 'backed_up_rows': 0}
+[backend] {'rows_removed': 0, 'ranks_rewritten': 0, 'old_indexes_dropped': 0}
+[backend] AFTER   {'overlay_rows': 0, 'distinct_listings': 0, 'backed_up_rows': 0}
+[backend] 2026-10-30 10:33:52,982 WARNING app.main migrations: applied 0011
+[backend] 2026-10-30 10:33:52,983 WARNING app.main migrations: applying 0012 (0012_remove_marketplace_display_settings)
+[backend] {'rows_removed': 0}
+[backend] 2026-10-30 10:33:52,990 WARNING app.main migrations: applied 0012
+[backend] 2026-10-30 10:33:52,990 WARNING app.main migrations: applying 0013 (0013_remove_cart_saved_items)
+[backend] 2026-10-30 10:33:52,994 WARNING 0013_remove_cart_saved_items migration 0013: {'carts_with_field': 0, 'carts_with_saved_items': 0, 'saved_items_removed': 0}
+[backend] 2026-10-30 10:33:52,995 WARNING app.main migrations: applied 0013
+[backend] 2026-10-30 10:33:52,996 WARNING app.main migrations: applying 0014 (0014_one_wishlist_row_per_like)
+[backend] 2026-10-30 10:33:53,002 WARNING 0014_one_wishlist_row_per_like migration 0014 BEFORE  {'wishlist_rows': 0, 'backed_up_rows': 0}
+[backend] 2026-10-30 10:33:53,015 WARNING 0014_one_wishlist_row_per_like migration 0014: {'rows_removed': 0, 'indexes_created': 2}
+[backend] 2026-10-30 10:33:53,016 WARNING 0014_one_wishlist_row_per_like migration 0014 AFTER   {'wishlist_rows': 0, 'backed_up_rows': 0}
+[backend] 2026-10-30 10:33:53,017 WARNING app.main migrations: applied 0014
+[backend] 2026-10-30 10:33:53,018 WARNING app.main migrations: applying 0015 (0015_record_collected_commissions)
+[backend] 2026-10-30 10:33:53,025 WARNING 0015_record_collected_commissions migration 0015: {'settled_orders': 0, 'records_marked_paid': 0, 'records_written_paid': 0, 'rates_filled': 0}
+[backend] 2026-10-30 10:33:53,026 WARNING app.main migrations: applied 0015
+[backend] 2026-10-30 10:33:53,027 WARNING app.main migrations: applying 0016 (0016_relabel_self_registration_audit)
+[backend] 2026-10-30 10:33:53,031 WARNING 0016_relabel_self_registration_audit migration 0016: {'self_registrations_relabelled': 0}
+[backend] 2026-10-30 10:33:53,032 WARNING app.main migrations: applied 0016
+[backend] 2026-10-30 10:33:53,033 WARNING app.main migrations: applying 0017 (0017_freeze_consignment_listing_prices)
+[backend] 2026-10-30 10:33:53,036 WARNING 0017_freeze_consignment_listing_prices migration 0017: {'listings_stamped': 0}
+[backend] 2026-10-30 10:33:53,036 WARNING app.main migrations: applied 0017
+[backend] 2026-10-30 10:33:53,037 WARNING app.main migrations: applying 0018 (0018_outgoing_awaiting_charge)
+[backend] 2026-10-30 10:33:53,042 WARNING 0018_outgoing_awaiting_charge migration 0018: {'orders_marked': 0}
+[backend] 2026-10-30 10:33:53,044 WARNING app.main migrations: applied 0018
+[backend] 2026-10-30 10:33:53,044 WARNING app.main migrations: applying 0019 (0019_open_sale_commission_records)
+[backend] 2026-10-30 10:33:53,051 WARNING 0019_open_sale_commission_records migration 0019: {'open_sales': 0, 'records_written': 0}
+[backend] 2026-10-30 10:33:53,052 WARNING app.main migrations: applied 0019
+[backend] 2026-10-30 10:33:53,053 WARNING app.main migrations: applying 0020 (0020_product_fixed_category_field)
+[backend] 2026-10-30 10:33:53,058 WARNING 0020_product_fixed_category_field migration 0020: {'fixed_field_set': 0, 'category_ids_cleaned': 0}
+[backend] 2026-10-30 10:33:53,059 WARNING app.main migrations: applied 0020
+[backend] 2026-10-30 10:33:53,059 WARNING app.main migrations: applying 0021 (0021_relabel_cash_paid_credit_orders)
+[backend] 2026-10-30 10:33:53,066 WARNING 0021_relabel_cash_paid_credit_orders migration 0021: {'relabelled': 0, 'already_reversed': 0, 'skipped_ambiguous': 0}
+[backend] 2026-10-30 10:33:53,067 WARNING app.main migrations: applied 0021
+[backend] 2026-10-30 10:33:53,068 WARNING app.main migrations: applying 0022 (0022_listing_fixed_category_only)
+[backend] 2026-10-30 10:33:53,076 WARNING 0022_listing_fixed_category_only migration 0022: {'category_ids_emptied': 2, 'fixed_field_set': 0}; category_ids emptied on ['d5ec1f59c927c0478805aca8', '654ff621b5dace7c76eb91ad']; fixed_category_id set on []
+[backend] 2026-10-30 10:33:53,077 WARNING app.main migrations: applied 0022
+[backend] 2026-10-30 10:33:53,078 WARNING app.main migrations: applying 0023 (0023_product_business_sku_key)
+[backend] 2026-10-30 10:33:53,084 WARNING 0023_product_business_sku_key migration 0023: {'keys_set': 0, 'left_without_key': 0}; products left without a key (an older product of the same owner has the same SKU): []
+[backend] 2026-10-30 10:33:53,085 WARNING app.main migrations: applied 0023
+[backend] 2026-10-30 10:33:53,085 WARNING app.main migrations: applying 0024 (0024_remove_oos_discontinued_status)
+[backend] 2026-10-30 10:33:53,090 WARNING 0024_remove_oos_discontinued_status migration 0024: {'discontinued_to_inactive': 0, 'out_of_stock_to_active': 0}
+[backend] 2026-10-30 10:33:53,092 WARNING app.main migrations: applied 0024
+[backend] 2026-10-30 10:33:53,093 WARNING app.main migrations: applying 0025 (0025_catalog_draft_to_paused)
+[backend] 2026-10-30 10:33:53,099 WARNING 0025_catalog_draft_to_paused migration 0025: {'draft_to_paused': 0, 'marked': 0}
+[backend] 2026-10-30 10:33:53,100 WARNING app.main migrations: applied 0025
+[backend] 2026-10-30 10:33:53,160 INFO app.services.notification_service Seeded/updated 46 notification templates
+[backend] 2026-10-30 10:33:53,160 INFO app.db.init Seeded/updated 46 notification templates
+[backend] 2026-10-30 10:33:53,166 INFO app.db.init Fixed categories seeded/normalized: created=0 updated=9
+[backend] 2026-10-30 10:33:53,396 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,396 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,396 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,396 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,396 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO app.jobs.scheduler Scheduler configured with 19 jobs
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Complete pending wallet entries" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Check auctions ending soon" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Check stale orders" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Cleanup old notifications" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Retry failed sends" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Process scheduled notifications" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Process scheduled reports" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Process newsletter deliveries" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Sample daily FX + gold prices" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Notify owners of abandoned carts" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Notify on approaching deliveries" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Notify on auctions starting soon" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Start auctions whose start_time arrived" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Finalize auctions past end_time" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Auto-approve expired pending marketplace listings" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Publish catalogs whose start date arrived" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Unpublish catalogs whose end date passed" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Auto-approve incoming orders (>24h, opted-in)" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Auto-cancel unapproved orders (>4d)" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Scheduler started
+[backend] 2026-10-30 10:33:53,398 INFO app.main Background job scheduler started
+[backend] 2026-10-30 10:33:53,400 INFO apscheduler.scheduler Added job "Boot-time price sample" to job store "default"
+[backend] 2026-10-30 10:33:53,400 INFO app.services.ws_backplane WS backplane ws:push disabled (redis_enabled=False)
+[backend] 2026-10-30 10:33:53,401 INFO app.services.ws_backplane WS backplane ws:auction disabled (redis_enabled=False)
+[backend] INFO:     Application startup complete.
+[backend] 2026-10-30 10:33:53,401 INFO apscheduler.executors.default Running job "Complete pending wallet entries (trigger: interval[0:01:00], next run at: 2026-10-30 10:34:53 IST)" (scheduled at 2026-10-30 08:33:53.396497+00:00)
+[backend] INFO:     Uvicorn running on http://0.0.0.0:24826 (Press CTRL+C to quit)
+[backend] 2026-10-30 10:33:53,401 INFO apscheduler.executors.default Job "Complete pending wallet entries (trigger: interval[0:01:00], next run at: 2026-10-30 10:34:53 IST)" executed successfully
+[backend] 2026-10-30 10:33:58,406 INFO apscheduler.scheduler Removed job sample_daily_prices_boot
+[backend] 2026-10-30 10:33:58,406 INFO apscheduler.executors.default Running job "Boot-time price sample (trigger: date[2026-10-30 08:33:58 UTC], next run at: 2026-10-30 08:33:58 UTC)" (scheduled at 2026-10-30 08:33:58.398498+00:00)
+[backend] 2026-10-30 10:33:58,607 INFO httpx HTTP Request: GET https://boi.org.il/PublicApi/GetExchangeRate?key=USD "HTTP/1.1 200 OK"
+[backend] 2026-10-30 10:33:59,728 INFO httpx HTTP Request: GET https://api.gold-api.com/price/XAU "HTTP/1.1 200 OK"
+[backend] 2026-10-30 10:33:59,731 INFO apscheduler.executors.default Job "Boot-time price sample (trigger: date[2026-10-30 08:33:58 UTC], next run at: 2026-10-30 08:33:58 UTC)" executed successfully
+
+
+JewelryX dev.log:
+[backend] 
+[backend] portless
+[backend] 
+[backend] -- Proxy is running
+[backend] -- bench-194-tool-f4.api.jewelryx.localhost (auto-resolves to 127.0.0.1)
+[backend] -- Using port 24826 (fixed)
+[backend] 
+[backend]   -> http://bench-194-tool-f4.api.jewelryx.localhost
+[backend] 
+[backend] Running: PORT=24826 HOST=127.0.0.1 PORTLESS_URL=http://bench-194-tool-f4.api.jewelryx.localhost pnpm dev:backend
+[backend] 
+[backend] $ uv run --directory packages/backend python scripts/dev.py
+[backend] 2026-10-30 10:33:42,209 [dev] INFO watching C:\Users\Shay\.herdr\worktrees\jeweleryx\dev\.claude\worktrees\bench-194-tool-f4\packages\backend\app
+[backend] 2026-10-30 10:33:42,210 [dev] INFO command: C:\Users\Shay\.herdr\worktrees\jeweleryx\dev\.claude\worktrees\bench-194-tool-f4\packages\backend\.venv\Scripts\python.exe -X utf8 -m uvicorn app.main:app --host 0.0.0.0 --port 24826
+[backend] 2026-10-30 10:33:42,857 [dev] INFO 3 changes detected
+[backend] B2B_SHARED_SECRET is unset or under 32 characters: private storefronts cannot be unlocked and the b2b server's forwarded visitor IPs are ignored
+[backend] 2026-10-30 10:33:47,057 [dev] INFO 1 change detected
+[backend] B2B_SHARED_SECRET is unset or under 32 characters: private storefronts cannot be unlocked and the b2b server's forwarded visitor IPs are ignored
+[backend] 2026-10-30 10:33:49,433 [dev] INFO 1 change detected
+[backend] B2B_SHARED_SECRET is unset or under 32 characters: private storefronts cannot be unlocked and the b2b server's forwarded visitor IPs are ignored
+[backend] INFO:     Started server process [12088]
+[backend] INFO:     Waiting for application startup.
+[backend] 2026-10-30 10:33:52,794 INFO app.db.init Using local MongoDB connection
+[backend] 2026-10-30 10:33:52,880 WARNING app.main migrations: applying 0001 (0001_backfill_shared_variant_skus)
+[backend] 🔄 Migration 0001 — backfill shared-variant SKU suffixes
+[backend]    Database : jewelryx_bench-194-tool-f4
+[backend]    Dry-run  : False
+[backend] 
+[backend] 
+[backend] ============================================================
+[backend] 📈 Migration 0001 COMPLETE
+[backend] ============================================================
+[backend]   Products scanned          : 1
+[backend]   Products changed          : 0
+[backend]   Variants updated          : 0
+[backend]   Variants skipped (collis.): 0
+[backend]   Variants already correct  : 2
+[backend] 
+[backend] ✅ Migration complete.
+[backend] 2026-10-30 10:33:52,888 WARNING app.main migrations: applied 0001
+[backend] 2026-10-30 10:33:52,888 WARNING app.main migrations: applying 0002 (0002_normalize_fixed_categories)
+[backend] Database: jewelryx_bench-194-tool-f4
+[backend] [APPLY]
+[backend]   = fixed category 'rings' already normalized
+[backend]   = fixed category 'earrings' already normalized
+[backend]   = fixed category 'bracelets' already normalized
+[backend]   = fixed category 'pendants' already normalized
+[backend]   = fixed category 'necklaces' already normalized
+[backend]   ~ update fixed category 'diamonds'
+[backend]       name: 'יהלומים' -> 'אבני יהלום'
+[backend]   = fixed category 'gemstones' already normalized
+[backend] 
+[backend] Summary:
+[backend]   created: 0
+[backend]   updated: 1
+[backend]   unchanged: 6
+[backend] 2026-10-30 10:33:52,898 WARNING app.main migrations: applied 0002
+[backend] 2026-10-30 10:33:52,898 WARNING app.main migrations: applying 0003 (0003_backfill_listing_fixed_categories)
+[backend] scanned=2 updated=2 skipped_no_product=0 skipped_unmapped=0
+[backend] 2026-10-30 10:33:52,904 WARNING app.main migrations: applied 0003
+[backend] 2026-10-30 10:33:52,904 WARNING app.main migrations: applying 0004 (0004_retarget_admin_auction_notifications)
+[backend] scanned=0 retargeted=0 unrouted=0
+[backend] 2026-10-30 10:33:52,910 WARNING app.main migrations: applied 0004
+[backend] 2026-10-30 10:33:52,910 WARNING app.main migrations: applying 0005 (0005_retarget_admin_approval_notifications)
+[backend] scanned=0 retargeted=0 left_alone=0
+[backend] 2026-10-30 10:33:52,916 WARNING app.main migrations: applied 0005
+[backend] 2026-10-30 10:33:52,916 WARNING app.main migrations: applying 0006 (0006_collapse_user_roles_to_three)
+[backend] scanned=0 migrated=0
+[backend] 2026-10-30 10:33:52,921 WARNING app.main migrations: applied 0006
+[backend] 2026-10-30 10:33:52,921 WARNING app.main migrations: applying 0007 (0007_repoint_dead_notification_urls)
+[backend] BEFORE  {'orders': 0, 'auctions': 0, 'products_b2b': 0, 'scrap_gold': 0, 'marketplace_collection_shadow': 0, 'admin_marketplace_listing': 0, 'app_prefixed': 0, 'marketplace_index': 0, 'credit_settings_tab': 0}  (total 0, admin users 1)
+[backend] scanned=0 retargeted=0 left_alone=0
+[backend] AFTER   {'orders': 0, 'auctions': 0, 'products_b2b': 0, 'scrap_gold': 0, 'marketplace_collection_shadow': 0, 'admin_marketplace_listing': 0, 'app_prefixed': 0, 'marketplace_index': 0, 'credit_settings_tab': 0}  (total 0)
+[backend] 2026-10-30 10:33:52,937 WARNING app.main migrations: applied 0007
+[backend] 2026-10-30 10:33:52,938 WARNING app.main migrations: applying 0008 (0008_release_channel_rows_over_cancelled_listings)
+[backend] BEFORE  {'cancelled_listings': 0, 'stale_channel_rows': 0, 'live_auctions': 0}
+[backend] {'rows_released': 0, 'products': 0, 'auctions_retired': 0, 'auctions_with_bids': 0}
+[backend] AFTER   {'cancelled_listings': 0, 'stale_channel_rows': 0, 'live_auctions': 0}
+[backend] 2026-10-30 10:33:52,946 WARNING app.main migrations: applied 0008
+[backend] 2026-10-30 10:33:52,946 WARNING app.main migrations: applying 0009 (0009_reactivate_carts_the_expiry_job_deactivated)
+[backend] BEFORE  {'inactive_carts': 0, 'inactive_carts_holding_items': 0}
+[backend] {'carts_reactivated': 0, 'items_returned': 0, 'empty_replacements_retired': 0, 'superseded_left_alone': 0, 'older_duplicates_left_alone': 0}
+[backend] AFTER   {'inactive_carts': 0, 'inactive_carts_holding_items': 0}
+[backend] 2026-10-30 10:33:52,954 WARNING app.main migrations: applied 0009
+[backend] 2026-10-30 10:33:52,954 WARNING app.main migrations: applying 0010 (0010_repoint_approvals_notifications)
+[backend] BEFORE  {'notifications_on_dead_route': 0, 'templates_on_dead_route': 0}
+[backend] {'notifications': 0, 'templates': 0}
+[backend] AFTER   {'notifications_on_dead_route': 0, 'templates_on_dead_route': 0}
+[backend] 2026-10-30 10:33:52,963 WARNING app.main migrations: applied 0010
+[backend] 2026-10-30 10:33:52,964 WARNING app.main migrations: applying 0011 (0011_collapse_marketplace_pins_to_one_row_per_listing)
+[backend] BEFORE  {'overlay_rows': 0, 'distinct_listings': 0, 'backed_up_rows': 0}
+[backend] {'rows_removed': 0, 'ranks_rewritten': 0, 'old_indexes_dropped': 0}
+[backend] AFTER   {'overlay_rows': 0, 'distinct_listings': 0, 'backed_up_rows': 0}
+[backend] 2026-10-30 10:33:52,982 WARNING app.main migrations: applied 0011
+[backend] 2026-10-30 10:33:52,983 WARNING app.main migrations: applying 0012 (0012_remove_marketplace_display_settings)
+[backend] {'rows_removed': 0}
+[backend] 2026-10-30 10:33:52,990 WARNING app.main migrations: applied 0012
+[backend] 2026-10-30 10:33:52,990 WARNING app.main migrations: applying 0013 (0013_remove_cart_saved_items)
+[backend] 2026-10-30 10:33:52,994 WARNING 0013_remove_cart_saved_items migration 0013: {'carts_with_field': 0, 'carts_with_saved_items': 0, 'saved_items_removed': 0}
+[backend] 2026-10-30 10:33:52,995 WARNING app.main migrations: applied 0013
+[backend] 2026-10-30 10:33:52,996 WARNING app.main migrations: applying 0014 (0014_one_wishlist_row_per_like)
+[backend] 2026-10-30 10:33:53,002 WARNING 0014_one_wishlist_row_per_like migration 0014 BEFORE  {'wishlist_rows': 0, 'backed_up_rows': 0}
+[backend] 2026-10-30 10:33:53,015 WARNING 0014_one_wishlist_row_per_like migration 0014: {'rows_removed': 0, 'indexes_created': 2}
+[backend] 2026-10-30 10:33:53,016 WARNING 0014_one_wishlist_row_per_like migration 0014 AFTER   {'wishlist_rows': 0, 'backed_up_rows': 0}
+[backend] 2026-10-30 10:33:53,017 WARNING app.main migrations: applied 0014
+[backend] 2026-10-30 10:33:53,018 WARNING app.main migrations: applying 0015 (0015_record_collected_commissions)
+[backend] 2026-10-30 10:33:53,025 WARNING 0015_record_collected_commissions migration 0015: {'settled_orders': 0, 'records_marked_paid': 0, 'records_written_paid': 0, 'rates_filled': 0}
+[backend] 2026-10-30 10:33:53,026 WARNING app.main migrations: applied 0015
+[backend] 2026-10-30 10:33:53,027 WARNING app.main migrations: applying 0016 (0016_relabel_self_registration_audit)
+[backend] 2026-10-30 10:33:53,031 WARNING 0016_relabel_self_registration_audit migration 0016: {'self_registrations_relabelled': 0}
+[backend] 2026-10-30 10:33:53,032 WARNING app.main migrations: applied 0016
+[backend] 2026-10-30 10:33:53,033 WARNING app.main migrations: applying 0017 (0017_freeze_consignment_listing_prices)
+[backend] 2026-10-30 10:33:53,036 WARNING 0017_freeze_consignment_listing_prices migration 0017: {'listings_stamped': 0}
+[backend] 2026-10-30 10:33:53,036 WARNING app.main migrations: applied 0017
+[backend] 2026-10-30 10:33:53,037 WARNING app.main migrations: applying 0018 (0018_outgoing_awaiting_charge)
+[backend] 2026-10-30 10:33:53,042 WARNING 0018_outgoing_awaiting_charge migration 0018: {'orders_marked': 0}
+[backend] 2026-10-30 10:33:53,044 WARNING app.main migrations: applied 0018
+[backend] 2026-10-30 10:33:53,044 WARNING app.main migrations: applying 0019 (0019_open_sale_commission_records)
+[backend] 2026-10-30 10:33:53,051 WARNING 0019_open_sale_commission_records migration 0019: {'open_sales': 0, 'records_written': 0}
+[backend] 2026-10-30 10:33:53,052 WARNING app.main migrations: applied 0019
+[backend] 2026-10-30 10:33:53,053 WARNING app.main migrations: applying 0020 (0020_product_fixed_category_field)
+[backend] 2026-10-30 10:33:53,058 WARNING 0020_product_fixed_category_field migration 0020: {'fixed_field_set': 0, 'category_ids_cleaned': 0}
+[backend] 2026-10-30 10:33:53,059 WARNING app.main migrations: applied 0020
+[backend] 2026-10-30 10:33:53,059 WARNING app.main migrations: applying 0021 (0021_relabel_cash_paid_credit_orders)
+[backend] 2026-10-30 10:33:53,066 WARNING 0021_relabel_cash_paid_credit_orders migration 0021: {'relabelled': 0, 'already_reversed': 0, 'skipped_ambiguous': 0}
+[backend] 2026-10-30 10:33:53,067 WARNING app.main migrations: applied 0021
+[backend] 2026-10-30 10:33:53,068 WARNING app.main migrations: applying 0022 (0022_listing_fixed_category_only)
+[backend] 2026-10-30 10:33:53,076 WARNING 0022_listing_fixed_category_only migration 0022: {'category_ids_emptied': 2, 'fixed_field_set': 0}; category_ids emptied on ['d5ec1f59c927c0478805aca8', '654ff621b5dace7c76eb91ad']; fixed_category_id set on []
+[backend] 2026-10-30 10:33:53,077 WARNING app.main migrations: applied 0022
+[backend] 2026-10-30 10:33:53,078 WARNING app.main migrations: applying 0023 (0023_product_business_sku_key)
+[backend] 2026-10-30 10:33:53,084 WARNING 0023_product_business_sku_key migration 0023: {'keys_set': 0, 'left_without_key': 0}; products left without a key (an older product of the same owner has the same SKU): []
+[backend] 2026-10-30 10:33:53,085 WARNING app.main migrations: applied 0023
+[backend] 2026-10-30 10:33:53,085 WARNING app.main migrations: applying 0024 (0024_remove_oos_discontinued_status)
+[backend] 2026-10-30 10:33:53,090 WARNING 0024_remove_oos_discontinued_status migration 0024: {'discontinued_to_inactive': 0, 'out_of_stock_to_active': 0}
+[backend] 2026-10-30 10:33:53,092 WARNING app.main migrations: applied 0024
+[backend] 2026-10-30 10:33:53,093 WARNING app.main migrations: applying 0025 (0025_catalog_draft_to_paused)
+[backend] 2026-10-30 10:33:53,099 WARNING 0025_catalog_draft_to_paused migration 0025: {'draft_to_paused': 0, 'marked': 0}
+[backend] 2026-10-30 10:33:53,100 WARNING app.main migrations: applied 0025
+[backend] 2026-10-30 10:33:53,160 INFO app.services.notification_service Seeded/updated 46 notification templates
+[backend] 2026-10-30 10:33:53,160 INFO app.db.init Seeded/updated 46 notification templates
+[backend] 2026-10-30 10:33:53,166 INFO app.db.init Fixed categories seeded/normalized: created=0 updated=9
+[backend] 2026-10-30 10:33:53,396 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,396 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,396 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,396 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,396 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO app.jobs.scheduler Scheduler configured with 19 jobs
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Complete pending wallet entries" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Check auctions ending soon" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Check stale orders" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Cleanup old notifications" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Retry failed sends" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Process scheduled notifications" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Process scheduled reports" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Process newsletter deliveries" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Sample daily FX + gold prices" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Notify owners of abandoned carts" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Notify on approaching deliveries" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Notify on auctions starting soon" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Start auctions whose start_time arrived" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Finalize auctions past end_time" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Auto-approve expired pending marketplace listings" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Publish catalogs whose start date arrived" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Unpublish catalogs whose end date passed" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Auto-approve incoming orders (>24h, opted-in)" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Auto-cancel unapproved orders (>4d)" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Scheduler started
+[backend] 2026-10-30 10:33:53,398 INFO app.main Background job scheduler started
+[backend] 2026-10-30 10:33:53,400 INFO apscheduler.scheduler Added job "Boot-time price sample" to job store "default"
+[backend] 2026-10-30 10:33:53,400 INFO app.services.ws_backplane WS backplane ws:push disabled (redis_enabled=False)
+[backend] 2026-10-30 10:33:53,401 INFO app.services.ws_backplane WS backplane ws:auction disabled (redis_enabled=False)
+[backend] INFO:     Application startup complete.
+[backend] 2026-10-30 10:33:53,401 INFO apscheduler.executors.default Running job "Complete pending wallet entries (trigger: interval[0:01:00], next run at: 2026-10-30 10:34:53 IST)" (scheduled at 2026-10-30 08:33:53.396497+00:00)
+[backend] INFO:     Uvicorn running on http://0.0.0.0:24826 (Press CTRL+C to quit)
+[backend] 2026-10-30 10:33:53,401 INFO apscheduler.executors.default Job "Complete pending wallet entries (trigger: interval[0:01:00], next run at: 2026-10-30 10:34:53 IST)" executed successfully
+[backend] 2026-10-30 10:33:58,406 INFO apscheduler.scheduler Removed job sample_daily_prices_boot
+[backend] 2026-10-30 10:33:58,406 INFO apscheduler.executors.default Running job "Boot-time price sample (trigger: date[2026-10-30 08:33:58 UTC], next run at: 2026-10-30 08:33:58 UTC)" (scheduled at 2026-10-30 08:33:58.398498+00:00)
+[backend] 2026-10-30 10:33:58,607 INFO httpx HTTP Request: GET https://boi.org.il/PublicApi/GetExchangeRate?key=USD "HTTP/1.1 200 OK"
+[backend] 2026-10-30 10:33:59,728 INFO httpx HTTP Request: GET https://api.gold-api.com/price/XAU "HTTP/1.1 200 OK"
+[backend] 2026-10-30 10:33:59,731 INFO apscheduler.executors.default Job "Boot-time price sample (trigger: date[2026-10-30 08:33:58 UTC], next run at: 2026-10-30 08:33:58 UTC)" executed successfully
+
+
+JewelryX serve.log:
+[backend] 
+[backend] portless
+[backend] 
+[backend] -- Proxy is running
+[backend] -- bench-194-tool-f4.api.jewelryx.localhost (auto-resolves to 127.0.0.1)
+[backend] -- Using port 24826 (fixed)
+[backend] 
+[backend]   -> http://bench-194-tool-f4.api.jewelryx.localhost
+[backend] 
+[backend] Running: PORT=24826 HOST=127.0.0.1 PORTLESS_URL=http://bench-194-tool-f4.api.jewelryx.localhost pnpm dev:backend
+[backend] 
+[backend] $ uv run --directory packages/backend python scripts/dev.py
+[backend] 2026-10-30 10:33:42,209 [dev] INFO watching C:\Users\Shay\.herdr\worktrees\jeweleryx\dev\.claude\worktrees\bench-194-tool-f4\packages\backend\app
+[backend] 2026-10-30 10:33:42,210 [dev] INFO command: C:\Users\Shay\.herdr\worktrees\jeweleryx\dev\.claude\worktrees\bench-194-tool-f4\packages\backend\.venv\Scripts\python.exe -X utf8 -m uvicorn app.main:app --host 0.0.0.0 --port 24826
+[backend] 2026-10-30 10:33:42,857 [dev] INFO 3 changes detected
+[backend] B2B_SHARED_SECRET is unset or under 32 characters: private storefronts cannot be unlocked and the b2b server's forwarded visitor IPs are ignored
+[backend] 2026-10-30 10:33:47,057 [dev] INFO 1 change detected
+[backend] B2B_SHARED_SECRET is unset or under 32 characters: private storefronts cannot be unlocked and the b2b server's forwarded visitor IPs are ignored
+[backend] 2026-10-30 10:33:49,433 [dev] INFO 1 change detected
+[backend] B2B_SHARED_SECRET is unset or under 32 characters: private storefronts cannot be unlocked and the b2b server's forwarded visitor IPs are ignored
+[backend] INFO:     Started server process [12088]
+[backend] INFO:     Waiting for application startup.
+[backend] 2026-10-30 10:33:52,794 INFO app.db.init Using local MongoDB connection
+[backend] 2026-10-30 10:33:52,880 WARNING app.main migrations: applying 0001 (0001_backfill_shared_variant_skus)
+[backend] 🔄 Migration 0001 — backfill shared-variant SKU suffixes
+[backend]    Database : jewelryx_bench-194-tool-f4
+[backend]    Dry-run  : False
+[backend] 
+[backend] 
+[backend] ============================================================
+[backend] 📈 Migration 0001 COMPLETE
+[backend] ============================================================
+[backend]   Products scanned          : 1
+[backend]   Products changed          : 0
+[backend]   Variants updated          : 0
+[backend]   Variants skipped (collis.): 0
+[backend]   Variants already correct  : 2
+[backend] 
+[backend] ✅ Migration complete.
+[backend] 2026-10-30 10:33:52,888 WARNING app.main migrations: applied 0001
+[backend] 2026-10-30 10:33:52,888 WARNING app.main migrations: applying 0002 (0002_normalize_fixed_categories)
+[backend] Database: jewelryx_bench-194-tool-f4
+[backend] [APPLY]
+[backend]   = fixed category 'rings' already normalized
+[backend]   = fixed category 'earrings' already normalized
+[backend]   = fixed category 'bracelets' already normalized
+[backend]   = fixed category 'pendants' already normalized
+[backend]   = fixed category 'necklaces' already normalized
+[backend]   ~ update fixed category 'diamonds'
+[backend]       name: 'יהלומים' -> 'אבני יהלום'
+[backend]   = fixed category 'gemstones' already normalized
+[backend] 
+[backend] Summary:
+[backend]   created: 0
+[backend]   updated: 1
+[backend]   unchanged: 6
+[backend] 2026-10-30 10:33:52,898 WARNING app.main migrations: applied 0002
+[backend] 2026-10-30 10:33:52,898 WARNING app.main migrations: applying 0003 (0003_backfill_listing_fixed_categories)
+[backend] scanned=2 updated=2 skipped_no_product=0 skipped_unmapped=0
+[backend] 2026-10-30 10:33:52,904 WARNING app.main migrations: applied 0003
+[backend] 2026-10-30 10:33:52,904 WARNING app.main migrations: applying 0004 (0004_retarget_admin_auction_notifications)
+[backend] scanned=0 retargeted=0 unrouted=0
+[backend] 2026-10-30 10:33:52,910 WARNING app.main migrations: applied 0004
+[backend] 2026-10-30 10:33:52,910 WARNING app.main migrations: applying 0005 (0005_retarget_admin_approval_notifications)
+[backend] scanned=0 retargeted=0 left_alone=0
+[backend] 2026-10-30 10:33:52,916 WARNING app.main migrations: applied 0005
+[backend] 2026-10-30 10:33:52,916 WARNING app.main migrations: applying 0006 (0006_collapse_user_roles_to_three)
+[backend] scanned=0 migrated=0
+[backend] 2026-10-30 10:33:52,921 WARNING app.main migrations: applied 0006
+[backend] 2026-10-30 10:33:52,921 WARNING app.main migrations: applying 0007 (0007_repoint_dead_notification_urls)
+[backend] BEFORE  {'orders': 0, 'auctions': 0, 'products_b2b': 0, 'scrap_gold': 0, 'marketplace_collection_shadow': 0, 'admin_marketplace_listing': 0, 'app_prefixed': 0, 'marketplace_index': 0, 'credit_settings_tab': 0}  (total 0, admin users 1)
+[backend] scanned=0 retargeted=0 left_alone=0
+[backend] AFTER   {'orders': 0, 'auctions': 0, 'products_b2b': 0, 'scrap_gold': 0, 'marketplace_collection_shadow': 0, 'admin_marketplace_listing': 0, 'app_prefixed': 0, 'marketplace_index': 0, 'credit_settings_tab': 0}  (total 0)
+[backend] 2026-10-30 10:33:52,937 WARNING app.main migrations: applied 0007
+[backend] 2026-10-30 10:33:52,938 WARNING app.main migrations: applying 0008 (0008_release_channel_rows_over_cancelled_listings)
+[backend] BEFORE  {'cancelled_listings': 0, 'stale_channel_rows': 0, 'live_auctions': 0}
+[backend] {'rows_released': 0, 'products': 0, 'auctions_retired': 0, 'auctions_with_bids': 0}
+[backend] AFTER   {'cancelled_listings': 0, 'stale_channel_rows': 0, 'live_auctions': 0}
+[backend] 2026-10-30 10:33:52,946 WARNING app.main migrations: applied 0008
+[backend] 2026-10-30 10:33:52,946 WARNING app.main migrations: applying 0009 (0009_reactivate_carts_the_expiry_job_deactivated)
+[backend] BEFORE  {'inactive_carts': 0, 'inactive_carts_holding_items': 0}
+[backend] {'carts_reactivated': 0, 'items_returned': 0, 'empty_replacements_retired': 0, 'superseded_left_alone': 0, 'older_duplicates_left_alone': 0}
+[backend] AFTER   {'inactive_carts': 0, 'inactive_carts_holding_items': 0}
+[backend] 2026-10-30 10:33:52,954 WARNING app.main migrations: applied 0009
+[backend] 2026-10-30 10:33:52,954 WARNING app.main migrations: applying 0010 (0010_repoint_approvals_notifications)
+[backend] BEFORE  {'notifications_on_dead_route': 0, 'templates_on_dead_route': 0}
+[backend] {'notifications': 0, 'templates': 0}
+[backend] AFTER   {'notifications_on_dead_route': 0, 'templates_on_dead_route': 0}
+[backend] 2026-10-30 10:33:52,963 WARNING app.main migrations: applied 0010
+[backend] 2026-10-30 10:33:52,964 WARNING app.main migrations: applying 0011 (0011_collapse_marketplace_pins_to_one_row_per_listing)
+[backend] BEFORE  {'overlay_rows': 0, 'distinct_listings': 0, 'backed_up_rows': 0}
+[backend] {'rows_removed': 0, 'ranks_rewritten': 0, 'old_indexes_dropped': 0}
+[backend] AFTER   {'overlay_rows': 0, 'distinct_listings': 0, 'backed_up_rows': 0}
+[backend] 2026-10-30 10:33:52,982 WARNING app.main migrations: applied 0011
+[backend] 2026-10-30 10:33:52,983 WARNING app.main migrations: applying 0012 (0012_remove_marketplace_display_settings)
+[backend] {'rows_removed': 0}
+[backend] 2026-10-30 10:33:52,990 WARNING app.main migrations: applied 0012
+[backend] 2026-10-30 10:33:52,990 WARNING app.main migrations: applying 0013 (0013_remove_cart_saved_items)
+[backend] 2026-10-30 10:33:52,994 WARNING 0013_remove_cart_saved_items migration 0013: {'carts_with_field': 0, 'carts_with_saved_items': 0, 'saved_items_removed': 0}
+[backend] 2026-10-30 10:33:52,995 WARNING app.main migrations: applied 0013
+[backend] 2026-10-30 10:33:52,996 WARNING app.main migrations: applying 0014 (0014_one_wishlist_row_per_like)
+[backend] 2026-10-30 10:33:53,002 WARNING 0014_one_wishlist_row_per_like migration 0014 BEFORE  {'wishlist_rows': 0, 'backed_up_rows': 0}
+[backend] 2026-10-30 10:33:53,015 WARNING 0014_one_wishlist_row_per_like migration 0014: {'rows_removed': 0, 'indexes_created': 2}
+[backend] 2026-10-30 10:33:53,016 WARNING 0014_one_wishlist_row_per_like migration 0014 AFTER   {'wishlist_rows': 0, 'backed_up_rows': 0}
+[backend] 2026-10-30 10:33:53,017 WARNING app.main migrations: applied 0014
+[backend] 2026-10-30 10:33:53,018 WARNING app.main migrations: applying 0015 (0015_record_collected_commissions)
+[backend] 2026-10-30 10:33:53,025 WARNING 0015_record_collected_commissions migration 0015: {'settled_orders': 0, 'records_marked_paid': 0, 'records_written_paid': 0, 'rates_filled': 0}
+[backend] 2026-10-30 10:33:53,026 WARNING app.main migrations: applied 0015
+[backend] 2026-10-30 10:33:53,027 WARNING app.main migrations: applying 0016 (0016_relabel_self_registration_audit)
+[backend] 2026-10-30 10:33:53,031 WARNING 0016_relabel_self_registration_audit migration 0016: {'self_registrations_relabelled': 0}
+[backend] 2026-10-30 10:33:53,032 WARNING app.main migrations: applied 0016
+[backend] 2026-10-30 10:33:53,033 WARNING app.main migrations: applying 0017 (0017_freeze_consignment_listing_prices)
+[backend] 2026-10-30 10:33:53,036 WARNING 0017_freeze_consignment_listing_prices migration 0017: {'listings_stamped': 0}
+[backend] 2026-10-30 10:33:53,036 WARNING app.main migrations: applied 0017
+[backend] 2026-10-30 10:33:53,037 WARNING app.main migrations: applying 0018 (0018_outgoing_awaiting_charge)
+[backend] 2026-10-30 10:33:53,042 WARNING 0018_outgoing_awaiting_charge migration 0018: {'orders_marked': 0}
+[backend] 2026-10-30 10:33:53,044 WARNING app.main migrations: applied 0018
+[backend] 2026-10-30 10:33:53,044 WARNING app.main migrations: applying 0019 (0019_open_sale_commission_records)
+[backend] 2026-10-30 10:33:53,051 WARNING 0019_open_sale_commission_records migration 0019: {'open_sales': 0, 'records_written': 0}
+[backend] 2026-10-30 10:33:53,052 WARNING app.main migrations: applied 0019
+[backend] 2026-10-30 10:33:53,053 WARNING app.main migrations: applying 0020 (0020_product_fixed_category_field)
+[backend] 2026-10-30 10:33:53,058 WARNING 0020_product_fixed_category_field migration 0020: {'fixed_field_set': 0, 'category_ids_cleaned': 0}
+[backend] 2026-10-30 10:33:53,059 WARNING app.main migrations: applied 0020
+[backend] 2026-10-30 10:33:53,059 WARNING app.main migrations: applying 0021 (0021_relabel_cash_paid_credit_orders)
+[backend] 2026-10-30 10:33:53,066 WARNING 0021_relabel_cash_paid_credit_orders migration 0021: {'relabelled': 0, 'already_reversed': 0, 'skipped_ambiguous': 0}
+[backend] 2026-10-30 10:33:53,067 WARNING app.main migrations: applied 0021
+[backend] 2026-10-30 10:33:53,068 WARNING app.main migrations: applying 0022 (0022_listing_fixed_category_only)
+[backend] 2026-10-30 10:33:53,076 WARNING 0022_listing_fixed_category_only migration 0022: {'category_ids_emptied': 2, 'fixed_field_set': 0}; category_ids emptied on ['d5ec1f59c927c0478805aca8', '654ff621b5dace7c76eb91ad']; fixed_category_id set on []
+[backend] 2026-10-30 10:33:53,077 WARNING app.main migrations: applied 0022
+[backend] 2026-10-30 10:33:53,078 WARNING app.main migrations: applying 0023 (0023_product_business_sku_key)
+[backend] 2026-10-30 10:33:53,084 WARNING 0023_product_business_sku_key migration 0023: {'keys_set': 0, 'left_without_key': 0}; products left without a key (an older product of the same owner has the same SKU): []
+[backend] 2026-10-30 10:33:53,085 WARNING app.main migrations: applied 0023
+[backend] 2026-10-30 10:33:53,085 WARNING app.main migrations: applying 0024 (0024_remove_oos_discontinued_status)
+[backend] 2026-10-30 10:33:53,090 WARNING 0024_remove_oos_discontinued_status migration 0024: {'discontinued_to_inactive': 0, 'out_of_stock_to_active': 0}
+[backend] 2026-10-30 10:33:53,092 WARNING app.main migrations: applied 0024
+[backend] 2026-10-30 10:33:53,093 WARNING app.main migrations: applying 0025 (0025_catalog_draft_to_paused)
+[backend] 2026-10-30 10:33:53,099 WARNING 0025_catalog_draft_to_paused migration 0025: {'draft_to_paused': 0, 'marked': 0}
+[backend] 2026-10-30 10:33:53,100 WARNING app.main migrations: applied 0025
+[backend] 2026-10-30 10:33:53,160 INFO app.services.notification_service Seeded/updated 46 notification templates
+[backend] 2026-10-30 10:33:53,160 INFO app.db.init Seeded/updated 46 notification templates
+[backend] 2026-10-30 10:33:53,166 INFO app.db.init Fixed categories seeded/normalized: created=0 updated=9
+[backend] 2026-10-30 10:33:53,396 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,396 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,396 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,396 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,396 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO app.jobs.scheduler Scheduler configured with 19 jobs
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Complete pending wallet entries" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Check auctions ending soon" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Check stale orders" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Cleanup old notifications" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Retry failed sends" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Process scheduled notifications" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Process scheduled reports" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Process newsletter deliveries" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Sample daily FX + gold prices" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Notify owners of abandoned carts" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Notify on approaching deliveries" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Notify on auctions starting soon" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Start auctions whose start_time arrived" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Finalize auctions past end_time" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Auto-approve expired pending marketplace listings" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Publish catalogs whose start date arrived" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Unpublish catalogs whose end date passed" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Auto-approve incoming orders (>24h, opted-in)" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Auto-cancel unapproved orders (>4d)" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Scheduler started
+[backend] 2026-10-30 10:33:53,398 INFO app.main Background job scheduler started
+[backend] 2026-10-30 10:33:53,400 INFO apscheduler.scheduler Added job "Boot-time price sample" to job store "default"
+[backend] 2026-10-30 10:33:53,400 INFO app.services.ws_backplane WS backplane ws:push disabled (redis_enabled=False)
+[backend] 2026-10-30 10:33:53,401 INFO app.services.ws_backplane WS backplane ws:auction disabled (redis_enabled=False)
+[backend] INFO:     Application startup complete.
+[backend] 2026-10-30 10:33:53,401 INFO apscheduler.executors.default Running job "Complete pending wallet entries (trigger: interval[0:01:00], next run at: 2026-10-30 10:34:53 IST)" (scheduled at 2026-10-30 08:33:53.396497+00:00)
+[backend] INFO:     Uvicorn running on http://0.0.0.0:24826 (Press CTRL+C to quit)
+[backend] 2026-10-30 10:33:53,401 INFO apscheduler.executors.default Job "Complete pending wallet entries (trigger: interval[0:01:00], next run at: 2026-10-30 10:34:53 IST)" executed successfully
+[backend] 2026-10-30 10:33:58,406 INFO apscheduler.scheduler Removed job sample_daily_prices_boot
+[backend] 2026-10-30 10:33:58,406 INFO apscheduler.executors.default Running job "Boot-time price sample (trigger: date[2026-10-30 08:33:58 UTC], next run at: 2026-10-30 08:33:58 UTC)" (scheduled at 2026-10-30 08:33:58.398498+00:00)
+[backend] 2026-10-30 10:33:58,607 INFO httpx HTTP Request: GET https://boi.org.il/PublicApi/GetExchangeRate?key=USD "HTTP/1.1 200 OK"
+[backend] 2026-10-30 10:33:59,728 INFO httpx HTTP Request: GET https://api.gold-api.com/price/XAU "HTTP/1.1 200 OK"
+[backend] 2026-10-30 10:33:59,731 INFO apscheduler.executors.default Job "Boot-time price sample (trigger: date[2026-10-30 08:33:58 UTC], next run at: 2026-10-30 08:33:58 UTC)" executed successfully
+
+
+JewelryX dev.log:
+[backend] 
+[backend] portless
+[backend] 
+[backend] -- Proxy is running
+[backend] -- bench-194-tool-f4.api.jewelryx.localhost (auto-resolves to 127.0.0.1)
+[backend] -- Using port 24826 (fixed)
+[backend] 
+[backend]   -> http://bench-194-tool-f4.api.jewelryx.localhost
+[backend] 
+[backend] Running: PORT=24826 HOST=127.0.0.1 PORTLESS_URL=http://bench-194-tool-f4.api.jewelryx.localhost pnpm dev:backend
+[backend] 
+[backend] $ uv run --directory packages/backend python scripts/dev.py
+[backend] 2026-10-30 10:33:42,209 [dev] INFO watching C:\Users\Shay\.herdr\worktrees\jeweleryx\dev\.claude\worktrees\bench-194-tool-f4\packages\backend\app
+[backend] 2026-10-30 10:33:42,210 [dev] INFO command: C:\Users\Shay\.herdr\worktrees\jeweleryx\dev\.claude\worktrees\bench-194-tool-f4\packages\backend\.venv\Scripts\python.exe -X utf8 -m uvicorn app.main:app --host 0.0.0.0 --port 24826
+[backend] 2026-10-30 10:33:42,857 [dev] INFO 3 changes detected
+[backend] B2B_SHARED_SECRET is unset or under 32 characters: private storefronts cannot be unlocked and the b2b server's forwarded visitor IPs are ignored
+[backend] 2026-10-30 10:33:47,057 [dev] INFO 1 change detected
+[backend] B2B_SHARED_SECRET is unset or under 32 characters: private storefronts cannot be unlocked and the b2b server's forwarded visitor IPs are ignored
+[backend] 2026-10-30 10:33:49,433 [dev] INFO 1 change detected
+[backend] B2B_SHARED_SECRET is unset or under 32 characters: private storefronts cannot be unlocked and the b2b server's forwarded visitor IPs are ignored
+[backend] INFO:     Started server process [12088]
+[backend] INFO:     Waiting for application startup.
+[backend] 2026-10-30 10:33:52,794 INFO app.db.init Using local MongoDB connection
+[backend] 2026-10-30 10:33:52,880 WARNING app.main migrations: applying 0001 (0001_backfill_shared_variant_skus)
+[backend] 🔄 Migration 0001 — backfill shared-variant SKU suffixes
+[backend]    Database : jewelryx_bench-194-tool-f4
+[backend]    Dry-run  : False
+[backend] 
+[backend] 
+[backend] ============================================================
+[backend] 📈 Migration 0001 COMPLETE
+[backend] ============================================================
+[backend]   Products scanned          : 1
+[backend]   Products changed          : 0
+[backend]   Variants updated          : 0
+[backend]   Variants skipped (collis.): 0
+[backend]   Variants already correct  : 2
+[backend] 
+[backend] ✅ Migration complete.
+[backend] 2026-10-30 10:33:52,888 WARNING app.main migrations: applied 0001
+[backend] 2026-10-30 10:33:52,888 WARNING app.main migrations: applying 0002 (0002_normalize_fixed_categories)
+[backend] Database: jewelryx_bench-194-tool-f4
+[backend] [APPLY]
+[backend]   = fixed category 'rings' already normalized
+[backend]   = fixed category 'earrings' already normalized
+[backend]   = fixed category 'bracelets' already normalized
+[backend]   = fixed category 'pendants' already normalized
+[backend]   = fixed category 'necklaces' already normalized
+[backend]   ~ update fixed category 'diamonds'
+[backend]       name: 'יהלומים' -> 'אבני יהלום'
+[backend]   = fixed category 'gemstones' already normalized
+[backend] 
+[backend] Summary:
+[backend]   created: 0
+[backend]   updated: 1
+[backend]   unchanged: 6
+[backend] 2026-10-30 10:33:52,898 WARNING app.main migrations: applied 0002
+[backend] 2026-10-30 10:33:52,898 WARNING app.main migrations: applying 0003 (0003_backfill_listing_fixed_categories)
+[backend] scanned=2 updated=2 skipped_no_product=0 skipped_unmapped=0
+[backend] 2026-10-30 10:33:52,904 WARNING app.main migrations: applied 0003
+[backend] 2026-10-30 10:33:52,904 WARNING app.main migrations: applying 0004 (0004_retarget_admin_auction_notifications)
+[backend] scanned=0 retargeted=0 unrouted=0
+[backend] 2026-10-30 10:33:52,910 WARNING app.main migrations: applied 0004
+[backend] 2026-10-30 10:33:52,910 WARNING app.main migrations: applying 0005 (0005_retarget_admin_approval_notifications)
+[backend] scanned=0 retargeted=0 left_alone=0
+[backend] 2026-10-30 10:33:52,916 WARNING app.main migrations: applied 0005
+[backend] 2026-10-30 10:33:52,916 WARNING app.main migrations: applying 0006 (0006_collapse_user_roles_to_three)
+[backend] scanned=0 migrated=0
+[backend] 2026-10-30 10:33:52,921 WARNING app.main migrations: applied 0006
+[backend] 2026-10-30 10:33:52,921 WARNING app.main migrations: applying 0007 (0007_repoint_dead_notification_urls)
+[backend] BEFORE  {'orders': 0, 'auctions': 0, 'products_b2b': 0, 'scrap_gold': 0, 'marketplace_collection_shadow': 0, 'admin_marketplace_listing': 0, 'app_prefixed': 0, 'marketplace_index': 0, 'credit_settings_tab': 0}  (total 0, admin users 1)
+[backend] scanned=0 retargeted=0 left_alone=0
+[backend] AFTER   {'orders': 0, 'auctions': 0, 'products_b2b': 0, 'scrap_gold': 0, 'marketplace_collection_shadow': 0, 'admin_marketplace_listing': 0, 'app_prefixed': 0, 'marketplace_index': 0, 'credit_settings_tab': 0}  (total 0)
+[backend] 2026-10-30 10:33:52,937 WARNING app.main migrations: applied 0007
+[backend] 2026-10-30 10:33:52,938 WARNING app.main migrations: applying 0008 (0008_release_channel_rows_over_cancelled_listings)
+[backend] BEFORE  {'cancelled_listings': 0, 'stale_channel_rows': 0, 'live_auctions': 0}
+[backend] {'rows_released': 0, 'products': 0, 'auctions_retired': 0, 'auctions_with_bids': 0}
+[backend] AFTER   {'cancelled_listings': 0, 'stale_channel_rows': 0, 'live_auctions': 0}
+[backend] 2026-10-30 10:33:52,946 WARNING app.main migrations: applied 0008
+[backend] 2026-10-30 10:33:52,946 WARNING app.main migrations: applying 0009 (0009_reactivate_carts_the_expiry_job_deactivated)
+[backend] BEFORE  {'inactive_carts': 0, 'inactive_carts_holding_items': 0}
+[backend] {'carts_reactivated': 0, 'items_returned': 0, 'empty_replacements_retired': 0, 'superseded_left_alone': 0, 'older_duplicates_left_alone': 0}
+[backend] AFTER   {'inactive_carts': 0, 'inactive_carts_holding_items': 0}
+[backend] 2026-10-30 10:33:52,954 WARNING app.main migrations: applied 0009
+[backend] 2026-10-30 10:33:52,954 WARNING app.main migrations: applying 0010 (0010_repoint_approvals_notifications)
+[backend] BEFORE  {'notifications_on_dead_route': 0, 'templates_on_dead_route': 0}
+[backend] {'notifications': 0, 'templates': 0}
+[backend] AFTER   {'notifications_on_dead_route': 0, 'templates_on_dead_route': 0}
+[backend] 2026-10-30 10:33:52,963 WARNING app.main migrations: applied 0010
+[backend] 2026-10-30 10:33:52,964 WARNING app.main migrations: applying 0011 (0011_collapse_marketplace_pins_to_one_row_per_listing)
+[backend] BEFORE  {'overlay_rows': 0, 'distinct_listings': 0, 'backed_up_rows': 0}
+[backend] {'rows_removed': 0, 'ranks_rewritten': 0, 'old_indexes_dropped': 0}
+[backend] AFTER   {'overlay_rows': 0, 'distinct_listings': 0, 'backed_up_rows': 0}
+[backend] 2026-10-30 10:33:52,982 WARNING app.main migrations: applied 0011
+[backend] 2026-10-30 10:33:52,983 WARNING app.main migrations: applying 0012 (0012_remove_marketplace_display_settings)
+[backend] {'rows_removed': 0}
+[backend] 2026-10-30 10:33:52,990 WARNING app.main migrations: applied 0012
+[backend] 2026-10-30 10:33:52,990 WARNING app.main migrations: applying 0013 (0013_remove_cart_saved_items)
+[backend] 2026-10-30 10:33:52,994 WARNING 0013_remove_cart_saved_items migration 0013: {'carts_with_field': 0, 'carts_with_saved_items': 0, 'saved_items_removed': 0}
+[backend] 2026-10-30 10:33:52,995 WARNING app.main migrations: applied 0013
+[backend] 2026-10-30 10:33:52,996 WARNING app.main migrations: applying 0014 (0014_one_wishlist_row_per_like)
+[backend] 2026-10-30 10:33:53,002 WARNING 0014_one_wishlist_row_per_like migration 0014 BEFORE  {'wishlist_rows': 0, 'backed_up_rows': 0}
+[backend] 2026-10-30 10:33:53,015 WARNING 0014_one_wishlist_row_per_like migration 0014: {'rows_removed': 0, 'indexes_created': 2}
+[backend] 2026-10-30 10:33:53,016 WARNING 0014_one_wishlist_row_per_like migration 0014 AFTER   {'wishlist_rows': 0, 'backed_up_rows': 0}
+[backend] 2026-10-30 10:33:53,017 WARNING app.main migrations: applied 0014
+[backend] 2026-10-30 10:33:53,018 WARNING app.main migrations: applying 0015 (0015_record_collected_commissions)
+[backend] 2026-10-30 10:33:53,025 WARNING 0015_record_collected_commissions migration 0015: {'settled_orders': 0, 'records_marked_paid': 0, 'records_written_paid': 0, 'rates_filled': 0}
+[backend] 2026-10-30 10:33:53,026 WARNING app.main migrations: applied 0015
+[backend] 2026-10-30 10:33:53,027 WARNING app.main migrations: applying 0016 (0016_relabel_self_registration_audit)
+[backend] 2026-10-30 10:33:53,031 WARNING 0016_relabel_self_registration_audit migration 0016: {'self_registrations_relabelled': 0}
+[backend] 2026-10-30 10:33:53,032 WARNING app.main migrations: applied 0016
+[backend] 2026-10-30 10:33:53,033 WARNING app.main migrations: applying 0017 (0017_freeze_consignment_listing_prices)
+[backend] 2026-10-30 10:33:53,036 WARNING 0017_freeze_consignment_listing_prices migration 0017: {'listings_stamped': 0}
+[backend] 2026-10-30 10:33:53,036 WARNING app.main migrations: applied 0017
+[backend] 2026-10-30 10:33:53,037 WARNING app.main migrations: applying 0018 (0018_outgoing_awaiting_charge)
+[backend] 2026-10-30 10:33:53,042 WARNING 0018_outgoing_awaiting_charge migration 0018: {'orders_marked': 0}
+[backend] 2026-10-30 10:33:53,044 WARNING app.main migrations: applied 0018
+[backend] 2026-10-30 10:33:53,044 WARNING app.main migrations: applying 0019 (0019_open_sale_commission_records)
+[backend] 2026-10-30 10:33:53,051 WARNING 0019_open_sale_commission_records migration 0019: {'open_sales': 0, 'records_written': 0}
+[backend] 2026-10-30 10:33:53,052 WARNING app.main migrations: applied 0019
+[backend] 2026-10-30 10:33:53,053 WARNING app.main migrations: applying 0020 (0020_product_fixed_category_field)
+[backend] 2026-10-30 10:33:53,058 WARNING 0020_product_fixed_category_field migration 0020: {'fixed_field_set': 0, 'category_ids_cleaned': 0}
+[backend] 2026-10-30 10:33:53,059 WARNING app.main migrations: applied 0020
+[backend] 2026-10-30 10:33:53,059 WARNING app.main migrations: applying 0021 (0021_relabel_cash_paid_credit_orders)
+[backend] 2026-10-30 10:33:53,066 WARNING 0021_relabel_cash_paid_credit_orders migration 0021: {'relabelled': 0, 'already_reversed': 0, 'skipped_ambiguous': 0}
+[backend] 2026-10-30 10:33:53,067 WARNING app.main migrations: applied 0021
+[backend] 2026-10-30 10:33:53,068 WARNING app.main migrations: applying 0022 (0022_listing_fixed_category_only)
+[backend] 2026-10-30 10:33:53,076 WARNING 0022_listing_fixed_category_only migration 0022: {'category_ids_emptied': 2, 'fixed_field_set': 0}; category_ids emptied on ['d5ec1f59c927c0478805aca8', '654ff621b5dace7c76eb91ad']; fixed_category_id set on []
+[backend] 2026-10-30 10:33:53,077 WARNING app.main migrations: applied 0022
+[backend] 2026-10-30 10:33:53,078 WARNING app.main migrations: applying 0023 (0023_product_business_sku_key)
+[backend] 2026-10-30 10:33:53,084 WARNING 0023_product_business_sku_key migration 0023: {'keys_set': 0, 'left_without_key': 0}; products left without a key (an older product of the same owner has the same SKU): []
+[backend] 2026-10-30 10:33:53,085 WARNING app.main migrations: applied 0023
+[backend] 2026-10-30 10:33:53,085 WARNING app.main migrations: applying 0024 (0024_remove_oos_discontinued_status)
+[backend] 2026-10-30 10:33:53,090 WARNING 0024_remove_oos_discontinued_status migration 0024: {'discontinued_to_inactive': 0, 'out_of_stock_to_active': 0}
+[backend] 2026-10-30 10:33:53,092 WARNING app.main migrations: applied 0024
+[backend] 2026-10-30 10:33:53,093 WARNING app.main migrations: applying 0025 (0025_catalog_draft_to_paused)
+[backend] 2026-10-30 10:33:53,099 WARNING 0025_catalog_draft_to_paused migration 0025: {'draft_to_paused': 0, 'marked': 0}
+[backend] 2026-10-30 10:33:53,100 WARNING app.main migrations: applied 0025
+[backend] 2026-10-30 10:33:53,160 INFO app.services.notification_service Seeded/updated 46 notification templates
+[backend] 2026-10-30 10:33:53,160 INFO app.db.init Seeded/updated 46 notification templates
+[backend] 2026-10-30 10:33:53,166 INFO app.db.init Fixed categories seeded/normalized: created=0 updated=9
+[backend] 2026-10-30 10:33:53,396 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,396 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,396 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,396 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,396 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO apscheduler.scheduler Adding job tentatively -- it will be properly scheduled when the scheduler starts
+[backend] 2026-10-30 10:33:53,397 INFO app.jobs.scheduler Scheduler configured with 19 jobs
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Complete pending wallet entries" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Check auctions ending soon" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Check stale orders" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Cleanup old notifications" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Retry failed sends" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Process scheduled notifications" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Process scheduled reports" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Process newsletter deliveries" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Sample daily FX + gold prices" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Notify owners of abandoned carts" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Notify on approaching deliveries" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Notify on auctions starting soon" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Start auctions whose start_time arrived" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Finalize auctions past end_time" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Auto-approve expired pending marketplace listings" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Publish catalogs whose start date arrived" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Unpublish catalogs whose end date passed" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Auto-approve incoming orders (>24h, opted-in)" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Added job "Auto-cancel unapproved orders (>4d)" to job store "default"
+[backend] 2026-10-30 10:33:53,398 INFO apscheduler.scheduler Scheduler started
+[backend] 2026-10-30 10:33:53,398 INFO app.main Background job scheduler started
+[backend] 2026-10-30 10:33:53,400 INFO apscheduler.scheduler Added job "Boot-time price sample" to job store "default"
+[backend] 2026-10-30 10:33:53,400 INFO app.services.ws_backplane WS backplane ws:push disabled (redis_enabled=False)
+[backend] 2026-10-30 10:33:53,401 INFO app.services.ws_backplane WS backplane ws:auction disabled (redis_enabled=False)
+[backend] INFO:     Application startup complete.
+[backend] 2026-10-30 10:33:53,401 INFO apscheduler.executors.default Running job "Complete pending wallet entries (trigger: interval[0:01:00], next run at: 2026-10-30 10:34:53 IST)" (scheduled at 2026-10-30 08:33:53.396497+00:00)
+[backend] INFO:     Uvicorn running on http://0.0.0.0:24826 (Press CTRL+C to quit)
+[backend] 2026-10-30 10:33:53,401 INFO apscheduler.executors.default Job "Complete pending wallet entries (trigger: interval[0:01:00], next run at: 2026-10-30 10:34:53 IST)" executed successfully
+[backend] 2026-10-30 10:33:58,406 INFO apscheduler.scheduler Removed job sample_daily_prices_boot
+[backend] 2026-10-30 10:33:58,406 INFO apscheduler.executors.default Running job "Boot-time price sample (trigger: date[2026-10-30 08:33:58 UTC], next run at: 2026-10-30 08:33:58 UTC)" (scheduled at 2026-10-30 08:33:58.398498+00:00)
+[backend] 2026-10-30 10:33:58,607 INFO httpx HTTP Request: GET https://boi.org.il/PublicApi/GetExchangeRate?key=USD "HTTP/1.1 200 OK"
+[backend] 2026-10-30 10:33:59,728 INFO httpx HTTP Request: GET https://api.gold-api.com/price/XAU "HTTP/1.1 200 OK"
+[backend] 2026-10-30 10:33:59,731 INFO apscheduler.executors.default Job "Boot-time price sample (trigger: date[2026-10-30 08:33:58 UTC], next run at: 2026-10-30 08:33:58 UTC)" executed successfully
+
+
+confirm workspace server release: ok
+drop workspace database: ok
+remove disposable workspace: ok
+prune disposable workspace registration: ok
+delete disposable baseline branch: ok

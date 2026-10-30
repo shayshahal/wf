@@ -1,0 +1,12 @@
+selfcheck: focused (7 of 107 files); full suite not run.
+selfcheck: 9 checks (tsc and eslint included), 2 at a time, 300s each
+selfcheck: PASS tsc (0.3s) [1/9]
+selfcheck: PASS eslint (1.1s) [2/9]
+selfcheck: PASS src/worktrees/disposable-workspace.selfcheck.ts (106.4s) [3/9]
+selfcheck: PASS src/worktrees/disposable-hooks.selfcheck.ts (111.4s) [4/9]
+selfcheck: PASS src/worktrees/disposable-recovery.selfcheck.ts (34.2s) [5/9]
+selfcheck: PASS src/gates/baseline-diagnostic.selfcheck.ts (107.6s) [6/9]
+selfcheck: PASS src/worktrees/workspace-allocation.selfcheck.ts (7.8s) [7/9]
+selfcheck: PASS src/worktrees/disposable-identity-path.selfcheck.ts (155.2s) [8/9]
+selfcheck: PASS env/worktrees.selfcheck.ts (38.8s) [9/9]
+9 selfchecks green (focused; tsc and eslint included) in 295.8s
