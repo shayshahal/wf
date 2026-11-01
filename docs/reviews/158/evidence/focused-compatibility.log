@@ -1,0 +1,51 @@
+selfcheck: focused (6 of 108 files); full suite not run.
+selfcheck: 8 checks (tsc and eslint included), 2 at a time, 300s each
+selfcheck: PASS tsc (0.4s) [1/8]
+selfcheck: PASS eslint (1.6s) [2/8]
+selfcheck: PASS src/plugin/t3code.selfcheck.ts (56.6s) [3/8]
+selfcheck: PASS env/adapters/herdr-workspaces.selfcheck.ts (89.1s) [4/8]
+selfcheck: PASS src/plugin/t3code-entry.selfcheck.ts (105.5s) [5/8]
+selfcheck: PASS src/worktrees/session-workspace.selfcheck.ts (87.9s) [6/8]
+selfcheck: FAIL src/round/delivered-round.selfcheck.ts (87.6s) [7/8]
+
+── FAIL src/round/delivered-round.selfcheck.ts
+  ok   the merged product identity allows post-only resume
+  ok   real next still posts the first delivery
+  FAIL tracker readback establishes separate bound completion — wf post: could not check the ticket for changes: Jira did not say which account this token is: cannot tell the round's own comments from other people's; nothing posted
+
+  FAIL paperwork-only commits preserve the receipt and allow reap — post: tracker completion pending for X-1; run wf post. Then `node "C:/Users/Shay/work/wf-158/wf.mjs" next`
+
+  FAIL post-delivery questions and answers do not reopen or block ordinary posting — q1 → user: What wording should the tracker note use?
+q1 closed · recorded in C:\Users\Shay\AppData\Local\Temp\wf-delivered-TZxn8E\bug-reports\first\TICKET.md § Decisions
+
+  ok   step build cannot reopen the old delivery
+  ok   step classify cannot reopen the old delivery
+  ok   decide --revise more behavior cannot reopen the old delivery
+  ok   brief build cannot reopen the old delivery
+  ok   review fix/first --done cannot reopen the old delivery
+  ok   check cannot reopen the old delivery
+  ok   uncommitted follow-up stops post/reap and names the fresh route
+  ok   direct reap also preserves follow-up work rather than deleting its branch
+  ok   explicit force reaches removal, with a warning that product changes are not archived
+  ok   index-only product edits remain visible with restored worktree
+  ok   a restored worktree cannot hide new committed product bytes
+  ok   untracked product work also blocks post/reap
+  ok   pre-receipt merged rounds resume using bound T2 evidence
+  ok   pre-receipt T2 binding catches follow-ups without trusting current HEAD
+  ok   missing delivery authority fails closed for cleanup, not silently rebased to HEAD
+  ok   a pre-content-binding round can still post its original saved note
+  ok   old unbound rounds need restored evidence or explicit discard, never automatic reap
+  ok   malformed delivery evidence is rejected
+  ok   state refuses malformed receipts without overwriting them
+  ok   malformed delivery evidence is rejected
+  ok   state refuses malformed receipts without overwriting them
+  ok   malformed delivery evidence is rejected
+  ok   state refuses malformed receipts without overwriting them
+  ok   malformed delivery evidence is rejected
+  ok   state refuses malformed receipts without overwriting them
+  ok   malformed delivery evidence is rejected
+  ok   state refuses malformed receipts without overwriting them
+
+3 FAILURE(S)
+selfcheck: PASS env/worktrees.selfcheck.ts (119.6s) [8/8]
+1 of 8 selfchecks red (focused; tsc and eslint included) in 297.0s

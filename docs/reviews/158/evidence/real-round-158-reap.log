@@ -1,0 +1,21 @@
+{"args": ["node", "C:\\Users\\Shay\\work\\wf-158\\env\\wf.mjs", "reap", "bench/158-herdr-compat"], "cwd": "C:\\Users\\Shay\\work\\jeweleryx"}
+fatal: this operation must be run in a work tree
+kept 1 uncommitted paperwork file(s) in C:\Users\Shay\.cache\wf-reaped\bench-158-herdr-compat: .wf/state.json
+round 2026-11-01 bench/158-herdr-compat (class A, classify): 1m | outcome: stopped at classify | classify 1m | visits: classify 1 | checks 0 (0 red) | wf refused 0 | questions 0 | T2 0 (0 changes-requested), push refused 0
+(added to C:\Users\Shay\.cache\wf-reaped\ROUNDS.md)
+stop owned servers: ok
+close the show browser: ok
+close this checkout's browsers: ok
+drop database: ok
+worktree db: 0 stranded test database(s) dropped
+drop stranded test databases: ok
+its own mongo container, if any: ok
+portless prune: ok
+wt remove: ok
+rm -rf worktree: ok
+git worktree prune: ok
+launch.json entries: ok
+local branch bench/158-herdr-compat: kept — this round never reached step merged, so its work stays
+reaped bench-158-herdr-compat: worktree C:\Users\Shay\.herdr\worktrees\jeweleryx\dev\.claude\worktrees\bench-158-herdr-compat: deleted
+kept copy: C:\Users\Shay\.cache\wf-reaped\bench-158-herdr-compat — 1 file(s): 0 proof artifact(s), 1 other (uncommitted paperwork, round record)
+in git, not copied: 0 committed file(s) under bug-reports/bench-158-herdr-compat/ — they stay in the branch's commits, not in the kept copy

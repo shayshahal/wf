@@ -1,0 +1,6 @@
+Traceback (most recent call last):
+  File "C:\Users\Shay\work\wf-158\docs\reviews\158\evidence\native-parent-checkouts.py", line 45, in <module>
+    assert 'repository-parent workspace is not open' in absent.stderr,absent.stderr
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: {"kind":"refused","why":"wf herdr: CLI unavailable or refused list (exit 1); inspect Herdr directly. No create/remove or trust grant attempted."}
+

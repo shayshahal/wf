@@ -28,7 +28,7 @@ try {
 	const head = git('rev-parse', 'HEAD');
 	const approval = join(checkout, 'REVIEW.md');
 	writeFileSync(approval, 'Fixture only: approval/resource obligations must remain untouched.\n');
-	const rows = [{ path: repo, branch: 'main', is_bare: false }, { path: checkout, branch: 'fixture-existing', is_bare: false }];
+	const rows = [{ path: repo, branch: 'main', is_bare: false, open_workspace_id: 'wParent' }, { path: checkout, branch: 'fixture-existing', is_bare: false }];
 	const fresh = (mode = 'good') => ({ mode, rows, opens: 0, lists: 0 });
 	const save = (value: unknown) => writeFileSync(stateFile, JSON.stringify(value));
 	const state = () => JSON.parse(readFileSync(stateFile, 'utf8'));
@@ -41,8 +41,8 @@ if (basename(process.execPath).toLowerCase().startsWith('herdr')) {
  const file=${JSON.stringify(stateFile)}; const s=JSON.parse(readFileSync(file,'utf8')); const op=process.argv[2];
  const fail=()=>{writeFileSync(file,JSON.stringify(s));console.error('private-provider-detail-must-not-leak');process.exit(1);};
  const reply=(result)=>{writeFileSync(file,JSON.stringify(s));console.log(JSON.stringify({result}));process.exit(0);};
- if(op==='list') {s.lists++; if(s.mode==='unavailable'||(s.mode==='post-failure'&&s.opens))fail(); if(s.mode==='bad-json'){console.log('{bad');process.exit(0);} reply({type:'worktree_list',worktrees:s.rows});}
- if(op==='open') {s.opens++;s.openArgv=process.argv.slice(1); if(s.mode==='trust')fail(); s.rows[1].open_workspace_id='wTest'; if(s.mode==='lost')fail(); if(s.mode==='bad-ack')reply({type:'wrong'}); reply({type:'worktree_opened',workspace:{workspace_id:'wTest'},worktree:s.rows[1]});}
+ if(op==='list') {s.lists++; if(s.mode==='unavailable'||(s.mode==='post-failure'&&s.opens))fail(); if(s.mode==='bad-json'){console.log('{bad');process.exit(0);} reply({type:'worktree_list',source:{repo_root:s.mode==='foreign-parent'?${JSON.stringify(root)}:${JSON.stringify(repo)},source_checkout_path:${JSON.stringify(repo)},...(s.mode==='missing-parent'?{}:{source_workspace_id:'wParent'})},worktrees:s.mode==='missing-parent'?s.rows.map((r,i)=>i===0?{...r,open_workspace_id:undefined}:r):s.rows});}
+ if(op==='open') {s.opens++;s.openArgv=process.argv.slice(1); if(s.mode==='trust'||s.mode==='parent-gone')fail(); s.rows[1].open_workspace_id='wTest'; if(s.mode==='lost')fail(); if(s.mode==='bad-ack')reply({type:'wrong'}); reply({type:'worktree_opened',workspace:{workspace_id:'wTest'},worktree:s.rows[1]});}
  fail();
 }
 `);
@@ -61,7 +61,11 @@ if (basename(process.execPath).toLowerCase().startsWith('herdr')) {
 	});
 	check('open is no-focus and repeated open reuses exactly one mapping', () => {
 		save(fresh()); const first = invoke(['herdr', 'open', checkout]); assert.equal(first.status, 0, output(first)); assert.equal(JSON.parse(first.stdout).disposition, 'opened');
-		const again = invoke(['herdr', 'open', checkout]); assert.equal(again.status, 0, output(again)); assert.equal(JSON.parse(again.stdout).disposition, 'reused'); assert.equal(state().opens, 1); assert.ok(state().openArgv.includes('--no-focus')); assert.ok(state().openArgv.includes(checkout.replace(/\\/g, '/')) || state().openArgv.includes(checkout)); assert.ok(!state().openArgv.includes('--trust-repository'));
+		const again = invoke(['herdr', 'open', checkout]); assert.equal(again.status, 0, output(again)); assert.equal(JSON.parse(again.stdout).disposition, 'reused'); assert.equal(state().opens, 1); assert.ok(state().openArgv.includes('--no-focus')); assert.ok(state().openArgv.includes('--workspace')); assert.ok(state().openArgv.includes('wParent')); assert.ok(!state().openArgv.includes('--cwd')); assert.ok(state().openArgv.includes(checkout.replace(/\\/g, '/')) || state().openArgv.includes(checkout)); assert.ok(!state().openArgv.includes('--trust-repository'));
+	});
+	check('missing, foreign and disappearing parents cannot create implicit workspaces', () => {
+		for (const mode of ['missing-parent', 'foreign-parent']) { save(fresh(mode)); const r = invoke(['herdr', 'open', checkout]); assert.equal(r.status, 1, output(r)); assert.equal(state().opens, 0); }
+		save(fresh('parent-gone')); const gone = invoke(['herdr', 'open', checkout]); assert.equal(gone.status, 1, output(gone)); assert.match(output(gone), /uncertain/); assert.equal(state().opens, 1); assert.equal(state().rows[1].open_workspace_id, undefined); assert.ok(state().openArgv.includes('--workspace')); assert.ok(!state().openArgv.includes('--cwd'));
 	});
 	check('relative and canonical path aliases cannot duplicate a workspace', () => {
 		save(fresh()); assert.equal(invoke(['herdr', 'open', join('..', "existing $ ' checkout")]).status, 0);

@@ -34,3 +34,13 @@ agreement-sha: 43cdcedbc8cf50c1900a737791e8ce1c04e0e80e38a225261db673b89e61ee2a
 note — Initial approval is retained above; the visible parent-workspace prerequisite now needs a new actual ruling. See NATIVE-FINDINGS.md.
 
 verdict: pending
+
+## Actual renewed T1 ruling
+
+class: C
+agreement-sha: 43cdcedbc8cf50c1900a737791e8ce1c04e0e80e38a225261db673b89e61ee2a
+source: Inbox reply msg_01M6B3P5872RR235GDAJYHMHNN to question q-a661ad3a
+note — Actual words: Approve required parent (your recommendation)
+note — Implement parent-required explicit background open. Final T2 and human merge remain separate.
+
+verdict: approved

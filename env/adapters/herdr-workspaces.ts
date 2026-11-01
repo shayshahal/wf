@@ -1,6 +1,7 @@
 // Existing-checkout integration only. Worktrunk/Git keep allocation and cleanup (#158).
 import { spawnSync } from 'node:child_process';
 import { realpathSync } from 'node:fs';
+import { dirname } from 'node:path';
 import { listWorktrees, worktreePathKey } from '../../src/worktrees/worktree-registry.ts';
 import type { WorktreeEntry } from '../../src/worktrees/worktree-registry.ts';
 import type { Seams } from '../../src/seams.ts';
@@ -8,7 +9,7 @@ import { t3WorkspaceHandoff } from '../../src/plugin/t3code.ts';
 
 type HerdrCheckout = WorktreeEntry & { readonly workspace: string | null };
 type HerdrFailure = { readonly kind: 'refused' | 'uncertain'; readonly why: string };
-type HerdrDiscovery = { readonly kind: 'listed'; readonly worktrees: readonly HerdrCheckout[] } | HerdrFailure;
+type HerdrDiscovery = { readonly kind: 'listed'; readonly worktrees: readonly HerdrCheckout[]; readonly parent: { readonly path: string; readonly workspace: string | null } } | HerdrFailure;
 
 const record = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === 'object' && !Array.isArray(v);
 const workspaceId = (v: unknown): v is string => typeof v === 'string' && /^w[A-Za-z0-9]+$/.test(v);
@@ -27,12 +28,19 @@ function discoverHerdr(cwd: string): HerdrDiscovery {
 	let trees: WorktreeEntry[];
 	try { trees = listWorktrees(cwd); }
 	catch { return refused('wf herdr: cannot read Git checkout registration. Nothing opened.'); }
-	const reply = callHerdr(['worktree', 'list', '--cwd', cwd], cwd);
+	if (!trees.length) return refused('wf herdr: no registered repository parent. Nothing opened.');
+	const parentPath = trees[0].bare ? dirname(trees[0].path) : trees[0].path;
+	// Listing from the parent also works when the caller is in a linked checkout. Native open
+	// rejects linked sources, and a cwd fallback can implicitly create a parent (#158, native probe).
+	const reply = callHerdr(['worktree', 'list', '--cwd', parentPath], cwd);
 	if (reply.kind !== 'reply') return reply;
 	const envelope = reply.value;
 	if (!record(envelope) || !record(envelope.result) || envelope.result.type !== 'worktree_list' || !Array.isArray(envelope.result.worktrees)) return refused('wf herdr: invalid discovery envelope. Nothing opened.');
+	const source = envelope.result.source;
+	if (!record(source) || typeof source.repo_root !== 'string' || typeof source.source_checkout_path !== 'string' || (source.source_workspace_id !== undefined && !workspaceId(source.source_workspace_id))) return refused('wf herdr: invalid repository-parent discovery. Nothing opened.');
 	const worktrees: HerdrCheckout[] = [];
 	try {
+		if (worktreePathKey(source.repo_root) !== worktreePathKey(parentPath) || worktreePathKey(source.source_checkout_path) !== worktreePathKey(parentPath)) return refused('wf herdr: native source is not the Git repository parent. Nothing opened.');
 		for (const row of envelope.result.worktrees) {
 			if (!record(row) || typeof row.path !== 'string' || (row.branch !== undefined && row.branch !== null && typeof row.branch !== 'string') || typeof row.is_bare !== 'boolean' || (row.open_workspace_id !== undefined && !workspaceId(row.open_workspace_id))) return refused('wf herdr: invalid discovery entry. Nothing opened.');
 			const rowPath = row.path;
@@ -42,7 +50,9 @@ function discoverHerdr(cwd: string): HerdrDiscovery {
 		}
 	} catch { return refused('wf herdr: checkout path identity is unavailable. Nothing opened.'); }
 	if (worktrees.length !== trees.length) return refused('wf herdr: incomplete checkout discovery. Nothing opened.');
-	return { kind: 'listed', worktrees };
+	const parentWorkspace = workspaceId(source.source_workspace_id) ? source.source_workspace_id : null;
+	if (!trees[0].bare && worktrees.find((tree) => tree.path === trees[0].path)?.workspace !== parentWorkspace) return refused('wf herdr: inconsistent repository-parent workspace mapping. Nothing opened.');
+	return { kind: 'listed', worktrees, parent: { path: parentPath, workspace: parentWorkspace } };
 }
 
 function confirmsHerdrOpen(value: unknown, checkout: HerdrCheckout): boolean {
@@ -62,11 +72,12 @@ function openHerdrCheckout(input: { cwd: string; path: string }): { kind: 'opene
 		target = before.worktrees.find((tree) => worktreePathKey(tree.path) === worktreePathKey(physical));
 	} catch { return refused('wf herdr: target checkout does not exist. Nothing created.'); }
 	if (!target || target.bare) return refused('wf herdr: target must be an existing registered non-bare checkout. Nothing created.');
+	if (!before.parent.workspace) return refused(`wf herdr: repository-parent workspace is not open: ${before.parent.path}. Open that parent explicitly in Herdr, then retry. No workspace opened.`);
 	if (target.workspace) return { kind: 'opened', checkout: target, disposition: 'reused' };
 	const requested = target;
 	// #158: a lost open response may follow a committed workspace. Always reconcile with discovery;
 	// never retry a mutation, compensate with removal, or treat an error as proof of no effect.
-	const opened = callHerdr(['worktree', 'open', '--cwd', input.cwd, '--path', target.path, '--no-focus'], input.cwd);
+	const opened = callHerdr(['worktree', 'open', '--workspace', before.parent.workspace, '--path', target.path, '--no-focus'], input.cwd);
 	const after = discoverHerdr(input.cwd);
 	if (after.kind === 'listed') {
 		const found = after.worktrees.find((tree) => tree.path === requested.path);
@@ -104,6 +115,7 @@ export function herdrWorkspaceHandoff(env: NodeJS.ProcessEnv): Seams['workspaceH
 		'workspace handoff: Herdr (not opened by wf)',
 		`wf-owned checkout: ${path}`,
 		`Explicit background open (argv): ${JSON.stringify(['wfk', 'herdr', 'open', path.replace(/\\/g, '/')])}`,
+		'The repository-parent workspace must already be open. The helper refuses without creating an implicit parent.',
 		'Opening reuses this checkout. It does not bind or replace this agent session. Save context before starting another session.',
 		'Closing a Herdr workspace is not wf reap, resource release or delivered work. Use the recorded wf entry for cleanup.',
 	].join('\n');

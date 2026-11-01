@@ -1,0 +1,1044 @@
+[
+  {
+    "argv": [
+      "git",
+      "init",
+      "-q",
+      "-b",
+      "main",
+      "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-normal-q3n_ueag\\repo"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 0.156,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "-C",
+      "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-normal-q3n_ueag\\repo",
+      "-c",
+      "user.name=wf",
+      "-c",
+      "user.email=wf@test",
+      "commit",
+      "--allow-empty",
+      "-qm",
+      "fixture"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 0.094,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "-C",
+      "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-normal-q3n_ueag\\repo",
+      "worktree",
+      "add",
+      "-b",
+      "fixture-existing",
+      "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-normal-q3n_ueag\\existing $ ' checkout"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 1.25,
+    "stdout": "HEAD is now at 7870895 fixture\n",
+    "stderr": "Preparing worktree (new branch 'fixture-existing')\n"
+  },
+  {
+    "argv": [
+      "git",
+      "-C",
+      "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-normal-q3n_ueag\\repo",
+      "config",
+      "core.hooksPath",
+      "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-normal-q3n_ueag\\hooks"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 1.015,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "-C",
+      "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-normal-q3n_ueag\\repo",
+      "worktree",
+      "list",
+      "--porcelain"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 0.063,
+    "stdout": "worktree C:/Users/Shay/AppData/Local/Temp/wf158-parent-normal-q3n_ueag/repo\nHEAD 78708954c1adf408fd5428e2706e1e6ed0bf4586\nbranch refs/heads/main\n\nworktree C:/Users/Shay/AppData/Local/Temp/wf158-parent-normal-q3n_ueag/existing $ ' checkout\nHEAD 78708954c1adf408fd5428e2706e1e6ed0bf4586\nbranch refs/heads/fixture-existing\n\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "-C",
+      "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-normal-q3n_ueag\\existing $ ' checkout",
+      "rev-parse",
+      "HEAD"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 0.047,
+    "stdout": "78708954c1adf408fd5428e2706e1e6ed0bf4586\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "herdr",
+      "workspace",
+      "list"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 0.016,
+    "stdout": "{\"id\":\"cli:workspace:list\",\"result\":{\"type\":\"workspace_list\",\"workspaces\":[{\"active_tab_id\":\"wE:t3H\",\"agent_status\":\"working\",\"focused\":true,\"label\":\"jeweleryx\",\"number\":1,\"pane_count\":9,\"tab_count\":8,\"tokens\":{\"space_working_other\":\"1: \u25cf jeweleryx\"},\"workspace_id\":\"wE\",\"worktree\":{\"checkout_path\":\"C:/Users/Shay/work/jeweleryx\",\"is_linked_worktree\":false,\"repo_key\":\"\\\\\\\\?\\\\C:\\\\Users\\\\Shay\\\\work\\\\jeweleryx\\\\.bare\",\"repo_name\":\"jeweleryx\",\"repo_root\":\"C:/Users/Shay/work/jeweleryx\"}},{\"active_tab_id\":\"wP:t1\",\"agent_status\":\"working\",\"focused\":false,\"label\":\"wf\",\"number\":2,\"pane_count\":1,\"tab_count\":1,\"tokens\":{\"git_branch\":\"main\",\"sgit_branch\":\"main\",\"space_working_other\":\"2: \u25cf wf\"},\"workspace_id\":\"wP\"}]}}\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "node",
+      "C:\\Users\\Shay\\work\\wf-158\\env\\wf.mjs",
+      "herdr",
+      "open",
+      "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-normal-q3n_ueag\\existing $ ' checkout"
+    ],
+    "cwd": "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-normal-q3n_ueag\\existing $ ' checkout",
+    "exit": 1,
+    "seconds": 2.406,
+    "stdout": "",
+    "stderr": "{\"kind\":\"refused\",\"why\":\"wf herdr: repository-parent workspace is not open: C:/Users/Shay/AppData/Local/Temp/wf158-parent-normal-q3n_ueag/repo. Open that parent explicitly in Herdr, then retry. No workspace opened.\"}\n"
+  },
+  {
+    "argv": [
+      "herdr",
+      "workspace",
+      "list"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 0.047,
+    "stdout": "{\"id\":\"cli:workspace:list\",\"result\":{\"type\":\"workspace_list\",\"workspaces\":[{\"active_tab_id\":\"wE:t3H\",\"agent_status\":\"done\",\"focused\":true,\"label\":\"jeweleryx\",\"number\":1,\"pane_count\":9,\"tab_count\":8,\"tokens\":{\"space_working_other\":\"1: \u25cf jeweleryx\"},\"workspace_id\":\"wE\",\"worktree\":{\"checkout_path\":\"C:/Users/Shay/work/jeweleryx\",\"is_linked_worktree\":false,\"repo_key\":\"\\\\\\\\?\\\\C:\\\\Users\\\\Shay\\\\work\\\\jeweleryx\\\\.bare\",\"repo_name\":\"jeweleryx\",\"repo_root\":\"C:/Users/Shay/work/jeweleryx\"}},{\"active_tab_id\":\"wP:t1\",\"agent_status\":\"working\",\"focused\":false,\"label\":\"wf\",\"number\":2,\"pane_count\":1,\"tab_count\":1,\"tokens\":{\"git_branch\":\"main\",\"sgit_branch\":\"main\",\"space_working_other\":\"2: \u25cf wf\"},\"workspace_id\":\"wP\"}]}}\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "herdr",
+      "workspace",
+      "create",
+      "--cwd",
+      "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-normal-q3n_ueag\\repo",
+      "--no-focus"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 1.125,
+    "stdout": "{\"id\":\"cli:workspace:create\",\"result\":{\"root_pane\":{\"agent_status\":\"unknown\",\"cwd\":\"C:\\\\Users\\\\Shay\\\\AppData\\\\Local\\\\Temp\\\\wf158-parent-normal-q3n_ueag\\\\repo\\\\\",\"focused\":false,\"pane_id\":\"w13:p1\",\"revision\":0,\"scroll\":{\"max_offset_from_bottom\":0,\"offset_from_bottom\":0,\"viewport_rows\":46},\"tab_id\":\"w13:t1\",\"terminal_id\":\"term_65f331d0c05e928c\",\"workspace_id\":\"w13\"},\"tab\":{\"agent_status\":\"unknown\",\"focused\":false,\"label\":\"1\",\"number\":1,\"pane_count\":1,\"tab_id\":\"w13:t1\",\"workspace_id\":\"w13\"},\"type\":\"workspace_created\",\"workspace\":{\"active_tab_id\":\"w13:t1\",\"agent_status\":\"unknown\",\"focused\":false,\"label\":\"repo\",\"number\":3,\"pane_count\":1,\"tab_count\":1,\"workspace_id\":\"w13\"}}}\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "herdr",
+      "workspace",
+      "list"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 1.031,
+    "stdout": "{\"id\":\"cli:workspace:list\",\"result\":{\"type\":\"workspace_list\",\"workspaces\":[{\"active_tab_id\":\"wE:t3H\",\"agent_status\":\"working\",\"focused\":true,\"label\":\"jeweleryx\",\"number\":1,\"pane_count\":9,\"tab_count\":8,\"tokens\":{\"space_working_other\":\"1: \u25cf jeweleryx\"},\"workspace_id\":\"wE\",\"worktree\":{\"checkout_path\":\"C:/Users/Shay/work/jeweleryx\",\"is_linked_worktree\":false,\"repo_key\":\"\\\\\\\\?\\\\C:\\\\Users\\\\Shay\\\\work\\\\jeweleryx\\\\.bare\",\"repo_name\":\"jeweleryx\",\"repo_root\":\"C:/Users/Shay/work/jeweleryx\"}},{\"active_tab_id\":\"wP:t1\",\"agent_status\":\"working\",\"focused\":false,\"label\":\"wf\",\"number\":2,\"pane_count\":1,\"tab_count\":1,\"tokens\":{\"git_branch\":\"main\",\"sgit_branch\":\"main\",\"space_working_other\":\"2: \u25cf wf\"},\"workspace_id\":\"wP\"},{\"active_tab_id\":\"w13:t1\",\"agent_status\":\"unknown\",\"focused\":false,\"label\":\"repo\",\"number\":3,\"pane_count\":1,\"tab_count\":1,\"workspace_id\":\"w13\"}]}}\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "node",
+      "C:\\Users\\Shay\\work\\wf-158\\env\\wf.mjs",
+      "herdr",
+      "open",
+      "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-normal-q3n_ueag\\existing $ ' checkout"
+    ],
+    "cwd": "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-normal-q3n_ueag\\existing $ ' checkout",
+    "exit": 0,
+    "seconds": 11.75,
+    "stdout": "{\"kind\":\"opened\",\"checkout\":{\"path\":\"C:/Users/Shay/AppData/Local/Temp/wf158-parent-normal-q3n_ueag/existing $ ' checkout\",\"branch\":\"fixture-existing\",\"detached\":false,\"bare\":false,\"workspace\":\"w14\"},\"disposition\":\"opened\"}\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "node",
+      "C:\\Users\\Shay\\work\\wf-158\\env\\wf.mjs",
+      "herdr",
+      "open",
+      "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-normal-q3n_ueag\\existing $ ' checkout"
+    ],
+    "cwd": "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-normal-q3n_ueag\\existing $ ' checkout",
+    "exit": 0,
+    "seconds": 9.141,
+    "stdout": "{\"kind\":\"opened\",\"checkout\":{\"path\":\"C:/Users/Shay/AppData/Local/Temp/wf158-parent-normal-q3n_ueag/existing $ ' checkout\",\"branch\":\"fixture-existing\",\"detached\":false,\"bare\":false,\"workspace\":\"w14\"},\"disposition\":\"reused\"}\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "herdr",
+      "workspace",
+      "list"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 0.078,
+    "stdout": "{\"id\":\"cli:workspace:list\",\"result\":{\"type\":\"workspace_list\",\"workspaces\":[{\"active_tab_id\":\"wE:t2H\",\"agent_status\":\"working\",\"focused\":true,\"label\":\"jeweleryx\",\"number\":1,\"pane_count\":9,\"tab_count\":8,\"tokens\":{\"space_working_other\":\"1: \u25cf jeweleryx\"},\"workspace_id\":\"wE\",\"worktree\":{\"checkout_path\":\"C:/Users/Shay/work/jeweleryx\",\"is_linked_worktree\":false,\"repo_key\":\"\\\\\\\\?\\\\C:\\\\Users\\\\Shay\\\\work\\\\jeweleryx\\\\.bare\",\"repo_name\":\"jeweleryx\",\"repo_root\":\"C:/Users/Shay/work/jeweleryx\"}},{\"active_tab_id\":\"wP:t1\",\"agent_status\":\"working\",\"focused\":false,\"label\":\"wf\",\"number\":2,\"pane_count\":1,\"tab_count\":1,\"tokens\":{\"git_branch\":\"main\",\"sgit_branch\":\"main\",\"space_working_other\":\"2: \u25cf wf\"},\"workspace_id\":\"wP\"},{\"active_tab_id\":\"w13:t1\",\"agent_status\":\"unknown\",\"focused\":false,\"label\":\"repo\",\"number\":3,\"pane_count\":1,\"tab_count\":1,\"tokens\":{\"git_branch\":\"main\",\"sgit_branch\":\"main\",\"space_none\":\"3: repo\"},\"workspace_id\":\"w13\",\"worktree\":{\"checkout_path\":\"\\\\\\\\?\\\\C:\\\\Users\\\\Shay\\\\AppData\\\\Local\\\\Temp\\\\wf158-parent-normal-q3n_ueag\\\\repo\",\"is_linked_worktree\":false,\"repo_key\":\"\\\\\\\\?\\\\C:\\\\Users\\\\Shay\\\\AppData\\\\Local\\\\Temp\\\\wf158-parent-normal-q3n_ueag\\\\repo\\\\.git\",\"repo_name\":\"repo\",\"repo_root\":\"\\\\\\\\?\\\\C:\\\\Users\\\\Shay\\\\AppData\\\\Local\\\\Temp\\\\wf158-parent-normal-q3n_ueag\\\\repo\"}},{\"active_tab_id\":\"w14:t1\",\"agent_status\":\"unknown\",\"focused\":false,\"label\":\"existing $ ' checkout\",\"number\":4,\"pane_count\":1,\"tab_count\":1,\"tokens\":{\"space_none\":\"4: existing $ ' checkout\"},\"workspace_id\":\"w14\",\"worktree\":{\"checkout_path\":\"C:/Users/Shay/AppData/Local/Temp/wf158-parent-normal-q3n_ueag/existing $ ' checkout\",\"is_linked_worktree\":true,\"repo_key\":\"\\\\\\\\?\\\\C:\\\\Users\\\\Shay\\\\AppData\\\\Local\\\\Temp\\\\wf158-parent-normal-q3n_ueag\\\\repo\\\\.git\",\"repo_name\":\"repo\",\"repo_root\":\"\\\\\\\\?\\\\C:\\\\Users\\\\Shay\\\\AppData\\\\Local\\\\Temp\\\\wf158-parent-normal-q3n_ueag\\\\repo\"}}]}}\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "herdr",
+      "workspace",
+      "get",
+      "w13"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 0.062,
+    "stdout": "{\"id\":\"cli:workspace:get\",\"result\":{\"type\":\"workspace_info\",\"workspace\":{\"active_tab_id\":\"w13:t1\",\"agent_status\":\"unknown\",\"focused\":false,\"label\":\"repo\",\"number\":3,\"pane_count\":1,\"tab_count\":1,\"tokens\":{\"sgit_branch\":\"main\",\"space_none\":\"3: repo\"},\"workspace_id\":\"w13\",\"worktree\":{\"checkout_path\":\"\\\\\\\\?\\\\C:\\\\Users\\\\Shay\\\\AppData\\\\Local\\\\Temp\\\\wf158-parent-normal-q3n_ueag\\\\repo\",\"is_linked_worktree\":false,\"repo_key\":\"\\\\\\\\?\\\\C:\\\\Users\\\\Shay\\\\AppData\\\\Local\\\\Temp\\\\wf158-parent-normal-q3n_ueag\\\\repo\\\\.git\",\"repo_name\":\"repo\",\"repo_root\":\"\\\\\\\\?\\\\C:\\\\Users\\\\Shay\\\\AppData\\\\Local\\\\Temp\\\\wf158-parent-normal-q3n_ueag\\\\repo\"}}}}\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "herdr",
+      "workspace",
+      "get",
+      "w14"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 0.094,
+    "stdout": "{\"id\":\"cli:workspace:get\",\"result\":{\"type\":\"workspace_info\",\"workspace\":{\"active_tab_id\":\"w14:t1\",\"agent_status\":\"unknown\",\"focused\":false,\"label\":\"existing $ ' checkout\",\"number\":4,\"pane_count\":1,\"tab_count\":1,\"tokens\":{\"space_none\":\"4: existing $ ' checkout\"},\"workspace_id\":\"w14\",\"worktree\":{\"checkout_path\":\"C:/Users/Shay/AppData/Local/Temp/wf158-parent-normal-q3n_ueag/existing $ ' checkout\",\"is_linked_worktree\":true,\"repo_key\":\"\\\\\\\\?\\\\C:\\\\Users\\\\Shay\\\\AppData\\\\Local\\\\Temp\\\\wf158-parent-normal-q3n_ueag\\\\repo\\\\.git\",\"repo_name\":\"repo\",\"repo_root\":\"\\\\\\\\?\\\\C:\\\\Users\\\\Shay\\\\AppData\\\\Local\\\\Temp\\\\wf158-parent-normal-q3n_ueag\\\\repo\"}}}}\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "-C",
+      "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-normal-q3n_ueag\\repo",
+      "worktree",
+      "list",
+      "--porcelain"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 1.094,
+    "stdout": "worktree C:/Users/Shay/AppData/Local/Temp/wf158-parent-normal-q3n_ueag/repo\nHEAD 78708954c1adf408fd5428e2706e1e6ed0bf4586\nbranch refs/heads/main\n\nworktree C:/Users/Shay/AppData/Local/Temp/wf158-parent-normal-q3n_ueag/existing $ ' checkout\nHEAD 78708954c1adf408fd5428e2706e1e6ed0bf4586\nbranch refs/heads/fixture-existing\n\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "-C",
+      "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-normal-q3n_ueag\\existing $ ' checkout",
+      "rev-parse",
+      "HEAD"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 0.11,
+    "stdout": "78708954c1adf408fd5428e2706e1e6ed0bf4586\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "herdr",
+      "workspace",
+      "close",
+      "w14"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 0.125,
+    "stdout": "{\"id\":\"cli:workspace:close\",\"result\":{\"type\":\"ok\"}}\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "-C",
+      "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-normal-q3n_ueag\\repo",
+      "worktree",
+      "list",
+      "--porcelain"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 0.078,
+    "stdout": "worktree C:/Users/Shay/AppData/Local/Temp/wf158-parent-normal-q3n_ueag/repo\nHEAD 78708954c1adf408fd5428e2706e1e6ed0bf4586\nbranch refs/heads/main\n\nworktree C:/Users/Shay/AppData/Local/Temp/wf158-parent-normal-q3n_ueag/existing $ ' checkout\nHEAD 78708954c1adf408fd5428e2706e1e6ed0bf4586\nbranch refs/heads/fixture-existing\n\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "node",
+      "C:\\Users\\Shay\\work\\wf-158\\env\\wf.mjs",
+      "herdr",
+      "list"
+    ],
+    "cwd": "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-normal-q3n_ueag\\existing $ ' checkout",
+    "exit": 0,
+    "seconds": 1.547,
+    "stdout": "{\"kind\":\"listed\",\"worktrees\":[{\"path\":\"C:/Users/Shay/AppData/Local/Temp/wf158-parent-normal-q3n_ueag/repo\",\"branch\":\"main\",\"detached\":false,\"bare\":false,\"workspace\":\"w13\"},{\"path\":\"C:/Users/Shay/AppData/Local/Temp/wf158-parent-normal-q3n_ueag/existing $ ' checkout\",\"branch\":\"fixture-existing\",\"detached\":false,\"bare\":false,\"workspace\":null}],\"parent\":{\"path\":\"C:/Users/Shay/AppData/Local/Temp/wf158-parent-normal-q3n_ueag/repo\",\"workspace\":\"w13\"}}\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "herdr",
+      "workspace",
+      "close",
+      "w13"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 0.109,
+    "stdout": "{\"id\":\"cli:workspace:close\",\"result\":{\"type\":\"ok\"}}\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "herdr",
+      "workspace",
+      "list"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 0.031,
+    "stdout": "{\"id\":\"cli:workspace:list\",\"result\":{\"type\":\"workspace_list\",\"workspaces\":[{\"active_tab_id\":\"wE:t2H\",\"agent_status\":\"working\",\"focused\":true,\"label\":\"jeweleryx\",\"number\":1,\"pane_count\":9,\"tab_count\":8,\"tokens\":{\"space_working_other\":\"1: \u25cf jeweleryx\"},\"workspace_id\":\"wE\",\"worktree\":{\"checkout_path\":\"C:/Users/Shay/work/jeweleryx\",\"is_linked_worktree\":false,\"repo_key\":\"\\\\\\\\?\\\\C:\\\\Users\\\\Shay\\\\work\\\\jeweleryx\\\\.bare\",\"repo_name\":\"jeweleryx\",\"repo_root\":\"C:/Users/Shay/work/jeweleryx\"}},{\"active_tab_id\":\"wP:t1\",\"agent_status\":\"working\",\"focused\":false,\"label\":\"wf\",\"number\":2,\"pane_count\":1,\"tab_count\":1,\"tokens\":{\"sgit_branch\":\"main\",\"space_working_other\":\"2: \u25cf wf\"},\"workspace_id\":\"wP\"}]}}\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "-C",
+      "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-normal-q3n_ueag\\repo",
+      "worktree",
+      "remove",
+      "--force",
+      "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-normal-q3n_ueag\\existing $ ' checkout"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 1.141,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "fixture": "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-normal-q3n_ueag",
+    "cleanup_attempts": 1,
+    "removed": true
+  },
+  {
+    "argv": [
+      "git",
+      "init",
+      "-q",
+      "-b",
+      "main",
+      "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-bare-v7xbjcih\\repo"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 0.094,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "-C",
+      "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-bare-v7xbjcih\\repo",
+      "-c",
+      "user.name=wf",
+      "-c",
+      "user.email=wf@test",
+      "commit",
+      "--allow-empty",
+      "-qm",
+      "fixture"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 0.094,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "clone",
+      "--bare",
+      "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-bare-v7xbjcih\\repo",
+      "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-bare-v7xbjcih\\.bare"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 1.203,
+    "stdout": "",
+    "stderr": "Cloning into bare repository 'C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-bare-v7xbjcih\\.bare'...\ndone.\n"
+  },
+  {
+    "argv": [
+      "git",
+      "-C",
+      "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-bare-v7xbjcih\\.bare",
+      "worktree",
+      "add",
+      "-b",
+      "fixture-existing",
+      "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-bare-v7xbjcih\\existing $ ' checkout"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 1.219,
+    "stdout": "HEAD is now at 23da72d fixture\n",
+    "stderr": "Preparing worktree (new branch 'fixture-existing')\n"
+  },
+  {
+    "argv": [
+      "git",
+      "-C",
+      "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-bare-v7xbjcih\\.bare",
+      "config",
+      "core.hooksPath",
+      "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-bare-v7xbjcih\\hooks"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 1.141,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "-C",
+      "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-bare-v7xbjcih\\.bare",
+      "worktree",
+      "list",
+      "--porcelain"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 0.093,
+    "stdout": "worktree C:/Users/Shay/AppData/Local/Temp/wf158-parent-bare-v7xbjcih/.bare\nbare\n\nworktree C:/Users/Shay/AppData/Local/Temp/wf158-parent-bare-v7xbjcih/existing $ ' checkout\nHEAD 23da72d0476e2dc7f3b138a0e293d35aabc9694c\nbranch refs/heads/fixture-existing\n\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "-C",
+      "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-bare-v7xbjcih\\existing $ ' checkout",
+      "rev-parse",
+      "HEAD"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 1.047,
+    "stdout": "23da72d0476e2dc7f3b138a0e293d35aabc9694c\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "herdr",
+      "workspace",
+      "list"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 0.078,
+    "stdout": "{\"id\":\"cli:workspace:list\",\"result\":{\"type\":\"workspace_list\",\"workspaces\":[{\"active_tab_id\":\"wE:t2H\",\"agent_status\":\"working\",\"focused\":true,\"label\":\"jeweleryx\",\"number\":1,\"pane_count\":9,\"tab_count\":8,\"tokens\":{\"space_working_other\":\"1: \u25cf jeweleryx\"},\"workspace_id\":\"wE\",\"worktree\":{\"checkout_path\":\"C:/Users/Shay/work/jeweleryx\",\"is_linked_worktree\":false,\"repo_key\":\"\\\\\\\\?\\\\C:\\\\Users\\\\Shay\\\\work\\\\jeweleryx\\\\.bare\",\"repo_name\":\"jeweleryx\",\"repo_root\":\"C:/Users/Shay/work/jeweleryx\"}},{\"active_tab_id\":\"wP:t1\",\"agent_status\":\"working\",\"focused\":false,\"label\":\"wf\",\"number\":2,\"pane_count\":1,\"tab_count\":1,\"tokens\":{\"space_working_other\":\"2: \u25cf wf\"},\"workspace_id\":\"wP\"}]}}\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "node",
+      "C:\\Users\\Shay\\work\\wf-158\\env\\wf.mjs",
+      "herdr",
+      "open",
+      "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-bare-v7xbjcih\\existing $ ' checkout"
+    ],
+    "cwd": "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-bare-v7xbjcih\\existing $ ' checkout",
+    "exit": 1,
+    "seconds": 5.454,
+    "stdout": "",
+    "stderr": "{\"kind\":\"refused\",\"why\":\"wf herdr: repository-parent workspace is not open: C:/Users/Shay/AppData/Local/Temp/wf158-parent-bare-v7xbjcih. Open that parent explicitly in Herdr, then retry. No workspace opened.\"}\n"
+  },
+  {
+    "argv": [
+      "herdr",
+      "workspace",
+      "list"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 1.062,
+    "stdout": "{\"id\":\"cli:workspace:list\",\"result\":{\"type\":\"workspace_list\",\"workspaces\":[{\"active_tab_id\":\"wE:t2H\",\"agent_status\":\"working\",\"focused\":true,\"label\":\"jeweleryx\",\"number\":1,\"pane_count\":9,\"tab_count\":8,\"tokens\":{\"space_working_other\":\"1: \u25cf jeweleryx\"},\"workspace_id\":\"wE\",\"worktree\":{\"checkout_path\":\"C:/Users/Shay/work/jeweleryx\",\"is_linked_worktree\":false,\"repo_key\":\"\\\\\\\\?\\\\C:\\\\Users\\\\Shay\\\\work\\\\jeweleryx\\\\.bare\",\"repo_name\":\"jeweleryx\",\"repo_root\":\"C:/Users/Shay/work/jeweleryx\"}},{\"active_tab_id\":\"wP:t1\",\"agent_status\":\"working\",\"focused\":false,\"label\":\"wf\",\"number\":2,\"pane_count\":1,\"tab_count\":1,\"tokens\":{\"git_branch\":\"main\",\"sgit_branch\":\"main\",\"space_working_other\":\"2: \u25cf wf\"},\"workspace_id\":\"wP\"}]}}\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "herdr",
+      "workspace",
+      "create",
+      "--cwd",
+      "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-bare-v7xbjcih",
+      "--no-focus"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 6.828,
+    "stdout": "{\"id\":\"cli:workspace:create\",\"result\":{\"root_pane\":{\"agent_status\":\"unknown\",\"cwd\":\"C:\\\\Users\\\\Shay\\\\AppData\\\\Local\\\\Temp\\\\wf158-parent-bare-v7xbjcih\\\\\",\"focused\":false,\"pane_id\":\"w15:p1\",\"revision\":0,\"scroll\":{\"max_offset_from_bottom\":0,\"offset_from_bottom\":0,\"viewport_rows\":46},\"tab_id\":\"w15:t1\",\"terminal_id\":\"term_65f331fb69fc328e\",\"workspace_id\":\"w15\"},\"tab\":{\"agent_status\":\"unknown\",\"focused\":false,\"label\":\"1\",\"number\":1,\"pane_count\":1,\"tab_id\":\"w15:t1\",\"workspace_id\":\"w15\"},\"type\":\"workspace_created\",\"workspace\":{\"active_tab_id\":\"w15:t1\",\"agent_status\":\"unknown\",\"focused\":false,\"label\":\"wf158-parent-bare-v7xbjcih\",\"number\":3,\"pane_count\":1,\"tab_count\":1,\"workspace_id\":\"w15\"}}}\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "herdr",
+      "workspace",
+      "list"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 0.094,
+    "stdout": "{\"id\":\"cli:workspace:list\",\"result\":{\"type\":\"workspace_list\",\"workspaces\":[{\"active_tab_id\":\"wE:t2H\",\"agent_status\":\"done\",\"focused\":true,\"label\":\"jeweleryx\",\"number\":1,\"pane_count\":9,\"tab_count\":8,\"tokens\":{\"space_working_other\":\"1: \u25cf jeweleryx\"},\"workspace_id\":\"wE\",\"worktree\":{\"checkout_path\":\"C:/Users/Shay/work/jeweleryx\",\"is_linked_worktree\":false,\"repo_key\":\"\\\\\\\\?\\\\C:\\\\Users\\\\Shay\\\\work\\\\jeweleryx\\\\.bare\",\"repo_name\":\"jeweleryx\",\"repo_root\":\"C:/Users/Shay/work/jeweleryx\"}},{\"active_tab_id\":\"wP:t1\",\"agent_status\":\"working\",\"focused\":false,\"label\":\"wf\",\"number\":2,\"pane_count\":1,\"tab_count\":1,\"tokens\":{\"git_branch\":\"main\",\"sgit_branch\":\"main\",\"space_working_other\":\"2: \u25cf wf\"},\"workspace_id\":\"wP\"},{\"active_tab_id\":\"w15:t1\",\"agent_status\":\"unknown\",\"focused\":false,\"label\":\"wf158-parent-bare-v7xbjcih\",\"number\":3,\"pane_count\":1,\"tab_count\":1,\"workspace_id\":\"w15\"}]}}\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "node",
+      "C:\\Users\\Shay\\work\\wf-158\\env\\wf.mjs",
+      "herdr",
+      "open",
+      "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-bare-v7xbjcih\\existing $ ' checkout"
+    ],
+    "cwd": "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-bare-v7xbjcih\\existing $ ' checkout",
+    "exit": 0,
+    "seconds": 4.266,
+    "stdout": "{\"kind\":\"opened\",\"checkout\":{\"path\":\"C:/Users/Shay/AppData/Local/Temp/wf158-parent-bare-v7xbjcih/existing $ ' checkout\",\"branch\":\"fixture-existing\",\"detached\":false,\"bare\":false,\"workspace\":\"w16\"},\"disposition\":\"opened\"}\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "node",
+      "C:\\Users\\Shay\\work\\wf-158\\env\\wf.mjs",
+      "herdr",
+      "open",
+      "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-bare-v7xbjcih\\existing $ ' checkout"
+    ],
+    "cwd": "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-bare-v7xbjcih\\existing $ ' checkout",
+    "exit": 0,
+    "seconds": 11.125,
+    "stdout": "{\"kind\":\"opened\",\"checkout\":{\"path\":\"C:/Users/Shay/AppData/Local/Temp/wf158-parent-bare-v7xbjcih/existing $ ' checkout\",\"branch\":\"fixture-existing\",\"detached\":false,\"bare\":false,\"workspace\":\"w16\"},\"disposition\":\"reused\"}\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "herdr",
+      "workspace",
+      "list"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 0.078,
+    "stdout": "{\"id\":\"cli:workspace:list\",\"result\":{\"type\":\"workspace_list\",\"workspaces\":[{\"active_tab_id\":\"wE:t3J\",\"agent_status\":\"working\",\"focused\":true,\"label\":\"jeweleryx\",\"number\":1,\"pane_count\":9,\"tab_count\":8,\"tokens\":{\"space_working_other\":\"1: \u25cf jeweleryx\"},\"workspace_id\":\"wE\",\"worktree\":{\"checkout_path\":\"C:/Users/Shay/work/jeweleryx\",\"is_linked_worktree\":false,\"repo_key\":\"\\\\\\\\?\\\\C:\\\\Users\\\\Shay\\\\work\\\\jeweleryx\\\\.bare\",\"repo_name\":\"jeweleryx\",\"repo_root\":\"C:/Users/Shay/work/jeweleryx\"}},{\"active_tab_id\":\"wP:t1\",\"agent_status\":\"working\",\"focused\":false,\"label\":\"wf\",\"number\":2,\"pane_count\":1,\"tab_count\":1,\"tokens\":{\"space_working_other\":\"2: \u25cf wf\"},\"workspace_id\":\"wP\"},{\"active_tab_id\":\"w15:t1\",\"agent_status\":\"unknown\",\"focused\":false,\"label\":\"wf158-parent-bare-v7xbjcih\",\"number\":3,\"pane_count\":1,\"tab_count\":1,\"tokens\":{\"space_none\":\"3: wf158-parent-bare-v7xbjcih\"},\"workspace_id\":\"w15\",\"worktree\":{\"checkout_path\":\"\\\\\\\\?\\\\C:\\\\Users\\\\Shay\\\\AppData\\\\Local\\\\Temp\\\\wf158-parent-bare-v7xbjcih\",\"is_linked_worktree\":false,\"repo_key\":\"\\\\\\\\?\\\\C:\\\\Users\\\\Shay\\\\AppData\\\\Local\\\\Temp\\\\wf158-parent-bare-v7xbjcih\\\\.bare\",\"repo_name\":\"wf158-parent-bare-v7xbjcih\",\"repo_root\":\"\\\\\\\\?\\\\C:\\\\Users\\\\Shay\\\\AppData\\\\Local\\\\Temp\\\\wf158-parent-bare-v7xbjcih\"}},{\"active_tab_id\":\"w16:t1\",\"agent_status\":\"unknown\",\"focused\":false,\"label\":\"existing $ ' checkout\",\"number\":4,\"pane_count\":1,\"tab_count\":1,\"tokens\":{\"git_branch\":\"fixture-existing\",\"space_none\":\"4: existing $ ' checkout\"},\"workspace_id\":\"w16\",\"worktree\":{\"checkout_path\":\"C:/Users/Shay/AppData/Local/Temp/wf158-parent-bare-v7xbjcih/existing $ ' checkout\",\"is_linked_worktree\":true,\"repo_key\":\"\\\\\\\\?\\\\C:\\\\Users\\\\Shay\\\\AppData\\\\Local\\\\Temp\\\\wf158-parent-bare-v7xbjcih\\\\.bare\",\"repo_name\":\"wf158-parent-bare-v7xbjcih\",\"repo_root\":\"\\\\\\\\?\\\\C:\\\\Users\\\\Shay\\\\AppData\\\\Local\\\\Temp\\\\wf158-parent-bare-v7xbjcih\"}}]}}\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "herdr",
+      "workspace",
+      "get",
+      "w15"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 0.047,
+    "stdout": "{\"id\":\"cli:workspace:get\",\"result\":{\"type\":\"workspace_info\",\"workspace\":{\"active_tab_id\":\"w15:t1\",\"agent_status\":\"unknown\",\"focused\":false,\"label\":\"wf158-parent-bare-v7xbjcih\",\"number\":3,\"pane_count\":1,\"tab_count\":1,\"tokens\":{\"space_none\":\"3: wf158-parent-bare-v7xbjcih\"},\"workspace_id\":\"w15\",\"worktree\":{\"checkout_path\":\"\\\\\\\\?\\\\C:\\\\Users\\\\Shay\\\\AppData\\\\Local\\\\Temp\\\\wf158-parent-bare-v7xbjcih\",\"is_linked_worktree\":false,\"repo_key\":\"\\\\\\\\?\\\\C:\\\\Users\\\\Shay\\\\AppData\\\\Local\\\\Temp\\\\wf158-parent-bare-v7xbjcih\\\\.bare\",\"repo_name\":\"wf158-parent-bare-v7xbjcih\",\"repo_root\":\"\\\\\\\\?\\\\C:\\\\Users\\\\Shay\\\\AppData\\\\Local\\\\Temp\\\\wf158-parent-bare-v7xbjcih\"}}}}\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "herdr",
+      "workspace",
+      "get",
+      "w16"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 0.031,
+    "stdout": "{\"id\":\"cli:workspace:get\",\"result\":{\"type\":\"workspace_info\",\"workspace\":{\"active_tab_id\":\"w16:t1\",\"agent_status\":\"unknown\",\"focused\":false,\"label\":\"existing $ ' checkout\",\"number\":4,\"pane_count\":1,\"tab_count\":1,\"tokens\":{\"git_branch\":\"fixture-existing\",\"space_none\":\"4: existing $ ' checkout\"},\"workspace_id\":\"w16\",\"worktree\":{\"checkout_path\":\"C:/Users/Shay/AppData/Local/Temp/wf158-parent-bare-v7xbjcih/existing $ ' checkout\",\"is_linked_worktree\":true,\"repo_key\":\"\\\\\\\\?\\\\C:\\\\Users\\\\Shay\\\\AppData\\\\Local\\\\Temp\\\\wf158-parent-bare-v7xbjcih\\\\.bare\",\"repo_name\":\"wf158-parent-bare-v7xbjcih\",\"repo_root\":\"\\\\\\\\?\\\\C:\\\\Users\\\\Shay\\\\AppData\\\\Local\\\\Temp\\\\wf158-parent-bare-v7xbjcih\"}}}}\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "-C",
+      "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-bare-v7xbjcih\\.bare",
+      "worktree",
+      "list",
+      "--porcelain"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 0.031,
+    "stdout": "worktree C:/Users/Shay/AppData/Local/Temp/wf158-parent-bare-v7xbjcih/.bare\nbare\n\nworktree C:/Users/Shay/AppData/Local/Temp/wf158-parent-bare-v7xbjcih/existing $ ' checkout\nHEAD 23da72d0476e2dc7f3b138a0e293d35aabc9694c\nbranch refs/heads/fixture-existing\n\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "-C",
+      "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-bare-v7xbjcih\\existing $ ' checkout",
+      "rev-parse",
+      "HEAD"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 0.031,
+    "stdout": "23da72d0476e2dc7f3b138a0e293d35aabc9694c\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "herdr",
+      "workspace",
+      "close",
+      "w16"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 0.047,
+    "stdout": "{\"id\":\"cli:workspace:close\",\"result\":{\"type\":\"ok\"}}\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "-C",
+      "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-bare-v7xbjcih\\.bare",
+      "worktree",
+      "list",
+      "--porcelain"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 0.047,
+    "stdout": "worktree C:/Users/Shay/AppData/Local/Temp/wf158-parent-bare-v7xbjcih/.bare\nbare\n\nworktree C:/Users/Shay/AppData/Local/Temp/wf158-parent-bare-v7xbjcih/existing $ ' checkout\nHEAD 23da72d0476e2dc7f3b138a0e293d35aabc9694c\nbranch refs/heads/fixture-existing\n\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "node",
+      "C:\\Users\\Shay\\work\\wf-158\\env\\wf.mjs",
+      "herdr",
+      "list"
+    ],
+    "cwd": "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-bare-v7xbjcih\\existing $ ' checkout",
+    "exit": 0,
+    "seconds": 1.5,
+    "stdout": "{\"kind\":\"listed\",\"worktrees\":[{\"path\":\"C:/Users/Shay/AppData/Local/Temp/wf158-parent-bare-v7xbjcih/.bare\",\"branch\":null,\"detached\":false,\"bare\":true,\"workspace\":null},{\"path\":\"C:/Users/Shay/AppData/Local/Temp/wf158-parent-bare-v7xbjcih/existing $ ' checkout\",\"branch\":\"fixture-existing\",\"detached\":false,\"bare\":false,\"workspace\":null}],\"parent\":{\"path\":\"C:/Users/Shay/AppData/Local/Temp/wf158-parent-bare-v7xbjcih\",\"workspace\":\"w15\"}}\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "herdr",
+      "workspace",
+      "close",
+      "w15"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 1.016,
+    "stdout": "{\"id\":\"cli:workspace:close\",\"result\":{\"type\":\"ok\"}}\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "herdr",
+      "workspace",
+      "list"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 0.047,
+    "stdout": "{\"id\":\"cli:workspace:list\",\"result\":{\"type\":\"workspace_list\",\"workspaces\":[{\"active_tab_id\":\"wE:t3J\",\"agent_status\":\"working\",\"focused\":true,\"label\":\"jeweleryx\",\"number\":1,\"pane_count\":9,\"tab_count\":8,\"tokens\":{\"space_working_other\":\"1: \u25cf jeweleryx\"},\"workspace_id\":\"wE\",\"worktree\":{\"checkout_path\":\"C:/Users/Shay/work/jeweleryx\",\"is_linked_worktree\":false,\"repo_key\":\"\\\\\\\\?\\\\C:\\\\Users\\\\Shay\\\\work\\\\jeweleryx\\\\.bare\",\"repo_name\":\"jeweleryx\",\"repo_root\":\"C:/Users/Shay/work/jeweleryx\"}},{\"active_tab_id\":\"wP:t1\",\"agent_status\":\"working\",\"focused\":false,\"label\":\"wf\",\"number\":2,\"pane_count\":1,\"tab_count\":1,\"tokens\":{\"git_branch\":\"main\",\"space_working_other\":\"2: \u25cf wf\"},\"workspace_id\":\"wP\"}]}}\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "-C",
+      "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-bare-v7xbjcih\\.bare",
+      "worktree",
+      "remove",
+      "--force",
+      "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-bare-v7xbjcih\\existing $ ' checkout"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 0.031,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "fixture": "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-bare-v7xbjcih",
+    "cleanup_attempts": 1,
+    "removed": true
+  },
+  {
+    "argv": [
+      "git",
+      "init",
+      "-q",
+      "-b",
+      "main",
+      "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-detached-3kv1a8va\\repo"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 0.031,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "-C",
+      "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-detached-3kv1a8va\\repo",
+      "-c",
+      "user.name=wf",
+      "-c",
+      "user.email=wf@test",
+      "commit",
+      "--allow-empty",
+      "-qm",
+      "fixture"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 0.094,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "-C",
+      "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-detached-3kv1a8va\\repo",
+      "worktree",
+      "add",
+      "--detach",
+      "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-detached-3kv1a8va\\existing $ ' checkout"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 0.047,
+    "stdout": "HEAD is now at 3b9e897 fixture\n",
+    "stderr": "Preparing worktree (detached HEAD 3b9e897)\n"
+  },
+  {
+    "argv": [
+      "git",
+      "-C",
+      "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-detached-3kv1a8va\\repo",
+      "config",
+      "core.hooksPath",
+      "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-detached-3kv1a8va\\hooks"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 0.015,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "-C",
+      "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-detached-3kv1a8va\\repo",
+      "worktree",
+      "list",
+      "--porcelain"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 0.032,
+    "stdout": "worktree C:/Users/Shay/AppData/Local/Temp/wf158-parent-detached-3kv1a8va/repo\nHEAD 3b9e897d5c1f987e54532cadc5fc5744a11e070e\nbranch refs/heads/main\n\nworktree C:/Users/Shay/AppData/Local/Temp/wf158-parent-detached-3kv1a8va/existing $ ' checkout\nHEAD 3b9e897d5c1f987e54532cadc5fc5744a11e070e\ndetached\n\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "-C",
+      "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-detached-3kv1a8va\\existing $ ' checkout",
+      "rev-parse",
+      "HEAD"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 0.015,
+    "stdout": "3b9e897d5c1f987e54532cadc5fc5744a11e070e\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "herdr",
+      "workspace",
+      "list"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 0.031,
+    "stdout": "{\"id\":\"cli:workspace:list\",\"result\":{\"type\":\"workspace_list\",\"workspaces\":[{\"active_tab_id\":\"wE:t3J\",\"agent_status\":\"working\",\"focused\":true,\"label\":\"jeweleryx\",\"number\":1,\"pane_count\":9,\"tab_count\":8,\"tokens\":{\"space_working_other\":\"1: \u25cf jeweleryx\"},\"workspace_id\":\"wE\",\"worktree\":{\"checkout_path\":\"C:/Users/Shay/work/jeweleryx\",\"is_linked_worktree\":false,\"repo_key\":\"\\\\\\\\?\\\\C:\\\\Users\\\\Shay\\\\work\\\\jeweleryx\\\\.bare\",\"repo_name\":\"jeweleryx\",\"repo_root\":\"C:/Users/Shay/work/jeweleryx\"}},{\"active_tab_id\":\"wP:t1\",\"agent_status\":\"working\",\"focused\":false,\"label\":\"wf\",\"number\":2,\"pane_count\":1,\"tab_count\":1,\"tokens\":{\"git_branch\":\"main\",\"space_working_other\":\"2: \u25cf wf\"},\"workspace_id\":\"wP\"}]}}\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "node",
+      "C:\\Users\\Shay\\work\\wf-158\\env\\wf.mjs",
+      "herdr",
+      "open",
+      "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-detached-3kv1a8va\\existing $ ' checkout"
+    ],
+    "cwd": "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-detached-3kv1a8va\\existing $ ' checkout",
+    "exit": 1,
+    "seconds": 1.282,
+    "stdout": "",
+    "stderr": "{\"kind\":\"refused\",\"why\":\"wf herdr: repository-parent workspace is not open: C:/Users/Shay/AppData/Local/Temp/wf158-parent-detached-3kv1a8va/repo. Open that parent explicitly in Herdr, then retry. No workspace opened.\"}\n"
+  },
+  {
+    "argv": [
+      "herdr",
+      "workspace",
+      "list"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 0.031,
+    "stdout": "{\"id\":\"cli:workspace:list\",\"result\":{\"type\":\"workspace_list\",\"workspaces\":[{\"active_tab_id\":\"wE:t3J\",\"agent_status\":\"working\",\"focused\":true,\"label\":\"jeweleryx\",\"number\":1,\"pane_count\":9,\"tab_count\":8,\"tokens\":{\"space_working_other\":\"1: \u25cf jeweleryx\"},\"workspace_id\":\"wE\",\"worktree\":{\"checkout_path\":\"C:/Users/Shay/work/jeweleryx\",\"is_linked_worktree\":false,\"repo_key\":\"\\\\\\\\?\\\\C:\\\\Users\\\\Shay\\\\work\\\\jeweleryx\\\\.bare\",\"repo_name\":\"jeweleryx\",\"repo_root\":\"C:/Users/Shay/work/jeweleryx\"}},{\"active_tab_id\":\"wP:t1\",\"agent_status\":\"working\",\"focused\":false,\"label\":\"wf\",\"number\":2,\"pane_count\":1,\"tab_count\":1,\"tokens\":{\"git_branch\":\"main\",\"space_working_other\":\"2: \u25cf wf\"},\"workspace_id\":\"wP\"}]}}\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "herdr",
+      "workspace",
+      "create",
+      "--cwd",
+      "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-detached-3kv1a8va\\repo",
+      "--no-focus"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 0.047,
+    "stdout": "{\"id\":\"cli:workspace:create\",\"result\":{\"root_pane\":{\"agent_status\":\"unknown\",\"cwd\":\"C:\\\\Users\\\\Shay\\\\AppData\\\\Local\\\\Temp\\\\wf158-parent-detached-3kv1a8va\\\\repo\\\\\",\"focused\":false,\"pane_id\":\"w17:p1\",\"revision\":0,\"scroll\":{\"max_offset_from_bottom\":0,\"offset_from_bottom\":0,\"viewport_rows\":46},\"tab_id\":\"w17:t1\",\"terminal_id\":\"term_65f3320e822b4290\",\"workspace_id\":\"w17\"},\"tab\":{\"agent_status\":\"unknown\",\"focused\":false,\"label\":\"1\",\"number\":1,\"pane_count\":1,\"tab_id\":\"w17:t1\",\"workspace_id\":\"w17\"},\"type\":\"workspace_created\",\"workspace\":{\"active_tab_id\":\"w17:t1\",\"agent_status\":\"unknown\",\"focused\":false,\"label\":\"repo\",\"number\":3,\"pane_count\":1,\"tab_count\":1,\"workspace_id\":\"w17\"}}}\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "herdr",
+      "workspace",
+      "list"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 0.031,
+    "stdout": "{\"id\":\"cli:workspace:list\",\"result\":{\"type\":\"workspace_list\",\"workspaces\":[{\"active_tab_id\":\"wE:t3J\",\"agent_status\":\"working\",\"focused\":true,\"label\":\"jeweleryx\",\"number\":1,\"pane_count\":9,\"tab_count\":8,\"tokens\":{\"space_working_other\":\"1: \u25cf jeweleryx\"},\"workspace_id\":\"wE\",\"worktree\":{\"checkout_path\":\"C:/Users/Shay/work/jeweleryx\",\"is_linked_worktree\":false,\"repo_key\":\"\\\\\\\\?\\\\C:\\\\Users\\\\Shay\\\\work\\\\jeweleryx\\\\.bare\",\"repo_name\":\"jeweleryx\",\"repo_root\":\"C:/Users/Shay/work/jeweleryx\"}},{\"active_tab_id\":\"wP:t1\",\"agent_status\":\"working\",\"focused\":false,\"label\":\"wf\",\"number\":2,\"pane_count\":1,\"tab_count\":1,\"tokens\":{\"git_branch\":\"main\",\"space_working_other\":\"2: \u25cf wf\"},\"workspace_id\":\"wP\"},{\"active_tab_id\":\"w17:t1\",\"agent_status\":\"unknown\",\"focused\":false,\"label\":\"repo\",\"number\":3,\"pane_count\":1,\"tab_count\":1,\"workspace_id\":\"w17\"}]}}\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "node",
+      "C:\\Users\\Shay\\work\\wf-158\\env\\wf.mjs",
+      "herdr",
+      "open",
+      "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-detached-3kv1a8va\\existing $ ' checkout"
+    ],
+    "cwd": "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-detached-3kv1a8va\\existing $ ' checkout",
+    "exit": 0,
+    "seconds": 13.781,
+    "stdout": "{\"kind\":\"opened\",\"checkout\":{\"path\":\"C:/Users/Shay/AppData/Local/Temp/wf158-parent-detached-3kv1a8va/existing $ ' checkout\",\"branch\":null,\"detached\":true,\"bare\":false,\"workspace\":\"w18\"},\"disposition\":\"opened\"}\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "node",
+      "C:\\Users\\Shay\\work\\wf-158\\env\\wf.mjs",
+      "herdr",
+      "open",
+      "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-detached-3kv1a8va\\existing $ ' checkout"
+    ],
+    "cwd": "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-detached-3kv1a8va\\existing $ ' checkout",
+    "exit": 0,
+    "seconds": 1.813,
+    "stdout": "{\"kind\":\"opened\",\"checkout\":{\"path\":\"C:/Users/Shay/AppData/Local/Temp/wf158-parent-detached-3kv1a8va/existing $ ' checkout\",\"branch\":null,\"detached\":true,\"bare\":false,\"workspace\":\"w18\"},\"disposition\":\"reused\"}\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "herdr",
+      "workspace",
+      "list"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 0.047,
+    "stdout": "{\"id\":\"cli:workspace:list\",\"result\":{\"type\":\"workspace_list\",\"workspaces\":[{\"active_tab_id\":\"wE:t3C\",\"agent_status\":\"working\",\"focused\":true,\"label\":\"jeweleryx\",\"number\":1,\"pane_count\":8,\"tab_count\":7,\"tokens\":{\"space_working_other\":\"1: \u25cf jeweleryx\"},\"workspace_id\":\"wE\",\"worktree\":{\"checkout_path\":\"C:/Users/Shay/work/jeweleryx\",\"is_linked_worktree\":false,\"repo_key\":\"\\\\\\\\?\\\\C:\\\\Users\\\\Shay\\\\work\\\\jeweleryx\\\\.bare\",\"repo_name\":\"jeweleryx\",\"repo_root\":\"C:/Users/Shay/work/jeweleryx\"}},{\"active_tab_id\":\"wP:t1\",\"agent_status\":\"working\",\"focused\":false,\"label\":\"wf\",\"number\":2,\"pane_count\":1,\"tab_count\":1,\"tokens\":{\"git_branch\":\"main\",\"sgit_branch\":\"main\",\"space_working_other\":\"2: \u25cf wf\"},\"workspace_id\":\"wP\"},{\"active_tab_id\":\"w17:t1\",\"agent_status\":\"unknown\",\"focused\":false,\"label\":\"repo\",\"number\":3,\"pane_count\":1,\"tab_count\":1,\"tokens\":{\"git_branch\":\"main\",\"sgit_branch\":\"main\",\"space_none\":\"3: repo\"},\"workspace_id\":\"w17\",\"worktree\":{\"checkout_path\":\"\\\\\\\\?\\\\C:\\\\Users\\\\Shay\\\\AppData\\\\Local\\\\Temp\\\\wf158-parent-detached-3kv1a8va\\\\repo\",\"is_linked_worktree\":false,\"repo_key\":\"\\\\\\\\?\\\\C:\\\\Users\\\\Shay\\\\AppData\\\\Local\\\\Temp\\\\wf158-parent-detached-3kv1a8va\\\\repo\\\\.git\",\"repo_name\":\"repo\",\"repo_root\":\"\\\\\\\\?\\\\C:\\\\Users\\\\Shay\\\\AppData\\\\Local\\\\Temp\\\\wf158-parent-detached-3kv1a8va\\\\repo\"}},{\"active_tab_id\":\"w18:t1\",\"agent_status\":\"unknown\",\"focused\":false,\"label\":\"existing $ ' checkout\",\"number\":4,\"pane_count\":1,\"tab_count\":1,\"tokens\":{\"space_none\":\"4: existing $ ' checkout\"},\"workspace_id\":\"w18\",\"worktree\":{\"checkout_path\":\"C:/Users/Shay/AppData/Local/Temp/wf158-parent-detached-3kv1a8va/existing $ ' checkout\",\"is_linked_worktree\":true,\"repo_key\":\"\\\\\\\\?\\\\C:\\\\Users\\\\Shay\\\\AppData\\\\Local\\\\Temp\\\\wf158-parent-detached-3kv1a8va\\\\repo\\\\.git\",\"repo_name\":\"repo\",\"repo_root\":\"\\\\\\\\?\\\\C:\\\\Users\\\\Shay\\\\AppData\\\\Local\\\\Temp\\\\wf158-parent-detached-3kv1a8va\\\\repo\"}}]}}\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "herdr",
+      "workspace",
+      "get",
+      "w17"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 0.984,
+    "stdout": "{\"id\":\"cli:workspace:get\",\"result\":{\"type\":\"workspace_info\",\"workspace\":{\"active_tab_id\":\"w17:t1\",\"agent_status\":\"unknown\",\"focused\":false,\"label\":\"repo\",\"number\":3,\"pane_count\":1,\"tab_count\":1,\"tokens\":{\"git_branch\":\"main\",\"sgit_branch\":\"main\",\"space_none\":\"3: repo\"},\"workspace_id\":\"w17\",\"worktree\":{\"checkout_path\":\"\\\\\\\\?\\\\C:\\\\Users\\\\Shay\\\\AppData\\\\Local\\\\Temp\\\\wf158-parent-detached-3kv1a8va\\\\repo\",\"is_linked_worktree\":false,\"repo_key\":\"\\\\\\\\?\\\\C:\\\\Users\\\\Shay\\\\AppData\\\\Local\\\\Temp\\\\wf158-parent-detached-3kv1a8va\\\\repo\\\\.git\",\"repo_name\":\"repo\",\"repo_root\":\"\\\\\\\\?\\\\C:\\\\Users\\\\Shay\\\\AppData\\\\Local\\\\Temp\\\\wf158-parent-detached-3kv1a8va\\\\repo\"}}}}\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "herdr",
+      "workspace",
+      "get",
+      "w18"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 0.094,
+    "stdout": "{\"id\":\"cli:workspace:get\",\"result\":{\"type\":\"workspace_info\",\"workspace\":{\"active_tab_id\":\"w18:t1\",\"agent_status\":\"unknown\",\"focused\":false,\"label\":\"existing $ ' checkout\",\"number\":4,\"pane_count\":1,\"tab_count\":1,\"tokens\":{\"space_none\":\"4: existing $ ' checkout\"},\"workspace_id\":\"w18\",\"worktree\":{\"checkout_path\":\"C:/Users/Shay/AppData/Local/Temp/wf158-parent-detached-3kv1a8va/existing $ ' checkout\",\"is_linked_worktree\":true,\"repo_key\":\"\\\\\\\\?\\\\C:\\\\Users\\\\Shay\\\\AppData\\\\Local\\\\Temp\\\\wf158-parent-detached-3kv1a8va\\\\repo\\\\.git\",\"repo_name\":\"repo\",\"repo_root\":\"\\\\\\\\?\\\\C:\\\\Users\\\\Shay\\\\AppData\\\\Local\\\\Temp\\\\wf158-parent-detached-3kv1a8va\\\\repo\"}}}}\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "-C",
+      "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-detached-3kv1a8va\\repo",
+      "worktree",
+      "list",
+      "--porcelain"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 0.031,
+    "stdout": "worktree C:/Users/Shay/AppData/Local/Temp/wf158-parent-detached-3kv1a8va/repo\nHEAD 3b9e897d5c1f987e54532cadc5fc5744a11e070e\nbranch refs/heads/main\n\nworktree C:/Users/Shay/AppData/Local/Temp/wf158-parent-detached-3kv1a8va/existing $ ' checkout\nHEAD 3b9e897d5c1f987e54532cadc5fc5744a11e070e\ndetached\n\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "-C",
+      "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-detached-3kv1a8va\\existing $ ' checkout",
+      "rev-parse",
+      "HEAD"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 0.016,
+    "stdout": "3b9e897d5c1f987e54532cadc5fc5744a11e070e\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "herdr",
+      "workspace",
+      "close",
+      "w18"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 0.047,
+    "stdout": "{\"id\":\"cli:workspace:close\",\"result\":{\"type\":\"ok\"}}\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "-C",
+      "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-detached-3kv1a8va\\repo",
+      "worktree",
+      "list",
+      "--porcelain"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 0.031,
+    "stdout": "worktree C:/Users/Shay/AppData/Local/Temp/wf158-parent-detached-3kv1a8va/repo\nHEAD 3b9e897d5c1f987e54532cadc5fc5744a11e070e\nbranch refs/heads/main\n\nworktree C:/Users/Shay/AppData/Local/Temp/wf158-parent-detached-3kv1a8va/existing $ ' checkout\nHEAD 3b9e897d5c1f987e54532cadc5fc5744a11e070e\ndetached\n\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "node",
+      "C:\\Users\\Shay\\work\\wf-158\\env\\wf.mjs",
+      "herdr",
+      "list"
+    ],
+    "cwd": "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-detached-3kv1a8va\\existing $ ' checkout",
+    "exit": 0,
+    "seconds": 2.297,
+    "stdout": "{\"kind\":\"listed\",\"worktrees\":[{\"path\":\"C:/Users/Shay/AppData/Local/Temp/wf158-parent-detached-3kv1a8va/repo\",\"branch\":\"main\",\"detached\":false,\"bare\":false,\"workspace\":\"w17\"},{\"path\":\"C:/Users/Shay/AppData/Local/Temp/wf158-parent-detached-3kv1a8va/existing $ ' checkout\",\"branch\":null,\"detached\":true,\"bare\":false,\"workspace\":null}],\"parent\":{\"path\":\"C:/Users/Shay/AppData/Local/Temp/wf158-parent-detached-3kv1a8va/repo\",\"workspace\":\"w17\"}}\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "herdr",
+      "workspace",
+      "close",
+      "w17"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 0.093,
+    "stdout": "{\"id\":\"cli:workspace:close\",\"result\":{\"type\":\"ok\"}}\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "herdr",
+      "workspace",
+      "list"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 0.032,
+    "stdout": "{\"id\":\"cli:workspace:list\",\"result\":{\"type\":\"workspace_list\",\"workspaces\":[{\"active_tab_id\":\"wE:t2Y\",\"agent_status\":\"working\",\"focused\":true,\"label\":\"jeweleryx\",\"number\":1,\"pane_count\":8,\"tab_count\":7,\"tokens\":{\"space_working_other\":\"1: \u25cf jeweleryx\"},\"workspace_id\":\"wE\",\"worktree\":{\"checkout_path\":\"C:/Users/Shay/work/jeweleryx\",\"is_linked_worktree\":false,\"repo_key\":\"\\\\\\\\?\\\\C:\\\\Users\\\\Shay\\\\work\\\\jeweleryx\\\\.bare\",\"repo_name\":\"jeweleryx\",\"repo_root\":\"C:/Users/Shay/work/jeweleryx\"}},{\"active_tab_id\":\"wP:t1\",\"agent_status\":\"working\",\"focused\":false,\"label\":\"wf\",\"number\":2,\"pane_count\":1,\"tab_count\":1,\"tokens\":{\"git_branch\":\"main\",\"sgit_branch\":\"main\",\"space_working_other\":\"2: \u25cf wf\"},\"workspace_id\":\"wP\"}]}}\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "-C",
+      "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-detached-3kv1a8va\\repo",
+      "worktree",
+      "remove",
+      "--force",
+      "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-detached-3kv1a8va\\existing $ ' checkout"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 0.031,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "fixture": "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-parent-detached-3kv1a8va",
+    "cleanup_attempts": 1,
+    "removed": true
+  }
+]

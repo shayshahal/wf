@@ -1,0 +1,29 @@
+[
+  {
+    "layout": "normal",
+    "missing_parent": "refused without workspace effect",
+    "first": "opened",
+    "second": "reused",
+    "parent": "w19",
+    "target": "w1A",
+    "new_workspaces_from_helper": [
+      "w1A"
+    ],
+    "focus_before": [
+      [
+        "wE",
+        "wE:t3H"
+      ]
+    ],
+    "focus_after": [
+      [
+        "wE",
+        "wE:t3H"
+      ]
+    ],
+    "registry_and_head_unchanged": true,
+    "checkout_and_setup_hooks_ran": false,
+    "close_kept_checkout_and_obligation": true,
+    "post_close_mapping": null
+  }
+]

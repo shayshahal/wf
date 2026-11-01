@@ -1,0 +1,6 @@
+{"args": ["node", "C:\\Users\\Shay\\work\\wf-158\\env\\wf.mjs", "serve", "--wait"], "cwd": "C:\\Users\\Shay\\.herdr\\worktrees\\jeweleryx\\dev\\.claude\\worktrees\\bench-158-herdr-compat"}
+wf serve: starting (pid 114804; logs in C:\Users\Shay\.herdr\worktrees\jeweleryx\dev\.claude\worktrees\bench-158-herdr-compat\.wf\logs)
+b2b:   http://bench-158-herdr-compat.b2b.jewelryx.localhost
+admin: http://bench-158-herdr-compat.admin.jewelryx.localhost
+api:   http://bench-158-herdr-compat.api.jewelryx.localhost
+wf serve: the stack answers (44 s)

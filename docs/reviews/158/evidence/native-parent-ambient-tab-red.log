@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "C:\Users\Shay\work\wf-158\docs\reviews\158\evidence\native-parent-checkouts.py", line 59, in <module>
+    assert focused(before)==focused(after),{'before':focused(before),'after':focused(after)}
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: {'before': [('wE', 'wE:t3M')], 'after': [('wE', 'wE:t3H')]}

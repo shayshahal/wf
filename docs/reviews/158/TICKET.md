@@ -55,7 +55,7 @@ Implement only the first integration slice: explicit discovery/open of an existi
 
 paths: env/adapters/herdr-workspaces.ts, env/adapters/herdr-workspaces.selfcheck.ts, env/wf.ts, env/HERDR.md
 
-Engineering class B: new machine command and existing-workspace handoff contract. The product choice proposed for T1 is explicit background open versus automatic workspace creation after `wf new`.
+Initial engineering class B: new machine command and existing-workspace handoff contract. Upgraded to C after native implicit-parent behavior required a renewed human choice. T1 now approves explicit background open with an already-open repository parent required.
 
 ## Workspace and entry
 
@@ -72,8 +72,8 @@ Engineering class B: new machine command and existing-workspace handoff contract
 
 `herdr 0.9.3`. `herdr worktree list --cwd C:/Users/Shay/work/wf-158` exited 0 and returned this exact linked checkout and branch without an `open_workspace_id`. It also identified the existing main checkout workspace. No Herdr workspace was opened or changed. Group-help commands exit 2 and print usage on stderr; those are CLI discovery results, not operational failures. See `evidence/*help.json` and `evidence/worktree-list-before.json`.
 
-Opening, repeated opening, focus preservation, trust refusal, partial effects and close/reap separation are NOT MEASURED. They remain verification work, not inferred from successful listing.
+At intake, opening, repeated opening, focus preservation, trust refusal, partial effects and close/reap separation were NOT MEASURED. Current measurements and their limits are in `BUILD.md`; successful initial listing was not treated as proof of those behaviors.
 
 ## Native discovery requiring renewed T1
 
-The approved first agreement is preserved in Git commit c9cf1be and its actual ruling remains in AGREEMENT-REVIEW.md. Installed native open creates an implicit repository-parent workspace when none exists; using a linked checkout as source refuses. See NATIVE-FINDINGS.md. Class upgraded B→C because the person must choose the visible-workspace policy. Provisional code is not approved for publication. Dependent implementation waits for renewed T1.
+The approved first agreement is preserved in Git commit c9cf1be and its actual ruling remains in AGREEMENT-REVIEW.md. Installed native open creates an implicit repository-parent workspace when none exists; using a linked checkout as source refuses. See NATIVE-FINDINGS.md. Class upgraded B→C because the person had to choose the visible-workspace policy. Renewed T1 was approved in Inbox reply `msg_01M6B3P5872RR235GDAJYHMHNN`: “Approve required parent (your recommendation)”. The implementation and native/lifecycle evidence are ready for independent assessment; final T2 and publication remain pending. See `BUILD.md` and `AGREEMENT-REVIEW.md`.
