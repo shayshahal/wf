@@ -1,6 +1,6 @@
 # TICKET — #158 — Integrate existing worktrees with Herdr without migrating repository layout
 
-Class: B
+Class: C
 
 ## Intent
 
@@ -53,7 +53,7 @@ The retrieved issue is OPEN. It has no comments or attachments in the fetched bo
 
 Implement only the first integration slice: explicit discovery/open of an existing Git checkout, through the machine entry and existing seams. Keep Worktrunk/Git creation/removal, setup, resource ownership, session provenance and approval protections. Do not implement the issue's conditional future backend replacement.
 
-paths: env/adapters/herdr.ts, env/adapters/herdr.selfcheck.ts, env/wf.ts, env/HERDR.md
+paths: env/adapters/herdr-workspaces.ts, env/adapters/herdr-workspaces.selfcheck.ts, env/wf.ts, env/HERDR.md
 
 Engineering class B: new machine command and existing-workspace handoff contract. The product choice proposed for T1 is explicit background open versus automatic workspace creation after `wf new`.
 
@@ -73,3 +73,7 @@ Engineering class B: new machine command and existing-workspace handoff contract
 `herdr 0.9.3`. `herdr worktree list --cwd C:/Users/Shay/work/wf-158` exited 0 and returned this exact linked checkout and branch without an `open_workspace_id`. It also identified the existing main checkout workspace. No Herdr workspace was opened or changed. Group-help commands exit 2 and print usage on stderr; those are CLI discovery results, not operational failures. See `evidence/*help.json` and `evidence/worktree-list-before.json`.
 
 Opening, repeated opening, focus preservation, trust refusal, partial effects and close/reap separation are NOT MEASURED. They remain verification work, not inferred from successful listing.
+
+## Native discovery requiring renewed T1
+
+The approved first agreement is preserved in Git commit c9cf1be and its actual ruling remains in AGREEMENT-REVIEW.md. Installed native open creates an implicit repository-parent workspace when none exists; using a linked checkout as source refuses. See NATIVE-FINDINGS.md. Class upgraded B→C because the person must choose the visible-workspace policy. Provisional code is not approved for publication. Dependent implementation waits for renewed T1.

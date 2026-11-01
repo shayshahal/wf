@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "C:\Users\Shay\work\wf-158\docs\reviews\158\evidence\probe-target-source.py", line 19, in <module>
+    opened=json.loads(run(['herdr','worktree','open','--cwd',str(target),'--path',str(target),'--no-focus']))
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Shay\work\wf-158\docs\reviews\158\evidence\probe-target-source.py", line 6, in run
+    assert r.returncode==0,(a,r.stderr)
+           ^^^^^^^^^^^^^^^
+AssertionError: (['herdr', 'worktree', 'open', '--cwd', 'C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-target-source-_0sdn3c_\\checkout', '--path', 'C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-target-source-_0sdn3c_\\checkout', '--no-focus'], '{"error":{"code":"linked_worktree_source","message":"New and open worktree actions start from the repo parent workspace."},"id":"cli:worktree:open"}\n')

@@ -1,0 +1,6 @@
+{
+  "elapsed": 2.5629999998491257,
+  "exit": 0,
+  "stdout": "{\"kind\":\"listed\",\"worktrees\":[{\"path\":\"C:/Users/Shay/AppData/Local/Temp/wf herdr peer NCtJoB/repo\",\"branch\":\"main\",\"detached\":false,\"bare\":false,\"workspace\":null},{\"path\":\"C:/Users/Shay/AppData/Local/Temp/wf herdr peer NCtJoB/existing $ ' checkout\",\"branch\":\"fixture-existing\",\"detached\":false,\"bare\":false,\"workspace\":\"wTest\"}]}\n",
+  "stderr": ""
+}

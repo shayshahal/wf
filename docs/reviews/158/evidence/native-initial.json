@@ -1,0 +1,34 @@
+{
+  "root": "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-native-dshyhooa",
+  "repo": "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-native-dshyhooa\\repo",
+  "checkout": "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-native-dshyhooa\\existing checkout",
+  "steps": [
+    {
+      "argv": [
+        "herdr",
+        "worktree",
+        "list",
+        "--cwd",
+        "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-native-dshyhooa\\repo"
+      ],
+      "exit": 0,
+      "stdout": "{\"id\":\"cli:worktree:list\",\"result\":{\"source\":{\"repo_key\":\"\\\\\\\\?\\\\C:\\\\Users\\\\Shay\\\\AppData\\\\Local\\\\Temp\\\\wf158-native-dshyhooa\\\\repo\\\\.git\",\"repo_name\":\"repo\",\"repo_root\":\"C:\\\\Users\\\\Shay\\\\AppData\\\\Local\\\\Temp\\\\wf158-native-dshyhooa\\\\repo\",\"source_checkout_path\":\"C:\\\\Users\\\\Shay\\\\AppData\\\\Local\\\\Temp\\\\wf158-native-dshyhooa\\\\repo\"},\"type\":\"worktree_list\",\"worktrees\":[{\"branch\":\"main\",\"is_bare\":false,\"is_detached\":false,\"is_linked_worktree\":false,\"is_prunable\":false,\"label\":\"repo\",\"path\":\"C:/Users/Shay/AppData/Local/Temp/wf158-native-dshyhooa/repo\"},{\"branch\":\"fixture-existing\",\"is_bare\":false,\"is_detached\":false,\"is_linked_worktree\":true,\"is_prunable\":false,\"label\":\"repo\",\"path\":\"C:/Users/Shay/AppData/Local/Temp/wf158-native-dshyhooa/existing checkout\"}]}}\n",
+      "stderr": ""
+    },
+    {
+      "argv": [
+        "herdr",
+        "worktree",
+        "open",
+        "--cwd",
+        "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-native-dshyhooa\\repo",
+        "--path",
+        "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-native-dshyhooa\\existing checkout",
+        "--no-focus"
+      ],
+      "exit": 0,
+      "stdout": "{\"id\":\"cli:worktree:open\",\"result\":{\"already_open\":false,\"root_pane\":{\"agent_status\":\"unknown\",\"cwd\":\"C:\\\\Users\\\\Shay\\\\AppData\\\\Local\\\\Temp\\\\wf158-native-dshyhooa\\\\existing checkout\\\\\",\"focused\":false,\"pane_id\":\"wV:p1\",\"revision\":0,\"scroll\":{\"max_offset_from_bottom\":0,\"offset_from_bottom\":0,\"viewport_rows\":46},\"tab_id\":\"wV:t1\",\"terminal_id\":\"term_65f327533006f27b\",\"workspace_id\":\"wV\"},\"tab\":{\"agent_status\":\"unknown\",\"focused\":false,\"label\":\"1\",\"number\":1,\"pane_count\":1,\"tab_id\":\"wV:t1\",\"workspace_id\":\"wV\"},\"type\":\"worktree_opened\",\"workspace\":{\"active_tab_id\":\"wV:t1\",\"agent_status\":\"unknown\",\"focused\":false,\"label\":\"existing checkout\",\"number\":4,\"pane_count\":1,\"tab_count\":1,\"workspace_id\":\"wV\",\"worktree\":{\"checkout_path\":\"C:/Users/Shay/AppData/Local/Temp/wf158-native-dshyhooa/existing checkout\",\"is_linked_worktree\":true,\"repo_key\":\"\\\\\\\\?\\\\C:\\\\Users\\\\Shay\\\\AppData\\\\Local\\\\Temp\\\\wf158-native-dshyhooa\\\\repo\\\\.git\",\"repo_name\":\"repo\",\"repo_root\":\"C:\\\\Users\\\\Shay\\\\AppData\\\\Local\\\\Temp\\\\wf158-native-dshyhooa\\\\repo\"}},\"worktree\":{\"branch\":\"fixture-existing\",\"is_bare\":false,\"is_detached\":false,\"is_linked_worktree\":true,\"is_prunable\":false,\"label\":\"repo\",\"open_workspace_id\":\"wV\",\"path\":\"C:/Users/Shay/AppData/Local/Temp/wf158-native-dshyhooa/existing checkout\"}}}\n",
+      "stderr": ""
+    }
+  ]
+}

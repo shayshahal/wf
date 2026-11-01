@@ -1,0 +1,12 @@
+  ok machine command discoverable; kit has no Herdr dependency
+  ok outside Herdr never calls the native peer
+  ok list exposes registered paths/branches and absent mappings
+  ok open is no-focus and repeated open reuses exactly one mapping
+  ok relative and canonical path aliases cannot duplicate a workspace
+  ok missing/foreign paths and unsupported actions never allocate or open
+  ok malformed, incomplete, duplicated and foreign discovery cannot supply authority
+  ok unavailable peer and trust refusal retain authority and do not leak provider details
+  ok lost/malformed mutation replies are uncertain, discovered and reused on retry
+  ok opening does not change Git identity, approval facts or cleanup authority
+  ok handoff is inert, explicit, argv-safe and retains authenticated native binding
+11 existing-checkout Herdr checks green; controlled CLI peer, not a live UI/focus claim

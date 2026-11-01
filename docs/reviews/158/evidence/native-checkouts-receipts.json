@@ -1,0 +1,56 @@
+[
+  {
+    "argv": [
+      "herdr",
+      "workspace",
+      "get",
+      "wV"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 0.047,
+    "stdout": "{\"id\":\"cli:workspace:get\",\"result\":{\"type\":\"workspace_info\",\"workspace\":{\"active_tab_id\":\"wV:t1\",\"agent_status\":\"unknown\",\"focused\":false,\"label\":\"existing checkout\",\"number\":4,\"pane_count\":1,\"tab_count\":1,\"tokens\":{\"git_branch\":\"fixture-existing\",\"space_none\":\"4: existing checkout\"},\"workspace_id\":\"wV\",\"worktree\":{\"checkout_path\":\"C:/Users/Shay/AppData/Local/Temp/wf158-native-dshyhooa/existing checkout\",\"is_linked_worktree\":true,\"repo_key\":\"\\\\\\\\?\\\\C:\\\\Users\\\\Shay\\\\AppData\\\\Local\\\\Temp\\\\wf158-native-dshyhooa\\\\repo\\\\.git\",\"repo_name\":\"repo\",\"repo_root\":\"C:\\\\Users\\\\Shay\\\\AppData\\\\Local\\\\Temp\\\\wf158-native-dshyhooa\\\\repo\"}}}}\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "herdr",
+      "workspace",
+      "close",
+      "wV"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 1.078,
+    "stdout": "{\"id\":\"cli:workspace:close\",\"result\":{\"type\":\"ok\"}}\n",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "git",
+      "-C",
+      "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-native-dshyhooa\\repo",
+      "worktree",
+      "remove",
+      "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-native-dshyhooa\\existing checkout"
+    ],
+    "cwd": null,
+    "exit": 0,
+    "seconds": 0.109,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "argv": [
+      "herdr",
+      "workspace",
+      "get",
+      "wV"
+    ],
+    "cwd": null,
+    "exit": 1,
+    "seconds": 0.047,
+    "stdout": "",
+    "stderr": "{\"error\":{\"code\":\"workspace_not_found\",\"message\":\"workspace wV not found\"},\"id\":\"cli:workspace:get\"}\n"
+  }
+]

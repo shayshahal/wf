@@ -1,0 +1,11 @@
+Traceback (most recent call last):
+  File "C:\Users\Shay\work\wf-158\docs\reviews\158\evidence\native-checkouts.py", line 29, in <module>
+    shutil.rmtree(initial['root'])
+  File "C:\Users\Shay\AppData\Local\mise\installs\python\3.12.14\Lib\shutil.py", line 781, in rmtree
+    return _rmtree_unsafe(path, onexc)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Shay\AppData\Local\mise\installs\python\3.12.14\Lib\shutil.py", line 635, in _rmtree_unsafe
+    onexc(os.unlink, fullname, err)
+  File "C:\Users\Shay\AppData\Local\mise\installs\python\3.12.14\Lib\shutil.py", line 633, in _rmtree_unsafe
+    os.unlink(fullname)
+PermissionError: [WinError 5] Access is denied: 'C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-native-dshyhooa\\repo\\.git\\objects\\4b\\825dc642cb6eb9a060e54bf8d69288fbee4904'
