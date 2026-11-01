@@ -1,0 +1,13 @@
+{
+  "argv": [
+    "herdr",
+    "worktree",
+    "list",
+    "--cwd",
+    "C:/Users/Shay/work/wf-158"
+  ],
+  "exit": 0,
+  "stdout": "{\"id\":\"cli:worktree:list\",\"result\":{\"source\":{\"repo_key\":\"\\\\\\\\?\\\\C:\\\\Users\\\\Shay\\\\work\\\\wf\\\\.git\",\"repo_name\":\"wf\",\"repo_root\":\"C:/Users/Shay/work/wf\",\"source_checkout_path\":\"C:/Users/Shay/work/wf\",\"source_workspace_id\":\"wP\"},\"type\":\"worktree_list\",\"worktrees\":[{\"branch\":\"main\",\"is_bare\":false,\"is_detached\":false,\"is_linked_worktree\":false,\"is_prunable\":false,\"label\":\"wf\",\"open_workspace_id\":\"wP\",\"path\":\"C:/Users/Shay/work/wf\"},{\"branch\":\"feat/158-existing-worktree-herdr\",\"is_bare\":false,\"is_detached\":false,\"is_linked_worktree\":true,\"is_prunable\":false,\"label\":\"wf\",\"path\":\"C:/Users/Shay/work/wf-158\"},{\"branch\":\"fix/234-agreement-walk\",\"is_bare\":false,\"is_detached\":false,\"is_linked_worktree\":true,\"is_prunable\":false,\"label\":\"wf\",\"path\":\"C:/Users/Shay/work/wf-234\"},{\"branch\":\"fix/pr-body-class-a-no-duplicate-agreement\",\"is_bare\":false,\"is_detached\":false,\"is_linked_worktree\":true,\"is_prunable\":false,\"label\":\"wf\",\"path\":\"C:/Users/Shay/work/wf-fix-pr-body\"},{\"is_bare\":false,\"is_detached\":true,\"is_linked_worktree\":true,\"is_prunable\":false,\"label\":\"wf\",\"path\":\"C:/Users/Shay/work/wf-git-changed\"},{\"branch\":\"feat/ui-evidence-attach\",\"is_bare\":false,\"is_detached\":false,\"is_linked_worktree\":true,\"is_prunable\":false,\"label\":\"wf\",\"path\":\"C:/Users/Shay/work/wf-ui-attach\"}]}}\n",
+  "stderr": "",
+  "at": "2026-11-01T07:26:32.999991+00:00"
+}
