@@ -1,0 +1,23 @@
+{
+  "base": "67ca46c86c60f05dae0ed12cbfd528e358eb975c",
+  "implementationHead": "e24330b4822eb3f8dd49e9dba9c7f6ff39c000d3",
+  "manifestSha256": "8cd5f2c75b01cb0d3417cb773d8277677742a4d3708da1bd15c8031ac6a756d9",
+  "files": [
+    {
+      "path": "env/HERDR.md",
+      "blob": "e3b1e62a88f76a64259750cb460c4a2981f8b893"
+    },
+    {
+      "path": "env/adapters/herdr-workspaces.selfcheck.ts",
+      "blob": "5fecb5d951efff0da2b3d09fdca97fa96e56d2ca"
+    },
+    {
+      "path": "env/adapters/herdr-workspaces.ts",
+      "blob": "4ecb136ec99c6dc8450b99b5bdeebd6c8aa89222"
+    },
+    {
+      "path": "env/wf.ts",
+      "blob": "ff8c44472bc64b20fc5db472d3dab9311a3aaa4d"
+    }
+  ]
+}

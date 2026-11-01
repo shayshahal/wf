@@ -1,0 +1,46 @@
+selfcheck: focused (1 of 107 files); full suite not run.
+selfcheck: 3 checks (tsc and eslint included), 2 at a time, 300s each
+selfcheck: PASS tsc (0.5s) [1/3]
+selfcheck: PASS eslint (2.5s) [2/3]
+selfcheck: FAIL src/round/delivered-round.selfcheck.ts (100.4s) [3/3]
+
+── FAIL src/round/delivered-round.selfcheck.ts
+  ok   the merged product identity allows post-only resume
+  ok   real next still posts the first delivery
+  FAIL tracker readback establishes separate bound completion — wf post: could not check the ticket for changes: Jira did not say which account this token is: cannot tell the round's own comments from other people's; nothing posted
+
+  FAIL paperwork-only commits preserve the receipt and allow reap — post: tracker completion pending for X-1; run wf post. Then `node "C:/Users/Shay/work/wf/wf.mjs" next`
+
+  FAIL post-delivery questions and answers do not reopen or block ordinary posting — q1 → user: What wording should the tracker note use?
+q1 closed · recorded in C:\Users\Shay\AppData\Local\Temp\wf-delivered-aUTP5m\bug-reports\first\TICKET.md § Decisions
+
+  ok   step build cannot reopen the old delivery
+  ok   step classify cannot reopen the old delivery
+  ok   decide --revise more behavior cannot reopen the old delivery
+  ok   brief build cannot reopen the old delivery
+  ok   review fix/first --done cannot reopen the old delivery
+  ok   check cannot reopen the old delivery
+  ok   uncommitted follow-up stops post/reap and names the fresh route
+  ok   direct reap also preserves follow-up work rather than deleting its branch
+  ok   explicit force reaches removal, with a warning that product changes are not archived
+  ok   index-only product edits remain visible with restored worktree
+  ok   a restored worktree cannot hide new committed product bytes
+  ok   untracked product work also blocks post/reap
+  ok   pre-receipt merged rounds resume using bound T2 evidence
+  ok   pre-receipt T2 binding catches follow-ups without trusting current HEAD
+  ok   missing delivery authority fails closed for cleanup, not silently rebased to HEAD
+  ok   a pre-content-binding round can still post its original saved note
+  ok   old unbound rounds need restored evidence or explicit discard, never automatic reap
+  ok   malformed delivery evidence is rejected
+  ok   state refuses malformed receipts without overwriting them
+  ok   malformed delivery evidence is rejected
+  ok   state refuses malformed receipts without overwriting them
+  ok   malformed delivery evidence is rejected
+  ok   state refuses malformed receipts without overwriting them
+  ok   malformed delivery evidence is rejected
+  ok   state refuses malformed receipts without overwriting them
+  ok   malformed delivery evidence is rejected
+  ok   state refuses malformed receipts without overwriting them
+
+3 FAILURE(S)
+1 of 3 selfchecks red (focused; tsc and eslint included) in 100.9s

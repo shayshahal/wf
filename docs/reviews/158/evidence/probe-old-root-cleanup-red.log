@@ -1,0 +1,19 @@
+Traceback (most recent call last):
+  File "C:\Users\Shay\AppData\Local\mise\installs\python\3.12.14\Lib\shutil.py", line 627, in _rmtree_unsafe
+    os.rmdir(fullname)
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-native-dshyhooa\\repo'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\Shay\work\wf-158\docs\reviews\158\evidence\probe-target-source.py", line 16, in <module>
+    shutil.rmtree(old_root,onexc=onexc)
+  File "C:\Users\Shay\AppData\Local\mise\installs\python\3.12.14\Lib\shutil.py", line 781, in rmtree
+    return _rmtree_unsafe(path, onexc)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Shay\AppData\Local\mise\installs\python\3.12.14\Lib\shutil.py", line 629, in _rmtree_unsafe
+    onexc(os.rmdir, fullname, err)
+  File "C:\Users\Shay\work\wf-158\docs\reviews\158\evidence\probe-target-source.py", line 10, in onexc
+    os.chmod(p,stat.S_IWRITE);fn(p)
+                              ^^^^^
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-native-dshyhooa\\repo'

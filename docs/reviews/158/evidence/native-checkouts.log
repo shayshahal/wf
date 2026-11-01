@@ -1,0 +1,22 @@
+Traceback (most recent call last):
+  File "C:\Users\Shay\AppData\Local\mise\installs\python\3.12.14\Lib\shutil.py", line 627, in _rmtree_unsafe
+    os.rmdir(fullname)
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-native-dshyhooa\\repo'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\Shay\work\wf-158\docs\reviews\158\evidence\native-checkouts.py", line 34, in <module>
+    remove_tree(initial['root'])
+  File "C:\Users\Shay\work\wf-158\docs\reviews\158\evidence\native-checkouts.py", line 11, in remove_tree
+    if pathlib.Path(path).exists():shutil.rmtree(path,onexc=readonly)
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Shay\AppData\Local\mise\installs\python\3.12.14\Lib\shutil.py", line 781, in rmtree
+    return _rmtree_unsafe(path, onexc)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Shay\AppData\Local\mise\installs\python\3.12.14\Lib\shutil.py", line 629, in _rmtree_unsafe
+    onexc(os.rmdir, fullname, err)
+  File "C:\Users\Shay\work\wf-158\docs\reviews\158\evidence\native-checkouts.py", line 10, in readonly
+    os.chmod(name, stat.S_IWRITE);func(name)
+                                  ^^^^^^^^^^
+PermissionError: [WinError 32] The process cannot access the file because it is being used by another process: 'C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-native-dshyhooa\\repo'

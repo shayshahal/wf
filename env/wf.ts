@@ -4,6 +4,7 @@
 // through env/wf.mjs; the team's plugin runs the kit's own ../wf.mjs (kit and env plan, 2026-09-27).
 import { run } from '../src/run.ts';
 import { herdrOpener } from './adapters/herdr.ts';
+import { herdrWorkspaceHandoff, runHerdrWorkspaces } from './adapters/herdr-workspaces.ts';
 import { processCwds } from './adapters/processes.ts';
 import { annotateFile, isPlannotatorPresent } from './adapters/plannotator.ts';
 import { questionInbox } from './adapters/plannotator-inbox.ts';
@@ -23,6 +24,7 @@ export async function runEnvWf(entry: string, argv: string[]) {
 
 	const env = { ...process.env };
 	const models = piModelsForProvider(env.PI_PROVIDER);
+	const workspaceHandoff = herdrWorkspaceHandoff(env);
 	await run(argv, {
 		entry,
 		madeBy: 'env',
@@ -31,8 +33,10 @@ export async function runEnvWf(entry: string, argv: string[]) {
 		reviewUI: { available: isPlannotatorPresent, annotate: annotateFile },
 		inbox: questionInbox,
 		opener: herdrOpener,
+		...(workspaceHandoff ? { workspaceHandoff } : {}),
 		processCwds,
 		commands: {
+			herdr: runHerdrWorkspaces,
 			hook: async (a) => (await import('./hook.ts')).runHook(a),
 			update: async () => (await import('./update.ts')).runUpdate(),
 		},

@@ -1,0 +1,95 @@
+{
+  "root": "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-direct-workspace-w9fyo16f",
+  "repo": "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-direct-workspace-w9fyo16f\\repo",
+  "target": "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-direct-workspace-w9fyo16f\\checkout",
+  "opened": {
+    "id": "cli:workspace:create",
+    "result": {
+      "root_pane": {
+        "agent_status": "unknown",
+        "cwd": "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-direct-workspace-w9fyo16f\\checkout\\",
+        "focused": false,
+        "pane_id": "wW:p1",
+        "revision": 0,
+        "scroll": {
+          "max_offset_from_bottom": 0,
+          "offset_from_bottom": 0,
+          "viewport_rows": 46
+        },
+        "tab_id": "wW:t1",
+        "terminal_id": "term_65f32c4fff886282",
+        "workspace_id": "wW"
+      },
+      "tab": {
+        "agent_status": "unknown",
+        "focused": false,
+        "label": "1",
+        "number": 1,
+        "pane_count": 1,
+        "tab_id": "wW:t1",
+        "workspace_id": "wW"
+      },
+      "type": "workspace_created",
+      "workspace": {
+        "active_tab_id": "wW:t1",
+        "agent_status": "unknown",
+        "focused": false,
+        "label": "checkout",
+        "number": 3,
+        "pane_count": 1,
+        "tab_count": 1,
+        "workspace_id": "wW"
+      }
+    }
+  },
+  "added": [
+    {
+      "active_tab_id": "wW:t1",
+      "agent_status": "unknown",
+      "focused": false,
+      "label": "checkout",
+      "number": 3,
+      "pane_count": 1,
+      "tab_count": 1,
+      "workspace_id": "wW"
+    }
+  ],
+  "discovery": {
+    "id": "cli:worktree:list",
+    "result": {
+      "source": {
+        "repo_key": "\\\\?\\C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-direct-workspace-w9fyo16f\\repo\\.git",
+        "repo_name": "repo",
+        "repo_root": "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-direct-workspace-w9fyo16f\\repo",
+        "source_checkout_path": "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-direct-workspace-w9fyo16f\\repo"
+      },
+      "type": "worktree_list",
+      "worktrees": [
+        {
+          "branch": "main",
+          "is_bare": false,
+          "is_detached": false,
+          "is_linked_worktree": false,
+          "is_prunable": false,
+          "label": "repo",
+          "path": "C:/Users/Shay/AppData/Local/Temp/wf158-direct-workspace-w9fyo16f/repo"
+        },
+        {
+          "branch": "fixture-target",
+          "is_bare": false,
+          "is_detached": false,
+          "is_linked_worktree": true,
+          "is_prunable": false,
+          "label": "repo",
+          "open_workspace_id": "wW",
+          "path": "C:/Users/Shay/AppData/Local/Temp/wf158-direct-workspace-w9fyo16f/checkout"
+        }
+      ]
+    }
+  }
+}
+Traceback (most recent call last):
+  File "C:\Users\Shay\work\wf-158\docs\reviews\158\evidence\probe-direct-workspace.py", line 30, in <module>
+    assert pathlib.Path(w['worktree']['checkout_path']).resolve().is_relative_to(root.resolve())
+                        ~^^^^^^^^^^^^
+KeyError: 'worktree'

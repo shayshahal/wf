@@ -1,0 +1,83 @@
+[
+  {
+    "layout": "normal",
+    "missing_parent": "refused without workspace effect",
+    "first": "opened",
+    "second": "reused",
+    "parent": "w13",
+    "target": "w14",
+    "new_workspaces_from_helper": [
+      "w14"
+    ],
+    "focus_before": [
+      [
+        "wE",
+        "wE:t3H"
+      ]
+    ],
+    "focus_after": [
+      [
+        "wE",
+        "wE:t2H"
+      ]
+    ],
+    "registry_and_head_unchanged": true,
+    "checkout_and_setup_hooks_ran": false,
+    "close_kept_checkout_and_obligation": true,
+    "post_close_mapping": null
+  },
+  {
+    "layout": "bare",
+    "missing_parent": "refused without workspace effect",
+    "first": "opened",
+    "second": "reused",
+    "parent": "w15",
+    "target": "w16",
+    "new_workspaces_from_helper": [
+      "w16"
+    ],
+    "focus_before": [
+      [
+        "wE",
+        "wE:t2H"
+      ]
+    ],
+    "focus_after": [
+      [
+        "wE",
+        "wE:t3J"
+      ]
+    ],
+    "registry_and_head_unchanged": true,
+    "checkout_and_setup_hooks_ran": false,
+    "close_kept_checkout_and_obligation": true,
+    "post_close_mapping": null
+  },
+  {
+    "layout": "detached",
+    "missing_parent": "refused without workspace effect",
+    "first": "opened",
+    "second": "reused",
+    "parent": "w17",
+    "target": "w18",
+    "new_workspaces_from_helper": [
+      "w18"
+    ],
+    "focus_before": [
+      [
+        "wE",
+        "wE:t3J"
+      ]
+    ],
+    "focus_after": [
+      [
+        "wE",
+        "wE:t3C"
+      ]
+    ],
+    "registry_and_head_unchanged": true,
+    "checkout_and_setup_hooks_ran": false,
+    "close_kept_checkout_and_obligation": true,
+    "post_close_mapping": null
+  }
+]

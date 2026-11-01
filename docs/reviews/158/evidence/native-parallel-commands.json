@@ -1,0 +1,12 @@
+[
+  {
+    "exit": 0,
+    "stdout": "{\"kind\":\"opened\",\"checkout\":{\"path\":\"C:/Users/Shay/AppData/Local/Temp/wf158-parent-normal-xsruoml_/existing $ ' checkout\",\"branch\":\"fixture-existing\",\"detached\":false,\"bare\":false,\"workspace\":\"w1A\"},\"disposition\":\"opened\"}\n",
+    "stderr": ""
+  },
+  {
+    "exit": 0,
+    "stdout": "{\"kind\":\"opened\",\"checkout\":{\"path\":\"C:/Users/Shay/AppData/Local/Temp/wf158-parent-normal-xsruoml_/existing $ ' checkout\",\"branch\":\"fixture-existing\",\"detached\":false,\"bare\":false,\"workspace\":\"w1A\"},\"disposition\":\"opened\"}\n",
+    "stderr": ""
+  }
+]

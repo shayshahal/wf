@@ -1,0 +1,22 @@
+[
+  {
+    "active_tab_id": "wT:t1",
+    "agent_status": "unknown",
+    "focused": false,
+    "label": "repo",
+    "number": 3,
+    "pane_count": 1,
+    "tab_count": 1,
+    "tokens": {
+      "space_none": "3: repo"
+    },
+    "workspace_id": "wT",
+    "worktree": {
+      "checkout_path": "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-native-dshyhooa\\repo",
+      "is_linked_worktree": false,
+      "repo_key": "\\\\?\\C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-native-dshyhooa\\repo\\.git",
+      "repo_name": "repo",
+      "repo_root": "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf158-native-dshyhooa\\repo"
+    }
+  }
+]
