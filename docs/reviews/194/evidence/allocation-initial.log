@@ -1,0 +1,35 @@
+selfcheck: focused (3 of 96 files); full suite not run.
+selfcheck: 5 checks (tsc and eslint included), 6 at a time, 300s each
+selfcheck: FAIL tsc (0.3s) [1/5]
+
+── FAIL tsc
+src/gates/check.ts(94,7): error TS2322: Type '{ kind: "acquired"; release: () => Promise<null>; }' is not assignable to type 'VerificationServers'.
+  Property 'disposition' is missing in type '{ kind: "acquired"; release: () => Promise<null>; }' but required in type '{ readonly kind: "acquired"; readonly disposition: "borrowed" | "none" | "owned"; readonly release: () => Promise<string | null>; readonly signal?: AbortSignal | undefined; }'.
+src/gates/check.ts(103,244): error TS2339: Property 'signal' does not exist on type 'VerificationServers'.
+  Property 'signal' does not exist on type '{ readonly kind: "refused"; readonly why: string; }'.
+src/gates/check.ts(104,37): error TS2339: Property 'release' does not exist on type 'VerificationServers'.
+  Property 'release' does not exist on type '{ readonly kind: "refused"; readonly why: string; }'.
+src/gates/check.ts(106,40): error TS2339: Property 'signal' does not exist on type 'VerificationServers'.
+  Property 'signal' does not exist on type '{ readonly kind: "refused"; readonly why: string; }'.
+selfcheck: PASS eslint (1.0s) [2/5]
+selfcheck: FAIL src/worktrees/git-worktree.selfcheck.ts (13.5s) [3/5]
+
+── FAIL src/worktrees/git-worktree.selfcheck.ts
+  ok   no stack started: both owned releases, teardown, then the folder and prune
+  ok   a stack started: it stops first
+  ok   cleanup verifies ownership in-process rather than handing a raw PID or path to a kill command
+  ok   the show browser is released by identity in-process, before the folder goes
+error: invalid path 'git~1'
+fatal: Could not reset index file to revision 'HEAD'.
+  ok   a failed checkout throws and takes the branch it made with it
+  ok   a branch that was there before survives the failed add
+  FAIL kit allocator passes the supplied destination to real Git, before setup — Command failed: git rev-parse --verify missing-base^{commit}
+fatal: Needed a single revision
+
+  ok   Windows: the detached serve re-runs itself hidden, once, with piped stdio (no console window)
+  ok   elsewhere: no hop
+
+1 FAILURE(S)
+selfcheck: PASS src/worktrees/worktree.selfcheck.ts (19.3s) [4/5]
+selfcheck: PASS env/worktrees.selfcheck.ts (67.5s) [5/5]
+2 of 5 selfchecks red (focused; tsc and eslint included) in 67.5s

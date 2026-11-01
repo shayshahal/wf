@@ -1,0 +1,24 @@
+{
+  "command": "git",
+  "args": [
+    "-c",
+    "core.hooksPath=C:\\Users\\Shay\\AppData\\Local\\Temp\\wf-194-serve-base-control-0aeuUR\\empty-hooks",
+    "worktree",
+    "add",
+    "--detach",
+    "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf-194-serve-base-control-0aeuUR\\base",
+    "8622ce7de2a1243f0dc34c806f5bc7682bc508fe"
+  ],
+  "cwd": "C:\\Users\\Shay\\work\\wf-194",
+  "started": "2026-10-30T08:37:25.993Z",
+  "elapsedSeconds": 0.2805478,
+  "status": 0,
+  "signal": null,
+  "logfile": "serve-baseline-worktree-add.log"
+}
+
+STDOUT
+HEAD is now at 8622ce7 Merge pull request #238 from shayshahal/fix/ticketless-rounds-deliver
+
+STDERR
+Preparing worktree (detached HEAD 8622ce7)

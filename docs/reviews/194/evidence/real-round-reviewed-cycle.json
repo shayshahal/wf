@@ -1,0 +1,35 @@
+[
+  {
+    "step": "real-round-hook-editing",
+    "exit": 0,
+    "seconds": 1.3
+  },
+  {
+    "step": "real-round-new",
+    "exit": 0,
+    "seconds": 87.88
+  },
+  {
+    "step": "real-round-serve",
+    "exit": 0,
+    "seconds": 45.49
+  },
+  {
+    "step": "real-round-readback",
+    "exit": 0,
+    "seconds": 21.62
+  },
+  {
+    "step": "real-round-reap",
+    "exit": 0,
+    "seconds": 58.01
+  },
+  {
+    "step": "real-round-hook-restored",
+    "exit": 0,
+    "seconds": 11.31
+  },
+  {
+    "elapsed_seconds": 225.67
+  }
+]

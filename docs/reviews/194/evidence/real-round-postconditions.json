@@ -1,0 +1,36 @@
+[
+  {
+    "branch": "bench/194-round-cycle",
+    "listeners": {
+      "b2b": {
+        "reachable": false,
+        "reason": "ECONNREFUSED"
+      },
+      "admin": {
+        "reachable": false,
+        "reason": "ECONNREFUSED"
+      },
+      "api": {
+        "reachable": false,
+        "reason": "ECONNREFUSED"
+      }
+    }
+  },
+  {
+    "branch": "bench/194-round-final",
+    "listeners": {
+      "b2b": {
+        "reachable": false,
+        "reason": "ECONNREFUSED"
+      },
+      "admin": {
+        "reachable": false,
+        "reason": "ECONNREFUSED"
+      },
+      "api": {
+        "reachable": false,
+        "reason": "ECONNREFUSED"
+      }
+    }
+  }
+]

@@ -1,0 +1,11 @@
+selfcheck: focused (3 of 103 files); full suite not run.
+selfcheck: 5 checks (tsc and eslint included), 2 at a time, 300s each
+selfcheck: FAIL tsc (0.4s) [1/5]
+
+── FAIL tsc
+src/worktrees/serve-diagnostic.selfcheck.ts(59,81): error TS18046: 'error' is of type 'unknown'.
+selfcheck: PASS eslint (1.2s) [2/5]
+selfcheck: PASS src/gates/baseline-diagnostic.selfcheck.ts (28.5s) [3/5]
+selfcheck: PASS src/gates/baseline-run.selfcheck.ts (41.5s) [4/5]
+selfcheck: PASS src/worktrees/disposable-workspace.selfcheck.ts (48.0s) [5/5]
+1 of 5 selfchecks red (focused; tsc and eslint included) in 76.9s

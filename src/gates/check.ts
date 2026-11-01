@@ -91,7 +91,7 @@ export async function runCheck(argv: string[] = []): Promise<void> {
 		if (task.missing !== undefined) { refuse(task.missing); return; }
 		const unsafe = task.args.find((arg) => shellArgUnsafe(arg));
 		if (unsafe !== undefined) { refuse(`Windows command shim would expand \`${unsafe}\`; run a literal-safe project command instead`); return; }
-		let lease: VerificationServers = { kind: 'acquired', release: async () => null };
+		let lease: VerificationServers = { kind: 'acquired', disposition: 'none', release: async () => null };
 		if (task.stack || task.requirements) {
 			lease = await acquireVerificationServers(toplevel, { ...runnerEnv(process.env), ...task.env }, task.requirements);
 			if (lease.kind === 'refused') { refuse(lease.why); return; }

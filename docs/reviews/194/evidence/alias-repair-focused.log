@@ -1,0 +1,7 @@
+selfcheck: focused (2 of 104 files); full suite not run.
+selfcheck: 4 checks (tsc and eslint included), 2 at a time, 300s each
+selfcheck: PASS tsc (0.4s) [1/4]
+selfcheck: PASS eslint (1.2s) [2/4]
+selfcheck: PASS src/worktrees/workspace-cleanup.selfcheck.ts (19.5s) [3/4]
+selfcheck: PASS src/worktrees/disposable-workspace.selfcheck.ts (24.5s) [4/4]
+4 selfchecks green (focused; tsc and eslint included) in 25.8s

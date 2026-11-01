@@ -9,9 +9,11 @@
 // resources. remove() only releases the branch and worktree this handle created.
 import { execFileSync, spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { appendFileSync, closeSync, copyFileSync, existsSync, lstatSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync, writeSync } from 'node:fs';
-import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import { appendFileSync, closeSync, copyFileSync, existsSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync, writeSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { createWorktree, listWorktrees, removalPlan, resolveWorktree, slugForBranch } from '../worktrees/worktree.ts';
+import { scratchDestination } from '../worktrees/workspace-probes.ts';
+export { scratchDestination } from '../worktrees/workspace-probes.ts';
 import { currentBranch } from '../git-head.ts';
 import { runRemovalStep } from '../worktrees/removal.ts';
 import { stopWorktreeServers } from '../worktrees/serve.ts';
@@ -158,33 +160,6 @@ function createLockFile(path: string, token: string, writeToken: TokenWriter): v
 	const message = `could not write the baseline scratch lock ${path}: ${(failure as Error).message}`;
 	if (cleanup) throw new Error(`${message}; removing the partial lock also failed: ${cleanup}`, { cause: failure });
 	throw new Error(message, { cause: failure });
-}
-
-/**
- * Pure: the destination a probe may be copied to inside `root`, or a refusal. A copied path is a
- * repo-relative path with no `..`; its resolved destination must stay under `root`; and no existing
- * parent may be a symlink/junction, so a write cannot escape into the live worktree or a shared
- * dependency folder (#133 review).
- */
-export function scratchDestination(root: string, file: string): string {
-	const f = file.replace(/\\/g, '/');
-	if (f.startsWith('/') || /^[A-Za-z]:/.test(f)) throw new Error(`the probe path ${file} is absolute; only repo-relative paths are copied into the scratch`);
-	if (f.split('/').includes('..')) throw new Error(`the probe path ${file} has a .. segment; it is not copied into the scratch`);
-	const dest = resolve(root, f);
-	const rel = relative(root, dest);
-	if (!rel || rel.startsWith('..') || isAbsolute(rel)) throw new Error(`the probe path ${file} resolves outside the scratch worktree; it is not copied`);
-	// The leaf itself may already be a link (a committed symlink, a setup-made junction): copyFileSync
-	// would write through it to its target outside the scratch. Refuse, exactly as for a parent link
-	// (#133 review). lstat, with no throwIfNoEntry, also catches a DANGLING link, which existsSync misses
-	// (it follows the link and reports false when the target does not exist yet): copyFileSync would then
-	// create the external target (#133 review).
-	if (lstatSync(dest, { throwIfNoEntry: false })?.isSymbolicLink()) throw new Error(`the probe path ${file} is a link at ${dest}; it is not copied into the scratch`);
-	let dir = root;
-	for (const segment of rel.split(/[\\/]/).slice(0, -1)) {
-		dir = join(dir, segment);
-		if (lstatSync(dir, { throwIfNoEntry: false })?.isSymbolicLink()) throw new Error(`the probe path ${file} goes through a link at ${dir}; it is not copied into the scratch`);
-	}
-	return dest;
 }
 
 /**

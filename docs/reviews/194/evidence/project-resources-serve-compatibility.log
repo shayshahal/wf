@@ -1,0 +1,27 @@
+selfcheck: focused (2 of 100 files); full suite not run.
+selfcheck: 4 checks (tsc and eslint included), 6 at a time, 300s each
+selfcheck: PASS projects/jewelryx/readiness-narrow.cli.selfcheck.ts (0.2s) [1/4]
+selfcheck: PASS tsc (0.4s) [2/4]
+selfcheck: PASS eslint (1.2s) [3/4]
+selfcheck: FAIL src/worktrees/serve.selfcheck.ts (100.9s) [4/4]
+
+── FAIL src/worktrees/serve.selfcheck.ts
+  ok   explicit stop closes the tracked stack and its descendant, without removing the worktree
+  ok   repeating stop is harmless and does not restart the stack
+  ok   an agreement dispatch releases an idle stack instead of leaving it until reap
+  ok   parking a round closes its whole stack
+  ok   an active build dispatch keeps both stack listeners and its ownership
+  ok   a blocked non-review human wait releases its stack
+  ok   real CI waiting metadata preserves the stack through step and next
+  ok   explicit helper stop overrides a CI wait
+  ok   legacy/foreign round state does not prevent a verified stop or get rewritten
+  ok   malformed ownership is refused and left intact
+  FAIL a copied/recycled PID cannot stop another worktree or erase its authority — wf serve: PID 69300 is not a verified foreground server in this worktree; ownership retained
+
+  ok   an unowned stale PID warns without refusing agreement dispatch
+  ok   an unowned stale PID also warns without invalidating the committed held phase
+  ok   an agent in the same checkout is not a server even with the workflow command in its prompt
+  ok   a lazy start refuses unresolved ownership without stopping either unrelated process
+
+1 FAILURE(S)
+1 of 4 selfchecks red (focused; tsc and eslint included) in 101.0s

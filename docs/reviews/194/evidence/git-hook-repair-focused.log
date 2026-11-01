@@ -1,0 +1,176 @@
+selfcheck: focused (3 of 105 files); full suite not run.
+selfcheck: 5 checks (tsc and eslint included), 6 at a time, 300s each
+selfcheck: FAIL src/worktrees/workspace-allocation.selfcheck.ts (0.2s) [1/5]
+
+── FAIL src/worktrees/workspace-allocation.selfcheck.ts
+node:internal/modules/run_main:111
+    triggerUncaughtException(
+    ^
+
+file:///C:/Users/Shay/work/wf-194/src/worktrees/workspace-allocation.selfcheck.ts:44
+        for (const name of ['post-checkout', 'reference-transaction']) writeFileSync(join(hookDir, name), '#!/bin/sh
+printf hook-ran > "$PWD/neutral-hook-marker"
+^^^^^^
+', { mode: 0o755 });
+
+SyntaxError [ERR_INVALID_TYPESCRIPT_SYNTAX]: Expected ',', got 'ident'
+    at parseTypeScript (node:internal/modules/typescript:61:36)
+    at processTypeScriptCode (node:internal/modules/typescript:129:37)
+    at Object.stripTypeScriptModuleTypes (node:internal/modules/typescript:172:22)
+    at stripTypeScriptModuleTypes (node:internal/modules/esm/translators:35:49)
+    at ModuleLoader.<anonymous> (node:internal/modules/esm/translators:688:29)
+    at #translate (node:internal/modules/esm/loader:441:20)
+    at afterLoad (node:internal/modules/esm/loader:509:29)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:514:12)
+    at #getOrCreateModuleJobAfterResolve (node:internal/modules/esm/loader:567:36)
+    at afterResolve (node:internal/modules/esm/loader:614:52) {
+  code: 'ERR_INVALID_TYPESCRIPT_SYNTAX'
+}
+
+Node.js v26.12.1
+selfcheck: FAIL tsc (1.1s) [2/5]
+
+── FAIL tsc
+env/worktrees.selfcheck.ts(77,115): error TS1002: Unterminated string literal.
+env/worktrees.selfcheck.ts(78,1): error TS1005: ',' expected.
+env/worktrees.selfcheck.ts(78,8): error TS1005: ',' expected.
+env/worktrees.selfcheck.ts(79,1): error TS1005: ',' expected.
+env/worktrees.selfcheck.ts(79,21): error TS1002: Unterminated string literal.
+env/worktrees.selfcheck.ts(80,7): error TS1005: ',' expected.
+src/worktrees/workspace-allocation.selfcheck.ts(43,111): error TS1002: Unterminated string literal.
+src/worktrees/workspace-allocation.selfcheck.ts(44,1): error TS1005: ',' expected.
+src/worktrees/workspace-allocation.selfcheck.ts(44,8): error TS1005: ',' expected.
+src/worktrees/workspace-allocation.selfcheck.ts(45,1): error TS1005: ',' expected.
+src/worktrees/workspace-allocation.selfcheck.ts(45,21): error TS1002: Unterminated string literal.
+src/worktrees/workspace-allocation.selfcheck.ts(46,3): error TS1005: ',' expected.
+selfcheck: FAIL env/worktrees.selfcheck.ts (0.1s) [3/5]
+
+── FAIL env/worktrees.selfcheck.ts
+node:internal/modules/run_main:111
+    triggerUncaughtException(
+    ^
+
+file:///C:/Users/Shay/work/wf-194/env/worktrees.selfcheck.ts:78
+      for (const name of ['post-checkout', 'reference-transaction']) writeFileSync(join(hookDir, name), '#!/bin/sh
+printf hook-ran > "$PWD/neutral-git-hook-marker"
+^^^^^^
+', { mode: 0o755 });
+
+SyntaxError [ERR_INVALID_TYPESCRIPT_SYNTAX]: Expected ',', got 'ident'
+    at parseTypeScript (node:internal/modules/typescript:61:36)
+    at processTypeScriptCode (node:internal/modules/typescript:129:37)
+    at Object.stripTypeScriptModuleTypes (node:internal/modules/typescript:172:22)
+    at stripTypeScriptModuleTypes (node:internal/modules/esm/translators:35:49)
+    at ModuleLoader.<anonymous> (node:internal/modules/esm/translators:688:29)
+    at #translate (node:internal/modules/esm/loader:441:20)
+    at afterLoad (node:internal/modules/esm/loader:509:29)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:514:12)
+    at #getOrCreateModuleJobAfterResolve (node:internal/modules/esm/loader:567:36)
+    at afterResolve (node:internal/modules/esm/loader:614:52) {
+  code: 'ERR_INVALID_TYPESCRIPT_SYNTAX'
+}
+
+Node.js v26.12.1
+selfcheck: FAIL eslint (1.5s) [4/5]
+
+── FAIL eslint
+
+C:\Users\Shay\work\wf-194\env\worktrees.selfcheck.ts
+  0:0  error  Preprocessing error: Expected ',', got 'ident'
+
+C:\Users\Shay\work\wf-194\src\worktrees\workspace-allocation.selfcheck.ts
+  0:0  error  Preprocessing error: Expected ',', got 'ident'
+
+✖ 2 problems (2 errors, 0 warnings)
+selfcheck: PASS src/worktrees/git-worktree.selfcheck.ts (10.7s) [5/5]
+4 of 5 selfchecks red (focused; tsc and eslint included) in 11.7s
+selfcheck: focused (2 of 105 files); full suite not run.
+selfcheck: 4 checks (tsc and eslint included), 6 at a time, 300s each
+selfcheck: FAIL tsc (0.3s) [1/4]
+
+── FAIL tsc
+src/worktrees/workspace-allocation.selfcheck.ts(49,61): error TS2339: Property 'why' does not exist on type 'never'.
+selfcheck: PASS eslint (1.1s) [2/4]
+selfcheck: PASS src/worktrees/workspace-allocation.selfcheck.ts (14.2s) [3/4]
+selfcheck: PASS env/worktrees.selfcheck.ts (69.3s) [4/4]
+1 of 4 selfchecks red (focused; tsc and eslint included) in 69.3s
+selfcheck: focused (2 of 105 files); full suite not run.
+selfcheck: 4 checks (tsc and eslint included), 6 at a time, 300s each
+selfcheck: PASS tsc (1.2s) [1/4]
+selfcheck: PASS eslint (2.1s) [2/4]
+selfcheck: PASS src/worktrees/workspace-allocation.selfcheck.ts (27.4s) [3/4]
+selfcheck: PASS env/worktrees.selfcheck.ts (71.8s) [4/4]
+4 selfchecks green (focused; tsc and eslint included) in 72.8s
+selfcheck: focused (2 of 106 files); full suite not run.
+selfcheck: 4 checks (tsc and eslint included), 6 at a time, 300s each
+selfcheck: PASS tsc (1.2s) [1/4]
+selfcheck: PASS eslint (1.1s) [2/4]
+selfcheck: FAIL env/worktrees.selfcheck.ts (27.5s) [3/4]
+
+── FAIL env/worktrees.selfcheck.ts
+  ok   verified owned releases precede project teardown and directory removal
+  ok   the show browser is released before the folder, by identity
+  ok   release uses the identity-verifying operation, never a path sweep
+  ok   wt remove preserves the local branch
+  ok   both served and unserved worktrees use verified release
+  ok   round/one: real wt honors the shared destination, not saved or environment config
+  ok   round/one: user pre-start runs once, only after registration and metadata
+  ok   wf-baseline/round-one: real wt honors the shared destination, not saved or environment config
+  ok   wf-baseline/round-one: user pre-start runs once, only after registration and metadata
+file:///C:/Users/Shay/work/wf-194/env/worktrees.ts:26
+			throw new Error(`${readFileSync(log, 'utf8').trimEnd()}\n${label} failed (exit ${r.status})`);
+			      ^
+
+Error: ✗ Failed to switch worktree
+  error: bogus format in GIT_CONFIG_PARAMETERS
+  fatal: unable to parse command-line config
+wt switch --create failed (exit 1)
+    at step (file:///C:/Users/Shay/work/wf-194/env/worktrees.ts:26:10)
+    at create (file:///C:/Users/Shay/work/wf-194/env/worktrees.ts:31:47)
+    at withGitHooksDisabled (file:///C:/Users/Shay/work/wf-194/src/worktrees/git-hooks.ts:13:3)
+    at createWorktree (file:///C:/Users/Shay/work/wf-194/env/worktrees.ts:33:29)
+    at file:///C:/Users/Shay/work/wf-194/env/worktrees.selfcheck.ts:86:20
+
+Node.js v26.12.1
+selfcheck: PASS src/worktrees/workspace-allocation.selfcheck.ts (27.7s) [4/4]
+1 of 4 selfchecks red (focused; tsc and eslint included) in 28.6s
+selfcheck: focused (2 of 106 files); full suite not run.
+selfcheck: 4 checks (tsc and eslint included), 6 at a time, 300s each
+selfcheck: PASS tsc (1.0s) [1/4]
+selfcheck: PASS eslint (1.0s) [2/4]
+selfcheck: FAIL env/worktrees.selfcheck.ts (27.5s) [3/4]
+
+── FAIL env/worktrees.selfcheck.ts
+  ok   verified owned releases precede project teardown and directory removal
+  ok   the show browser is released before the folder, by identity
+  ok   release uses the identity-verifying operation, never a path sweep
+  ok   wt remove preserves the local branch
+  ok   both served and unserved worktrees use verified release
+  ok   round/one: real wt honors the shared destination, not saved or environment config
+  ok   round/one: user pre-start runs once, only after registration and metadata
+  ok   wf-baseline/round-one: real wt honors the shared destination, not saved or environment config
+  ok   wf-baseline/round-one: user pre-start runs once, only after registration and metadata
+file:///C:/Users/Shay/work/wf-194/env/worktrees.ts:26
+			throw new Error(`${readFileSync(log, 'utf8').trimEnd()}\n${label} failed (exit ${r.status})`);
+			      ^
+
+Error: ✗ Failed to switch worktree
+  error: bogus format in GIT_CONFIG_PARAMETERS
+  fatal: unable to parse command-line config
+wt switch --create failed (exit 1)
+    at step (file:///C:/Users/Shay/work/wf-194/env/worktrees.ts:26:10)
+    at create (file:///C:/Users/Shay/work/wf-194/env/worktrees.ts:31:47)
+    at withGitHooksDisabled (file:///C:/Users/Shay/work/wf-194/src/worktrees/git-hooks.ts:13:3)
+    at createWorktree (file:///C:/Users/Shay/work/wf-194/env/worktrees.ts:33:29)
+    at file:///C:/Users/Shay/work/wf-194/env/worktrees.selfcheck.ts:86:20
+
+Node.js v26.12.1
+selfcheck: PASS src/worktrees/workspace-allocation.selfcheck.ts (33.1s) [4/4]
+1 of 4 selfchecks red (focused; tsc and eslint included) in 33.9s
+selfcheck: focused (2 of 106 files); full suite not run.
+selfcheck: 4 checks (tsc and eslint included), 6 at a time, 300s each
+selfcheck: PASS tsc (0.3s) [1/4]
+selfcheck: PASS eslint (1.0s) [2/4]
+selfcheck: PASS src/worktrees/workspace-allocation.selfcheck.ts (26.2s) [3/4]
+selfcheck: PASS env/worktrees.selfcheck.ts (88.8s) [4/4]
+4 selfchecks green (focused; tsc and eslint included) in 88.8s

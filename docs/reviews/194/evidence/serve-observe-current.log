@@ -1,0 +1,123 @@
+[serve-observe] {"event":"start","platform":"win32","node":"v26.12.1","source":"C:\\Users\\Shay\\work\\wf-194"}
+[serve-observe] {"event":"http","url":"http://127.0.0.1:54317","status":200,"ms":12.296100000000024}
+[serve-observe] {"event":"http","url":"http://127.0.0.1:64739","status":200,"ms":7.93769999999995}
+[serve-observe] {"event":"cli","args":["serve","--stop"],"status":0,"output":"wf serve: stopped server tree 70304\n"}
+[serve-observe] {"event":"http-error","url":"http://127.0.0.1:64739","ms":4.464899999999034,"error":"fetch failed","cause":"ECONNREFUSED","listener":{"pid":21000,"port":64739,"folder":"C:\\Users\\Shay\\AppData\\Local\\Temp\\wf-stack-lifetime-0ytFoa\\idle '[]&\\.wf"},"alive":"ESRCH"}
+[serve-observe] {"event":"http-error","url":"http://127.0.0.1:54317","ms":7.2664999999997235,"error":"fetch failed","cause":"ECONNRESET","listener":{"pid":70304,"port":54317,"folder":"C:\\Users\\Shay\\AppData\\Local\\Temp\\wf-stack-lifetime-0ytFoa\\idle '[]&\\.wf"},"alive":"ESRCH"}
+[serve-observe] {"event":"fresh-control","url":"http://127.0.0.1:64739","response":{"error":"connect ECONNREFUSED 127.0.0.1:64739","code":"ECONNREFUSED"},"alive":"ESRCH","authority":{"serve.pid":"ENOENT","serve-owner.json":"ENOENT"}}
+[serve-observe] {"event":"fresh-control","url":"http://127.0.0.1:54317","response":{"error":"connect ECONNREFUSED 127.0.0.1:54317","code":"ECONNREFUSED"},"alive":"ESRCH","authority":{"serve.pid":"ENOENT","serve-owner.json":"ENOENT"}}
+  ok   explicit stop closes the tracked stack and its descendant, without removing the worktree
+[serve-observe] {"event":"cli","args":["serve","--stop"],"status":0,"output":"wf serve: no recorded server running\n"}
+[serve-observe] {"event":"http-error","url":"http://127.0.0.1:54317","ms":1.703799999999319,"error":"fetch failed","cause":"ECONNREFUSED","listener":{"pid":70304,"port":54317,"folder":"C:\\Users\\Shay\\AppData\\Local\\Temp\\wf-stack-lifetime-0ytFoa\\idle '[]&\\.wf"},"alive":"ESRCH"}
+[serve-observe] {"event":"http-error","url":"http://127.0.0.1:64739","ms":2.0346000000008644,"error":"fetch failed","cause":"ECONNREFUSED","listener":{"pid":21000,"port":64739,"folder":"C:\\Users\\Shay\\AppData\\Local\\Temp\\wf-stack-lifetime-0ytFoa\\idle '[]&\\.wf"},"alive":"ESRCH"}
+[serve-observe] {"event":"fresh-control","url":"http://127.0.0.1:54317","response":{"error":"connect ECONNREFUSED 127.0.0.1:54317","code":"ECONNREFUSED"},"alive":"ESRCH","authority":{"serve.pid":"ENOENT","serve-owner.json":"ENOENT"}}
+[serve-observe] {"event":"fresh-control","url":"http://127.0.0.1:64739","response":{"error":"connect ECONNREFUSED 127.0.0.1:64739","code":"ECONNREFUSED"},"alive":"ESRCH","authority":{"serve.pid":"ENOENT","serve-owner.json":"ENOENT"}}
+  ok   repeating stop is harmless and does not restart the stack
+[serve-observe] {"event":"http-error","url":"http://127.0.0.1:54317","ms":0.6684999999997672,"error":"fetch failed","cause":"ECONNREFUSED","listener":{"pid":70304,"port":54317,"folder":"C:\\Users\\Shay\\AppData\\Local\\Temp\\wf-stack-lifetime-0ytFoa\\idle '[]&\\.wf"},"alive":"ESRCH"}
+[serve-observe] {"event":"fresh-control","url":"http://127.0.0.1:54317","response":{"error":"connect ECONNREFUSED 127.0.0.1:54317","code":"ECONNREFUSED"},"alive":"ESRCH","authority":{"serve.pid":"ENOENT","serve-owner.json":"ENOENT"}}
+[serve-observe] {"event":"http-error","url":"http://127.0.0.1:64739","ms":0.5698999999985972,"error":"fetch failed","cause":"ECONNREFUSED","listener":{"pid":21000,"port":64739,"folder":"C:\\Users\\Shay\\AppData\\Local\\Temp\\wf-stack-lifetime-0ytFoa\\idle '[]&\\.wf"},"alive":"ESRCH"}
+[serve-observe] {"event":"fresh-control","url":"http://127.0.0.1:64739","response":{"error":"connect ECONNREFUSED 127.0.0.1:64739","code":"ECONNREFUSED"},"alive":"ESRCH","authority":{"serve.pid":"ENOENT","serve-owner.json":"ENOENT"}}
+[serve-observe] {"event":"http","url":"http://127.0.0.1:65452","status":200,"ms":4.27009999999791}
+[serve-observe] {"event":"http","url":"http://127.0.0.1:65453","status":200,"ms":4.122800000001007}
+[serve-observe] {"event":"cli","args":["next"],"status":0,"output":"work agree: run `node \"C:/Users/Shay/AppData/Local/Temp/wf-stack-lifetime-0ytFoa/server entry [x].mjs\" brief agree` in this worktree and do exactly what it prints (again: no AGREEMENT.md)\nwf serve: released idle server tree 105992\n"}
+[serve-observe] {"event":"http-error","url":"http://127.0.0.1:65453","ms":1.2381999999997788,"error":"fetch failed","cause":"ECONNREFUSED","listener":{"pid":42816,"port":65453,"folder":"C:\\Users\\Shay\\AppData\\Local\\Temp\\wf-stack-lifetime-0ytFoa\\idle '[]&\\.wf"},"alive":"ESRCH"}
+[serve-observe] {"event":"http-error","url":"http://127.0.0.1:65452","ms":2.2246999999988475,"error":"fetch failed","cause":"ECONNRESET","listener":{"pid":105992,"port":65452,"folder":"C:\\Users\\Shay\\AppData\\Local\\Temp\\wf-stack-lifetime-0ytFoa\\idle '[]&\\.wf"},"alive":"ESRCH"}
+[serve-observe] {"event":"fresh-control","url":"http://127.0.0.1:65453","response":{"error":"connect ECONNREFUSED 127.0.0.1:65453","code":"ECONNREFUSED"},"alive":"ESRCH","authority":{"serve.pid":"ENOENT","serve-owner.json":"ENOENT"}}
+[serve-observe] {"event":"fresh-control","url":"http://127.0.0.1:65452","response":{"error":"connect ECONNREFUSED 127.0.0.1:65452","code":"ECONNREFUSED"},"alive":"ESRCH","authority":{"serve.pid":"ENOENT","serve-owner.json":"ENOENT"}}
+  ok   an agreement dispatch releases an idle stack instead of leaving it until reap
+[serve-observe] {"event":"http-error","url":"http://127.0.0.1:65452","ms":0.5383999999976368,"error":"fetch failed","cause":"ECONNREFUSED","listener":{"pid":105992,"port":65452,"folder":"C:\\Users\\Shay\\AppData\\Local\\Temp\\wf-stack-lifetime-0ytFoa\\idle '[]&\\.wf"},"alive":"ESRCH"}
+[serve-observe] {"event":"fresh-control","url":"http://127.0.0.1:65452","response":{"error":"connect ECONNREFUSED 127.0.0.1:65452","code":"ECONNREFUSED"},"alive":"ESRCH","authority":{"serve.pid":"ENOENT","serve-owner.json":"ENOENT"}}
+[serve-observe] {"event":"http-error","url":"http://127.0.0.1:65453","ms":0.42810000000099535,"error":"fetch failed","cause":"ECONNREFUSED","listener":{"pid":42816,"port":65453,"folder":"C:\\Users\\Shay\\AppData\\Local\\Temp\\wf-stack-lifetime-0ytFoa\\idle '[]&\\.wf"},"alive":"ESRCH"}
+[serve-observe] {"event":"fresh-control","url":"http://127.0.0.1:65453","response":{"error":"connect ECONNREFUSED 127.0.0.1:65453","code":"ECONNREFUSED"},"alive":"ESRCH","authority":{"serve.pid":"ENOENT","serve-owner.json":"ENOENT"}}
+[serve-observe] {"event":"http","url":"http://127.0.0.1:65470","status":200,"ms":3.8466000000007625}
+[serve-observe] {"event":"http","url":"http://127.0.0.1:65471","status":200,"ms":3.829700000002049}
+[serve-observe] {"event":"cli","args":["step","held"],"status":0,"output":"{\"wf_version\":6,\"round\":\"fix/stack\",\"id\":\"X-1\",\"folder\":\"round\",\"base\":\"main\",\"class\":\"B\",\"step\":\"held\",\"build_reason\":null,\"since\":\"2026-10-30T08:48:58.964Z\",\"waiting_on\":null,\"history\":[{\"step\":\"held\",\"at\":\"2026-10-30T08:48:58.964Z\"}]}\nwf serve: released idle server tree 103344\n"}
+[serve-observe] {"event":"http-error","url":"http://127.0.0.1:65470","ms":1.2366000000001804,"error":"fetch failed","cause":"ECONNREFUSED","listener":{"pid":103344,"port":65470,"folder":"C:\\Users\\Shay\\AppData\\Local\\Temp\\wf-stack-lifetime-0ytFoa\\idle '[]&\\.wf"},"alive":"ESRCH"}
+[serve-observe] {"event":"http-error","url":"http://127.0.0.1:65471","ms":1.610899999999674,"error":"fetch failed","cause":"ECONNREFUSED","listener":{"pid":73544,"port":65471,"folder":"C:\\Users\\Shay\\AppData\\Local\\Temp\\wf-stack-lifetime-0ytFoa\\idle '[]&\\.wf"},"alive":"ESRCH"}
+[serve-observe] {"event":"fresh-control","url":"http://127.0.0.1:65470","response":{"error":"connect ECONNREFUSED 127.0.0.1:65470","code":"ECONNREFUSED"},"alive":"ESRCH","authority":{"serve.pid":"ENOENT","serve-owner.json":"ENOENT"}}
+[serve-observe] {"event":"fresh-control","url":"http://127.0.0.1:65471","response":{"error":"connect ECONNREFUSED 127.0.0.1:65471","code":"ECONNREFUSED"},"alive":"ESRCH","authority":{"serve.pid":"ENOENT","serve-owner.json":"ENOENT"}}
+  ok   parking a round closes its whole stack
+[serve-observe] {"event":"http-error","url":"http://127.0.0.1:65470","ms":0.4583999999995285,"error":"fetch failed","cause":"ECONNREFUSED","listener":{"pid":103344,"port":65470,"folder":"C:\\Users\\Shay\\AppData\\Local\\Temp\\wf-stack-lifetime-0ytFoa\\idle '[]&\\.wf"},"alive":"ESRCH"}
+[serve-observe] {"event":"fresh-control","url":"http://127.0.0.1:65470","response":{"error":"connect ECONNREFUSED 127.0.0.1:65470","code":"ECONNREFUSED"},"alive":"ESRCH","authority":{"serve.pid":"ENOENT","serve-owner.json":"ENOENT"}}
+[serve-observe] {"event":"http-error","url":"http://127.0.0.1:65471","ms":0.3900000000030559,"error":"fetch failed","cause":"ECONNREFUSED","listener":{"pid":73544,"port":65471,"folder":"C:\\Users\\Shay\\AppData\\Local\\Temp\\wf-stack-lifetime-0ytFoa\\idle '[]&\\.wf"},"alive":"ESRCH"}
+[serve-observe] {"event":"fresh-control","url":"http://127.0.0.1:65471","response":{"error":"connect ECONNREFUSED 127.0.0.1:65471","code":"ECONNREFUSED"},"alive":"ESRCH","authority":{"serve.pid":"ENOENT","serve-owner.json":"ENOENT"}}
+[serve-observe] {"event":"http","url":"http://127.0.0.1:65503","status":200,"ms":3.6160000000018044}
+[serve-observe] {"event":"http","url":"http://127.0.0.1:65502","status":200,"ms":4.37050000000454}
+[serve-observe] {"event":"cli","args":["next"],"status":0,"output":"work build: run `node \"C:/Users/Shay/AppData/Local/Temp/wf-stack-lifetime-0ytFoa/server entry [x].mjs\" brief build` in this worktree and do exactly what it prints (again: implement and verify the current agreement)\n"}
+[serve-observe] {"event":"http","url":"http://127.0.0.1:65503","status":200,"ms":1.403200000000652}
+[serve-observe] {"event":"http","url":"http://127.0.0.1:65502","status":200,"ms":2.0077000000019325}
+  ok   an active build dispatch keeps both stack listeners and its ownership
+[serve-observe] {"event":"cli","args":["next"],"status":0,"output":"wait user: blocked — Restore the required capability?\nwf serve: released idle server tree 66496\n"}
+[serve-observe] {"event":"http-error","url":"http://127.0.0.1:65503","ms":2.6374999999970896,"error":"fetch failed","cause":"ECONNRESET","listener":{"pid":84068,"port":65503,"folder":"C:\\Users\\Shay\\AppData\\Local\\Temp\\wf-stack-lifetime-0ytFoa\\idle '[]&\\.wf"},"alive":"ESRCH"}
+[serve-observe] {"event":"http-error","url":"http://127.0.0.1:65502","ms":3.587199999994482,"error":"fetch failed","cause":"ECONNRESET","listener":{"pid":66496,"port":65502,"folder":"C:\\Users\\Shay\\AppData\\Local\\Temp\\wf-stack-lifetime-0ytFoa\\idle '[]&\\.wf"},"alive":"ESRCH"}
+[serve-observe] {"event":"fresh-control","url":"http://127.0.0.1:65503","response":{"error":"connect ECONNREFUSED 127.0.0.1:65503","code":"ECONNREFUSED"},"alive":"ESRCH","authority":{"serve.pid":"ENOENT","serve-owner.json":"ENOENT"}}
+[serve-observe] {"event":"fresh-control","url":"http://127.0.0.1:65502","response":{"error":"connect ECONNREFUSED 127.0.0.1:65502","code":"ECONNREFUSED"},"alive":"ESRCH","authority":{"serve.pid":"ENOENT","serve-owner.json":"ENOENT"}}
+  ok   a blocked non-review human wait releases its stack
+[serve-observe] {"event":"http-error","url":"http://127.0.0.1:65502","ms":0.5507999999972526,"error":"fetch failed","cause":"ECONNREFUSED","listener":{"pid":66496,"port":65502,"folder":"C:\\Users\\Shay\\AppData\\Local\\Temp\\wf-stack-lifetime-0ytFoa\\idle '[]&\\.wf"},"alive":"ESRCH"}
+[serve-observe] {"event":"fresh-control","url":"http://127.0.0.1:65502","response":{"error":"connect ECONNREFUSED 127.0.0.1:65502","code":"ECONNREFUSED"},"alive":"ESRCH","authority":{"serve.pid":"ENOENT","serve-owner.json":"ENOENT"}}
+[serve-observe] {"event":"http-error","url":"http://127.0.0.1:65503","ms":0.3680999999996857,"error":"fetch failed","cause":"ECONNREFUSED","listener":{"pid":84068,"port":65503,"folder":"C:\\Users\\Shay\\AppData\\Local\\Temp\\wf-stack-lifetime-0ytFoa\\idle '[]&\\.wf"},"alive":"ESRCH"}
+[serve-observe] {"event":"fresh-control","url":"http://127.0.0.1:65503","response":{"error":"connect ECONNREFUSED 127.0.0.1:65503","code":"ECONNREFUSED"},"alive":"ESRCH","authority":{"serve.pid":"ENOENT","serve-owner.json":"ENOENT"}}
+[serve-observe] {"event":"http","url":"http://127.0.0.1:49188","status":200,"ms":4.39890000000014}
+[serve-observe] {"event":"http","url":"http://127.0.0.1:49191","status":200,"ms":3.962500000001455}
+[serve-observe] {"event":"cli","args":["step","held","--waiting-on","ci"],"status":0,"output":"{\"wf_version\":6,\"round\":\"fix/stack\",\"id\":\"X-1\",\"folder\":\"round\",\"base\":\"main\",\"class\":\"A\",\"step\":\"held\",\"build_reason\":null,\"since\":\"2026-10-30T08:49:20.598Z\",\"waiting_on\":\"ci\",\"history\":[{\"step\":\"held\",\"at\":\"2026-10-30T08:48:58.964Z\"},{\"step\":\"build\",\"at\":\"2026-10-30T08:49:08.188Z\"},{\"step\":\"held\",\"at\":\"2026-10-30T08:49:20.598Z\"}]}\n"}
+[serve-observe] {"event":"cli","args":["next"],"status":0,"output":"wait user: the round is held (wf step <name> resumes it)\n"}
+[serve-observe] {"event":"http","url":"http://127.0.0.1:49188","status":200,"ms":1.1558999999979278}
+[serve-observe] {"event":"http","url":"http://127.0.0.1:49191","status":200,"ms":1.1728999999977532}
+  ok   real CI waiting metadata preserves the stack through step and next
+[serve-observe] {"event":"cli","args":["serve","--stop"],"status":0,"output":"wf serve: stopped server tree 76068\n"}
+[serve-observe] {"event":"http-error","url":"http://127.0.0.1:49188","ms":1.3189999999958673,"error":"fetch failed","cause":"ECONNRESET","listener":{"pid":76068,"port":49188,"folder":"C:\\Users\\Shay\\AppData\\Local\\Temp\\wf-stack-lifetime-0ytFoa\\idle '[]&\\.wf"},"alive":"ESRCH"}
+[serve-observe] {"event":"http-error","url":"http://127.0.0.1:49191","ms":1.8028999999951338,"error":"fetch failed","cause":"ECONNRESET","listener":{"pid":8472,"port":49191,"folder":"C:\\Users\\Shay\\AppData\\Local\\Temp\\wf-stack-lifetime-0ytFoa\\idle '[]&\\.wf"},"alive":"ESRCH"}
+[serve-observe] {"event":"fresh-control","url":"http://127.0.0.1:49188","response":{"error":"connect ECONNREFUSED 127.0.0.1:49188","code":"ECONNREFUSED"},"alive":"ESRCH","authority":{"serve.pid":"ENOENT","serve-owner.json":"ENOENT"}}
+[serve-observe] {"event":"fresh-control","url":"http://127.0.0.1:49191","response":{"error":"connect ECONNREFUSED 127.0.0.1:49191","code":"ECONNREFUSED"},"alive":"ESRCH","authority":{"serve.pid":"ENOENT","serve-owner.json":"ENOENT"}}
+  ok   explicit helper stop overrides a CI wait
+[serve-observe] {"event":"http-error","url":"http://127.0.0.1:49188","ms":0.5335999999952037,"error":"fetch failed","cause":"ECONNREFUSED","listener":{"pid":76068,"port":49188,"folder":"C:\\Users\\Shay\\AppData\\Local\\Temp\\wf-stack-lifetime-0ytFoa\\idle '[]&\\.wf"},"alive":"ESRCH"}
+[serve-observe] {"event":"fresh-control","url":"http://127.0.0.1:49188","response":{"error":"connect ECONNREFUSED 127.0.0.1:49188","code":"ECONNREFUSED"},"alive":"ESRCH","authority":{"serve.pid":"ENOENT","serve-owner.json":"ENOENT"}}
+[serve-observe] {"event":"http-error","url":"http://127.0.0.1:49191","ms":0.3882999999987078,"error":"fetch failed","cause":"ECONNREFUSED","listener":{"pid":8472,"port":49191,"folder":"C:\\Users\\Shay\\AppData\\Local\\Temp\\wf-stack-lifetime-0ytFoa\\idle '[]&\\.wf"},"alive":"ESRCH"}
+[serve-observe] {"event":"fresh-control","url":"http://127.0.0.1:49191","response":{"error":"connect ECONNREFUSED 127.0.0.1:49191","code":"ECONNREFUSED"},"alive":"ESRCH","authority":{"serve.pid":"ENOENT","serve-owner.json":"ENOENT"}}
+[serve-observe] {"event":"http","url":"http://127.0.0.1:49230","status":200,"ms":3.9279999999998836}
+[serve-observe] {"event":"http","url":"http://127.0.0.1:49231","status":200,"ms":4.262500000004366}
+[serve-observe] {"event":"cli","args":["serve","--stop"],"status":0,"output":"wf serve: stopped server tree 93656\n"}
+[serve-observe] {"event":"http-error","url":"http://127.0.0.1:49231","ms":0.8163000000058673,"error":"fetch failed","cause":"ECONNREFUSED","listener":{"pid":97316,"port":49231,"folder":"C:\\Users\\Shay\\AppData\\Local\\Temp\\wf-stack-lifetime-0ytFoa\\idle '[]&\\.wf"},"alive":"ESRCH"}
+[serve-observe] {"event":"http-error","url":"http://127.0.0.1:49230","ms":1.6651999999885447,"error":"fetch failed","cause":"ECONNRESET","listener":{"pid":93656,"port":49230,"folder":"C:\\Users\\Shay\\AppData\\Local\\Temp\\wf-stack-lifetime-0ytFoa\\idle '[]&\\.wf"},"alive":"ESRCH"}
+[serve-observe] {"event":"fresh-control","url":"http://127.0.0.1:49231","response":{"error":"connect ECONNREFUSED 127.0.0.1:49231","code":"ECONNREFUSED"},"alive":"ESRCH","authority":{"serve.pid":"ENOENT","serve-owner.json":"ENOENT"}}
+[serve-observe] {"event":"fresh-control","url":"http://127.0.0.1:49230","response":{"error":"connect ECONNREFUSED 127.0.0.1:49230","code":"ECONNREFUSED"},"alive":"ESRCH","authority":{"serve.pid":"ENOENT","serve-owner.json":"ENOENT"}}
+  ok   legacy/foreign round state does not prevent a verified stop or get rewritten
+[serve-observe] {"event":"http-error","url":"http://127.0.0.1:49230","ms":0.4134000000049127,"error":"fetch failed","cause":"ECONNREFUSED","listener":{"pid":93656,"port":49230,"folder":"C:\\Users\\Shay\\AppData\\Local\\Temp\\wf-stack-lifetime-0ytFoa\\idle '[]&\\.wf"},"alive":"ESRCH"}
+[serve-observe] {"event":"fresh-control","url":"http://127.0.0.1:49230","response":{"error":"connect ECONNREFUSED 127.0.0.1:49230","code":"ECONNREFUSED"},"alive":"ESRCH","authority":{"serve.pid":"ENOENT","serve-owner.json":"ENOENT"}}
+[serve-observe] {"event":"http-error","url":"http://127.0.0.1:49231","ms":0.35570000000006985,"error":"fetch failed","cause":"ECONNREFUSED","listener":{"pid":97316,"port":49231,"folder":"C:\\Users\\Shay\\AppData\\Local\\Temp\\wf-stack-lifetime-0ytFoa\\idle '[]&\\.wf"},"alive":"ESRCH"}
+[serve-observe] {"event":"fresh-control","url":"http://127.0.0.1:49231","response":{"error":"connect ECONNREFUSED 127.0.0.1:49231","code":"ECONNREFUSED"},"alive":"ESRCH","authority":{"serve.pid":"ENOENT","serve-owner.json":"ENOENT"}}
+[serve-observe] {"event":"cli","args":["serve","--stop"],"status":1,"output":"wf serve: invalid serve.pid; ownership retained\n"}
+[serve-observe] {"event":"pid-read","path":"C:\\Users\\Shay\\AppData\\Local\\Temp\\wf-stack-lifetime-0ytFoa\\idle '[]&\\.wf\\serve.pid","bytes":"not-a-pid"}
+  ok   malformed ownership is refused and left intact
+[serve-observe] {"event":"http","url":"http://127.0.0.1:49298","status":200,"ms":3.5437999999994645}
+[serve-observe] {"event":"http","url":"http://127.0.0.1:49299","status":200,"ms":3.636099999988801}
+[serve-observe] {"event":"pid-read","path":"C:\\Users\\Shay\\AppData\\Local\\Temp\\wf-stack-lifetime-0ytFoa\\other\\.wf\\serve.pid","bytes":"73796"}
+[serve-observe] {"event":"pid-read","path":"C:\\Users\\Shay\\AppData\\Local\\Temp\\wf-stack-lifetime-0ytFoa\\idle '[]&\\.wf\\serve.pid","bytes":"73796"}
+[serve-observe] {"event":"cli","args":["serve","--stop"],"status":1,"output":"wf serve: PID 73796 is not a verified foreground server in this worktree; ownership retained\n"}
+[serve-observe] {"event":"http-error","url":"http://127.0.0.1:49298","ms":1.3435999999928754,"error":"fetch failed","cause":"ECONNRESET","listener":{"pid":73796,"port":49298,"folder":"C:\\Users\\Shay\\AppData\\Local\\Temp\\wf-stack-lifetime-0ytFoa\\other\\.wf"},"alive":true}
+[serve-observe] {"event":"http","url":"http://127.0.0.1:49299","status":200,"ms":1.8896999999997206}
+[serve-observe] {"event":"fresh-control","url":"http://127.0.0.1:49298","response":{"status":200,"body":"fixture stack"},"alive":true,"authority":{"serve.pid":"73796","serve-owner.json":"{\"token\":\"a2be9505-8441-498f-9779-82ee0843cf4a\",\"state\":\"running\",\"processes\":[{\"pid\":73796,\"parent\":76752,\"born\":\"2026-10-30T08:49:43.9173470Z\"}]}"}}
+  FAIL a copied/recycled PID cannot stop another worktree or erase its authority — wf serve: PID 73796 is not a verified foreground server in this worktree; ownership retained
+
+[serve-observe] {"event":"cli","args":["next"],"status":0,"output":"work agree: run `node \"C:/Users/Shay/AppData/Local/Temp/wf-stack-lifetime-0ytFoa/server entry [x].mjs\" brief agree` in this worktree and do exactly what it prints (again: no AGREEMENT.md)\nwf serve: PID 73796 is not a verified foreground server in this worktree; ownership retained\n"}
+[serve-observe] {"event":"pid-read","path":"C:\\Users\\Shay\\AppData\\Local\\Temp\\wf-stack-lifetime-0ytFoa\\idle '[]&\\.wf\\serve.pid","bytes":"73796"}
+  ok   an unowned stale PID warns without refusing agreement dispatch
+[serve-observe] {"event":"cli","args":["step","held"],"status":0,"output":"{\"wf_version\":6,\"round\":\"fix/stack\",\"id\":\"X-1\",\"folder\":\"round\",\"base\":\"main\",\"class\":\"B\",\"step\":\"held\",\"build_reason\":null,\"since\":\"2026-10-30T08:50:04.517Z\",\"waiting_on\":null,\"history\":[{\"step\":\"held\",\"at\":\"2026-10-30T08:50:04.517Z\"}]}\nwf serve: PID 73796 is not a verified foreground server in this worktree; ownership retained\n"}
+[serve-observe] {"event":"pid-read","path":"C:\\Users\\Shay\\AppData\\Local\\Temp\\wf-stack-lifetime-0ytFoa\\idle '[]&\\.wf\\serve.pid","bytes":"73796"}
+  ok   an unowned stale PID also warns without invalidating the committed held phase
+[serve-observe] {"event":"cli","args":["serve","--stop"],"status":1,"output":"wf serve: PID 47508 is not a verified foreground server in this worktree; ownership retained\n"}
+[serve-observe] {"event":"http","url":"http://127.0.0.1:49365","status":200,"ms":3.792300000000978}
+[serve-observe] {"event":"pid-read","path":"C:\\Users\\Shay\\AppData\\Local\\Temp\\wf-stack-lifetime-0ytFoa\\idle '[]&\\.wf\\serve.pid","bytes":"47508"}
+  ok   an agent in the same checkout is not a server even with the workflow command in its prompt
+[serve-observe] {"event":"cli","args":["serve"],"status":1,"output":"file:///C:/Users/Shay/work/wf-194/src/worktrees/serve.ts:293\r\n\t\tthrow new Error('wf serve: previous ownership is unresolved; run wf serve --stop and inspect its recovery record before restarting');\r\n\t\t      ^\r\n\r\nError: wf serve: previous ownership is unresolved; run wf serve --stop and inspect its recovery record before restarting\r\n    at ensureServers (file:///C:/Users/Shay/work/wf-194/src/worktrees/serve.ts:293:9)\r\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\r\n    at async runServe (file:///C:/Users/Shay/work/wf-194/src/worktrees/serve.ts:359:14)\r\n    at async run (file:///C:/Users/Shay/work/wf-194/src/run.ts:116:3)\r\n    at async file:///C:/Users/Shay/AppData/Local/Temp/wf-stack-lifetime-0ytFoa/server%20entry%20%5Bx%5D.mjs:8:8\r\n\r\nNode.js v26.12.1\r\n"}
+[serve-observe] {"event":"pid-read","path":"C:\\Users\\Shay\\AppData\\Local\\Temp\\wf-stack-lifetime-0ytFoa\\idle '[]&\\.wf\\serve.pid","bytes":"47508"}
+[serve-observe] {"event":"http","url":"http://127.0.0.1:49365","status":200,"ms":1.7081000000034692}
+[serve-observe] {"event":"http","url":"http://127.0.0.1:49298","status":200,"ms":1.241200000004028}
+[serve-observe] {"event":"http","url":"http://127.0.0.1:49299","status":200,"ms":1.1667000000015832}
+  ok   a lazy start refuses unresolved ownership without stopping either unrelated process
+[serve-observe] {"event":"http","url":"http://127.0.0.1:49298","status":200,"ms":0.7999000000127126}
+[serve-observe] {"event":"http-error","url":"http://127.0.0.1:49299","ms":1.2461999999941327,"error":"fetch failed","cause":"ECONNRESET","listener":{"pid":102116,"port":49299,"folder":"C:\\Users\\Shay\\AppData\\Local\\Temp\\wf-stack-lifetime-0ytFoa\\other\\.wf"},"alive":"ESRCH"}
+[serve-observe] {"event":"fresh-control","url":"http://127.0.0.1:49299","response":{"error":"connect ECONNREFUSED 127.0.0.1:49299","code":"ECONNREFUSED"},"alive":"ESRCH","authority":{"serve.pid":"73796","serve-owner.json":"{\"token\":\"a2be9505-8441-498f-9779-82ee0843cf4a\",\"state\":\"running\",\"processes\":[{\"pid\":73796,\"parent\":76752,\"born\":\"2026-10-30T08:49:43.9173470Z\"}]}"}}
+[serve-observe] {"event":"http","url":"http://127.0.0.1:49365","status":200,"ms":0.4862999999895692}
+
+1 FAILURE(S)

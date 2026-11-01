@@ -1,0 +1,117 @@
+lint-kit setup: pnpm frozen install; package lifecycle scripts disabled; no stack
+Lockfile is up to date, resolution step is skipped
+Progress: resolved 1, reused 0, downloaded 0, added 0
+Packages: +178
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+Progress: resolved 178, reused 178, downloaded 0, added 161
+Progress: resolved 178, reused 178, downloaded 0, added 178, done
+
+dependencies:
++ jsonc-parser 3.3.1
++ yaml 2.9.1
+
+devDependencies:
++ @oxlint/plugins 1.81.0
++ @typescript-eslint/parser 8.71.0
++ @vitest/eslint-plugin 1.6.27
++ eslint 10.11.0
++ eslint-plugin-svelte 3.23.0
++ jscpd 5.4.0
++ lefthook 2.2.1
++ oxlint 1.81.0
++ svelte 5.57.1
++ svelte-eslint-parser 1.8.1
++ typescript 5.9.3
++ vitest 4.1.11
+
+Done in 2.2s using pnpm v11.3.0
+
+--- baseline diagnostic output 83650d8a-0779-437e-8f3b-857d4719a653 ---
+▶ no-swallowed-catch
+  ▶ valid
+    ✔ try { a(); } catch (e) { throw new Error("a failed", { cause: e }); } (61.0379ms)
+    ✔ try { a(); } catch (e) { console.error(e); throw e; } (2.3502ms)
+    ✔ try { a(); } catch (e) { logger.error(e); return fail(500, { message: m.saveFailed() }); } (2.2231ms)
+    ✔ try { a(); } catch (e) { status = "error"; } (1.6331ms)
+    ✔ try { a(); } catch { /* the cache is optional */ } (1.7455ms)
+    ✔ try { a(); } catch (e) {
+\u0009// a stale tab: the next load refetches
+\u0009console.warn(e);
+} (1.348ms)
+    ✔ function isUrl(s) { try { new URL(s); return true; } catch { return false; } } (2.0551ms)
+    ✔ function run() { try { a(); } catch (e) { log.error(e.message); return 2; } } (1.5391ms)
+    ✔ try { a(); } catch (e) { toast.error(m.failed()); } (1.3729ms)
+  ✔ valid (76.0582ms)
+  ▶ invalid
+    ✔ try { a(); } catch (e) {} (2.0513ms)
+    ✔ try { a(); } catch (e) { console.error(e); } (1.1231ms)
+    ✔ try { a(); } catch (e) { this.logger.warn("a", e); log.info(e); } (1.3588ms)
+    ✔ function f() { try { return a(); } catch (e) { console.error(e); return null; } } (1.2947ms)
+    ✔ function f() { try { return a(); } catch { return []; } } (1.1665ms)
+    ✔ function f() { try { return a(); } catch { return; } } (1.0436ms)
+    ✔ function f() { try { return a(); } catch { return ''; } } (1.2355ms)
+  ✔ invalid (9.5256ms)
+✔ no-swallowed-catch (85.8515ms)
+▶ no-default-promise-catch
+  ▶ valid
+    ✔ load().catch((e) => { throw new Error("load failed", { cause: e }); }); (1.952ms)
+    ✔ load().catch(handleError); (0.8288ms)
+    ✔ load().catch((e) => { status = "error"; console.error(e); }); (1.0264ms)
+    ✔ load().catch(() => { /* prefetch: the page loads it again */ }); (0.8481ms)
+    ✔ load().then(ok); (0.7083ms)
+    ✔ promise.catch(() => {}); results.push(promise); (0.9188ms)
+    ✔ this.pending.catch(() => {}).finally(done); (0.8493ms)
+  ✔ valid (7.3343ms)
+  ▶ invalid
+    ✔ load().catch(() => null); (0.8873ms)
+    ✔ load().catch(() => []); (0.8518ms)
+    ✔ load().catch(() => {}); (0.7974ms)
+    ✔ const items = await pending.catch(() => null); (1.3576ms)
+    ✔ load().catch(console.error); (0.79ms)
+    ✔ load().catch((e) => console.warn(e)); (0.9284ms)
+    ✔ load().catch(function (e) { logger.error(e); return undefined; }); (3.469ms)
+  ✔ invalid (9.2748ms)
+✔ no-default-promise-catch (16.6955ms)
+▶ no-stringified-error
+  ▶ valid
+    ✔ try { a(); } catch (e) { throw new Error("a failed", { cause: e }); } (1.1319ms)
+    ✔ try { a(); } catch (e) { message = e instanceof Error ? e.message : String(e); } (1.1922ms)
+    ✔ try { a(); } catch (e) { if (!(e instanceof Error)) throw e; message = e.message; } (1.0789ms)
+    ✔ try { a(); } catch (e) { if (e instanceof Error) report(e); else report(new Error(String(e))); } (1.0309ms)
+    ✔ const e = 1; String(e); (0.7257ms)
+    ✔ try { a(); } catch { String(x); } (0.6233ms)
+  ✔ valid (5.9549ms)
+  ▶ invalid
+    ✔ try { a(); } catch (e) { message = String(e); } (0.8003ms)
+    ✔ try { a(); } catch (err) { log(`failed: ${err}`); } (1.1189ms)
+    ✔ try { a(); } catch (e) { log("failed: " + e); } (0.7579ms)
+    ✔ try { a(); } catch (e) { log(e.toString()); } (0.7194ms)
+    ✔ load().catch((e) => setError(String(e))); (1.2943ms)
+  ✔ invalid (4.8281ms)
+✔ no-stringified-error (10.8743ms)
+▶ error-handling in a component
+  ▶ invalid
+    ✔ <script lang="ts">
+\u0009async function save() {
+\u0009\u0009try { await post(); } catch (e) { console.error(e); }
+\u0009}
+</script>
+ (14.776ms)
+  ✔ invalid (14.8378ms)
+✔ error-handling in a component (14.9051ms)
+✔ config() applies the rules to src/ and skips tests and stories (12.6013ms)
+ℹ tests 43
+ℹ suites 11
+ℹ pass 43
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 895.9231
+
+--- exit 0 ---
+
+confirm disposable workspace authority: ok
+remove disposable workspace: ok
+prune disposable workspace registration: ok
+delete disposable baseline branch: ok

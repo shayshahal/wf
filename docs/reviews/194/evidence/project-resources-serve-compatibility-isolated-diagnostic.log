@@ -1,0 +1,55 @@
+diagnostic HTTP probe failed { port: 50759, error: 'TypeError: fetch failed' }
+diagnostic HTTP probe failed { port: 50758, error: 'TypeError: fetch failed' }
+  ok   explicit stop closes the tracked stack and its descendant, without removing the worktree
+diagnostic HTTP probe failed { port: 50758, error: 'TypeError: fetch failed' }
+diagnostic HTTP probe failed { port: 50759, error: 'TypeError: fetch failed' }
+  ok   repeating stop is harmless and does not restart the stack
+diagnostic HTTP probe failed { port: 50758, error: 'TypeError: fetch failed' }
+diagnostic HTTP probe failed { port: 50759, error: 'TypeError: fetch failed' }
+diagnostic HTTP probe failed { port: 58293, error: 'TypeError: fetch failed' }
+diagnostic HTTP probe failed { port: 58292, error: 'TypeError: fetch failed' }
+  ok   an agreement dispatch releases an idle stack instead of leaving it until reap
+diagnostic HTTP probe failed { port: 58292, error: 'TypeError: fetch failed' }
+diagnostic HTTP probe failed { port: 58293, error: 'TypeError: fetch failed' }
+diagnostic HTTP probe failed { port: 57643, error: 'TypeError: fetch failed' }
+diagnostic HTTP probe failed { port: 57644, error: 'TypeError: fetch failed' }
+  ok   parking a round closes its whole stack
+diagnostic HTTP probe failed { port: 57643, error: 'TypeError: fetch failed' }
+diagnostic HTTP probe failed { port: 57644, error: 'TypeError: fetch failed' }
+diagnostic HTTP probe failed { port: 52818, error: 'TypeError: fetch failed' }
+  FAIL an active build dispatch keeps both stack listeners and its ownership — work build: run `node "C:/Users/Shay/AppData/Local/Temp/wf-stack-lifetime-ffXmoY/server entry [x].mjs" brief build` in this worktree and do exactly what it prints (again: implement and verify the current agreement)
+
+diagnostic HTTP probe failed { port: 52818, error: 'TypeError: fetch failed' }
+diagnostic HTTP probe failed { port: 52820, error: 'TypeError: fetch failed' }
+  ok   a blocked non-review human wait releases its stack
+diagnostic HTTP probe failed { port: 52818, error: 'TypeError: fetch failed' }
+diagnostic HTTP probe failed { port: 52820, error: 'TypeError: fetch failed' }
+diagnostic HTTP probe failed { port: 50795, error: 'TypeError: fetch failed' }
+  FAIL real CI waiting metadata preserves the stack through step and next — {"wf_version":6,"round":"fix/stack","id":"X-1","folder":"round","base":"main","class":"A","step":"held","build_reason":null,"since":"2026-10-29T17:11:56.700Z","waiting_on":"ci","history":[{"step":"held","at":"2026-10-29T17:11:33.678Z"},{"step":"build","at":"2026-10-29T17:11:46.856Z"},{"step":"held","at":"2026-10-29T17:11:56.700Z"}]}
+
+wait user: the round is held (wf step <name> resumes it)
+
+diagnostic HTTP probe failed { port: 50795, error: 'TypeError: fetch failed' }
+diagnostic HTTP probe failed { port: 50796, error: 'TypeError: fetch failed' }
+  ok   explicit helper stop overrides a CI wait
+diagnostic HTTP probe failed { port: 50795, error: 'TypeError: fetch failed' }
+diagnostic HTTP probe failed { port: 50796, error: 'TypeError: fetch failed' }
+diagnostic HTTP probe failed { port: 59385, error: 'TypeError: fetch failed' }
+diagnostic HTTP probe failed { port: 59384, error: 'TypeError: fetch failed' }
+  ok   legacy/foreign round state does not prevent a verified stop or get rewritten
+diagnostic HTTP probe failed { port: 59384, error: 'TypeError: fetch failed' }
+diagnostic HTTP probe failed { port: 59385, error: 'TypeError: fetch failed' }
+  ok   malformed ownership is refused and left intact
+diagnostic forged ownership refusal {
+  code: 1,
+  independent: [ { pid: 70156, port: 62905 }, { pid: 80296, port: 62908 } ],
+  pidUnchanged: true
+}
+  ok   a copied/recycled PID cannot stop another worktree or erase its authority
+  ok   an unowned stale PID warns without refusing agreement dispatch
+  ok   an unowned stale PID also warns without invalidating the committed held phase
+  ok   an agent in the same checkout is not a server even with the workflow command in its prompt
+  ok   a lazy start refuses unresolved ownership without stopping either unrelated process
+diagnostic HTTP probe failed { port: 62908, error: 'TypeError: fetch failed' }
+
+2 FAILURE(S)

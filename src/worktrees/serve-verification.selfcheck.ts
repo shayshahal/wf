@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import { acquireVerificationServers, hiddenHop, stopWorktreeServers } from './serve.ts';
 import { basePortForBranch } from './worktree.ts';
 import { directUrls } from '../project.ts';
+import { createJewelryxWorkspaceProject } from '../../projects/jewelryx/index.ts';
 import type { VerificationRequirements } from '../project.ts';
 import { plug, seams } from '../seams.ts';
 
@@ -35,23 +36,34 @@ try {
 	const entry = join(root, 'fixture.mjs');
 	// This owned entry deliberately serves one API process. Actual project selection is covered
 	// through devCommands and the native JewelryX cycle, not by teaching this fixture to launch apps.
-	writeFileSync(entry, `import {createServer} from 'node:http';import {existsSync,writeFileSync} from 'node:fs';const args=process.argv.slice(2);if(args[args.indexOf('--verification-profile')+1]!=='api')throw Error('wrong profile');createServer((_q,r)=>r.writeHead(existsSync(${JSON.stringify(flag)})?200:503).end('{}')).listen(${port + 10_000},'127.0.0.1',()=>writeFileSync(${JSON.stringify(started)},'started'));`);
+	writeFileSync(entry, `import {createServer} from 'node:http';import {existsSync,writeFileSync} from 'node:fs';const args=process.argv.slice(2);if(args[args.indexOf('--verification-profile')+1]!=='api')throw Error('wrong profile');createServer((_q,r)=>r.writeHead(existsSync(${JSON.stringify(flag)})?200:503).end('{}')).listen(${port + 10_000},'127.0.0.1',()=>writeFileSync(${JSON.stringify(started)},JSON.stringify({binding:process.env.WF_EXPLICIT_LAUNCH_ENV,hasLiveDatabase:Object.hasOwn(process.env,'MONGODB_URL')})));`);
 	plug({ entry });
 	assert(hiddenHop('win32', {}, 'api')?.args.includes('--verification-profile'));
 	const none = await acquireVerificationServers(root, {}, { kind: 'none' }, { stack: async () => { throw Error('unexpected startup'); }, ready: async () => { throw Error('unexpected probe'); } });
-	assert.equal(none.kind, 'acquired'); assert.equal(await none.release(), null); assert(!existsSync(record));
+	assert.equal(none.kind, 'acquired'); assert.equal(none.disposition, 'none'); assert.equal(await none.release(), null); assert(!existsSync(record));
 	await listen(frontend, port);
 	await listen(api, port + 10_000);
 	const borrowed = await acquireVerificationServers(root, { API_URL: urls.api }, requirements);
-	assert.equal(borrowed.kind, 'acquired'); assert(!existsSync(record));
+	assert.equal(borrowed.kind, 'acquired'); assert.equal(borrowed.disposition, 'borrowed'); assert(!existsSync(record));
 	assert.equal(await borrowed.release(), null); assert.equal(await status(urls.api), 200);
+	const borrowedAdapter = createJewelryxWorkspaceProject({ requirements, ambient: process.env });
+	const borrowedContext = { worktree: root, branch, slug: 'fixture', port, log: join(root, 'retained.log') };
+	const borrowedProjectLease = await borrowedAdapter.acquire(borrowedContext);
+	assert.equal(borrowedProjectLease.kind, 'ready'); assert.equal(borrowedProjectLease.disposition, 'borrowed');
+	const borrowedRecovery = createJewelryxWorkspaceProject({ requirements, ambient: process.env }).teardown(borrowedContext)[0];
+	assert(borrowedRecovery.run); await borrowedRecovery.run();
+	assert.equal(await status(urls.api), 200, 'fresh recovery retains borrowed server');
+	assert.equal(await borrowedProjectLease.release(), null);
+	rmSync(join(root, '.wf', 'workspace-dependency.json'));
 	await close(api);
 
 	writeFileSync(flag, 'ready');
-	const owned = await acquireVerificationServers(root, { API_URL: urls.api }, requirements);
-	assert.equal(owned.kind, 'acquired');
+	const owned = await acquireVerificationServers(root, { API_URL: urls.api }, requirements, { launchEnv: { ...process.env, WF_EXPLICIT_LAUNCH_ENV: 'bound' } });
+	assert.equal(owned.kind, 'acquired'); assert.equal(owned.disposition, 'owned');
 	ownedBytes = readFileSync(record, 'utf8');
 	assert.equal(JSON.parse(ownedBytes).verificationProfile, 'api');
+	assert.equal(JSON.parse(readFileSync(started, 'utf8')).binding, 'bound');
+	assert.equal(hiddenHop('win32', { WF_EXPLICIT_LAUNCH_ENV: 'bound' }, 'api')?.options.env.WF_EXPLICIT_LAUNCH_ENV, 'bound');
 	assert.equal(await status(urls.api), 200);
 	// A corrupt profile cannot broaden stop authority or erase the valid launch reference.
 	const corrupt = JSON.stringify({ ...JSON.parse(ownedBytes), verificationProfile: 'unknown' });
@@ -86,7 +98,25 @@ try {
 	writeFileSync(record, 'unknown authority');
 	const unknown = await acquireVerificationServers(root, { API_URL: urls.api }, requirements);
 	assert.equal(unknown.kind, 'refused'); assert.equal(readFileSync(record, 'utf8'), 'unknown authority'); rmSync(record);
-	console.log('  ok   narrow leases borrow safely, launch only the selected profile, refuse malformed authority, release on failure/cancel, and preserve unrelated endpoints');
+	// A fresh project adapter recovers only the exact persisted acquisition token.
+	writeFileSync(flag, 'ready');
+	const adapter = createJewelryxWorkspaceProject({ requirements, ambient: { ...process.env, WF_EXPLICIT_LAUNCH_ENV: 'adapter-bound', MONGODB_URL: 'mongodb://live-not-used' } });
+	const context = { worktree: root, branch, slug: 'fixture', port, log: join(root, 'retained.log') };
+	const projectLease = await adapter.acquire(context);
+	assert.equal(projectLease.kind, 'ready'); assert.equal(projectLease.disposition, 'owned');
+	assert.equal(JSON.parse(readFileSync(started, 'utf8')).binding, 'adapter-bound');
+	assert.equal(JSON.parse(readFileSync(started, 'utf8')).hasLiveDatabase, false);
+	const recovery = createJewelryxWorkspaceProject({ requirements, ambient: process.env });
+	const guard = recovery.teardown(context)[0]; assert(guard.run);
+	const originalOwner = readFileSync(record, 'utf8');
+	writeFileSync(record, JSON.stringify({ ...JSON.parse(originalOwner), token: 'replacement' }));
+	await assert.rejects(async () => guard.run?.(), /older run/);
+	writeFileSync(record, originalOwner);
+	await guard.run();
+	assert.equal(await status(urls.api), null); assert(!existsSync(record));
+	await guard.run();
+	assert.equal(await projectLease.release(), null);
+	console.log('  ok   narrow leases preserve dispositions, explicit child env/profile, borrowed endpoints, token-scoped interrupted recovery, replacement safety, and cancellation cleanup');
 } finally {
 	if (ownedBytes && existsSync(record)) writeFileSync(record, ownedBytes);
 	const stopped = await stopWorktreeServers(root);

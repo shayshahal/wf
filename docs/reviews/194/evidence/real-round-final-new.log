@@ -1,0 +1,14 @@
+{"args": ["node", "C:\\Users\\Shay\\work\\wf-194\\env\\wf.mjs", "new", "bench/194-round-final", "--class", "A"], "cwd": "C:\\Users\\Shay\\work\\jeweleryx"}
+fatal: this operation must be run in a work tree
+wf new: worktree ready (hook log: C:\Users\Shay\AppData\Local\Temp\wf-new-bench-194-round-final.log)
+{"build_reason":null,"wf_version":6,"round":"bench/194-round-final","class":"A","base":"origin/dev","step":"classify","since":"2026-10-29T18:04:06.818Z","waiting_on":null,"history":[{"step":"classify","at":"2026-10-29T18:04:06.818Z"}]}
+Round folder: bug-reports/bench-194-round-final
+b2b:   http://bench-194-round-final.b2b.jewelryx.localhost
+admin: http://bench-194-round-final.admin.jewelryx.localhost
+api:   http://bench-194-round-final.api.jewelryx.localhost
+unlinked .pi/skills/bug-fix-orchestrator, .pi/skills/cr-implement-orchestrator, .pi/skills/verify-b2b, .pi/skills/verify-admin, .claude/skills/bug-fix-orchestrator, .claude/skills/cr-implement-orchestrator, .claude/skills/verify-b2b, .claude/skills/verify-admin, .agents/skills/bug-fix-orchestrator, .agents/skills/cr-implement-orchestrator, .agents/skills/verify-b2b, .agents/skills/verify-admin: the round skill is this worktree's one flow
+linked .pi/skills/verify-jewelryx, .claude/skills/verify-jewelryx, .agents/skills/verify-jewelryx: the app is driven through it
+Seed logins: buyer@seed.jewelryx / seed1234 · seller@seed.jewelryx / seed1234 · admin@jewelryx.com / admin123
+Fixtures:    fixed ids (orders, scrap gold, listings, auction, products): docs/agents/seed.md
+Worktree: C:/Users/Shay/.herdr/worktrees/jeweleryx/dev/.claude/worktrees/bench-194-round-final
+Workspace owner: wf — bind the session to this existing checkout; resume here, and reap from a surviving session after leaving it.

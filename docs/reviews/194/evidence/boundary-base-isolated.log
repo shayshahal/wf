@@ -1,0 +1,10 @@
+Read-only archive of 8622ce7de2a1243f0dc34c806f5bc7682bc508fe; no npm install, hooks or worktree registration
+  ok   envImports sees static and dynamic imports of env/
+  ok   machinePaths skips comments and sees code
+  ok   machineText reads prose, bullets included, and sees an env-only tool
+  ok   the walk skips a nested checkout, and the env/ beside it
+  FAIL no kit file imports env/ (164 files) — bin\wfk.selfcheck.ts: ../env/shim.ts
+  ok   no kit file names Shay's machine (~/.herdr, .bare, LOCALAPPDATA, ~/.config/wf, ~/work/wf)
+  ok   no text a round's agent reads names Shay's machine or an env-only tool (30 files)
+
+1 FAILURE(S)

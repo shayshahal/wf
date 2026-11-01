@@ -46,6 +46,7 @@ if (spawnSync('wt', ['--version'], { encoding: 'utf8' }).status !== 0) {
   const hook = join(root, 'hook.mjs');
   const git = (...args: string[]) => execFileSync('git', args, { cwd: repo, encoding: 'utf8' }).trim();
   try {
+    process.env.TEMP = root; process.env.TMP = root; process.env.TMPDIR = root;
     mkdirSync(repo);
     git('init', '-q', '-b', 'main');
     git('config', 'core.autocrlf', 'false');
@@ -70,6 +71,23 @@ if (spawnSync('wt', ['--version'], { encoding: 'utf8' }).status !== 0) {
       const expected = join(repo, '.claude', 'worktrees', slugForBranch(branch));
       check(`${branch}: real wt honors the shared destination, not saved or environment config`, canonical(tree.path) === canonical(expected) && git('-C', tree.path, 'rev-parse', 'HEAD') === git('rev-parse', 'main'));
       check(`${branch}: user pre-start runs once, only after registration and metadata`, records().length === (branch === 'round/one' ? 1 : 2) && records().at(-1)?.metadata && canonical(records().at(-1)?.cwd ?? '') === canonical(expected) && !existsSync(trap));
+    }
+    for (const configured of [false, true]) {
+      const hookDir = join(repo, '.git', configured ? 'custom hooks' : 'hooks');
+      mkdirSync(hookDir, { recursive: true });
+      for (const name of ['post-checkout', 'reference-transaction']) writeFileSync(join(hookDir, name), `#!/bin/sh
+printf hook-ran > "$PWD/neutral-git-hook-marker"
+`, { mode: 0o755 });
+      if (configured) git('config', 'core.hooksPath', hookDir);
+      const parametersBefore = process.env.GIT_CONFIG_PARAMETERS;
+      const hookParameter = `'core.hooksPath=${hookDir.replaceAll("'", String.fromCharCode(39, 92, 39, 39))}'`;
+      process.env.GIT_CONFIG_PARAMETERS = [parametersBefore, hookParameter].filter(Boolean).join(' ');
+      const branch = `neutral/git-hooks-${configured}`;
+      const path = join(repo, '.claude', 'worktrees', slugForBranch(branch));
+      const tree = createWorktree({ branch, base: 'main', repository: repo, log: join(root, 'neutral.log'), path, setup: 'none' });
+      if (parametersBefore === undefined) delete process.env.GIT_CONFIG_PARAMETERS; else process.env.GIT_CONFIG_PARAMETERS = parametersBefore;
+      check(`neutral ${configured}: wt suppresses Git and behavioral hooks without metadata`, !existsSync(join(tree.path, 'neutral-git-hook-marker')) && !existsSync(join(repo, 'neutral-git-hook-marker')) && !existsSync(join(tree.path, '.wf')) && records().length === 2 && !existsSync(trap));
+      if (configured) { check('neutral wt preserves configured Git hook directory', git('config', '--get', 'core.hooksPath') === hookDir); git('config', '--unset', 'core.hooksPath'); }
     }
     for (const branch of ['round/one', 'wf-baseline/round-one', 'round/existing-ref']) {
       if (branch === 'round/existing-ref') git('branch', branch);
@@ -101,6 +119,10 @@ if (spawnSync('wt', ['--version'], { encoding: 'utf8' }).status !== 0) {
     catch (e) { hookFailure = e instanceof Error ? e.message : String(e); }
     check('failed pre-start reports failure and preserves the newly allocated worktree', hookFailure.includes('pre-start hooks failed') && records().length === 3 && listWorktrees().some((tree) => tree.branch === 'round/hook-failure'), hookFailure);
     check('saved global config is byte-identical and no other-tool directory is created', readFileSync(config, 'utf8') === saved && !existsSync(join(root, 'other-tool')) && !existsSync(join(root, 'environment-other-tool')));
+    delete process.env.WF_WT_TEST_HOOK_FAIL;
+    const roundWithGitHooks = createWorktree({ branch: 'round/git-hooks', base: 'main', repository: repo, log: join(root, 'round-git-hooks.log'), path: join(repo, '.claude', 'worktrees', 'round-git-hooks') });
+    check('round wt retains ordinary repository Git hooks', existsSync(join(roundWithGitHooks.path, 'neutral-git-hook-marker')));
+
   } finally {
     process.chdir(cwd);
     plug({ createWorktree: originalAllocator });

@@ -1,0 +1,6 @@
+{
+  "branch": "bench/194-round-frozen",
+  "head": "ac4e0d1310352946bbcdcd17ab14e0d7f1a06e3f",
+  "registered": false,
+  "disposition": "CAS deleted only own unchanged bench ref after complete reap; archive retained"
+}

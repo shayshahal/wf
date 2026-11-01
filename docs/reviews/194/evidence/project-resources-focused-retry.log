@@ -1,0 +1,75 @@
+selfcheck: focused (2 of 98 files); full suite not run.
+selfcheck: 4 checks (tsc and eslint included), 6 at a time, 300s each
+selfcheck: FAIL tsc (1.0s) [1/4]
+
+── FAIL tsc
+projects/jewelryx/index.ts(251,132): error TS1002: Unterminated string literal.
+projects/jewelryx/index.ts(252,1): error TS1005: ',' expected.
+projects/jewelryx/index.ts(252,4): error TS1002: Unterminated string literal.
+projects/jewelryx/index.ts(253,2): error TS1005: ',' expected.
+projects/jewelryx/index.ts(253,42): error TS1005: ')' expected.
+selfcheck: FAIL src/worktrees/serve-verification.selfcheck.ts (0.9s) [2/4]
+
+── FAIL src/worktrees/serve-verification.selfcheck.ts
+node:internal/modules/run_main:111
+    triggerUncaughtException(
+    ^
+
+file:///C:/Users/Shay/work/wf-194/projects/jewelryx/index.ts:252
+    appendFileSync(context.log, 'JewelryX setup: environment, node builds, verification packages, seeded database; no behavioral tools
+');
+^^^
+    await setupWorkspaceEnvironment(context);
+
+SyntaxError [ERR_INVALID_TYPESCRIPT_SYNTAX]: Expected ',', got 'string literal'
+    at parseTypeScript (node:internal/modules/typescript:61:36)
+    at processTypeScriptCode (node:internal/modules/typescript:129:37)
+    at Object.stripTypeScriptModuleTypes (node:internal/modules/typescript:172:22)
+    at stripTypeScriptModuleTypes (node:internal/modules/esm/translators:35:49)
+    at ModuleLoader.<anonymous> (node:internal/modules/esm/translators:688:29)
+    at #translate (node:internal/modules/esm/loader:441:20)
+    at afterLoad (node:internal/modules/esm/loader:509:29)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:514:12)
+    at #getOrCreateModuleJobAfterResolve (node:internal/modules/esm/loader:567:36)
+    at afterResolve (node:internal/modules/esm/loader:614:52) {
+  code: 'ERR_INVALID_TYPESCRIPT_SYNTAX'
+}
+
+Node.js v26.12.1
+selfcheck: FAIL eslint (1.0s) [3/4]
+
+── FAIL eslint
+
+C:\Users\Shay\work\wf-194\projects\jewelryx\index.ts
+  0:0  error  Preprocessing error: Expected ',', got 'string literal'
+
+✖ 1 problem (1 error, 0 warnings)
+selfcheck: FAIL projects/jewelryx/index.selfcheck.ts (1.0s) [4/4]
+
+── FAIL projects/jewelryx/index.selfcheck.ts
+node:internal/modules/run_main:111
+    triggerUncaughtException(
+    ^
+
+file:///C:/Users/Shay/work/wf-194/projects/jewelryx/index.ts:252
+    appendFileSync(context.log, 'JewelryX setup: environment, node builds, verification packages, seeded database; no behavioral tools
+');
+^^^
+    await setupWorkspaceEnvironment(context);
+
+SyntaxError [ERR_INVALID_TYPESCRIPT_SYNTAX]: Expected ',', got 'string literal'
+    at parseTypeScript (node:internal/modules/typescript:61:36)
+    at processTypeScriptCode (node:internal/modules/typescript:129:37)
+    at Object.stripTypeScriptModuleTypes (node:internal/modules/typescript:172:22)
+    at stripTypeScriptModuleTypes (node:internal/modules/esm/translators:35:49)
+    at ModuleLoader.<anonymous> (node:internal/modules/esm/translators:688:29)
+    at #translate (node:internal/modules/esm/loader:441:20)
+    at afterLoad (node:internal/modules/esm/loader:509:29)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:514:12)
+    at #getOrCreateModuleJobAfterResolve (node:internal/modules/esm/loader:567:36)
+    at afterResolve (node:internal/modules/esm/loader:614:52) {
+  code: 'ERR_INVALID_TYPESCRIPT_SYNTAX'
+}
+
+Node.js v26.12.1
+4 of 4 selfchecks red (focused; tsc and eslint included) in 1.1s

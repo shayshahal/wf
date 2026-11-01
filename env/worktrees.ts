@@ -2,10 +2,11 @@
 // removes them. Plugged into the kit's createWorktree and removalPlan seams by env/wf.mjs.
 import { closeSync, existsSync, openSync, readFileSync, realpathSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
+import { withGitHooksDisabled } from '../src/worktrees/git-hooks.ts';
 import { teardown } from '../src/project.ts';
 import { stopWorktreeServers } from '../src/worktrees/serve.ts';
 import { stopShowBrowser } from '../src/worktrees/show-browser.ts';
-import { excludeFromGit, excludeWfFolder, resolveWorktree } from '../src/worktrees/worktree.ts';
+import { excludeFromGit, excludeWfFolder, resolveWorktree, listWorktrees } from '../src/worktrees/worktree.ts';
 import type { RemovalStep, Seams, Worktree } from '../src/seams.ts';
 
 // Created with no hooks, then only wf's (`wt hook <type> user:`) run inside it. worktrunk reads the
@@ -16,24 +17,29 @@ import type { RemovalStep, Seams, Worktree } from '../src/seams.ts';
 // when a phase needs it; until 2026-10-04 wt's post-start tether ran it). wt's output goes to a log
 // file. Returns the worktree, or throws with the log.
 /** Allocate at wf's destination without changing saved wt config; verify placement before any setup. */
-export function createWorktree({ branch, base, log, path }: Parameters<NonNullable<Seams['createWorktree']>>[0]): Worktree {
+export function createWorktree({ branch, base, log, path, repository, setup: setupMode }: Parameters<NonNullable<Seams['createWorktree']>>[0]): Worktree {
 	const fd = openSync(log, 'w');
 	try {
-		const step = (label: string, args: string[], cwd?: string) => {
-			const r = spawnSync('wt', args, { stdio: ['ignore', fd, fd], cwd });
+		const step = (label: string, args: string[], cwd?: string, env?: NodeJS.ProcessEnv) => {
+			const r = spawnSync('wt', args, { stdio: ['ignore', fd, fd], cwd, env });
 			if (r.status === 0) return;
 			throw new Error(`${readFileSync(log, 'utf8').trimEnd()}\n${label} failed (exit ${r.status})`);
 		};
 		// 2026-10-19: wt's global destination belongs to other tools. A TOML basic string
 		// uses JSON's escapes; slash normalization avoids Windows backslashes being escapes.
 		const destination = JSON.stringify(path.replace(/\\/g, '/')).replace(/\x7f/g, '\\u007f');
-		step('wt switch --create', ['switch', '--create', branch, '--base', base, '--yes', '--no-cd', '--no-hooks', '--config-set', `worktree-path=${destination}`]);
-		const tree = resolveWorktree(branch);
+		const create = (env?: NodeJS.ProcessEnv) => step('wt switch --create', ['switch', '--create', branch, '--base', base, '--yes', '--no-cd', '--no-hooks', '--config-set', `worktree-path=${destination}`], repository, env);
+		// --no-hooks suppresses Worktrunk hooks, not Git's post-checkout/reference hooks.
+		if (setupMode === 'none') withGitHooksDisabled(create);
+		else create();
+		const tree = resolveWorktree(branch, listWorktrees(repository));
 		const canonical = (p: string) => {
 			const resolved = realpathSync.native(p);
 			return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
 		};
 		if (!existsSync(path) || canonical(tree.path) !== canonical(path)) throw new Error(`wt allocation destination mismatch: requested ${path}; registered ${tree.path}. Worktree left untouched; setup not run`);
+		// Neutral callers perform explicit adapter setup in-process, never the ambient project hooks.
+		if (setupMode === 'none') return tree;
 		excludeWfFolder(tree.path);
 		// Shared placement is inside the clone now, even when its base ignores no .claude directory.
 		excludeFromGit(tree.path, '/.claude/worktrees/');

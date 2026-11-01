@@ -197,8 +197,92 @@ holds everything wf knows about it, and `index.ts` there is the only file the re
 Next to it: `ROUND.md` (tracker, statuses, people, branches: read by the round skill),
 `prompts/<phase>.md` (appended to that phase's prompt) and whatever implements the above.
 
-There is one project, JewelryX. When a second one arrives, it gets a folder like this one, and
-what the two share becomes the interface. Not before.
+Rounds still use JewelryX. A second, narrower binding supports tool-only lint-kit diagnostics;
+it does not add lint-kit rounds or arbitrary-project dispatch.
+
+## Tool-only baseline diagnostics
+
+A caller can run one diagnostic in a new disposable checkout without a ticket, class, round
+documents, `wf next`, or behavioral skill installation. This uses the same Git allocation,
+dependency lease and guarded cleanup owners as the round workflow; it does not bypass round
+approval or delivery guards.
+
+```text
+caller: repository + ref + new branch + explicit probes + native argv/env + surviving log
+  → runBaselineDiagnostic
+    → exclusive allocation → explicit project setup → required dependency admission
+    → owned diagnostic execution → retain output → release
+  ← execution + none/owned/borrowed + exact source identity + cleanup/recovery outcome
+
+round: new / serve / reap → the same allocation, lease and cleanup mechanics
+       round policy still owns approval, retention, tracker and delivery
+```
+
+The public consumer is [`src/gates/baseline-diagnostic.ts`](src/gates/baseline-diagnostic.ts).
+It accepts a `BaselineDiagnosticInput`. Supply an explicit `WorkspaceProject` from the project's
+`index.ts`; the operation does not infer it from an active round. The requested ref is resolved
+to a commit before allocation. Probe files come from the supplied repository and keep their
+relative paths. Git metadata and managed execution records are not probe inputs: put such data
+under a test fixture path instead. The log must be outside the disposable checkout.
+
+Two runnable examples, from the kit root:
+
+```text
+node projects/lint-kit/baseline-example.mjs <repository> <commit> <new-branch> <surviving-log>
+node projects/jewelryx/baseline-example.mjs <repository> <commit> <new-branch> <surviving-log>
+```
+
+| Binding | Setup | Execution dependency / example |
+|---|---|---|
+| `lintKitWorkspaceProject` | Project's frozen pnpm install, lifecycle scripts disabled | **none**; one explicit Node test file. No JewelryX stack/database. |
+| `createJewelryxWorkspaceProject(...)` | Existing environment, builds, verification packages and seeded database; no behavioral links/shims or package lifecycle hooks | Only the requested verification profile. The example requests **API** and reads its OpenAPI schema. API-only execution is not API-only setup. |
+
+JewelryX still needs its actual machine prerequisites. The kit example uses the kit's project
+binding. On Shay's machine, run the corresponding `env/workspace-baseline-example.mjs` from
+the JewelryX repository root; it wires machine capabilities explicitly. The kit never imports
+that entry. In an exported skill, the same kit examples live under `scripts/runtime/projects/`;
+no wf checkout, plugin, `env/`, or runtime npm packages are required by the exported kit itself.
+The target project's own install prerequisites still apply.
+
+Read the outcome as separate facts:
+
+- `kind: 'unavailable'` means acquisition or admission did not complete. Inspect `why`, the
+  surviving log, and any retained receipt; do not turn this into a product failure.
+- `kind: 'observed'` includes `execution`, `retention`, dependency disposition, exact ref/path, owner receipt
+  path and `cleanup`. A nonzero diagnostic exit can accompany successful cleanup. A null exit
+  is not a passing check. Readiness and a zero exit do not certify the caller's product claim.
+- Only `cleanup.kind: 'complete'` reports complete release. On `incomplete` or `refused`, retain
+  the returned identity and follow the reason. An ownership receipt is in the repository's Git
+  common directory, outside the checkout. Completed cleanup removes it; its returned path is
+  then only a historical reference.
+
+Release is memoized: repeating it does not silently retry an incomplete operation. After fixing
+a reported blocker, use explicit recovery with the same repository and project binding:
+
+```text
+node projects/lint-kit/baseline-example.mjs --recover <repository> <baseline-branch>
+node projects/jewelryx/baseline-example.mjs --recover <repository> <baseline-branch>
+```
+
+A lease's `runDiagnostic` owns one command. It persists pending intent before execution, then
+confirms a fallback output file and its digest before appending to the surviving log. Release waits
+for the diagnostic. A failed retention leaves the checkout and authority intact. Recovery can
+retain confirmed fallback output after the destination is repaired; pending/unconfirmed output
+stays uncertain and never reruns the command. A lost append acknowledgement can repeat a log
+block on recovery; the transcript is at-least-once, not an exactly-once event stream.
+
+The underlying capability is `acquireDisposableWorkspace` / `recoverDisposableWorkspace` in
+[`src/worktrees/disposable-workspace.ts`](src/worktrees/disposable-workspace.ts). Recovery checks
+persisted acquisition authority and the shared cleanup journal. It never adopts an existing
+round, changed branch, replacement directory/resource, unreadable authority or an unresolved
+process. Unconfirmed mutation outcomes remain uncertain and can require inspection instead of
+automatic deletion. Never delete the receipt to force a retry. Borrowed resources are not released
+as owned resources. No scenario reset, arbitrary-project round support, host continuation or
+product certification is implied.
+
+The measured proof and its limits are recorded in
+[`docs/reviews/194/BUILD.md`](docs/reviews/194/BUILD.md). This is a bounded caller/ownership
+contract, not a plugin registry or a universal workflow API.
 
 ## Install (Shay's machine, the kit with `env/`)
 

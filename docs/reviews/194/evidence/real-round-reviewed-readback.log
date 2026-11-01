@@ -1,0 +1,11 @@
+{"args": ["node", "--input-type=module", "-e", "\nimport {readFileSync} from 'node:fs';\nimport {execFileSync} from 'node:child_process';\nimport {join} from 'node:path';\nimport {directUrls} from 'file:///C:/Users/Shay/work/wf-194/projects/jewelryx/index.ts';\nimport {basePortForBranch} from 'file:///C:/Users/Shay/work/wf-194/src/worktrees/worktree-registry.ts';\nconst urls=directUrls(basePortForBranch(\"bench/194-round-reviewed\"));\nconst status={};\nfor(const [name,url] of Object.entries(urls)){\n const target=name==='api'?new URL('/openapi.json',url):new URL('/',url);\n const response=await fetch(target,{signal:AbortSignal.timeout(30000)});\n status[name]=response.status; await response.body?.cancel();\n if(!response.ok) throw new Error(name+' HTTP '+response.status);\n}\nconst ownership=JSON.parse(readFileSync(join(process.cwd(),'.wf','serve-owner.json'),'utf8'));\nif(!ownership.token||!ownership.processes?.length) throw new Error('server ownership receipt missing');\nconst sourceRef=execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();\nconsole.log(JSON.stringify({sourceRef,status,ownershipRecorded:true,state:ownership.state},null,2));\n"], "cwd": "C:\\Users\\Shay\\.herdr\\worktrees\\jeweleryx\\dev\\.claude\\worktrees\\bench-194-round-reviewed"}
+{
+  "sourceRef": "ac4e0d1310352946bbcdcd17ab14e0d7f1a06e3f",
+  "status": {
+    "b2b": 200,
+    "admin": 200,
+    "api": 200
+  },
+  "ownershipRecorded": true,
+  "state": "running"
+}

@@ -1,0 +1,105 @@
+{
+  "revision": "8622ce7de2a1243f0dc34c806f5bc7682bc508fe",
+  "node": "v26.12.1",
+  "platform": "win32",
+  "arch": "x64",
+  "records": [
+    {
+      "command": "git",
+      "args": [
+        "-c",
+        "core.hooksPath=C:\\Users\\Shay\\AppData\\Local\\Temp\\wf-194-serve-base-control-0aeuUR\\empty-hooks",
+        "worktree",
+        "add",
+        "--detach",
+        "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf-194-serve-base-control-0aeuUR\\base",
+        "8622ce7de2a1243f0dc34c806f5bc7682bc508fe"
+      ],
+      "cwd": "C:\\Users\\Shay\\work\\wf-194",
+      "started": "2026-10-30T08:37:25.993Z",
+      "elapsedSeconds": 0.2805478,
+      "status": 0,
+      "signal": null,
+      "logfile": "serve-baseline-worktree-add.log"
+    },
+    {
+      "command": "git",
+      "args": [
+        "rev-parse",
+        "HEAD"
+      ],
+      "cwd": "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf-194-serve-base-control-0aeuUR\\base",
+      "started": "2026-10-30T08:37:26.275Z",
+      "elapsedSeconds": 0.7762561000000001,
+      "status": 0,
+      "signal": null,
+      "logfile": "serve-baseline-revision.log"
+    },
+    {
+      "command": "git",
+      "args": [
+        "status",
+        "--porcelain"
+      ],
+      "cwd": "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf-194-serve-base-control-0aeuUR\\base",
+      "started": "2026-10-30T08:37:27.052Z",
+      "elapsedSeconds": 0.08678159999999979,
+      "status": 0,
+      "signal": null,
+      "logfile": "serve-baseline-status-before.log"
+    },
+    {
+      "command": "C:\\Users\\Shay\\AppData\\Local\\mise\\installs\\node\\26.12.1\\node.exe",
+      "args": [
+        "src/worktrees/serve.selfcheck.ts"
+      ],
+      "cwd": "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf-194-serve-base-control-0aeuUR\\base",
+      "started": "2026-10-30T08:37:27.139Z",
+      "elapsedSeconds": 84.0867197,
+      "status": 0,
+      "signal": null,
+      "logfile": "serve-baseline-run-1.log"
+    },
+    {
+      "command": "C:\\Users\\Shay\\AppData\\Local\\mise\\installs\\node\\26.12.1\\node.exe",
+      "args": [
+        "src/worktrees/serve.selfcheck.ts"
+      ],
+      "cwd": "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf-194-serve-base-control-0aeuUR\\base",
+      "started": "2026-10-30T08:38:51.226Z",
+      "elapsedSeconds": 87.8030113,
+      "status": 0,
+      "signal": null,
+      "logfile": "serve-baseline-run-2.log"
+    },
+    {
+      "command": "git",
+      "args": [
+        "status",
+        "--porcelain"
+      ],
+      "cwd": "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf-194-serve-base-control-0aeuUR\\base",
+      "started": "2026-10-30T08:40:19.030Z",
+      "elapsedSeconds": 0.6222719999999972,
+      "status": 0,
+      "signal": null,
+      "logfile": "serve-baseline-status-after.log"
+    },
+    {
+      "command": "git",
+      "args": [
+        "-c",
+        "core.hooksPath=C:\\Users\\Shay\\AppData\\Local\\Temp\\wf-194-serve-base-control-0aeuUR\\empty-hooks",
+        "worktree",
+        "remove",
+        "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf-194-serve-base-control-0aeuUR\\base"
+      ],
+      "cwd": "C:\\Users\\Shay\\work\\wf-194",
+      "started": "2026-10-30T08:40:19.653Z",
+      "elapsedSeconds": 0.10606549999999697,
+      "status": 0,
+      "signal": null,
+      "logfile": "serve-baseline-worktree-remove.log"
+    }
+  ]
+}

@@ -1,0 +1,73 @@
+selfcheck: focused (1 of 106 files); full suite not run.
+selfcheck: 3 checks (tsc and eslint included), 6 at a time, 300s each
+selfcheck: PASS tsc (0.3s) [1/3]
+selfcheck: PASS eslint (1.0s) [2/3]
+selfcheck: FAIL src/worktrees/disposable-identity-path.selfcheck.ts (50.4s) [3/3]
+
+── FAIL src/worktrees/disposable-identity-path.selfcheck.ts
+switched checkout: release and fresh recovery refuse before teardown; replacement file and owner preserved
+detached checkout: release and fresh recovery refuse before teardown; replacement file and owner preserved
+node:fs:3028
+    return binding.writeFileUtf8(
+                   ^
+
+Error: EPERM: operation not permitted, open 'C:\Users\Shay\AppData\Local\Temp\wf-disposable-identity-path-X7cDss\repository\.claude\worktrees\bench-rebound\.git'
+    at writeFileSync (node:fs:3028:20)
+    at file:///C:/Users/Shay/work/wf-194/src/worktrees/disposable-identity-path.selfcheck.ts:51:4 {
+  errno: -4048,
+  code: 'EPERM',
+  syscall: 'open',
+  path: 'C:\\Users\\Shay\\AppData\\Local\\Temp\\wf-disposable-identity-path-X7cDss\\repository\\.claude\\worktrees\\bench-rebound\\.git'
+}
+
+Node.js v26.12.1
+1 of 3 selfchecks red (focused; tsc and eslint included) in 50.4s
+
+Isolated fixture diagnosis: Windows rejected in-place .git overwrite with EPERM before the rebound assertion. Rebinding now renames the original binding file aside, writes a new .git, and restores the original file by rename. No production workaround or platform skip.
+selfcheck: focused (1 of 106 files); full suite not run.
+selfcheck: 3 checks (tsc and eslint included), 6 at a time, 300s each
+selfcheck: PASS tsc (0.3s) [1/3]
+selfcheck: PASS eslint (1.1s) [2/3]
+selfcheck: FAIL src/worktrees/disposable-identity-path.selfcheck.ts (45.4s) [3/3]
+
+── FAIL src/worktrees/disposable-identity-path.selfcheck.ts
+switched checkout: release and fresh recovery refuse before teardown; replacement file and owner preserved
+detached checkout: release and fresh recovery refuse before teardown; replacement file and owner preserved
+node:fs:3028
+    return binding.writeFileUtf8(
+                   ^
+
+Error: EPERM: operation not permitted, open 'C:\Users\Shay\AppData\Local\Temp\wf-disposable-identity-path-mboH7e\repository\.claude\worktrees\bench-rebound\.git'
+    at writeFileSync (node:fs:3028:20)
+    at file:///C:/Users/Shay/work/wf-194/src/worktrees/disposable-identity-path.selfcheck.ts:51:4 {
+  errno: -4048,
+  code: 'EPERM',
+  syscall: 'open',
+  path: 'C:\\Users\\Shay\\AppData\\Local\\Temp\\wf-disposable-identity-path-mboH7e\\repository\\.claude\\worktrees\\bench-rebound\\.git'
+}
+
+Node.js v26.12.1
+1 of 3 selfchecks red (focused; tsc and eslint included) in 45.4s
+
+Fixture correction: prior scripted replacement did not insert rename before write; inspected source and inserted the missing rename with an exact edit. Replaying only the failing public regression file.
+switched checkout: release and fresh recovery refuse before teardown; replacement file and owner preserved
+detached checkout: release and fresh recovery refuse before teardown; replacement file and owner preserved
+rebound checkout: release and fresh recovery refuse before teardown; replacement file and owner preserved
+genuine absent-directory recovery resumes the same cleanup journal after repairing branch-delete failure
+physical admission rejects parent alias, dangling parent junction and dangling leaf log symlink into future checkout
+external parent alias remains valid and its actual native diagnostic stdout survives release
+log symlink before-release: refuse destructive cleanup and fresh recovery; repair destination then recover without losing native stdout
+log symlink during-teardown: refuse destructive cleanup and fresh recovery; repair destination then recover without losing native stdout
+
+Final focused cohort: new identity/path public regressions plus existing disposable, native recovery, diagnostic-retention, baseline consumer and import-boundary checks. Full suite not run.
+selfcheck: focused (6 of 106 files); full suite not run.
+selfcheck: 8 checks (tsc and eslint included), 6 at a time, 300s each
+selfcheck: PASS tsc (0.3s) [1/8]
+selfcheck: PASS eslint (1.2s) [2/8]
+selfcheck: PASS src/gates/baseline-diagnostic-imports.selfcheck.ts (0.3s) [3/8]
+selfcheck: PASS src/gates/baseline-run.selfcheck.ts (53.2s) [4/8]
+selfcheck: PASS src/worktrees/disposable-recovery.selfcheck.ts (62.2s) [5/8]
+selfcheck: PASS src/gates/baseline-diagnostic.selfcheck.ts (163.7s) [6/8]
+selfcheck: PASS src/worktrees/disposable-workspace.selfcheck.ts (200.5s) [7/8]
+selfcheck: PASS src/worktrees/disposable-identity-path.selfcheck.ts (243.4s) [8/8]
+8 selfchecks green (focused; tsc and eslint included) in 243.5s

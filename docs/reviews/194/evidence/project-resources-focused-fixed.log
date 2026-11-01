@@ -1,0 +1,27 @@
+selfcheck: focused (2 of 98 files); full suite not run.
+selfcheck: 4 checks (tsc and eslint included), 6 at a time, 300s each
+selfcheck: PASS tsc (1.3s) [1/4]
+selfcheck: PASS eslint (2.1s) [2/4]
+selfcheck: FAIL src/worktrees/serve-verification.selfcheck.ts (22.3s) [3/4]
+
+── FAIL src/worktrees/serve-verification.selfcheck.ts
+node:internal/modules/run_main:111
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+null !== 200
+
+    at file:///C:/Users/Shay/work/wf-194/src/worktrees/serve-verification.selfcheck.ts:60:62 {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: null,
+  expected: 200,
+  operator: 'strictEqual',
+  diff: 'simple'
+}
+
+Node.js v26.12.1
+selfcheck: PASS projects/jewelryx/index.selfcheck.ts (36.9s) [4/4]
+1 of 4 selfchecks red (focused; tsc and eslint included) in 38.0s

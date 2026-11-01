@@ -1,0 +1,2 @@
+{"args": ["node", "C:\\Users\\Shay\\work\\wf-194\\env\\wf.mjs", "hook", "install"], "cwd": "C:\\Users\\Shay\\work\\jeweleryx"}
+wf hook install: hooks for github.com/Raynw-MediaTech/jeweleryx → C:\Users\Shay/AppData/Roaming/worktrunk/config.toml (calling C:/Users/Shay/work/wf-194/env/wf.mjs)

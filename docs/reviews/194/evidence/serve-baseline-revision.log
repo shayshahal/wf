@@ -1,0 +1,18 @@
+{
+  "command": "git",
+  "args": [
+    "rev-parse",
+    "HEAD"
+  ],
+  "cwd": "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf-194-serve-base-control-0aeuUR\\base",
+  "started": "2026-10-30T08:37:26.275Z",
+  "elapsedSeconds": 0.7762561000000001,
+  "status": 0,
+  "signal": null,
+  "logfile": "serve-baseline-revision.log"
+}
+
+STDOUT
+8622ce7de2a1243f0dc34c806f5bc7682bc508fe
+
+STDERR

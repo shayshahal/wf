@@ -1,0 +1,83 @@
+selfcheck: focused (2 of 97 files); full suite not run.
+selfcheck: 4 checks (tsc and eslint included), 6 at a time, 300s each
+selfcheck: FAIL src/worktrees/serve-verification.selfcheck.ts (1.9s) [1/4]
+
+── FAIL src/worktrees/serve-verification.selfcheck.ts
+node:internal/modules/run_main:111
+    triggerUncaughtException(
+    ^
+
+file:///C:/Users/Shay/work/wf-194/projects/jewelryx/index.ts:103
+//   teardown({ slug, worktree })  steps after the database's
+export type Machine = {
+            ^^^^^^^
+    secretsFrom: (worktree: string) => string;
+
+SyntaxError [ERR_INVALID_TYPESCRIPT_SYNTAX]: Expected '{', got 'ident'
+    at parseTypeScript (node:internal/modules/typescript:61:36)
+    at processTypeScriptCode (node:internal/modules/typescript:129:37)
+    at Object.stripTypeScriptModuleTypes (node:internal/modules/typescript:172:22)
+    at stripTypeScriptModuleTypes (node:internal/modules/esm/translators:35:49)
+    at ModuleLoader.<anonymous> (node:internal/modules/esm/translators:688:29)
+    at #translate (node:internal/modules/esm/loader:441:20)
+    at afterLoad (node:internal/modules/esm/loader:509:29)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:514:12)
+    at #getOrCreateModuleJobAfterResolve (node:internal/modules/esm/loader:567:36)
+    at afterResolve (node:internal/modules/esm/loader:614:52) {
+  code: 'ERR_INVALID_TYPESCRIPT_SYNTAX'
+}
+
+Node.js v26.12.1
+selfcheck: FAIL eslint (2.7s) [2/4]
+
+── FAIL eslint
+
+C:\Users\Shay\work\wf-194\projects\jewelryx\index.ts
+  0:0  error  Preprocessing error: Expected '{', got 'ident'
+
+✖ 1 problem (1 error, 0 warnings)
+selfcheck: FAIL tsc (3.6s) [3/4]
+
+── FAIL tsc
+projects/jewelryx/index.ts(112,1): error TS1131: Property or signature expected.
+projects/jewelryx/index.ts(113,132): error TS1002: Unterminated string literal.
+projects/jewelryx/index.ts(114,1): error TS1005: ',' expected.
+projects/jewelryx/index.ts(114,4): error TS1002: Unterminated string literal.
+projects/jewelryx/index.ts(115,2): error TS1005: ',' expected.
+projects/jewelryx/index.ts(115,42): error TS1005: ')' expected.
+projects/jewelryx/index.ts(135,15): error TS1109: Expression expected.
+projects/jewelryx/index.ts(135,27): error TS1109: Expression expected.
+projects/jewelryx/index.ts(136,8): error TS1109: Expression expected.
+projects/jewelryx/index.ts(137,10): error TS1109: Expression expected.
+projects/jewelryx/index.ts(137,63): error TS1005: ';' expected.
+projects/jewelryx/index.ts(138,67): error TS1011: An element access expression should take an argument.
+projects/jewelryx/index.ts(139,1): error TS1128: Declaration or statement expected.
+selfcheck: FAIL projects/jewelryx/index.selfcheck.ts (1.0s) [4/4]
+
+── FAIL projects/jewelryx/index.selfcheck.ts
+node:internal/modules/run_main:111
+    triggerUncaughtException(
+    ^
+
+file:///C:/Users/Shay/work/wf-194/projects/jewelryx/index.ts:103
+//   teardown({ slug, worktree })  steps after the database's
+export type Machine = {
+            ^^^^^^^
+    secretsFrom: (worktree: string) => string;
+
+SyntaxError [ERR_INVALID_TYPESCRIPT_SYNTAX]: Expected '{', got 'ident'
+    at parseTypeScript (node:internal/modules/typescript:61:36)
+    at processTypeScriptCode (node:internal/modules/typescript:129:37)
+    at Object.stripTypeScriptModuleTypes (node:internal/modules/typescript:172:22)
+    at stripTypeScriptModuleTypes (node:internal/modules/esm/translators:35:49)
+    at ModuleLoader.<anonymous> (node:internal/modules/esm/translators:688:29)
+    at #translate (node:internal/modules/esm/loader:441:20)
+    at afterLoad (node:internal/modules/esm/loader:509:29)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:514:12)
+    at #getOrCreateModuleJobAfterResolve (node:internal/modules/esm/loader:567:36)
+    at afterResolve (node:internal/modules/esm/loader:614:52) {
+  code: 'ERR_INVALID_TYPESCRIPT_SYNTAX'
+}
+
+Node.js v26.12.1
+4 of 4 selfchecks red (focused; tsc and eslint included) in 3.7s

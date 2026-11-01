@@ -1,0 +1,601 @@
+diagnostic HTTP failure {
+  port: 63379,
+  error: [TypeError: fetch failed] {
+    [cause]: Error: connect ECONNREFUSED 127.0.0.1:63379
+        at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2083:16) {
+      errno: -4078,
+      code: 'ECONNREFUSED',
+      syscall: 'connect',
+      address: '127.0.0.1',
+      port: 63379
+    }
+  },
+  cause: Error: connect ECONNREFUSED 127.0.0.1:63379
+      at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2083:16) {
+    errno: -4078,
+    code: 'ECONNREFUSED',
+    syscall: 'connect',
+    address: '127.0.0.1',
+    port: 63379
+  }
+}
+diagnostic HTTP failure {
+  port: 63378,
+  error: [TypeError: fetch failed] {
+    [cause]: Error: read ECONNRESET
+        at TCP.onStreamRead (node:internal/stream_base_commons:221:20) {
+      errno: -4077,
+      code: 'ECONNRESET',
+      syscall: 'read'
+    }
+  },
+  cause: Error: read ECONNRESET
+      at TCP.onStreamRead (node:internal/stream_base_commons:221:20) {
+    errno: -4077,
+    code: 'ECONNRESET',
+    syscall: 'read'
+  }
+}
+  ok   explicit stop closes the tracked stack and its descendant, without removing the worktree
+diagnostic HTTP failure {
+  port: 63378,
+  error: [TypeError: fetch failed] {
+    [cause]: Error: connect ECONNREFUSED 127.0.0.1:63378
+        at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2083:16) {
+      errno: -4078,
+      code: 'ECONNREFUSED',
+      syscall: 'connect',
+      address: '127.0.0.1',
+      port: 63378
+    }
+  },
+  cause: Error: connect ECONNREFUSED 127.0.0.1:63378
+      at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2083:16) {
+    errno: -4078,
+    code: 'ECONNREFUSED',
+    syscall: 'connect',
+    address: '127.0.0.1',
+    port: 63378
+  }
+}
+diagnostic HTTP failure {
+  port: 63379,
+  error: [TypeError: fetch failed] {
+    [cause]: Error: connect ECONNREFUSED 127.0.0.1:63379
+        at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2083:16) {
+      errno: -4078,
+      code: 'ECONNREFUSED',
+      syscall: 'connect',
+      address: '127.0.0.1',
+      port: 63379
+    }
+  },
+  cause: Error: connect ECONNREFUSED 127.0.0.1:63379
+      at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2083:16) {
+    errno: -4078,
+    code: 'ECONNREFUSED',
+    syscall: 'connect',
+    address: '127.0.0.1',
+    port: 63379
+  }
+}
+  ok   repeating stop is harmless and does not restart the stack
+diagnostic HTTP failure {
+  port: 63378,
+  error: [TypeError: fetch failed] {
+    [cause]: Error: connect ECONNREFUSED 127.0.0.1:63378
+        at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2083:16) {
+      errno: -4078,
+      code: 'ECONNREFUSED',
+      syscall: 'connect',
+      address: '127.0.0.1',
+      port: 63378
+    }
+  },
+  cause: Error: connect ECONNREFUSED 127.0.0.1:63378
+      at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2083:16) {
+    errno: -4078,
+    code: 'ECONNREFUSED',
+    syscall: 'connect',
+    address: '127.0.0.1',
+    port: 63378
+  }
+}
+diagnostic HTTP failure {
+  port: 63379,
+  error: [TypeError: fetch failed] {
+    [cause]: Error: connect ECONNREFUSED 127.0.0.1:63379
+        at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2083:16) {
+      errno: -4078,
+      code: 'ECONNREFUSED',
+      syscall: 'connect',
+      address: '127.0.0.1',
+      port: 63379
+    }
+  },
+  cause: Error: connect ECONNREFUSED 127.0.0.1:63379
+      at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2083:16) {
+    errno: -4078,
+    code: 'ECONNREFUSED',
+    syscall: 'connect',
+    address: '127.0.0.1',
+    port: 63379
+  }
+}
+diagnostic HTTP failure {
+  port: 62980,
+  error: [TypeError: fetch failed] {
+    [cause]: Error: connect ECONNREFUSED 127.0.0.1:62980
+        at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2083:16) {
+      errno: -4078,
+      code: 'ECONNREFUSED',
+      syscall: 'connect',
+      address: '127.0.0.1',
+      port: 62980
+    }
+  },
+  cause: Error: connect ECONNREFUSED 127.0.0.1:62980
+      at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2083:16) {
+    errno: -4078,
+    code: 'ECONNREFUSED',
+    syscall: 'connect',
+    address: '127.0.0.1',
+    port: 62980
+  }
+}
+diagnostic HTTP failure {
+  port: 62979,
+  error: [TypeError: fetch failed] {
+    [cause]: Error: write ECONNRESET
+        at afterWriteDispatched (node:internal/stream_base_commons:138:10)
+        at writeGeneric (node:internal/stream_base_commons:126:10)
+        at Socket._writeGeneric (node:net:1324:11)
+        at Socket._write (node:net:1336:8)
+        at writeOrBuffer (node:internal/streams/writable:574:12)
+        at _write (node:internal/streams/writable:503:10)
+        at Writable.write (node:internal/streams/writable:512:10)
+        at writeBuffer (node:internal/deps/undici/undici:8337:20)
+        at writeH1 (node:internal/deps/undici/undici:8239:9)
+        at Object.write (node:internal/deps/undici/undici:7922:18) {
+      errno: -4077,
+      code: 'ECONNRESET',
+      syscall: 'write'
+    }
+  },
+  cause: Error: write ECONNRESET
+      at afterWriteDispatched (node:internal/stream_base_commons:138:10)
+      at writeGeneric (node:internal/stream_base_commons:126:10)
+      at Socket._writeGeneric (node:net:1324:11)
+      at Socket._write (node:net:1336:8)
+      at writeOrBuffer (node:internal/streams/writable:574:12)
+      at _write (node:internal/streams/writable:503:10)
+      at Writable.write (node:internal/streams/writable:512:10)
+      at writeBuffer (node:internal/deps/undici/undici:8337:20)
+      at writeH1 (node:internal/deps/undici/undici:8239:9)
+      at Object.write (node:internal/deps/undici/undici:7922:18) {
+    errno: -4077,
+    code: 'ECONNRESET',
+    syscall: 'write'
+  }
+}
+  ok   an agreement dispatch releases an idle stack instead of leaving it until reap
+diagnostic HTTP failure {
+  port: 62979,
+  error: [TypeError: fetch failed] {
+    [cause]: Error: connect ECONNREFUSED 127.0.0.1:62979
+        at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2083:16) {
+      errno: -4078,
+      code: 'ECONNREFUSED',
+      syscall: 'connect',
+      address: '127.0.0.1',
+      port: 62979
+    }
+  },
+  cause: Error: connect ECONNREFUSED 127.0.0.1:62979
+      at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2083:16) {
+    errno: -4078,
+    code: 'ECONNREFUSED',
+    syscall: 'connect',
+    address: '127.0.0.1',
+    port: 62979
+  }
+}
+diagnostic HTTP failure {
+  port: 62980,
+  error: [TypeError: fetch failed] {
+    [cause]: Error: connect ECONNREFUSED 127.0.0.1:62980
+        at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2083:16) {
+      errno: -4078,
+      code: 'ECONNREFUSED',
+      syscall: 'connect',
+      address: '127.0.0.1',
+      port: 62980
+    }
+  },
+  cause: Error: connect ECONNREFUSED 127.0.0.1:62980
+      at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2083:16) {
+    errno: -4078,
+    code: 'ECONNREFUSED',
+    syscall: 'connect',
+    address: '127.0.0.1',
+    port: 62980
+  }
+}
+diagnostic HTTP failure {
+  port: 49277,
+  error: [TypeError: fetch failed] {
+    [cause]: Error: connect ECONNREFUSED 127.0.0.1:49277
+        at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2083:16) {
+      errno: -4078,
+      code: 'ECONNREFUSED',
+      syscall: 'connect',
+      address: '127.0.0.1',
+      port: 49277
+    }
+  },
+  cause: Error: connect ECONNREFUSED 127.0.0.1:49277
+      at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2083:16) {
+    errno: -4078,
+    code: 'ECONNREFUSED',
+    syscall: 'connect',
+    address: '127.0.0.1',
+    port: 49277
+  }
+}
+diagnostic HTTP failure {
+  port: 49278,
+  error: [TypeError: fetch failed] {
+    [cause]: Error: connect ECONNREFUSED 127.0.0.1:49278
+        at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2083:16) {
+      errno: -4078,
+      code: 'ECONNREFUSED',
+      syscall: 'connect',
+      address: '127.0.0.1',
+      port: 49278
+    }
+  },
+  cause: Error: connect ECONNREFUSED 127.0.0.1:49278
+      at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2083:16) {
+    errno: -4078,
+    code: 'ECONNREFUSED',
+    syscall: 'connect',
+    address: '127.0.0.1',
+    port: 49278
+  }
+}
+  ok   parking a round closes its whole stack
+diagnostic HTTP failure {
+  port: 49277,
+  error: [TypeError: fetch failed] {
+    [cause]: Error: connect ECONNREFUSED 127.0.0.1:49277
+        at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2083:16) {
+      errno: -4078,
+      code: 'ECONNREFUSED',
+      syscall: 'connect',
+      address: '127.0.0.1',
+      port: 49277
+    }
+  },
+  cause: Error: connect ECONNREFUSED 127.0.0.1:49277
+      at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2083:16) {
+    errno: -4078,
+    code: 'ECONNREFUSED',
+    syscall: 'connect',
+    address: '127.0.0.1',
+    port: 49277
+  }
+}
+diagnostic HTTP failure {
+  port: 49278,
+  error: [TypeError: fetch failed] {
+    [cause]: Error: connect ECONNREFUSED 127.0.0.1:49278
+        at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2083:16) {
+      errno: -4078,
+      code: 'ECONNREFUSED',
+      syscall: 'connect',
+      address: '127.0.0.1',
+      port: 49278
+    }
+  },
+  cause: Error: connect ECONNREFUSED 127.0.0.1:49278
+      at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2083:16) {
+    errno: -4078,
+    code: 'ECONNREFUSED',
+    syscall: 'connect',
+    address: '127.0.0.1',
+    port: 49278
+  }
+}
+  ok   an active build dispatch keeps both stack listeners and its ownership
+diagnostic HTTP failure {
+  port: 49291,
+  error: [TypeError: fetch failed] {
+    [cause]: Error: read ECONNRESET
+        at TCP.onStreamRead (node:internal/stream_base_commons:221:20) {
+      errno: -4077,
+      code: 'ECONNRESET',
+      syscall: 'read'
+    }
+  },
+  cause: Error: read ECONNRESET
+      at TCP.onStreamRead (node:internal/stream_base_commons:221:20) {
+    errno: -4077,
+    code: 'ECONNRESET',
+    syscall: 'read'
+  }
+}
+diagnostic HTTP failure {
+  port: 49292,
+  error: [TypeError: fetch failed] {
+    [cause]: Error: read ECONNRESET
+        at TCP.onStreamRead (node:internal/stream_base_commons:221:20) {
+      errno: -4077,
+      code: 'ECONNRESET',
+      syscall: 'read'
+    }
+  },
+  cause: Error: read ECONNRESET
+      at TCP.onStreamRead (node:internal/stream_base_commons:221:20) {
+    errno: -4077,
+    code: 'ECONNRESET',
+    syscall: 'read'
+  }
+}
+  ok   a blocked non-review human wait releases its stack
+diagnostic HTTP failure {
+  port: 49291,
+  error: [TypeError: fetch failed] {
+    [cause]: Error: connect ECONNREFUSED 127.0.0.1:49291
+        at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2083:16) {
+      errno: -4078,
+      code: 'ECONNREFUSED',
+      syscall: 'connect',
+      address: '127.0.0.1',
+      port: 49291
+    }
+  },
+  cause: Error: connect ECONNREFUSED 127.0.0.1:49291
+      at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2083:16) {
+    errno: -4078,
+    code: 'ECONNREFUSED',
+    syscall: 'connect',
+    address: '127.0.0.1',
+    port: 49291
+  }
+}
+diagnostic HTTP failure {
+  port: 49292,
+  error: [TypeError: fetch failed] {
+    [cause]: Error: connect ECONNREFUSED 127.0.0.1:49292
+        at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2083:16) {
+      errno: -4078,
+      code: 'ECONNREFUSED',
+      syscall: 'connect',
+      address: '127.0.0.1',
+      port: 49292
+    }
+  },
+  cause: Error: connect ECONNREFUSED 127.0.0.1:49292
+      at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2083:16) {
+    errno: -4078,
+    code: 'ECONNREFUSED',
+    syscall: 'connect',
+    address: '127.0.0.1',
+    port: 49292
+  }
+}
+  ok   real CI waiting metadata preserves the stack through step and next
+diagnostic HTTP failure {
+  port: 56286,
+  error: [TypeError: fetch failed] {
+    [cause]: Error: connect ECONNREFUSED 127.0.0.1:56286
+        at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2083:16) {
+      errno: -4078,
+      code: 'ECONNREFUSED',
+      syscall: 'connect',
+      address: '127.0.0.1',
+      port: 56286
+    }
+  },
+  cause: Error: connect ECONNREFUSED 127.0.0.1:56286
+      at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2083:16) {
+    errno: -4078,
+    code: 'ECONNREFUSED',
+    syscall: 'connect',
+    address: '127.0.0.1',
+    port: 56286
+  }
+}
+diagnostic HTTP failure {
+  port: 56287,
+  error: [TypeError: fetch failed] {
+    [cause]: Error: connect ECONNREFUSED 127.0.0.1:56287
+        at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2083:16) {
+      errno: -4078,
+      code: 'ECONNREFUSED',
+      syscall: 'connect',
+      address: '127.0.0.1',
+      port: 56287
+    }
+  },
+  cause: Error: connect ECONNREFUSED 127.0.0.1:56287
+      at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2083:16) {
+    errno: -4078,
+    code: 'ECONNREFUSED',
+    syscall: 'connect',
+    address: '127.0.0.1',
+    port: 56287
+  }
+}
+  ok   explicit helper stop overrides a CI wait
+diagnostic HTTP failure {
+  port: 56286,
+  error: [TypeError: fetch failed] {
+    [cause]: Error: connect ECONNREFUSED 127.0.0.1:56286
+        at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2083:16) {
+      errno: -4078,
+      code: 'ECONNREFUSED',
+      syscall: 'connect',
+      address: '127.0.0.1',
+      port: 56286
+    }
+  },
+  cause: Error: connect ECONNREFUSED 127.0.0.1:56286
+      at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2083:16) {
+    errno: -4078,
+    code: 'ECONNREFUSED',
+    syscall: 'connect',
+    address: '127.0.0.1',
+    port: 56286
+  }
+}
+diagnostic HTTP failure {
+  port: 56287,
+  error: [TypeError: fetch failed] {
+    [cause]: Error: connect ECONNREFUSED 127.0.0.1:56287
+        at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2083:16) {
+      errno: -4078,
+      code: 'ECONNREFUSED',
+      syscall: 'connect',
+      address: '127.0.0.1',
+      port: 56287
+    }
+  },
+  cause: Error: connect ECONNREFUSED 127.0.0.1:56287
+      at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2083:16) {
+    errno: -4078,
+    code: 'ECONNREFUSED',
+    syscall: 'connect',
+    address: '127.0.0.1',
+    port: 56287
+  }
+}
+diagnostic HTTP failure {
+  port: 62377,
+  error: [TypeError: fetch failed] {
+    [cause]: Error: connect ECONNREFUSED 127.0.0.1:62377
+        at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2083:16) {
+      errno: -4078,
+      code: 'ECONNREFUSED',
+      syscall: 'connect',
+      address: '127.0.0.1',
+      port: 62377
+    }
+  },
+  cause: Error: connect ECONNREFUSED 127.0.0.1:62377
+      at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2083:16) {
+    errno: -4078,
+    code: 'ECONNREFUSED',
+    syscall: 'connect',
+    address: '127.0.0.1',
+    port: 62377
+  }
+}
+diagnostic HTTP failure {
+  port: 62376,
+  error: [TypeError: fetch failed] {
+    [cause]: Error: write ECONNRESET
+        at afterWriteDispatched (node:internal/stream_base_commons:138:10)
+        at writeGeneric (node:internal/stream_base_commons:126:10)
+        at Socket._writeGeneric (node:net:1324:11)
+        at Socket._write (node:net:1336:8)
+        at writeOrBuffer (node:internal/streams/writable:574:12)
+        at _write (node:internal/streams/writable:503:10)
+        at Writable.write (node:internal/streams/writable:512:10)
+        at writeBuffer (node:internal/deps/undici/undici:8337:20)
+        at writeH1 (node:internal/deps/undici/undici:8239:9)
+        at Object.write (node:internal/deps/undici/undici:7922:18) {
+      errno: -4077,
+      code: 'ECONNRESET',
+      syscall: 'write'
+    }
+  },
+  cause: Error: write ECONNRESET
+      at afterWriteDispatched (node:internal/stream_base_commons:138:10)
+      at writeGeneric (node:internal/stream_base_commons:126:10)
+      at Socket._writeGeneric (node:net:1324:11)
+      at Socket._write (node:net:1336:8)
+      at writeOrBuffer (node:internal/streams/writable:574:12)
+      at _write (node:internal/streams/writable:503:10)
+      at Writable.write (node:internal/streams/writable:512:10)
+      at writeBuffer (node:internal/deps/undici/undici:8337:20)
+      at writeH1 (node:internal/deps/undici/undici:8239:9)
+      at Object.write (node:internal/deps/undici/undici:7922:18) {
+    errno: -4077,
+    code: 'ECONNRESET',
+    syscall: 'write'
+  }
+}
+  ok   legacy/foreign round state does not prevent a verified stop or get rewritten
+diagnostic HTTP failure {
+  port: 62376,
+  error: [TypeError: fetch failed] {
+    [cause]: Error: connect ECONNREFUSED 127.0.0.1:62376
+        at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2083:16) {
+      errno: -4078,
+      code: 'ECONNREFUSED',
+      syscall: 'connect',
+      address: '127.0.0.1',
+      port: 62376
+    }
+  },
+  cause: Error: connect ECONNREFUSED 127.0.0.1:62376
+      at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2083:16) {
+    errno: -4078,
+    code: 'ECONNREFUSED',
+    syscall: 'connect',
+    address: '127.0.0.1',
+    port: 62376
+  }
+}
+diagnostic HTTP failure {
+  port: 62377,
+  error: [TypeError: fetch failed] {
+    [cause]: Error: connect ECONNREFUSED 127.0.0.1:62377
+        at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2083:16) {
+      errno: -4078,
+      code: 'ECONNREFUSED',
+      syscall: 'connect',
+      address: '127.0.0.1',
+      port: 62377
+    }
+  },
+  cause: Error: connect ECONNREFUSED 127.0.0.1:62377
+      at TCPConnectWrap.afterConnect [as oncomplete] (node:net:2083:16) {
+    errno: -4078,
+    code: 'ECONNREFUSED',
+    syscall: 'connect',
+    address: '127.0.0.1',
+    port: 62377
+  }
+}
+  ok   malformed ownership is refused and left intact
+diagnostic forged refusal {
+  code: 1,
+  independent: [ { pid: 94716, port: 62399 }, { pid: 101772, port: 62411 } ],
+  pidUnchanged: true
+}
+  ok   a copied/recycled PID cannot stop another worktree or erase its authority
+  ok   an unowned stale PID warns without refusing agreement dispatch
+  ok   an unowned stale PID also warns without invalidating the committed held phase
+  ok   an agent in the same checkout is not a server even with the workflow command in its prompt
+  ok   a lazy start refuses unresolved ownership without stopping either unrelated process
+diagnostic HTTP failure {
+  port: 62411,
+  error: [TypeError: fetch failed] {
+    [cause]: Error: read ECONNRESET
+        at TCP.onStreamRead (node:internal/stream_base_commons:221:20) {
+      errno: -4077,
+      code: 'ECONNRESET',
+      syscall: 'read'
+    }
+  },
+  cause: Error: read ECONNRESET
+      at TCP.onStreamRead (node:internal/stream_base_commons:221:20) {
+    errno: -4077,
+    code: 'ECONNRESET',
+    syscall: 'read'
+  }
+}
+
+all arms green

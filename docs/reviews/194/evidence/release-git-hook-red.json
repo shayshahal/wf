@@ -1,0 +1,8 @@
+{
+  "before": false,
+  "after": true,
+  "cleanup": {
+    "kind": "complete",
+    "journal": "C:\\Users\\Shay\\AppData\\Local\\Temp\\wf194 release hook J56xf5\\.git\\wf-workspace-61050a2dd3887476fd7ed3f0e9b1f61dabf61e134f6b5a5dbfe4b39c96127e86.cleanup.json"
+  }
+}
