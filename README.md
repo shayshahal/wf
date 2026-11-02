@@ -370,7 +370,27 @@ Each question has a retry-safe message reference in `.wf/state.json`; replies ar
 until the agent records the person's ruling with `wf decide --q <n>`. Agreement changes still
 use `--revise`; T1/T2 still use `wf agree`/`wf review`. `wf next` never polls the Inbox.
 
-Inbox uses the shared Plannotator data directory, unlike the worktree-local T1/T2 reviews.
+Inbox and T2 code review use the shared Plannotator data directory; T1 document annotation keeps
+worktree-local logs. T2 therefore sees the person's analysis settings and managed engines.
+`wf review` on Shay's entry opens the repository-backed committed `base...HEAD` comparison
+(`--diff-type merge-base`), unless native presentation owns the handoff or `WF_NO_OPEN=1` is set.
+Native sessions get the exact base/mode and tool guidance instead of a blocking external launch.
+
+Plannotator's **Semantic changes** lists changed entities; **Call flow** adds inferred call paths,
+source navigation and inline comments. Call flow is experimental and opt-in in Settings → Analysis;
+its toggle consents to installing Plannotator's managed runtime and needed language packs. wf does
+not change those settings or install engines. These are navigation aids, not runtime traces or a
+substitute for the independent assessment and proof. An Inbox Guided Review is a walkthrough, not
+the live analysis surface or delivery approval.
+
+The external T2 adapter retains the session's structured decision/message as quoted feedback,
+not automatic approval. Plannotator 0.28.45 does not include the submitted comparison/snapshot in
+that response; its shared archive cannot prove which session submitted a record. Thus even a UI
+Approve leaves `verdict: pending`. The session must verify the displayed comparison and evidence
+with the person and obtain their ruling on the prepared implementation identities before recording
+it. If it cannot, review stays pending. Failed reopens invalidate older approval, and changed content
+or HEAD trees cannot receive the returned feedback's identity. Only `wf review --done` advances
+the human gate. Automatic verdict import needs an upstream session-owned snapshot contract.
 Pi's enabled Inbox integration wakes the sending session; after a session ends, `wf inbox` in
 the round's worktree retrieves its replies. The kit without a transport, or an unavailable CLI,
 falls back to asking directly and `wf decide`. No runtime packages are needed.

@@ -38,7 +38,9 @@ export function t3Presentation(env: NodeJS.ProcessEnv): NativePresentation | nul
 			'Use a native file/diff view when available. If a tool is absent or fails, show the exact markdown and verified artifact paths and name the limitation.',
 			'Read the files before presenting them. A visual is a presentation of those files, not new scope, proof of a live app, or approval.',
 		].join('\n'),
-		reviewHandoff: ({ kind, document, pages, reviewFile, worktree }) => [
+		reviewHandoff: (review) => {
+			const { kind, document, pages, reviewFile, worktree } = review;
+			return [
 			`native review handoff: T3 Code — ${kind} (not opened by wf)`,
 			`worktree: ${worktree}`,
 			`read: ${document}`,
@@ -46,10 +48,14 @@ export function t3Presentation(env: NodeJS.ProcessEnv): NativePresentation | nul
 			`record: ${reviewFile}`,
 			decisionSheetGuidance(),
 			'Present a compact decision sheet and the relevant visual using this session\'s native tools. At T1 show the full Observed + Agreed material, including exclusions, choices and unrequested additions; keep source references accessible.',
-			...(kind === 'review' ? ['At T2 show the diff against the record\'s base, assessment findings, manual checks, evidence and unmeasured behavior. Use the native diff view if available.'] : []),
+			...(review.kind === 'review' ? [
+				`comparison: ${review.base}...HEAD; diff-type: ${review.diffType} (committed changes only)`,
+				'At T2 show this exact committed comparison, assessment findings, manual checks, evidence and unmeasured behavior. Verify the submitted base and diff type and the displayed implementation before recording the verdict; a tool default or switched view is not the requested range. An unbound UI response remains quoted feedback with a pending verdict until the person rules on the prepared identities.',
+			] : []),
 			'For HTML, read the page and resolve its local views/images before rendering; if native rendering cannot carry them faithfully, show those artifacts separately and retain the exact markdown.',
 			'After the person actually rules, retain the identity header and append a note naming what was shown, their comments and their exact verdict in the record. Until then leave it pending; a generated control or tool success is not approval.',
-		].join('\n'),
+			].join('\n');
+		},
 	};
 }
 

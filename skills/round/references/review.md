@@ -95,9 +95,20 @@ The independent final assessment and final T2 walk are not checkpoint prerequisi
      handoff. After delivery, verify that both images render in the PR description.
 2. **Prepare the record.** Run `wf review <branch>`. It prepares the bound review record and the
    inspection artifacts.
-   - Use the configured UI. Or show the person the named files and record their comments and
-     actual verdict.
-   - Keep the reviewed identity header. It does not approve later product or test changes.
+   - Use the configured UI. A native presentation handoff takes priority: the session opens its
+     review tool and waits for feedback; wf has not opened that tool. Otherwise the configured diff
+     adapter can open the review. `WF_NO_OPEN=1` keeps the external launch off.
+   - Show the exact committed `base...HEAD` comparison (`merge-base` mode), using the base in the
+     record. Check the submitted comparison too: a changed base or view needs a new review.
+   - Use available entity and inferred call-path analysis as navigation, then inspect the text diff
+     and proof. Inferred paths are not runtime traces or verification. Runtime installation and
+     analysis settings remain opt-in. An unavailable analysis does not prevent ordinary review.
+   - A UI response without a verified submitted snapshot is feedback only. Keep it quoted in the
+     record with `verdict: pending`; verify the displayed comparison and evidence with the person
+     and obtain their ruling on the prepared identities. If that cannot be established, stay pending.
+   - Without a review UI, show the named files and obtain the person's actual comments and verdict.
+   - Keep the reviewed identity header. It does not approve later product or test changes. A new
+     review starts pending; a failed launch or unverified comparison cannot reuse older approval.
 3. **Record the verdict.** After the person submits the verdict, run `wf review <branch> --done`.
    Then run `wf next`. If the person requested changes, the round returns to build. Its corrections
    and screenshots stay as obligations.

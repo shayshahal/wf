@@ -219,16 +219,38 @@ export async function runReview(argv: string[], { stack = ensureServers }: { sta
   // HEAD (#106 final review). A checkpoint's range may change without changing either identity;
   // its requested base must still be the one the native handoff tells the person to review.
   const previousBinding = previous === null ? null : { contentSha: lastField(previous, 'content-sha'), headSha: lastField(previous, 'head-sha') };
-  if (previous === null || (needsFreshReviewHeader(previousBinding, contentSha, headSha) || lastField(previous, 'base') !== base)) {
+  if (previous === null || readVerdict(previous) !== null || (needsFreshReviewHeader(previousBinding, contentSha, headSha) || lastField(previous, 'base') !== base)) {
     appendDatedSection(file, renderSkeleton({ round, klass, base, contentSha, headSha, scope: target.scope, urls: devUrlsFor(worktree), files, beforeAfter, assessment, manual }));
   }
+  console.log(`review comparison: ${base}...HEAD (merge-base; committed changes only)`);
+  if (seams.reviewUI?.diffGuidance) console.log(seams.reviewUI.diffGuidance);
   if (seams.presentation) {
     console.log(seams.presentation.guidance);
-    console.log(seams.presentation.reviewHandoff({ kind: 'review', worktree, document: file, pages: shots.files, reviewFile: file }));
+    console.log(seams.presentation.reviewHandoff({ kind: 'review', worktree, document: file, pages: shots.files, reviewFile: file, base, diffType: 'merge-base' }));
     return;
   }
-  // T2 shows the proof (the before/after lines above and the header's evidence), and opens nothing: no
-  // diff screen, no editor. The person says the verdict in the chat; write it into this file (round skill, T2).
+  if (seams.reviewUI?.reviewDiff && seams.reviewUI.available() && process.env.WF_NO_OPEN !== '1') {
+    const result = seams.reviewUI.reviewDiff({ worktree, base });
+    if (result.kind === 'error') {
+      console.error(`wf review: ${result.message}`);
+      process.exit(2);
+    }
+    if (result.kind === 'feedback') {
+      const now = currentIdentity(worktree);
+      if (now.worktree !== contentSha || now.head !== headSha) {
+        console.error(`wf review: implementation changed while the review was open — no verdict recorded; re-run wf review ${round}`);
+        process.exit(2);
+      }
+      // Quote every external line so rendered feedback cannot inject a verdict or identity field.
+      const feedback = result.message.split(/\r?\n/).map((line) => `> ${line}`).join('\n');
+      appendDatedSection(file, `${header()}UI decision (unbound): ${result.decision}\n\n${feedback}\n\nverdict: pending (verify the shown comparison and obtain the person's ruling on this identity)\n`);
+      console.log(`review feedback: ${file}\n${result.message}\nThe UI result has no verified submitted snapshot. Keep the verdict pending until the person rules on this record's comparison and implementation identities.`);
+      return;
+    }
+    // A new dismissal must supersede any older approval, even on the same implementation.
+    appendDatedSection(file, `${header()}verdict: dismissed\n`);
+  }
+  // Without a configured diff UI, or after dismissal, the person can rule in the chat.
   console.log(`review file: ${file}
   The proof is above. The person gives the comments and the verdict in the chat; write both into this file (round skill, T2)`);
 }
