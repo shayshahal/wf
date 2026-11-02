@@ -160,6 +160,8 @@ try {
 	const review = invoke('review');
 	assert.equal(review.status, 0, `${review.stdout}${review.stderr}`);
 	assert.match(review.stdout, /native review handoff: T3 Code — review/);
+	assert.match(review.stdout, /comparison: main\.\.\.HEAD; diff-type: merge-base/);
+	assert.match(review.stdout, /Verify the submitted base and diff type/);
 	assert.ok(review.stdout.includes(checkpoint));
 	// A different checkout still has no .wf: matching the native binding prevents the dead-link case.
 	assert.equal(existsSync(join(chat, '.wf', 'before-after.html')), false);

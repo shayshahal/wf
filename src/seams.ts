@@ -20,9 +20,18 @@ export type RemovalStep = { label: string } & (
 	| { run: () => unknown | Promise<unknown>; cmd?: never; args?: never; env?: never; rm?: never }
 );
 export type Worktree = { path: string; branch: string | null };
+/** Diff UI feedback carries no approval authority without a verified submitted snapshot. */
+export type DiffReviewResult =
+	| { readonly kind: 'feedback'; readonly decision: 'approved' | 'annotated'; readonly message: string }
+	| { readonly kind: 'dismissed' }
+	| { readonly kind: 'error'; readonly message: string };
 export type ReviewUI = {
 	available: () => boolean;
 	annotate: (o: { worktree: string; file: string; since: string }) => ReviewFeedback | null;
+	/** Session-owned review tools can consume this guidance without invoking the blocking adapter. */
+	diffGuidance?: string;
+	/** Open the committed merge-base diff; unbound UI decisions remain feedback, not gate approval. */
+	reviewDiff?: (o: { worktree: string; base: string }) => DiffReviewResult;
 };
 // A question inbox carries messages, not round decisions or human gate approvals.
 export type QuestionInbox = {
@@ -31,12 +40,14 @@ export type QuestionInbox = {
 };
 /** A native review handoff names exact artifacts; the session, not wf, invokes its UI tools. */
 export type ReviewPresentation = {
-	readonly kind: 'agreement' | 'review';
 	readonly worktree: string;
 	readonly document: string;
 	readonly pages: readonly string[];
 	readonly reviewFile: string;
-};
+} & (
+	| { readonly kind: 'agreement' }
+	| { readonly kind: 'review'; readonly base: string; readonly diffType: 'merge-base' }
+);
 /** Presentation instructions carry no verdict and never claim a native tool was executed. */
 export type NativePresentation = {
 	readonly guidance: string;
