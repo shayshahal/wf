@@ -17,6 +17,7 @@ import type { State } from '../../src/round/state.ts';
 import { listWorktrees, mainCheckout, basePortForBranch } from '../../src/worktrees/worktree.ts';
 import { homedir } from 'node:os';
 import { delimiter } from 'node:path';
+import { cjxStackRefusal } from './cjx-stack.ts';
 import { closeBrowsers, installShim, linkVerifySkill, REPRO_CONFIG, reproConfig, unlinkCompetingSkills, VERIFY_SKILL, verifyStackEnv, writeReproConfig } from './round.ts';
 import type { VerificationProfile, VerificationRequirements } from './readiness.ts';
 export { parseVerificationProfile, probeVerificationEndpoint, verificationEndpoints, waitForVerificationReady } from './readiness.ts';
@@ -282,8 +283,12 @@ export function workspaceResourceTeardown({ worktree, slug, log }: import('../..
 
 export { createJewelryxWorkspaceProject } from './workspace-resources.ts';
 
-/** Prepare shared infrastructure before acquiring a worktree's server process tree. */
-export function prepareServe(): void { machine().prepareServe?.(); }
+/** Refuse beside a running `cjx stack up` stack, then prepare shared infrastructure, before acquiring a worktree's server process tree. */
+export function prepareServe(worktree: string): void {
+	const refusal = cjxStackRefusal(worktree);
+	if (refusal) throw new Error(refusal);
+	machine().prepareServe?.();
+}
 
 // The stack: the three dev servers, until they die (`wf serve`, when a phase needs them).
 export async function serve({ worktree, slug, port, profile }: { worktree: string; profile?: VerificationProfile } & Stack): Promise<void> {

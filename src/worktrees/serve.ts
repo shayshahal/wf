@@ -178,7 +178,7 @@ export function startServers(worktree: string): number {
 // Keep the exact launch token inside the acquisition operation: reading it back after startup could
 // accidentally adopt a replacement owner's receipt (#146, temporary verification servers).
 function startOwnedServers(worktree: string, profile?: VerificationProfile, launchEnv?: NodeJS.ProcessEnv): { pid: number; token: string } {
-	prepareServe();
+	prepareServe(worktree);
 	const release = reserveServerOwnership(worktree);
 	try {
 		if (existsSync(pidFile(worktree)) || existsSync(join(worktree, '.wf', 'serve-owner.json'))) throw new Error('wf serve: existing ownership must be released before starting another stack');
@@ -364,5 +364,6 @@ export async function runServe(argv: string[]) {
 		}
 		return serve({ worktree, slug, port, profile: parsed.profile });
 	}
-	console.log(await ensureServers(worktree, { wait: argv.includes('--wait') }));
+	// A refusal (the project's prepareServe, unresolved ownership) is the answer, not a crash's stack trace.
+	try { console.log(await ensureServers(worktree, { wait: argv.includes('--wait') })); } catch (e) { console.error((e as Error).message); process.exitCode = 1; }
 }
