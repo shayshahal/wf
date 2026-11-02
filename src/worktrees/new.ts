@@ -16,7 +16,8 @@ import { join } from 'node:path';
 import { refuseCaller } from '../refusal.ts';
 import { baseBranch, newRound, releaseBaseCheck, releaseBranches, roundBranches, roundsDir, secretsGap, stackUrls } from '../project.ts';
 import { WF_ROOT } from '../paths.ts';
-import { basePortForBranch, createWorktree, excludeFromGit, listWorktrees, mainCheckout, slugForBranch, urlLines } from './worktree.ts';
+import { chooseNewPort } from './port-claim.ts';
+import { createWorktree, excludeFromGit, listWorktrees, mainCheckout, slugForBranch, urlLines } from './worktree.ts';
 import { seams } from '../seams.ts';
 import { writeState, WF_STATE_VERSION } from '../round/state.ts';
 
@@ -164,9 +165,13 @@ export async function runNew(argv: string[]) {
 		process.exit(1);
 	}
 	const log = join(tmpdir(), `wf-new-${branch.replace(/[^A-Za-z0-9.-]/g, '-')}.log`);
+	// Probed before the worktree exists: setup writes the port into its files and its database step.
+	const chosen = await chooseNewPort(branch);
+	if (chosen.line) console.log(chosen.line);
+	const port = chosen.port;
 	let path;
 	try {
-		({ path } = await createWorktree({ branch, base, log }));
+		({ path } = await createWorktree({ branch, base, log, port }));
 	} catch (e) {
 		console.error(`wf new: ${(e as Error).message}`);
 		process.exit(1);
@@ -178,9 +183,9 @@ export async function runNew(argv: string[]) {
 	execFileSync('node', [seams.entry, 'step', 'classify', '--base', base, ...(klass ? ['--class', klass] : [])], { stdio: 'inherit', cwd: path });
 	const folder = `${roundsDir}/${slugForBranch(branch)}`;
 	mkdirSync(join(path, folder), { recursive: true });
-	const notes = newRound({ worktree: path, folder, port: basePortForBranch(branch) });
+	const notes = newRound({ worktree: path, folder, port });
 	const openedBy = seams.opener?.() ?? null;
-	writeState(path, () => ({ wf_version: WF_STATE_VERSION, id: ids[0] ?? branch, ...(ids.length > 1 ? { ids } : {}), folder, made_by: seams.madeBy, entry: seams.entry.replace(/\\/g, '/'), ...(openedBy ? { opened_by: openedBy } : {}), ...(argv.includes('--check') ? { check: true } : {}) }));
+	writeState(path, () => ({ wf_version: WF_STATE_VERSION, id: ids[0] ?? branch, ...(ids.length > 1 ? { ids } : {}), folder, made_by: seams.madeBy, entry: seams.entry.replace(/\\/g, '/'), ...(openedBy ? { opened_by: openedBy } : {}), ...(argv.includes('--check') ? { check: true } : {}), ...(chosen.moved ? { port } : {}) }));
 	if (reopen && dupes.length) {
 		const decisions = (folder: string) => ['AGREEMENT.md', 'TICKET.md', 'PLAN.md'].flatMap((file) => {
 			try { return decisionsOf(execFileSync('git', ['show', `${base}:${folder}/${file}`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })); }
@@ -189,7 +194,7 @@ export async function runNew(argv: string[]) {
 		const rulings = dupes.filter((d) => d.startsWith(`${roundsDir}/`)).map((folder) => ({ folder, lines: [...new Set(decisions(folder))] }));
 		writeFileSync(join(path, folder, 'EARLIER.md'), earlierText({ ids, dupes, rulings }));
 	}
-	const urls = stackUrls({ slug: slugForBranch(branch), port: basePortForBranch(branch) });
+	const urls = stackUrls({ slug: slugForBranch(branch), port });
 	mkdirSync(join(path, '.claude'), { recursive: true });
 	writeFileSync(join(path, '.claude', 'launch.json'), launchConfig(urls));
 	writeCloneLaunch(slugForBranch(branch), urls);

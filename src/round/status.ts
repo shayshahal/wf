@@ -63,7 +63,7 @@ export async function collectRows({ paths, readState, pullRequests = [], now = D
     const branch = state?.round ?? branchOf(path);
     if (branch && basePortFor && probeStack) {
       try {
-        const port = await basePortFor(branch);
+        const port = state?.port ?? (await basePortFor(branch));
         const up = await probeStack(port);
         // Display the first app's name (the one on the base port); the probe stays on the port.
         const name = slugFor ? Object.values(stackUrls({ slug: await slugFor(branch), port }))[0] : null;

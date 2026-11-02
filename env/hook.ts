@@ -91,7 +91,9 @@ function sh(command: string) {
 }
 
 export async function runHook(argv: string[]) {
-	const [step, slug, port] = argv;
+	// WF_BASE_PORT: the port wf chose at `wf new`, which wt's own hash_port argument is not when the hashed one was held.
+	const [step, slug] = argv;
+	const port = process.env.WF_BASE_PORT ?? argv[2];
 	if (step === 'install') {
 		const file = userConfigPath();
 		const wf = fileURLToPath(new URL('./wf.mjs', import.meta.url)).replace(/\\/g, '/');

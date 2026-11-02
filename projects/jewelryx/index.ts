@@ -16,7 +16,7 @@ import type { State } from '../../src/round/state.ts';
 import { listWorktrees, mainCheckout, basePortForBranch } from '../../src/worktrees/worktree.ts';
 import { homedir } from 'node:os';
 import { delimiter } from 'node:path';
-import { closeBrowsers, installShim, linkVerifySkill, unlinkCompetingSkills, verifyStackEnv, writeReproConfig } from './round.ts';
+import { closeBrowsers, installShim, linkVerifySkill, REPRO_CONFIG, reproConfig, unlinkCompetingSkills, VERIFY_SKILL, verifyStackEnv, writeReproConfig } from './round.ts';
 import type { VerificationProfile, VerificationRequirements } from './readiness.ts';
 export { parseVerificationProfile, probeVerificationEndpoint, verificationEndpoints, waitForVerificationReady } from './readiness.ts';
 export { trackerCompletionGap } from './post-completion.ts';
@@ -77,6 +77,19 @@ export type Wrap = (o: { role: keyof Origins; port: number; command: string }) =
 export function directUrls(port: Port): Origins {
 	const p = Number(port);
 	return { b2b: `http://localhost:${p}`, admin: `http://localhost:${p + 20_000}`, api: `http://127.0.0.1:${p + 10_000}/api/v1` };
+}
+
+/** Every port a stack on `base` listens on (dev.ts): what a collision check has to find free. */
+export function stackPorts(base: Port): number[] {
+	const p = Number(base);
+	return [p, p + 10_000, p + 20_000];
+}
+
+/** The files that carry a stack's ports, rewritten when the round's port moves (port-claim.ts). */
+export async function moveStack({ worktree, port, folder }: { worktree: string; folder?: string } & Stack): Promise<void> {
+	writeFileSync(join(worktree, '.verify-stack.env'), verifyStackEnv(directUrls(port), join(worktree, '.wf', 'logs', 'dev.log').replace(/\\/g, '/')));
+	const config = folder ? join(worktree, folder, 'repro', 'playwright.config.ts') : null;
+	if (config && existsSync(config) && !existsSync(join(worktree, REPRO_CONFIG))) writeFileSync(config, reproConfig({ direct: directUrls(port), withAuth: existsSync(join(worktree, VERIFY_SKILL)) }));
 }
 
 /** The direct endpoints owned by a server profile; a narrow release must not require unrelated apps to stop. */

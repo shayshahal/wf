@@ -15,7 +15,7 @@ import { WF_HOME, WF_ROOT, wfEntryCommand } from '../paths.ts';
 import { anchorToolPaths } from '../plugin/anchor.ts';
 import { seams } from '../seams.ts';
 import { readVerdict } from '../gates/review-format.ts';
-import { basePortForBranch } from '../worktrees/worktree.ts';
+import { roundPort } from '../worktrees/round-port.ts';
 import { agreementFile, agreementPath, revisionSha, ASSESSMENT_FILE, caseFiles, CHECKPOINT_REVIEW_FILE, consequential, REVIEW_FILE, section, TICKET_FILE, verificationCases } from './agreement.ts';
 import { openQuestionGate, openRevisions, overruledAsks } from './ask.ts';
 import { guidanceSection, notesFor, readNotes } from './guidance.ts';
@@ -103,7 +103,7 @@ export function composePrompt(argv: string[]) {
 	const assessmentFile = ASSESSMENT_FILE;
 	// The project's direct URLs, {{<app>}}: Node on Windows cannot resolve *.localhost.
 	try {
-		const base = basePortForBranch(currentBranch(toplevel));
+		const base = roundPort(toplevel, currentBranch(toplevel));
 		Object.assign(vars, directUrls(base));
 	} catch { /* not in a round worktree */ }
 	// The previous updater anchors every *.md, including during the first upgrade to this release.

@@ -21,7 +21,8 @@ import type { VerificationProfile, VerificationRequirements } from '../project.t
 import { seams } from '../seams.ts';
 import { realProbeStack } from '../round/status.ts';
 import { PROCESS_CWD_PS } from '../process-cwd.ts';
-import { basePortForBranch, slugForBranch, urlLines } from './worktree.ts';
+import { claimRoundPort, roundPort } from './port-claim.ts';
+import { slugForBranch, urlLines } from './worktree.ts';
 
 export const pidFile = (worktree: string) => join(worktree, '.wf', 'serve.pid');
 
@@ -151,7 +152,7 @@ export async function stopWorktreeServers(worktree: string, expectedToken?: stri
 		writeFileSync(record, releasing);
 		if (!seams.processes.kill(owners)) return { kind: 'refused', why: 'wf serve: could not stop owned processes; ownership retained for retry' };
 		const branch = execFileSync('git', ['-C', worktree, 'rev-parse', '--abbrev-ref', 'HEAD'], { encoding: 'utf8', stdio: 'pipe' }).trim();
-		const urls = serverDirectUrls(basePortForBranch(branch), profile).flatMap((value) => { const url = new URL(value); if (url.hostname !== 'localhost') return [url]; const ipv4 = new URL(value); ipv4.hostname = '127.0.0.1'; const ipv6 = new URL(value); ipv6.hostname = '[::1]'; return [ipv4, ipv6]; });
+		const urls = serverDirectUrls(roundPort(worktree, branch), profile).flatMap((value) => { const url = new URL(value); if (url.hostname !== 'localhost') return [url]; const ipv4 = new URL(value); ipv4.hostname = '127.0.0.1'; const ipv6 = new URL(value); ipv6.hostname = '[::1]'; return [ipv4, ipv6]; });
 		const until = Date.now() + 3000;
 		while (true) {
 			if (!pidUnchanged() || readFileSync(record, 'utf8') !== releasing) return { kind: 'refused', why: 'wf serve: ownership changed during shutdown; replacement retained' };
@@ -284,11 +285,18 @@ export function hiddenHop(platform: NodeJS.Platform, env: NodeJS.ProcessEnv, pro
 export async function ensureServers(worktree: string, { wait = false, timeoutMs = 180_000 }: { wait?: boolean; timeoutMs?: number } = {}): Promise<string> {
 	const branch = execFileSync('git', ['-C', worktree, 'rev-parse', '--abbrev-ref', 'HEAD'], { encoding: 'utf8' }).trim();
 	const slug = slugForBranch(branch);
-	const port = basePortForBranch(branch);
-	const urls = urlLines(stackUrls({ slug, port }));
-	const logs = join(worktree, '.wf', 'logs');
-	if (await realProbeStack(port)) return `wf serve: the stack answers already\n${urls}`;
 	const pid = servePid(worktree);
+	const logs = join(worktree, '.wf', 'logs');
+	// A stack of this round's own may hold its ports; anything else holding one moves the round (port-claim.ts).
+	const ownStack = pid !== null && alive(pid);
+	let port = roundPort(worktree, branch);
+	if (!ownStack) {
+		const claim = await claimRoundPort({ worktree, branch, slug });
+		port = claim.port;
+		if (claim.line) console.log(claim.line);
+	}
+	const urls = urlLines(stackUrls({ slug, port }));
+	if (await realProbeStack(port)) return `wf serve: the stack answers already\n${urls}`;
 	if (pid && serverProcessOwner(worktree, pid) !== 'owned' || !pid && existsSync(join(worktree, '.wf', 'serve-owner.json'))) {
 		throw new Error('wf serve: previous ownership is unresolved; run wf serve --stop and inspect its recovery record before restarting');
 	}
@@ -328,7 +336,7 @@ export async function runServe(argv: string[]) {
 	}
 	const branch = git('rev-parse', '--abbrev-ref', 'HEAD');
 	const slug = slugForBranch(branch);
-	const port = basePortForBranch(branch);
+	const port = roundPort(worktree, branch);
 	if (argv.includes('--foreground')) {
 		// The detached owner must be durably identified before it can acquire any server children.
 		if (!process.env.WF_SERVE_HIDDEN) {
