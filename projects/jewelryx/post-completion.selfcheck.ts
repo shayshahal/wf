@@ -43,5 +43,8 @@ for (const [state, branch, expected] of [
 	[{ id: 'chore/x', ids: [] }, undefined, false],
 	[{ id: 'JX-1534', ids: ['JX-1534'] }, undefined, false],
 	[null, undefined, false],
+	[{ id: 'chore/verify-tool-gaps-2' }, 'chore/verify-tool-gaps-2', true],
+	[{ id: 'jx-274-short-pages-min-height' }, undefined, false],
+	[{ id: 'feat/foo-JX-12' }, undefined, false],
 ] as const) assert.equal(isTicketless(state, branch), expected, JSON.stringify([state, branch]));
 console.log('tracker completion routing, identity and acknowledgement subset checks green');
