@@ -2,7 +2,7 @@
 // wf post — post the round's filled tracker note (JIRA.md) to Jira: per `## <key>` section not yet
 // `(posted)`, attach the proof/ pictures its `pictures:` line names to the issue, post the section as a
 // comment with those pictures shown in it, and mark the heading. Only a confirmed merged delivery
-// sets Fixed in Local. The round skill
+// sets Fixed in Local, and only for a section whose `status:` line does not say keep. The round skill
 // fills the Hebrew text and shows it to the user first; this does the rest, the same way every round.
 // JX-268 (BJEW-562, 2026-10-07): the post was hand-made from MCP calls, the pictures were left for
 // the user to attach, and the reap after it deleted them. Atlassian's MCP cannot put a picture in a
@@ -56,8 +56,25 @@ export const pictureType = (file: string) => ({ png: 'image/png', jpg: 'image/jp
 // line lives in the note itself, so the choice survives an interrupted post and a resumed round.
 const PICTURES_LINE = /^pictures:[ \t]*(.*)$/i;
 
-// Pure: the section's text as the comment carries it, without its `pictures:` line.
-export const commentText = (s: Section) => s.text.split('\n').filter((l) => !PICTURES_LINE.test(l)).join('\n').trim();
+// JX-712 (2026-11-02): a multi-slice ticket (one page migrated per round) stays In Progress until the
+// last slice, but the first slice's merge set it Fixed in Local and Shay moved it back by hand. Each
+// section says on a `status:` line whether its merge completes the ticket (`Fixed in Local`) or is one
+// slice of a ticket that stays open (`keep`). A section with no such line was scaffolded before it.
+const STATUS_LINE = /^status:[ \t]*(.*)$/i;
+
+// Pure: the section's text as the comment carries it, without its `pictures:` and `status:` lines.
+export const commentText = (s: Section) => s.text.split('\n').filter((l) => !PICTURES_LINE.test(l) && !STATUS_LINE.test(l)).join('\n').trim();
+
+// Pure: whether the section's merge keeps the ticket's status, or why it cannot be posted. No line
+// means Fixed in Local, so a note scaffolded before the line existed posts as it did.
+export function statusChoice(s: Section): { keep: boolean } | { gap: string } {
+	const lines = s.text.split('\n').map((l) => STATUS_LINE.exec(l)).filter((m) => m !== null);
+	if (!lines.length) return { keep: false };
+	const value = lines[0][1].trim();
+	if (lines.length === 1 && value.toLowerCase() === DELIVERED.toLowerCase()) return { keep: false };
+	if (lines.length === 1 && value.toLowerCase() === 'keep') return { keep: true };
+	return { gap: `${s.key}: ${lines.length > 1 ? 'more than one status: line' : `status: ${value || '(empty)'} is neither`}; write status: ${DELIVERED}, or status: keep when this round is one slice of a ticket that stays open` };
+}
 
 // Pure: the proof/ files a section names for the reporter, each once, in the order the comment shows
 // them (by label, before then after); or why it cannot be posted. A missing line is refused, never
@@ -216,7 +233,8 @@ async function runLockedPost(argv: string[]): Promise<void> {
 	const proofDir = join(toplevel, state!.folder ?? '', 'proof');
 	const names = existsSync(proofDir) ? readdirSync(proofDir) : [];
 	const selections = new Map(todo.map((s) => [s.key, selectedPictures(s, names)]));
-	const gaps = [...todo.map(unfilled), ...todo.map((s) => { const sel = selections.get(s.key)!; return 'gap' in sel ? sel.gap : null; })].filter((g) => g !== null);
+	// Every section's status: line, posted ones too: completing an already-notified section reads it.
+	const gaps = [...todo.map(unfilled), ...todo.map((s) => { const sel = selections.get(s.key)!; return 'gap' in sel ? sel.gap : null; }), ...sections.map((s) => { const choice = statusChoice(s); return 'gap' in choice ? choice.gap : null; })].filter((g) => g !== null);
 	if (gaps.length) {
 		console.error(`wf post: fill the note first (${state!.note}); nothing posted\n${gaps.join('\n')}`);
 		process.exit(1);
@@ -301,9 +319,11 @@ async function runLockedPost(argv: string[]): Promise<void> {
 	for (const s of pending) {
 		validate();
 		if (!s.posted || !hasPrUrl(s.text, delivery.url)) throw new Error(`wf post: ${s.key} notification does not identify confirmed delivery ${delivery.url}; restore its note before retrying`);
+		const choice = statusChoice(s);
+		if ('gap' in choice) throw new Error(`wf post: ${choice.gap}; completion remains pending`);
 		let status = await trackerStatus(auth, s.key);
 		validate();
-		if (status !== DELIVERED) {
+		if (!choice.keep && status !== DELIVERED) {
 			const raw: unknown = await jira(auth, `3/issue/${s.key}/transitions`);
 			const transition = deliveredTransition(raw);
 			if (!transition) throw new Error(`wf post: ${s.key} has no known transition to ${DELIVERED}; completion remains pending`);
@@ -312,13 +332,13 @@ async function runLockedPost(argv: string[]): Promise<void> {
 			status = await trackerStatus(auth, s.key);
 		}
 		validate();
-		if (status !== DELIVERED) throw new Error(`wf post: ${s.key} status readback is ${status}, not ${DELIVERED}; completion remains pending`);
+		if (!choice.keep && status !== DELIVERED) throw new Error(`wf post: ${s.key} status readback is ${status}, not ${DELIVERED}; completion remains pending`);
 		state = writeState(toplevel, (current) => {
 			validate(current);
 			const previous = sameDelivery(current.post_completion?.delivery, delivery) ? current.post_completion?.sections ?? [] : [];
 			return { post_completion: { delivery, sections: [...previous.filter((p) => p.key !== s.key), { key: s.key, sha: sectionSha(s) }] } };
 		});
-		console.log(`${s.key}: confirmed ${DELIVERED} — ${SITE}/browse/${s.key}`);
+		console.log(choice.keep ? `${s.key}: status kept (${status}) — one slice of a ticket that stays open — ${SITE}/browse/${s.key}` : `${s.key}: confirmed ${DELIVERED} — ${SITE}/browse/${s.key}`);
 	}
 }
 

@@ -7,7 +7,8 @@ import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { trackerNote } from './index.ts';
 import { headContentSha } from '../../src/gates/content-identity.ts';
-import { commentBody, commentText, markPosted, pictureNotes, picturesOf, previewOf, prNumberOf, sectionsOf, selectedPictures, unfilled } from './post.ts';
+import { commentBody, commentText, markPosted, pictureNotes, picturesOf, previewOf, prNumberOf, sectionsOf, selectedPictures, statusChoice, unfilled } from './post.ts';
+import { trackerCompletionGap } from './post-completion.ts';
 
 let failed = 0;
 const check = (name: string, cond: unknown, detail = '') => { console.log(`  ${cond ? 'ok  ' : 'FAIL'} ${name}${cond || !detail ? '' : ` — ${detail}`}`); if (!cond) failed++; };
@@ -56,6 +57,16 @@ check('selection: an empty line, or none with files, is refused', files('picture
 check('selection: a file not in proof/ is refused, by name', files('pictures: after-9.png') === 'GAP JX-1392: pictures: after-9.png not in proof/', files('pictures: after-9.png'));
 check('selection: internal evidence not named before-/after- cannot be selected', files('pictures: listing.png').includes('listing.png not named before-<label> or after-<label>'), files('pictures: listing.png'));
 check('the comment text leaves out the pictures: line', commentText(sec('pictures: after-1.png')) === 'השינוי מוכן ב-PR וממתין למיזוג.\nPR: https://github.com/x/y/pull/7');
+
+// JX-712 (2026-11-02): a slice round's merge set its multi-slice ticket Fixed in Local. The status: line says keep.
+const status = (line: string | null) => { const r = statusChoice(sec(line)); return 'gap' in r ? `GAP ${r.gap}` : r.keep ? 'keep' : 'fixed'; };
+check('status: keep keeps the status, in any case', status('status: keep') === 'keep' && status('Status:  KEEP ') === 'keep');
+check('status: Fixed in Local sets it, in any case', status('status: Fixed in Local') === 'fixed' && status('status: fixed in local') === 'fixed');
+check('no status: line (a note scaffolded before it) means Fixed in Local, not a refusal', status(null) === 'fixed');
+check('status: anything else is refused, by value', status('status: Done').startsWith('GAP JX-1392: status: Done is neither') && status('status:').startsWith('GAP JX-1392: status: (empty) is neither'), status('status: Done'));
+check('two status: lines are refused, even when they agree', status('status: keep\nstatus: keep').startsWith('GAP JX-1392: more than one status: line'));
+check('the scaffold\'s status: line is unfilled until the round fills it', unfilled(sections[0])?.includes('status: <Fixed in Local, or keep') === true && status(scaffold.match(/^status:.*$/m)![0]).startsWith('GAP'), String(unfilled(sections[0])));
+check('the comment text leaves out the status: line', commentText(sec('pictures: none\nstatus: keep')) === 'השינוי מוכן ב-PR וממתין למיזוג.\nPR: https://github.com/x/y/pull/7');
 const preview = previewOf(sec('pictures: after-1.png after-2.png'), ['after-1.png', 'after-2.png'], superseded);
 check('the preview shows the comment, the exact files, and what stays in the round', preview === 'JX-1392: comment:\n  השינוי מוכן ב-PR וממתין למיזוג.\n  PR: https://github.com/x/y/pull/7\nJX-1392: pictures (2): after-1.png, after-2.png\nJX-1392: not posted, kept as round evidence (6): before-1.png, after-3.png, after-empty-list.png, after-old-labels.png, after-he-1280-assess.png, listing.png', preview);
 check('the preview says when no picture is selected', previewOf(sec('pictures: none'), [], []).includes('JX-1392: pictures: none selected, the comment goes up with no picture'));
@@ -79,7 +90,7 @@ globalThis.fetch = async (url, init = {}) => {
   return json({ fields: { status: {name:status}, attachment: JSON.parse(process.env.STUB_ATTACHED ?? '[]').map((filename) => ({ filename })), comment: { comments: [...(process.env.STUB_ALREADY ? [{ body: 'השינוי מוכן ב-PR וממתין למיזוג.\nPR: https://github.com/x/y/pull/7', created: '2026-10-12T14:00:00.000+0300', updated: '2026-10-12T14:00:00.000+0300' }] : []), ...JSON.parse(process.env.STUB_COMMENTS ?? '[]')] } } });
 };`);
 // The round began at 12:00:03 +0300 (its first step); `changed` is what the ticket got since.
-type Changed = { merged?: boolean; histories?: object[]; comments?: object[]; ticketWrittenAt?: string; ticketRead?: string; args?: string[]; pictures?: string | null; attached?: string[] };
+type Changed = { merged?: boolean; histories?: object[]; comments?: object[]; ticketWrittenAt?: string; ticketRead?: string; args?: string[]; pictures?: string | null; status?: string; attached?: string[] };
 function runPostIn(names: string[], already = false, changed: Changed = {}) {
   const repo = mkdtempSync(join(work, 'repo-'));
   spawnSync('git', ['init', '-q'], { cwd: repo });
@@ -89,7 +100,7 @@ function runPostIn(names: string[], already = false, changed: Changed = {}) {
   writeFileSync(join(repo, 'bug-reports/x/TICKET.md'), '## Intent\n');
   if (changed.ticketWrittenAt) utimesSync(join(repo, 'bug-reports/x/TICKET.md'), new Date(changed.ticketWrittenAt), new Date(changed.ticketWrittenAt));
   const pictures = changed.pictures === undefined ? 'pictures: none' : changed.pictures;
-  writeFileSync(join(repo, 'bug-reports/x/JIRA.md'), `## JX-1239\nהשינוי מוכן ב-PR וממתין למיזוג.\n${pictures === null ? '' : `${pictures}\n`}PR: https://github.com/x/y/pull/7\n`);
+  writeFileSync(join(repo, 'bug-reports/x/JIRA.md'), `## JX-1239\nהשינוי מוכן ב-PR וממתין למיזוג.\n${pictures === null ? '' : `${pictures}\n`}${changed.status ? `${changed.status}\n` : ''}PR: https://github.com/x/y/pull/7\n`);
   for (const n of names) writeFileSync(join(repo, 'bug-reports/x/proof', n), 'img');
   if (changed.merged) {
     spawnSync('git', ['-c', 'user.name=fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '--allow-empty', '-qm', 'base'], {cwd:repo});
@@ -114,6 +125,13 @@ check('wf post: the comment carries no pictures: line', cli.calls.some((c) => c.
 check('open PR post states awaiting merge and never changes Jira status', cli.calls.some((c) => c.comment?.includes('ממתין למיזוג')) && !cli.calls.some((c) => c.transition), JSON.stringify(cli.calls));
 const mergedPost = runPostIn([], false, { merged: true });
 check('confirmed merged delivery can still mark the issue Fixed in Local', mergedPost.run.status === 0 && mergedPost.calls.some((c) => c.transition === 'POST'), mergedPost.run.stderr);
+const mergedFixed = runPostIn([], false, { merged: true, status: 'status: Fixed in Local' });
+check('status: Fixed in Local marks it as before', mergedFixed.run.status === 0 && mergedFixed.calls.some((c) => c.transition === 'POST') && mergedFixed.run.stdout.includes('JX-1239: confirmed Fixed in Local'), mergedFixed.run.stdout + mergedFixed.run.stderr);
+const slice = runPostIn([], false, { merged: true, status: 'status: keep' });
+check('status: keep: merged, posted, no transition read or made, the status read back and said', slice.run.status === 0 && slice.calls.some((c) => c.comment && !c.comment.includes('status:')) && !slice.calls.some((c) => c.transition) && slice.run.stdout.includes('JX-1239: status kept (In Progress) — one slice of a ticket that stays open — https://raynw.atlassian.net/browse/JX-1239'), JSON.stringify(slice.calls) + slice.run.stdout + slice.run.stderr);
+check('status: keep records the completion receipt, so the round can be reaped', slice.state.post_completion?.sections?.[0]?.key === 'JX-1239' && trackerCompletionGap(slice.state, slice.note) === null, JSON.stringify(slice.state.post_completion));
+const badStatus = runPostIn([], false, { merged: true, status: 'status: Done' });
+check('an invalid status: line refuses the post before any call', badStatus.run.status === 1 && badStatus.calls.length === 0 && badStatus.run.stderr.includes('status: Done is neither') && !badStatus.note.includes('(posted)'), badStatus.run.stderr);
 const jpg = runPostIn(['before-a.jpg', 'after-a.webp'], false, { pictures: 'pictures: before-a.jpg after-a.webp' });
 check('wf post: jpg and webp go up with their own type', jpg.calls.filter((c) => c.attach).map((c) => c.type).sort().join() === 'image/jpeg,image/webp', JSON.stringify(jpg.calls));
 const again = runPostIn(incident, true, namedPictures);
