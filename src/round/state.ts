@@ -55,6 +55,9 @@ export type State = {
 	// the parent session. A reference, never the transcript's content.
 	session?: { harness: string; id: string; transcript: string | null; step: string | null; at: string };
 	entry?: string;
+	// The base port this round's stack uses when the one its branch hashes to was held by another
+	// process (worktrees/port-claim.ts); absent while the hashed port is the round's.
+	port?: number;
 	check?: boolean;
 	// Autonomous repairs of the current build, bounded by MAX_REPAIRS.
 	repairs?: number;

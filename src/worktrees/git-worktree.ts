@@ -27,7 +27,7 @@ async function runSetup({ worktree, slug, port, fd }: { worktree: string; slug: 
 export { addWorktree } from './workspace-allocation.ts';
 
 /** Create at the supplied destination; failed setup leaves the worktree for inspection and `wf reap`. */
-export async function createWorktree({ branch, base, log, path, repository, setup: setupMode }: Parameters<NonNullable<Seams['createWorktree']>>[0]): Promise<Worktree> {
+export async function createWorktree({ branch, base, log, path, repository, setup: setupMode, port }: Parameters<NonNullable<Seams['createWorktree']>>[0]): Promise<Worktree> {
 	addWorktree({ branch, path, base, cwd: repository, hooks: setupMode === 'none' ? 'disabled' : undefined });
 	if (setupMode === 'none') return { path, branch };
 	excludeWfFolder(path);
@@ -36,7 +36,7 @@ export async function createWorktree({ branch, base, log, path, repository, setu
 	// where a teammate starts.
 	excludeFromGit(path, '/.claude/worktrees/');
 	const fd = openSync(log, 'w');
-	const failed = await runSetup({ worktree: path, slug: slugForBranch(branch), port: basePortForBranch(branch), fd });
+	const failed = await runSetup({ worktree: path, slug: slugForBranch(branch), port: port ?? basePortForBranch(branch), fd });
 	closeSync(fd);
 	if (failed.length) throw new Error(`${readFileSync(log, 'utf8').trimEnd().split('\n').slice(-40).join('\n')}\nsetup failed: ${failed.join(', ')} (log: ${log}; worktree left at ${path})`);
 	return { path, branch };

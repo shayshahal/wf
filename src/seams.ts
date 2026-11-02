@@ -53,7 +53,7 @@ export type Seams = {
 	processes: { snapshot: typeof snapshotProcesses; kill: typeof killOwnedProcesses };
 	entry: string;
 	madeBy: string;
-	createWorktree: ((o: { branch: string; base: string; log: string; path: string; repository?: string; setup?: 'project' | 'none' }) => Worktree | Promise<Worktree>) | null;
+	createWorktree: ((o: { branch: string; base: string; log: string; path: string; repository?: string; setup?: 'project' | 'none'; port?: number }) => Worktree | Promise<Worktree>) | null;
 	removalPlan: ((o: { branch: string; path: string; slug: string; pid: number }) => RemovalStep[] | Promise<RemovalStep[]>) | null;
 	reviewUI: ReviewUI | null;
 	presentation: NativePresentation | null;

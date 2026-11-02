@@ -9,7 +9,8 @@ import type { CheckProcessResult } from '../gates/check-process.ts';
 import { runRemovalStep } from './removal.ts';
 import { reapWorkspaceGap } from './session-workspace.ts';
 import { allocateWorkspace, workspaceAllocationPath } from './workspace-allocation.ts';
-import { basePortForBranch, listWorktrees, slugForBranch, worktreePathKey } from './worktree-registry.ts';
+import { roundPort } from './round-port.ts';
+import { listWorktrees, slugForBranch, worktreePathKey } from './worktree-registry.ts';
 import { scratchDestination } from './workspace-probes.ts';
 import { withGitHooksDisabled } from './git-hooks.ts';
 import { readWorkspaceCleanup, runWorkspaceCleanup, workspaceDirectoryIdentity } from './workspace-cleanup.ts';
@@ -112,7 +113,7 @@ function readWorkspaceOwner(receipt: string): WorkspaceOwner | null {
 }
 
 function workspaceContext(owner: WorkspaceOwner): WorkspaceProjectContext {
-	return { worktree: owner.path, branch: owner.branch, slug: slugForBranch(owner.branch), port: basePortForBranch(owner.branch), log: owner.log };
+	return { worktree: owner.path, branch: owner.branch, slug: slugForBranch(owner.branch), port: roundPort(owner.path, owner.branch), log: owner.log };
 }
 
 function branchHead(owner: WorkspaceOwner): string | null {

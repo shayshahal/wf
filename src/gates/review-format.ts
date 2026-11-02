@@ -4,7 +4,8 @@
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { pageOf, stackUrls } from '../project.ts';
 import type { ContentIdentity } from './content-identity.ts';
-import { basePortForBranch, listWorktrees, slugForBranch, urlLines } from '../worktrees/worktree.ts';
+import { roundPort } from '../worktrees/round-port.ts';
+import { listWorktrees, slugForBranch, urlLines } from '../worktrees/worktree.ts';
 
 export const VERDICTS = ['approved', 'changes-requested', 'dismissed'];
 // Plannotator's annotate surface says `approved`; its review surface says `lgtm` (measured 0.27.16,
@@ -277,7 +278,7 @@ export function devUrlsFor(worktree: string): string | null {
   try {
     const branch = listWorktrees(worktree).find((t: { path: string; branch: string | null }) => t.path.replace(/\\/g, '/') === worktree.replace(/\\/g, '/'))?.branch;
     if (!branch) return null;
-    return urlLines(stackUrls({ slug: slugForBranch(branch), port: basePortForBranch(branch) }));
+    return urlLines(stackUrls({ slug: slugForBranch(branch), port: roundPort(worktree, branch) }));
   } catch {
     // No worktree list or no stack for this branch: the header goes out without URLs.
     return null;

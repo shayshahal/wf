@@ -4,13 +4,14 @@
 import { execFileSync } from 'node:child_process';
 import { seedDatabase, worktreeDatabase } from './db.ts';
 import { seedUrl } from './index.ts';
-import { basePortForBranch, slugForBranch } from '../../src/worktrees/worktree.ts';
+import { roundPort } from '../../src/worktrees/round-port.ts';
+import { slugForBranch } from '../../src/worktrees/worktree.ts';
 
 export function runSeed(argv: string[], toplevel?: string): void {
   const git = (...args: string[]) => execFileSync('git', args, { encoding: 'utf8', cwd: toplevel }).trim();
   const branch = git('rev-parse', '--abbrev-ref', 'HEAD');
   const slug = slugForBranch(branch);
-  const mongoUrl = seedUrl({ slug, port: basePortForBranch(branch) });
+  const mongoUrl = seedUrl({ slug, port: roundPort(git('rev-parse', '--show-toplevel'), branch) });
   seedDatabase({ worktree: git('rev-parse', '--show-toplevel'), database: worktreeDatabase(slug), mongoUrl, reset: argv.includes('--reset') });
 }
 

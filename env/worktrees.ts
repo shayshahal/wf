@@ -17,7 +17,7 @@ import type { RemovalStep, Seams, Worktree } from '../src/seams.ts';
 // when a phase needs it; until 2026-10-04 wt's post-start tether ran it). wt's output goes to a log
 // file. Returns the worktree, or throws with the log.
 /** Allocate at wf's destination without changing saved wt config; verify placement before any setup. */
-export function createWorktree({ branch, base, log, path, repository, setup: setupMode }: Parameters<NonNullable<Seams['createWorktree']>>[0]): Worktree {
+export function createWorktree({ branch, base, log, path, repository, setup: setupMode, port }: Parameters<NonNullable<Seams['createWorktree']>>[0]): Worktree {
 	const fd = openSync(log, 'w');
 	try {
 		const step = (label: string, args: string[], cwd?: string, env?: NodeJS.ProcessEnv) => {
@@ -43,7 +43,8 @@ export function createWorktree({ branch, base, log, path, repository, setup: set
 		excludeWfFolder(tree.path);
 		// Shared placement is inside the clone now, even when its base ignores no .claude directory.
 		excludeFromGit(tree.path, '/.claude/worktrees/');
-		step('pre-start hooks', ['hook', 'pre-start', 'user:', '--yes'], tree.path);
+		// wt hands the hooks its own hash_port; WF_BASE_PORT is the one wf chose (env/hook.ts), which differs when the hashed one was held.
+		step('pre-start hooks', ['hook', 'pre-start', 'user:', '--yes'], tree.path, port === undefined ? undefined : { ...process.env, WF_BASE_PORT: String(port) });
 		return tree;
 	} finally { closeSync(fd); }
 }

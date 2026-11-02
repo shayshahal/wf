@@ -7,37 +7,64 @@
 //         key that knows which project files decide the data.
 import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
-import { appendFileSync, closeSync, openSync } from 'node:fs';
+import { appendFileSync, closeSync, existsSync, openSync, readdirSync, rmSync } from 'node:fs';
 import type { SpawnSyncOptions } from 'node:child_process';
 
 export const worktreeDatabase = (slug: string): string => `jewelryx_${slug}`;
 
-function run(label: string, cmd: string, args: string[], opts: SpawnSyncOptions = {}, log?: string) {
+export type Run = (label: string, cmd: string, args: string[], opts?: SpawnSyncOptions, log?: string) => void;
+
+const run: Run = function run(label: string, cmd: string, args: string[], opts: SpawnSyncOptions = {}, log?: string) {
 	const fd = log ? openSync(log, 'a') : undefined;
 	try {
 		const r = spawnSync(cmd, args, { stdio: fd === undefined ? 'inherit' : ['ignore', fd, fd], ...opts });
 		if (r.status !== 0) throw new Error(`worktree db: ${label} failed (exit ${r.status ?? r.error?.message})`);
 	} finally { if (fd !== undefined) closeSync(fd); }
-}
+};
 
 // `worktree` holds the seeder (the round's worktree); `mongoUrl` is
 // the MongoDB to write to, and `database` the target. Seeding again puts every fixture back to its
 // fixed values (fixed ids, so counts never move); `reset` first drops everything else too. Both
 // through the worktree's own python (pymongo is the backend's), so no mongo shell is needed.
-export function seedDatabase({ worktree, database, mongoUrl, reset = false, log }: { worktree: string; database: string; mongoUrl: string; reset?: boolean; log?: string }): void {
+export function seedDatabase({ worktree, database, mongoUrl, reset = false, log, exec = run }: { worktree: string; database: string; mongoUrl: string; reset?: boolean; log?: string; exec?: Run }): void {
 	const t0 = Date.now();
-	if (reset) dropDatabase({ worktree, database, mongoUrl, log });
-	run('seeder', 'uv', ['run', '--quiet', '--directory', join(worktree, 'packages', 'backend'), 'python', '-m', 'scripts.seed_fixtures'], {
+	if (reset) dropDatabase({ worktree, database, mongoUrl, log, exec });
+	exec('seeder', 'uv', ['run', '--quiet', '--directory', join(worktree, 'packages', 'backend'), 'python', '-m', 'scripts.seed_fixtures'], {
 		env: { ...process.env, DATABASE_NAME: database, MONGODB_URL: mongoUrl },
 	}, log);
+	if (reset) {
+		reseedNotificationTemplates({ worktree, database, mongoUrl, log, exec });
+		clearUploads(worktree);
+	}
 	const message = `worktree db: seeded${reset ? ' (reset)' : ''} ${database} in ${((Date.now() - t0) / 1000).toFixed(1)}s`;
 	if (log) appendFileSync(log, `${message}
 `); else console.log(message);
 }
 
+// The backend fills notification_templates only at its startup (app/main.py boot_repairs), and
+// seed_fixtures does not, so a reset database had none until the backend restarted and every notice
+// was silently dropped (2026-11-02). This runs the backend's own startup step, in-process.
+export function reseedNotificationTemplates({ worktree, database, mongoUrl, log, exec = run }: { worktree: string; database: string; mongoUrl: string; log?: string; exec?: Run }): void {
+	const code = ['import asyncio', 'from app.db.init import init_db, seed_notification_templates', 'async def main():', '    await init_db()', '    await seed_notification_templates()', 'asyncio.run(main())'].join('\n');
+	exec('notification templates', 'uv', ['run', '--quiet', '--directory', join(worktree, 'packages', 'backend'), 'python', '-c', code], {
+		env: { ...process.env, DATABASE_NAME: database, MONGODB_URL: mongoUrl },
+	}, log);
+}
+
+// What the backend stored for the dropped data (packages/backend/uploads/,
+// local media storage) is orphaned by a reset. The fixtures need no media: their pictures are inline
+// data: URIs (seed_fixtures.py), so there is nothing to restore. The folder itself stays.
+export function clearUploads(worktree: string): number {
+	const dir = join(worktree, 'packages', 'backend', 'uploads');
+	if (!existsSync(dir)) return 0;
+	const entries = readdirSync(dir);
+	for (const entry of entries) rmSync(join(dir, entry), { recursive: true, force: true });
+	return entries.length;
+}
+
 // Drops `database` through the worktree's python. A missing database is not an error (MongoDB).
-export function dropDatabase({ worktree, database, mongoUrl, log }: { worktree: string; database: string; mongoUrl: string; log?: string }): void {
-	run('drop', 'uv', ['run', '--quiet', '--directory', join(worktree, 'packages', 'backend'), 'python', '-c', 'import sys; from pymongo import MongoClient; MongoClient(sys.argv[1]).drop_database(sys.argv[2])', mongoUrl, database], {}, log);
+export function dropDatabase({ worktree, database, mongoUrl, log, exec = run }: { worktree: string; database: string; mongoUrl: string; log?: string; exec?: Run }): void {
+	exec('drop', 'uv', ['run', '--quiet', '--directory', join(worktree, 'packages', 'backend'), 'python', '-c', 'import sys; from pymongo import MongoClient; MongoClient(sys.argv[1]).drop_database(sys.argv[2])', mongoUrl, database], {}, log);
 }
 
 // Pure: the databases a pytest run left behind. The backend names each run's database
