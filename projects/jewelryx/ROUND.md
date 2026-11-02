@@ -53,18 +53,21 @@ before *Start*.
   no file path, code name or line number. Its `pictures:` line names the `proof/` files the reporter
   sees, the final state only (`pictures: after-1.png after-2.png`), or `pictures: none`; the rest of
   `proof/` stays round evidence (JX-1392, 2026-10-14: every labeled capture went up, superseded ones
-  among them). `wf post --preview` prints each comment and its exact files without touching Jira; show
+  among them). Its `status:` line says `Fixed in Local`, or `keep` when the round is one slice of a
+  ticket that stays open: after the merge `wf post` then records completion without changing the status
+  (JX-712, 2026-11-02: one slice's merge set the whole ticket *Fixed in Local*). `wf post --preview` prints each comment and its exact files without touching Jira; show
   the user that. Then `wf post` from the worktree posts it, the same way every round: it prints the
   same preview, then for each section not yet ` (posted)` attaches the files its `pictures:` line
-  names to the issue, posts the section (without its `##` and `pictures:` lines) as a comment with
+  names to the issue, posts the section (without its `##`, `pictures:` and `status:` lines) as a comment with
   those pictures shown in it, keeps the status while the PR is open, and marks the heading itself.
   After human merge and `wf deliver` reconciliation, run `wf post` again: even already-notified
-  sections need *Fixed in Local* readback. Completion is recorded separately from `(posted)`; an
+  sections need *Fixed in Local* readback (a `keep` section, its current status read back). Completion is recorded separately from `(posted)`; an
   already-delivered issue needs no new transition. A failed or unknown read stays pending and blocks
   normal reap. Retries reuse earlier comments and attachments and retain successful ticket completions.
   Agents may also post comments and attachments directly through an authorized Jira connector or REST API.
 - `wf post` refuses, posting nothing, when a section still has a `<...>` line, has no `pictures:`
-  line or names a file not in `proof/` or not named `before-`/`after-<label>`, or when the session
+  line or names a file not in `proof/` or not named `before-`/`after-<label>`, has a `status:` line
+  other than `Fixed in Local` or `keep` (or two), or when the session
   has no `JIRA_EMAIL` or `JIRA_TOKEN`: tell the user the session started without them, and stop; a
   new session, after they set them, picks the round up with "resume <id>".
 - `wf post` (and `wf review`, as T2 opens) also refuses when the ticket got an edited description or

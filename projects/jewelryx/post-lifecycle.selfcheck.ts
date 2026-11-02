@@ -146,7 +146,7 @@ try {
 	const publish = command(f, ['deliver']);
 	check('continuous publish creates OPEN candidate, not delivery', publish.code === 0 && !!state(f)?.pr_handoff && !state(f)?.delivery && remote(f).create === 1, publish.out);
 	if (publish.code !== 0) throw new Error(publish.out);
-	writeFileSync(join(f.work, note), read(join(f.work, note)).replace(/<[^>]*>/g, 'filled').replace(/^pictures:.*$/gm, 'pictures: after-1.png'));
+	writeFileSync(join(f.work, note), read(join(f.work, note)).replace(/<[^>]*>/g, 'filled').replace(/^pictures:.*$/gm, 'pictures: after-1.png').replace(/^status:.*$/gm, 'status: Fixed in Local'));
 	writeFileSync(join(f.work, folder, 'proof/after-1.png'), 'selected');
 	writeFileSync(join(f.work, folder, 'proof/after-old.png'), 'not selected');
 	const beforeNotify = clone(f, 'before-notify');
