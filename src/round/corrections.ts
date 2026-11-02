@@ -211,7 +211,7 @@ export function disposeCorrection(toplevel: string, id: string, outcome: { kind:
 					if (!(error instanceof Error && 'code' in error && error.code === 'ENOENT')) throw error;
 					// A missing historical review cannot resume approval, but does not erase an action taken.
 				}
-				resume = readVerdict(review) === 'approved' && !reviewScopeBinding(review).scope && !approvalContentGap(review, approvalIdentity(toplevel, current.folder ?? null, trackerNotePath(current.folder ?? null)));
+				resume = readVerdict(review) === 'approved' && !reviewScopeBinding(review).scope && !approvalContentGap(review, approvalIdentity(toplevel, current.folder ?? null, trackerNotePath(current.folder ?? null)), current.approval_carry);
 			}
 			return { corrections, ...(ready ? { correction_return_to: null } : {}), ...(resume ? { step: 'pr', since: at, build_reason: null, history: stepHistory(current.history, 'pr', at) } : {}) };
 		});

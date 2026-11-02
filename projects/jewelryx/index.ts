@@ -8,6 +8,7 @@ import { createConnection } from 'node:net';
 import { join } from 'node:path';
 import { checkTasks, oracleEdits, parseStackEnv, oracleCaseGap, PRODUCT_BRANCH, seedActorsEnv, realPkgFor } from './checks.ts';
 import type { CheckTask } from '../../src/gates/check.ts';
+import type { MergedBaseCheck } from '../../src/gates/merged-base.ts';
 import { unpairedProofImages } from '../../src/gates/review-format.ts';
 import { dropDatabase, dropStrandedTestDatabases, worktreeDatabase } from './db.ts';
 import { seams } from '../../src/seams.ts';
@@ -441,6 +442,24 @@ export function trackerNote({ ids, url }: { ids: string[]; url: string }): { fil
 export function prBaseOf(roundBase: string | null | undefined): string {
 	return roundBase ? roundBase.replace(/^origin\//, '') : baseBranch;
 }
+
+// What deliver runs on dev's new tip after a confirmed merge (src/gates/merged-base.ts). #662 merged onto
+// a dev that had #657 and dev's svelte-check went red (2026-11-02): the app typechecks are what caught
+// it. These are pre-push's check-admin/check-b2b `pnpm check:gate` (svelte-check, no --tsgo) and
+// svelte-check-shared's `pnpm check:fast` in shared/ui (lefthook.yml), whole tree here, since the merge
+// result is not a branch diff. The install is setupWorkspaceResources's: --ignore-scripts, so the
+// root `prepare` (lefthook install) does not rewrite the hooks every worktree shares; check:gate runs
+// check:prep (paraglide, svelte-kit sync) itself, and the shared packages resolve from src. On dev
+// 338234ac (2026-11-02) the whole run, install included, was green in 236 s; the bound leaves room.
+export const mergedBaseCheck: MergedBaseCheck = {
+	prepare: [{ label: 'pnpm install --frozen-lockfile --prefer-offline --ignore-scripts', cmd: 'pnpm', args: ['install', '--frozen-lockfile', '--prefer-offline', '--ignore-scripts'], cwd: '.' }],
+	checks: [
+		{ label: 'pnpm check:gate', cmd: 'pnpm', args: ['check:gate'], cwd: 'packages/frontend/b2b' },
+		{ label: 'pnpm check:gate', cmd: 'pnpm', args: ['check:gate'], cwd: 'packages/frontend/admin' },
+		{ label: 'pnpm check:fast', cmd: 'pnpm', args: ['check:fast'], cwd: 'packages/frontend/shared/ui' },
+	],
+	timeoutMs: 15 * 60_000,
+};
 
 // The subject of wf deliver's round-folder commit. JewelryX's commit-msg hook (ticket-id) wants a
 // ticketed branch's subject to start with its ticket, `JX-1081: <what>`; `docs(fix/JX-1534-…)` was

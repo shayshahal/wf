@@ -203,6 +203,8 @@ function makeRepo(name: string, opts: { base?: string; dropOriginDev?: boolean }
 		must(['remote', 'add', 'origin', GITHUB], tWork);
 		must(['config', `url.${pathToFileURL(tOrigin).href}.insteadOf`, GITHUB], tWork);
 		must(['push', '-q', '-u', 'origin', 'dev'], tWork);
+		// The PR's base is on origin, as GitHub requires: deliver fetches it to refuse a stale branch (base-freshness.ts).
+		if (base === 'main') must(['push', '-q', 'origin', 'main'], tWork);
 		if (opts.dropOriginDev) must(['update-ref', '-d', 'refs/remotes/origin/dev'], tWork);
 		templates.set(key, template);
 	}

@@ -353,8 +353,8 @@ const approve = async (repo: string, branch: string) => {
 	const branch = 'feat/106s';
 	const { repo, git } = cliRepo(branch);
 	// A github.com origin deliver can pin, with git's transport rewritten to a path that is not a repo:
-	// the round-folder commit, then the push fails (#108 reads origin before any mutation, so an
-	// origin-less repo would be refused before that commit).
+	// the round-folder commit, then the base fetch fails before any push (#108 reads origin before any
+	// mutation, so an origin-less repo would be refused before that commit).
 	execFileSync('git', ['-C', repo, 'remote', 'add', 'origin', 'https://github.com/o/r.git'], { encoding: 'utf8' });
 	execFileSync('git', ['-C', repo, 'config', `url.${pathToFileURL(join(repo, 'nowhere.git')).href}.insteadOf`, 'https://github.com/o/r.git'], { encoding: 'utf8' });
 	await withStack(branch, async () => {
@@ -367,7 +367,7 @@ const approve = async (repo: string, branch: string) => {
 	git('add', 'src/x.ts');
 	writeFileSync(join(repo, 'src/x.ts'), 'a\n');
 	const delivered = await runCli(repo, ['deliver'], fakeGhEnv('staged'));
-	check('a staged (index-only) product change never reaches the remote', delivered.status === 1 && !delivered.out.includes('FAILED: gh'), delivered.out);
+	check('a staged (index-only) product change never reaches the remote', delivered.status !== 0 && !delivered.out.includes('FAILED: gh'), delivered.out);
 	const committed = execFileSync('git', ['-C', repo, 'show', 'HEAD:src/x.ts'], { encoding: 'utf8' });
 	check('the staged product was not committed (no round-folder commit swept it)', committed === 'a\n', `${delivered.out}\nHEAD:src/x.ts = ${JSON.stringify(committed)}`);
 	rmSync(repo, { recursive: true, force: true });
@@ -463,6 +463,8 @@ const approve = async (repo: string, branch: string) => {
 	// the trusted local remap keeps working, and the real push runs the hook below.
 	execFileSync('git', ['-C', repo, 'remote', 'add', 'origin', 'https://github.com/o/r.git'], { encoding: 'utf8' });
 	execFileSync('git', ['-C', repo, 'config', `url.${pathToFileURL(bare).href}.insteadOf`, 'https://github.com/o/r.git'], { encoding: 'utf8' });
+	// The PR base is on origin, as GitHub requires: deliver fetches it to refuse a stale branch (base-freshness.ts).
+	execFileSync('git', ['-C', repo, 'push', '-q', 'origin', 'main'], { encoding: 'utf8' });
 	writeFileSync(join(repo, folder, 'PLAN.md'), '# plan\n\n## Commits\n\n| # | message | files | check |\n|---|---|---|---|\n| 1 | fix(x): one | src/x.ts | — |\n');
 	// The round is docs-only for `wf check` (no product change in the diff), so deliver reaches the push;
 	// the hook below mutates a product file after the approval, which the approval recheck must catch.

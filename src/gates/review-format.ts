@@ -4,6 +4,8 @@
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { pageOf, stackUrls } from '../project.ts';
 import type { ContentIdentity } from './content-identity.ts';
+import { approvedIdentity } from './approval-carry.ts';
+import type { ApprovalCarry } from './approval-carry.ts';
 import { roundPort } from '../worktrees/round-port.ts';
 import { listWorktrees, slugForBranch, urlLines } from '../worktrees/worktree.ts';
 
@@ -264,9 +266,12 @@ export function needsFreshReviewHeader(previous: { contentSha: string | null; he
 // T2, so a retry's HEAD is the approved content and not yet the reviewed HEAD (#106/#108). A review
 // with no sha in the verdict's section was written before wf recorded it (or by hand), and the
 // identity cannot be reconstructed after the fact, so it is refused rather than trusted.
-export function approvalContentGap(reviewText: string, current: ContentIdentity): string | null {
+// `carry` is deliver's record of a rebase whose patch-id equals the approved one (approval-carry.ts):
+// its `to` stands for the binding only when its `from` is this exact binding.
+export function approvalContentGap(reviewText: string, current: ContentIdentity, carry?: ApprovalCarry | null): string | null {
   const { contentSha, headSha } = approvalBinding(reviewText);
   if (!contentSha || !headSha) return 'REVIEW.md has no content-sha/head-sha in the verdict\'s section, so nothing binds it to the implementation it approved; re-run `wf review <round>` (it records the content T2 is approving), then set the verdict again';
+  if (approvedIdentity({ contentSha, headSha }, carry, current)) return null;
   if (contentSha !== current.worktree) return `the working tree changed after T2 approved it (REVIEW.md: ${contentSha}, this tree: ${current.worktree}) — a product, test or repro change invalidates the approval; re-run \`wf review <round>\` and T2`;
   if (headSha !== current.head && contentSha !== current.head) return `the committed implementation changed after T2 approved it (REVIEW.md: ${headSha}, HEAD: ${current.head}) — deliver pushes HEAD, so a change it carries is not the approved code; re-run \`wf review <round>\` and T2`;
   return null;

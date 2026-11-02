@@ -10,13 +10,15 @@ import { stopWorktreeServers } from '../worktrees/serve.ts';
 //   4. the project's tracker note in the round folder (the round skill posts it last; wf never calls the
 //      tracker), its path in .wf/state.json for `wf next`
 //   5. retain step pr until a later invocation confirms human merge
+// Before the push, a branch behind its base is rebased onto it (base-freshness.ts); after a confirmed
+// merge, the project's full check runs on the merged base (merged-base.ts). Both 2026-11-02, #662.
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { refuseCaller } from '../refusal.ts';
 import { seams } from '../seams.ts';
-import { prBaseOf, protectedFilesGap, roundFolderSubject, isTicketless, trackerIdsGap, trackerNote } from '../project.ts';
+import { mergedBaseCheck, prBaseOf, protectedFilesGap, roundFolderSubject, isTicketless, runnerEnv, trackerIdsGap, trackerNote } from '../project.ts';
 import { agreementPath, agreementT2WalkLines, assessmentGap, ASSESSMENT_FILE, TICKET_FILE, verificationCases } from '../round/agreement.ts';
 import { randomUUID } from 'node:crypto';
 import { captureCorrection, correctionGate, outstandingCorrections } from '../round/corrections.ts';
@@ -27,6 +29,10 @@ import { currentBranch, headSha } from '../git-head.ts';
 import { readVerdict, approvalBinding, approvalContentGap, lastField, reviewScopeBinding } from './review-format.ts';
 import { commitContentSha, headContentSha, trackerNotePath, worktreeContentSha } from './content-identity.ts';
 import type { ContentIdentity } from './content-identity.ts';
+import { approvedIdentity, carriedIdentity } from './approval-carry.ts';
+import { freshenBase } from './base-freshness.ts';
+import { checkMergedBase } from './merged-base-check.ts';
+import { mergedBaseLines } from './merged-base.ts';
 import type { DeliveryReceipt } from '../round/delivered-round.ts';
 import { readState, resolveRoundBase, roundOf, toplevelOf, writeState, WF_STATE_VERSION } from '../round/state.ts';
 import { runStep } from '../round/step.ts';
@@ -249,7 +255,7 @@ export function t2Gap(state: State | null, reviewText: string | null, current?: 
 	if (boundScope) return `REVIEW.md's verdict is scoped ${boundScope} — only the final review (no scope) approves delivery; a checkpoint approval does not authorize publishing`;
 	// The binding is the same check `wf review --done` made; `current` absent is the pure verdict-only
 	// arm a caller not at the delivery boundary uses.
-	return current ? approvalContentGap(reviewText ?? '', current) : null;
+	return current ? approvalContentGap(reviewText ?? '', current, state?.approval_carry) : null;
 }
 
 // Pure: whether a failed push was the project's pre-push hook refusing it (not the network or auth).
@@ -628,6 +634,20 @@ async function completeDeliveryStep(toplevel: string) {
 	if (outstandingCorrections(readState(toplevel)).length) console.error('wf deliver: merged with retained corrections; a fresh follow-up is required, not reopening this approval.');
 	const released = await stopWorktreeServers(toplevel);
 	if (released.kind === 'refused') { console.error(`wf deliver: merged, cleanup incomplete: ${released.why}; retry deliver`); process.exitCode = 1; }
+	await checkMergedDelivery(toplevel);
+}
+
+// The full check of the base the merge landed on (merged-base.ts, 2026-11-02): detection only, once per
+// delivered head, after the step is merged so an interrupted check never holds the bookkeeping back. Its
+// result is recorded for `wf next`; it never changes the exit code — the merge is done.
+async function checkMergedDelivery(toplevel: string) {
+	const state = readState(toplevel);
+	if (!state?.delivery || state.merged_base_check?.delivered === state.delivery.head) return;
+	const result = await checkMergedBase({ toplevel, baseBranch: prBaseOf(state.base), delivered: state.delivery.head, spec: mergedBaseCheck, env: runnerEnv(process.env) });
+	const lines = mergedBaseLines(result);
+	for (const line of lines.out) console.log(line);
+	for (const line of lines.err) console.error(line);
+	writeState(toplevel, () => ({ merged_base_check: result }));
 }
 
 /** Serialize delivery requests, not instruction intake; only a dead creator's retry may reconcile. */
@@ -745,7 +765,9 @@ export async function reconcilePublishedDelivery(toplevel: string): Promise<Publ
 			const reviewFile = folder ? join(toplevel, folder, 'REVIEW.md') : null;
 			const binding = approvalBinding(reviewFile && existsSync(reviewFile) ? readFileSync(reviewFile, 'utf8') : '');
 			const carried = folder ? commitContentSha(toplevel, verdict.head, folder, trackerNotePath(folder), 'approval') : null;
-			if (binding.verdict !== 'approved' || carried === null || (carried !== binding.headSha && carried !== binding.contentSha)) {
+			// A push after deliver's rebase carries the rebased identity (approval-carry.ts).
+			const rebased = carriedIdentity(binding, state.approval_carry);
+			if (binding.verdict !== 'approved' || carried === null || (carried !== binding.headSha && carried !== binding.contentSha && carried !== rebased?.worktree && carried !== rebased?.head)) {
 				return { kind: 'refused', why: `published PR ${candidate.url} carries ${verdict.head.slice(0, 12)}, which T2 has not approved; review that implementation, then retry wf deliver` };
 			}
 			writeState(toplevel, (current) => {
@@ -862,10 +884,10 @@ async function runLockedDelivery(toplevel: string) {
 		const gate = correctionGate(current) ?? openQuestionGate(current);
 		if (gate || current?.step !== 'pr') { console.error(`wf deliver: ${gate ?? 'round is no longer at pr'}`); process.exit(2); }
 		const now = identityNow();
-		const worktreeOk = binding.contentSha !== null && now.worktree === binding.contentSha;
-		const headOk = now.head === binding.headSha || now.head === binding.contentSha;
-		if (binding.contentSha !== null && binding.headSha !== null && worktreeOk && headOk) return;
-		console.error(`wf deliver: ${what} changed the implementation T2 approved (REVIEW.md worktree ${binding.contentSha ?? 'none'}, HEAD ${binding.headSha ?? 'none'}; now worktree ${now.worktree}, HEAD ${now.head}) — the approval no longer covers it. Commit or revert the change, re-run \`wf check\`, and re-run \`wf review <round>\` + T2`);
+		// Or the identity deliver's own rebase carried the approval to: the same patch on the moved base.
+		if (approvedIdentity(binding, current?.approval_carry, now)) return;
+		const carried = carriedIdentity(binding, current?.approval_carry);
+		console.error(`wf deliver: ${what} changed the implementation T2 approved (REVIEW.md worktree ${binding.contentSha ?? 'none'}, HEAD ${binding.headSha ?? 'none'}${carried ? `; carried by rebase to worktree ${carried.worktree}` : ''}; now worktree ${now.worktree}, HEAD ${now.head}) — the approval no longer covers it. Commit or revert the change, re-run \`wf check\`, and re-run \`wf review <round>\` + T2`);
 		process.exit(2);
 	};
 	const t2 = t2Gap(state, reviewText, identityNow());
@@ -919,7 +941,8 @@ async function runLockedDelivery(toplevel: string) {
 	// refuses before anything leaves the machine; the commit list after the push reuses this resolved
 	// commit rather than asking git for origin/<project baseBranch> — which failed after the push and
 	// left the round stuck with a pushed branch and no PR.
-	const { ref: baseRef, base } = resolveRoundBase(toplevel, state);
+	const { ref: baseRef, base: resolvedBase } = resolveRoundBase(toplevel, state);
+	let base = resolvedBase;
 	if (!base) {
 		console.error(`wf deliver: the round's base \`${baseRef}\` does not resolve — fetch it, or start the round with \`wf new --base <ref>\``);
 		process.exit(2);
@@ -954,9 +977,28 @@ async function runLockedDelivery(toplevel: string) {
 		git(toplevel, ['commit', '-q', '-m', roundFolderSubject({ id, ids: state?.ids }), ...keep]);
 	}
 	requireApprovedContent('the round-folder commit');
-	// gh pr create cannot push without a terminal; push first (BJEW-603, the first real deliver).
+	// Never ship a branch behind its PR base (base-freshness.ts: #662 merged 31 minutes behind a dev
+	// that had #657, 2026-11-02). Every publication, the open PR's repair too: a stale repair merges the
+	// same way. A fetch that fails refuses — freshness unproven. A moved base is rebased onto here so the
+	// pre-push hook checks the tree that will merge; only an identical patch keeps T2's approval.
+	const freshness = freshenBase({ toplevel, baseBranch: prBaseOf(state?.base), branch, folder, notePath, bound: binding, previous: readState(toplevel)?.approval_carry });
+	if (freshness.kind === 'refused') {
+		console.error(`wf deliver: ${freshness.why}`);
+		process.exit(2);
+	}
+	if (freshness.kind === 'carried') {
+		const { carry } = freshness;
+		writeState(toplevel, () => ({ approval_carry: carry }));
+		console.log(freshness.line);
+		requireApprovedContent('the rebase onto the moved base');
+		base = freshness.tip;
+	}
+	// gh pr create cannot push without a terminal; push first (BJEW-603, the first real deliver). After a
+	// rebase the remote branch, if any, is this round's own earlier push (freshenBase checked): replace
+	// it, but only if it is still there as seen.
 	const pushEvent = `wf:push-hook:${headSha(toplevel)}:${randomUUID()}`;
-	const pushed = spawnSync('git', ['-C', toplevel, 'push', '-q', '-u', 'origin', 'HEAD'], { encoding: 'utf8' });
+	const lease = freshness.lease !== null ? [`--force-with-lease=refs/heads/${branch}:${freshness.lease}`] : [];
+	const pushed = spawnSync('git', ['-C', toplevel, 'push', '-q', '-u', ...lease, 'origin', 'HEAD'], { encoding: 'utf8' });
 	if (pushed.status !== 0) {
 		const output = (pushed.stdout ?? '') + (pushed.stderr ?? '');
 		console.error(`FAILED: git push\n${output}`.trimEnd());

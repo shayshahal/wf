@@ -18,6 +18,10 @@ import type { DeliveryReceipt } from './delivered-round.ts';
 import { correctionStateGap } from './corrections.ts';
 import type { RoundCorrection } from './corrections.ts';
 import type { MergeAttempt } from '../gates/deliver.ts';
+import { approvalCarryGap } from '../gates/approval-carry.ts';
+import type { ApprovalCarry } from '../gates/approval-carry.ts';
+import { mergedBaseResultGap } from '../gates/merged-base.ts';
+import type { MergedBaseResult } from '../gates/merged-base.ts';
 
 export type RoundClass = 'A' | 'B' | 'C';
 // The latest received answer in its thread's message order; transport alone grants no authority.
@@ -105,6 +109,10 @@ export type State = {
 	post_completion?: PostCompletion;
 	/** An observed OPEN published candidate; its presence alone permits repair of that candidate. */
 	pr_repair?: { readonly url: string; readonly head: string } | null;
+	/** T2's approval carried across deliver's rebase onto a moved base, identical patch only (approval-carry.ts). */
+	approval_carry?: ApprovalCarry;
+	/** The full check of the base a confirmed merge landed on (merged-base.ts); detection only. */
+	merged_base_check?: MergedBaseResult;
 	// When a person last re-read the ticket against the round's paperwork after it changed
 	// (`wf post --ticket-reread`): changes before it are read; the round's first step is the baseline
 	// until then (projects/jewelryx/ticket-changes.ts).
@@ -237,6 +245,16 @@ export function readState(toplevel: string): State | null {
 	if ('pr_repair' in parsed && parsed.pr_repair !== null) {
 		const repair = parsed.pr_repair;
 		if (typeof repair !== 'object' || Array.isArray(repair) || !('url' in repair) || typeof repair.url !== 'string' || !/^https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/pull\/\d+$/.test(repair.url) || !('head' in repair) || typeof repair.head !== 'string' || !/^[a-f0-9]{40}$/.test(repair.head)) throw new CorruptStateError(file, 'invalid published repair observation');
+	}
+	// No version bump: an older wf ignores both. Without the carry its deliver refuses the rebased
+	// identity (closed); without the result its `wf next` says plain done (a lost report, no wrong action).
+	if ('approval_carry' in parsed) {
+		const gap = approvalCarryGap(parsed.approval_carry);
+		if (gap) throw new CorruptStateError(file, gap);
+	}
+	if ('merged_base_check' in parsed) {
+		const gap = mergedBaseResultGap(parsed.merged_base_check);
+		if (gap) throw new CorruptStateError(file, gap);
 	}
 	if ('post_completion' in parsed) {
 		const gap = postCompletionGap(parsed.post_completion);

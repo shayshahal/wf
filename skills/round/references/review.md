@@ -116,4 +116,5 @@ The independent final assessment and final T2 walk are not checkpoint prerequisi
 Done when the verdict is recorded on the actual material that you showed, and the tool accepted it.
 - An agreed checkpoint permits the next agreed part of the work. It never permits a merge.
 - The final T2 approves the delivery through `wf deliver`. That command rechecks freshness and
-  reconciles the remote effects.
+  reconciles the remote effects. It rebases onto a moved base. Only an identical patch keeps the
+  approval.

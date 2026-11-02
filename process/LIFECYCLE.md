@@ -135,9 +135,15 @@ before you install the replacement.
 - One round is one PR to the base branch.
 - After T2, `wf deliver` publishes the PR and leaves it open. Then the project tracker note says
   that the work is in the linked PR and awaits merge. A ticketless round has no note.
+- `wf deliver` never pushes a branch behind its base. It fetches the base and rebases onto it, so the
+  pre-push hook checks the tree that will merge (2026-11-02: #662 merged 31 minutes behind a dev that
+  had #657, and dev's svelte-check went red). An identical patch (`git patch-id`) keeps the T2
+  approval. A conflict or a changed patch is put back and refused: rebase by hand, re-run the checks,
+  then a fresh assessment and T2.
 - The worktree and the branch stay until the person merges.
 - After that merge, run `wf deliver` again. It records the confirmed receipt and unlocks the normal
-  reap.
+  reap. It then runs the project's full check on the merged base, in a temporary worktree. A red or
+  unchecked base does not undo the delivery; deliver prints it and `wf next` tells the user.
 - The round folder merges with the PR and stays. It is the memory of the round.
 - For more product work, start a fresh branch: `wf new <new-branch> --reopen --class A|B|C --id <id>`.
   Earlier deliveries and rulings are linked in `EARLIER.md`. The new round has a fresh agreement,
