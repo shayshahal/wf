@@ -35,6 +35,7 @@ import { stepHistory } from './friction.ts';
 import { assessmentHandoffGap, higherClass, runStep } from './step.ts';
 import { assessmentContentSha, assessmentRulingSource } from './agreement.ts';
 import { followupRoundLine, mergedImplementationGap } from './delivered-round.ts';
+import { mergedBaseNextNote } from '../gates/merged-base.ts';
 import { correctionStateSha, outstandingCorrections, publishedCorrectionGate } from './corrections.ts';
 import { shouldStopRoundServers } from './round-servers.ts';
 import { stopWorktreeServers } from '../worktrees/serve.ts';
@@ -82,6 +83,8 @@ export type Snapshot = {
 	prHandoff?: State['pr_handoff'];
 	prRepair?: State['pr_repair'];
 	postCompletion?: State['post_completion'];
+	/** The full check of the base the merge landed on; red or unchecked is told to the user (merged-base.ts). */
+	mergedBaseCheck?: State['merged_base_check'];
 	id?: string;
 	ids?: string[];
 	/** A merged round cannot post/reap on the old delivery while carrying new product work. */
@@ -143,7 +146,8 @@ export function nextAction(s: Snapshot, purpose: 'next' | 'brief' = 'next'): { s
 		if (!s.delivery && s.note) return act('wait user: confirmed delivery receipt missing; restore original delivery evidence before tracker completion, or use WF_FORCE_REAP=1 only to intentionally discard unfinished work');
 		const completionGap = trackerCompletionGap({ step: s.step, delivery: s.delivery, id: s.id, ids: s.ids, round: s.branch, post_completion: s.postCompletion }, s.note?.text ?? null);
 		if (completionGap) return act(`post: ${completionGap}. Then \`${wf} next\``);
-		return act(`done: \`${wf} reap ${s.branch}\``);
+		const baseNote = mergedBaseNextNote(s.mergedBaseCheck);
+		return act(`done: ${baseNote ? `${baseNote}; then ` : ''}\`${wf} reap ${s.branch}\``);
 	}
 	if (s.step === 'pr' && s.prHandoff && !corrections.length && s.head === s.prHandoff.head) {
 		const left = unpostedSections(s.note?.text ?? null);
@@ -376,6 +380,7 @@ export function snapshotOf(toplevel: string): Snapshot {
 		prHandoff: state.pr_handoff,
 		prRepair: state.pr_repair,
 		postCompletion: state.post_completion,
+		mergedBaseCheck: state.merged_base_check,
 		id: state.id,
 		ids: state.ids,
 		repairs: state.repairs ?? 0,

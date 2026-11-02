@@ -27,6 +27,13 @@ urls: <one `<app>: <url>` line per app, worktree.ts urlLines
 - The final T2 uses `REVIEW.md` without a scope line.
 - A checkpoint approval never authorizes delivery.
 
+## Rebase at delivery
+
+A rebase changes both identities. `wf deliver` rebases a branch whose base moved; when the rebased
+patch is identical (`git patch-id --verbatim`), it records `approval_carry` in `.wf/state.json`, from
+this binding to the rebased identities, and the verdict covers them. Any other change still needs a
+fresh T2. Before 2026-11-02 every rebase cost one (JX-1587, for an identical patch).
+
 ## URLs
 
 The names come from the branch of the worktree (`worktree.ts`, and the slug and port rules in

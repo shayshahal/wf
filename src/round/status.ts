@@ -320,7 +320,7 @@ export function inspectRound({ path, state, git, guidance = [], wfRoot = WF_ROOT
       blocked: existsSync(join(path, folder, 'BLOCKED.md')),
       questions: (state.questions ?? []).map((q) => ({ n: q.n, to: q.to, text: q.text })),
       t1: { sha: agreement.sha, reviewed: lastField(reviewText ?? '', 'agreement-sha'), verdict: readVerdict(reviewText ?? ''), required: consequential(klass) },
-      t2: t2Fact(t2Text, path, state.folder ?? null),
+      t2: t2Fact(t2Text, path, state.folder ?? null, state.approval_carry),
       decisions: state.decisions ?? [],
     },
     refs: { session: state.session ?? null, openedBy: state.opened_by ?? null, artifacts, guidance: [...guidance, join(wfRoot, 'projects', projectName, 'ROUND.md')] },
@@ -330,13 +330,13 @@ export function inspectRound({ path, state, git, guidance = [], wfRoot = WF_ROOT
 // T2's verdict and the two identities it bound, with freshness from the same producer the deliver
 // boundary uses (review-format.ts approvalContentGap over content-identity.ts): null when there is
 // no REVIEW.md, `fresh` null when the binding is absent or cannot be recomputed (UNKNOWN).
-function t2Fact(t2Text: string | null, path: string, folder: string | null): T2Fact | null {
+function t2Fact(t2Text: string | null, path: string, folder: string | null, carry: State['approval_carry']): T2Fact | null {
   if (t2Text === null) return null;
   const binding = approvalBinding(t2Text);
   let fresh: boolean | null = null;
   if (binding.contentSha && binding.headSha) {
     try {
-      fresh = approvalContentGap(t2Text, approvalIdentity(path, folder, trackerNotePath(folder))) === null;
+      fresh = approvalContentGap(t2Text, approvalIdentity(path, folder, trackerNotePath(folder)), carry) === null;
     } catch {
       // git cannot recompute the approved identity: freshness reads UNKNOWN, not fresh or stale
       fresh = null;
