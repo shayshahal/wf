@@ -1,5 +1,11 @@
 ## This project (JewelryX)
 
+The round's stack: `wf serve --wait` starts it, or confirms it is up. `wf serve --stop` stops it.
+To restart, run `--stop`, then `--wait`. Never kill server pids by hand: that leaves
+`serve-owner.json` stale. cjx (`node docs/agents/verify-jewelryx/control-jewelryx.mjs`) drives this
+stack. `cjx stack up` and `cjx stack down` are for checkouts outside a round. In a round,
+`stack down` does nothing, and `wf serve` refuses beside a `stack up` stack.
+
 The round's direct stack origins are B2B `{{b2b}}`, API `{{api}}`, Admin `{{admin}}`.
 Read `docs/agents/testing.md`, `docs/agents/seed.md` and the worktree's verification skill
 (`docs/agents/verify-jewelryx/SKILL.md`). Use its doctor and relevant feature recipe before choosing
