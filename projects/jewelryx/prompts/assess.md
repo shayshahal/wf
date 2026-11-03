@@ -1,5 +1,11 @@
 ## This project (JewelryX)
 
+The round's stack: `wf serve --wait` starts it, or confirms it is up. `wf serve --stop` stops it.
+To restart, run `--stop`, then `--wait`. Never kill server pids by hand: that leaves
+`serve-owner.json` stale. cjx (`node docs/agents/verify-jewelryx/control-jewelryx.mjs`) drives this
+stack. `cjx stack up` and `cjx stack down` are for checkouts outside a round. In a round,
+`stack down` does nothing, and `wf serve` refuses beside a `stack up` stack.
+
 When available, use `docs/agents/verify-jewelryx/SKILL.md`, its feature index and matching recipes
 to judge the user path. Direct stack origins: B2B `{{b2b}}`, Admin `{{admin}}`.
 Run `control-jewelryx doctor` before relying on live observations; failed setup or requests do not
@@ -24,3 +30,8 @@ this checkout: its stack and its own database (`jewelryx_<round>`) are disposabl
 state your check needs with the project's tools, and put it back with `wf seed --reset` when a run
 dirties it. Identify any protected verification asset change for its authorized owner rather than
 weakening the check.
+
+When the round's change shows in a UI or an API response, measure at least one agreed case again,
+live, with cjx on the round's stack. Write the command and its output in `{{folder}}/{{assessmentFile}}`,
+or `NOT MEASURED — <why>`. Proof PNGs and unit tests alone do not replace this. A refactor whose
+agreement says "no UI or API change" does not need it.
