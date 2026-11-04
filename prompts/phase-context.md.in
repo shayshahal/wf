@@ -19,3 +19,8 @@
   An Inbox reply alone is not approval.
 - **New authored instructions.** When a person gives an instruction that is linked to this round,
   follow `{{skill}}/references/corrections.md`. Save its source and its words. Do not rely on this chat.
+- **No `git stash`.** Do not use `git stash` in a round. All worktrees share one stash stack, and
+  another round can pop your entry. To compare with the old code, use one of these:
+  - a temporary commit, then `git reset --soft HEAD~1`
+  - `git worktree add` on a scratch path at the base
+  - `git show <base>:<path> > <tmp>`
