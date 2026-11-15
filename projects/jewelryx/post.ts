@@ -27,7 +27,11 @@ export { sectionsOf } from './post-completion.ts';
 export type { Section } from './post-completion.ts';
 
 const SITE = 'https://raynw.atlassian.net';
+// The note's `status:` keyword for a section whose merge completes the ticket.
 const DELIVERED = 'Fixed in Local';
+// The Jira status that keyword sets. Renamed «In Local» in Jira on 2026-11-15 (Shay, Plannotator Inbox
+// msg_01M7FB9X53SV71N8XDZ207PD25); the note keyword stays as rounds write it.
+const TRACKER_DELIVERED = 'In Local';
 
 // Pure: why a section cannot be posted yet, or null. The scaffold's <...> lines are for the round to fill.
 export function unfilled(s: Section): string | null {
@@ -139,7 +143,7 @@ async function trackerStatus(auth: string, key: string): Promise<string> {
 function deliveredTransition(raw: unknown): string | null {
 	if (typeof raw !== 'object' || raw === null || !('transitions' in raw) || !Array.isArray(raw.transitions)) return null;
 	for (const t of raw.transitions) {
-		if (typeof t === 'object' && t !== null && 'id' in t && typeof t.id === 'string' && t.id && 'to' in t && typeof t.to === 'object' && t.to !== null && 'name' in t.to && t.to.name === DELIVERED) return t.id;
+		if (typeof t === 'object' && t !== null && 'id' in t && typeof t.id === 'string' && t.id && 'to' in t && typeof t.to === 'object' && t.to !== null && 'name' in t.to && t.to.name === TRACKER_DELIVERED) return t.id;
 	}
 	return null;
 }
@@ -323,22 +327,22 @@ async function runLockedPost(argv: string[]): Promise<void> {
 		if ('gap' in choice) throw new Error(`wf post: ${choice.gap}; completion remains pending`);
 		let status = await trackerStatus(auth, s.key);
 		validate();
-		if (!choice.keep && status !== DELIVERED) {
+		if (!choice.keep && status !== TRACKER_DELIVERED) {
 			const raw: unknown = await jira(auth, `3/issue/${s.key}/transitions`);
 			const transition = deliveredTransition(raw);
-			if (!transition) throw new Error(`wf post: ${s.key} has no known transition to ${DELIVERED}; completion remains pending`);
+			if (!transition) throw new Error(`wf post: ${s.key} has no known transition to ${TRACKER_DELIVERED}; completion remains pending`);
 			validate();
 			await jira(auth, `3/issue/${s.key}/transitions`, { method: 'POST', body: JSON.stringify({ transition: { id: transition } }), headers: { 'content-type': 'application/json' } });
 			status = await trackerStatus(auth, s.key);
 		}
 		validate();
-		if (!choice.keep && status !== DELIVERED) throw new Error(`wf post: ${s.key} status readback is ${status}, not ${DELIVERED}; completion remains pending`);
+		if (!choice.keep && status !== TRACKER_DELIVERED) throw new Error(`wf post: ${s.key} status readback is ${status}, not ${TRACKER_DELIVERED}; completion remains pending`);
 		state = writeState(toplevel, (current) => {
 			validate(current);
 			const previous = sameDelivery(current.post_completion?.delivery, delivery) ? current.post_completion?.sections ?? [] : [];
 			return { post_completion: { delivery, sections: [...previous.filter((p) => p.key !== s.key), { key: s.key, sha: sectionSha(s) }] } };
 		});
-		console.log(choice.keep ? `${s.key}: status kept (${status}) — one slice of a ticket that stays open — ${SITE}/browse/${s.key}` : `${s.key}: confirmed ${DELIVERED} — ${SITE}/browse/${s.key}`);
+		console.log(choice.keep ? `${s.key}: status kept (${status}) — one slice of a ticket that stays open — ${SITE}/browse/${s.key}` : `${s.key}: confirmed ${TRACKER_DELIVERED} — ${SITE}/browse/${s.key}`);
 	}
 }
 
