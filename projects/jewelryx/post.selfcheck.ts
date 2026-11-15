@@ -86,7 +86,7 @@ globalThis.fetch = async (url, init = {}) => {
   if (u.includes('/attachments')) { const f = init.body.get('file'); log({ attach: f.name, type: f.type }); return json([]); }
   if (u.endsWith('/comment')) { log({ comment: JSON.parse(init.body).body }); return json({}); }
   if (u.includes('/transitions')) log({ transition: method });
-  if (u.includes('/transitions')) { if (method === 'POST') { status = 'Fixed in Local'; return new Response(null, {status:204}); } return json({transitions:[{id:'31',to:{name:'Fixed in Local'}}]}); }
+  if (u.includes('/transitions')) { if (method === 'POST') { status = 'In Local'; return new Response(null, {status:204}); } return json({transitions:[{id:'31',to:{name:'In Local'}}]}); }
   return json({ fields: { status: {name:status}, attachment: JSON.parse(process.env.STUB_ATTACHED ?? '[]').map((filename) => ({ filename })), comment: { comments: [...(process.env.STUB_ALREADY ? [{ body: 'השינוי מוכן ב-PR וממתין למיזוג.\nPR: https://github.com/x/y/pull/7', created: '2026-10-12T14:00:00.000+0300', updated: '2026-10-12T14:00:00.000+0300' }] : []), ...JSON.parse(process.env.STUB_COMMENTS ?? '[]')] } } });
 };`);
 // The round began at 12:00:03 +0300 (its first step); `changed` is what the ticket got since.
@@ -126,7 +126,7 @@ check('open PR post states awaiting merge and never changes Jira status', cli.ca
 const mergedPost = runPostIn([], false, { merged: true });
 check('confirmed merged delivery can still mark the issue Fixed in Local', mergedPost.run.status === 0 && mergedPost.calls.some((c) => c.transition === 'POST'), mergedPost.run.stderr);
 const mergedFixed = runPostIn([], false, { merged: true, status: 'status: Fixed in Local' });
-check('status: Fixed in Local marks it as before', mergedFixed.run.status === 0 && mergedFixed.calls.some((c) => c.transition === 'POST') && mergedFixed.run.stdout.includes('JX-1239: confirmed Fixed in Local'), mergedFixed.run.stdout + mergedFixed.run.stderr);
+check('status: Fixed in Local marks it as before', mergedFixed.run.status === 0 && mergedFixed.calls.some((c) => c.transition === 'POST') && mergedFixed.run.stdout.includes('JX-1239: confirmed In Local'), mergedFixed.run.stdout + mergedFixed.run.stderr);
 const slice = runPostIn([], false, { merged: true, status: 'status: keep' });
 check('status: keep: merged, posted, no transition read or made, the status read back and said', slice.run.status === 0 && slice.calls.some((c) => c.comment && !c.comment.includes('status:')) && !slice.calls.some((c) => c.transition) && slice.run.stdout.includes('JX-1239: status kept (In Progress) — one slice of a ticket that stays open — https://raynw.atlassian.net/browse/JX-1239'), JSON.stringify(slice.calls) + slice.run.stdout + slice.run.stderr);
 check('status: keep records the completion receipt, so the round can be reaped', slice.state.post_completion?.sections?.[0]?.key === 'JX-1239' && trackerCompletionGap(slice.state, slice.note) === null, JSON.stringify(slice.state.post_completion));

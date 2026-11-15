@@ -74,14 +74,14 @@ globalThis.fetch = async (url, init={}) => {
  }
  if(u.includes('/transitions')) {
   if(method==='POST') {
-   ticket.transitions++;if(mode!=='not-applied')ticket.status='Fixed in Local';save(r);
+   ticket.transitions++;if(mode!=='not-applied')ticket.status='In Local';save(r);
    if(mode==='crash-transition')process.exit(137);
    if(mode==='lost-transition')throw new Error('controlled transition response lost');
    if(mode==='race-after-transition')writeState(work,s=>({delivery:{...s.delivery,head:'e'.repeat(40)}}));
    return new Response(null,{status:204});
   }
   if(mode==='no-transition')return json({transitions:[]});
-  return json({transitions:ticket.status==='Fixed in Local'?[]:[{id:'31',to:{name:'Fixed in Local'}}]});
+  return json({transitions:ticket.status==='In Local'?[]:[{id:'31',to:{name:'In Local'}}]});
  }
  return json({fields:{attachment:ticket.attachments,comment:{comments:ticket.comments}}});
 };
@@ -203,7 +203,7 @@ try {
 		check(`${mode}: retry can finish without notification duplication`, command(c, ['post']).code === 0 && completionKeys(c) === 'X-1,X-2' && comments(c) === '1,1');
 	}
 	const already = clone(beforeComplete, 'already-delivered');
-	const delivered = remote(already); for (const t of Object.values(delivered.tickets)) t.status = 'Fixed in Local'; save(already.remote, delivered);
+	const delivered = remote(already); for (const t of Object.values(delivered.tickets)) t.status = 'In Local'; save(already.remote, delivered);
 	check('legacy posted notes at already-delivered tracker need no transition', command(already, ['post']).code === 0 && completionKeys(already) === 'X-1,X-2' && transitions(already) === '0,0' && comments(already) === '1,1');
 	const partial = clone(beforeComplete, 'partial');
 	check('multi-ticket partial completion persists successful ticket only', command(partial, ['post'], 'partial').code !== 0 && completionKeys(partial) === 'X-1' && transitions(partial) === '1,0');
