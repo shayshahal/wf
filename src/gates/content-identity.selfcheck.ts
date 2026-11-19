@@ -574,5 +574,24 @@ const checkpointDone = async (repo: string, branch: string, verdict: string, edi
 	rmSync(repo, { recursive: true, force: true });
 }
 
+// A repository whose file list is over Node's default 1 MiB spawn buffer (JewelryX: 1.68 MB,
+// 2026-11-19): listing the index for wf's own temps ran out of buffer (spawnSync git ENOBUFS), and
+// every wf review, check and deliver failed. The commit is built by plumbing: no files on disk.
+{
+	const repo = mkdtempSync(join(tmpdir(), 'wf-big-index-'));
+	const g = (args: string[], input?: string) => execFileSync('git', ['-C', repo, ...args], { encoding: 'utf8', input, maxBuffer: 1024 * 1024 * 1024 });
+	g(['init', '-q']);
+	const blob = g(['hash-object', '-w', '--stdin'], 'x\n').trim();
+	const dir = 'd'.repeat(80);
+	g(['update-index', '--index-info'], Array.from({ length: 15_000 }, (_, i) => `100644 ${blob}\t${dir}/${String(i).padStart(6, '0')}.txt\n`).join(''));
+	const tree = g(['write-tree']).trim();
+	const commit = g(['-c', 'user.name=wf', '-c', 'user.email=wf@selfcheck', 'commit-tree', tree, '-m', 'big'], '').trim();
+	g(['update-ref', 'HEAD', commit]);
+	let identity = '';
+	try { identity = headContentSha(repo, null, null, 'approval'); } catch (e) { identity = String((e as Error).message); }
+	check('a file list over 1 MiB still gives an identity', identity === `tree:${tree}`, identity.slice(0, 200));
+	rmSync(repo, { recursive: true, force: true });
+}
+
 console.log(failures ? `\n${failures} FAILURE(S)` : '\nall arms green');
 process.exit(failures ? 1 : 0);
