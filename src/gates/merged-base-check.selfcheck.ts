@@ -78,6 +78,14 @@ try {
 	check('a check over the bound is not checked', slow.result === 'not-checked' && /ran out of the/.test(slow.why), JSON.stringify(slow));
 	check('…and its worktree is gone too', worktrees() === 1 && leftovers().length === before.length, leftovers().join(','));
 
+	// A project's post-checkout hook may provision every plain worktree add (JewelryX's: install,
+	// paraglide, svelte-kit sync), past git's 120 s bound (#972, #985): the check's worktree skips it.
+	const marker = join(ROOT, 'hook-ran');
+	writeFileSync(join(work, '.git', 'hooks', 'post-checkout'), `#!/bin/sh\necho ran > '${marker.replaceAll('\\', '/')}'\n`, { mode: 0o755 });
+	const hooked = await run([], [node('typecheck', 'process.exit(0)', 'pkg')]);
+	check("the project's post-checkout hook does not run in the check's worktree", hooked.result === 'green' && !existsSync(marker), JSON.stringify(hooked));
+	rmSync(join(work, '.git', 'hooks', 'post-checkout'));
+
 	git(work, 'remote', 'set-url', 'origin', pathToFileURL(join(ROOT, 'missing.git')).href);
 	const offline = await run([], [typecheck]);
 	check('a failed fetch is not checked', offline.result === 'not-checked' && /could not fetch dev/.test(offline.why), JSON.stringify(offline));
