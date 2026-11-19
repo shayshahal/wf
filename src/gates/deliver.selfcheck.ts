@@ -1,9 +1,9 @@
 // deliver.selfcheck.ts — node deliver.selfcheck.ts → exit 0 when green.
 // Fixture agreement + assessment → the PR title, the PR body, the tracker note.
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { localImageAttachments, commitRows, deliveryResume, existingNoteAction, githubPrRepo, githubRepo, hookRefused, noteComplete, originTarget, prBody, prLookup, prTitle, redactRemote, refusedPushInstruction, t2Gap } from './deliver.ts';
+import { attachRemaining, localImageAttachments, commitRows, deliveryResume, existingNoteAction, githubPrRepo, githubRepo, hookRefused, noteComplete, originTarget, prBody, prLookup, prTitle, redactRemote, refusedPushInstruction, t2Gap } from './deliver.ts';
 import type { State } from '../round/state.ts';
 
 let failures = 0;
@@ -95,6 +95,29 @@ check('non-UI PRs need no image section', !body.includes('## UI evidence'));
 	const r = localImageAttachments('| ![After: page](proof/after-1.png) | ![Before](https://x.test/b.png) | ![Gone](proof/none.png) |', root, 'bug-reports/r');
 	check('a local UI image is attached and its reference points at it from the repo root', r.attach.length === 1 && r.attach[0] === './bug-reports/r/proof/after-1.png#After: page' && r.body.includes('![After: page](./bug-reports/r/proof/after-1.png)'));
 	check('a URL and a missing file are left as written', r.body.includes('![Before](https://x.test/b.png)') && r.body.includes('![Gone](proof/none.png)'));
+}
+{
+	// gh takes at most 50 --attach per command (JX-1266: 60 images). The images past the first 50 go
+	// in batches of 50, each into the PR's current body, so gh rewrites only that batch's references.
+	const bodyFile = join(mkdtempSync(join(tmpdir(), 'wf-attach-')), 'body.md');
+	const calls: string[][] = [];
+	const bodies: string[] = [];
+	const gh = (args: string[]) => {
+		calls.push(args);
+		if (args[1] === 'view') return { status: 0, stdout: `body after ${calls.length} calls\n`, stderr: '' };
+		bodies.push(readFileSync(bodyFile, 'utf8'));
+		return { status: 0, stdout: '', stderr: '' };
+	};
+	const rest = Array.from({ length: 110 }, (_, i) => `./proof/${i + 51}.png#${i + 51}`);
+	const ok = attachRemaining('https://github.com/o/r/pull/1', rest, bodyFile, '.', gh);
+	const edits = calls.filter((c) => c[1] === 'edit');
+	const attached = edits.map((c) => c.filter((a, i) => c[i - 1] === '--attach'));
+	check('images past the first 50 go in batches of at most 50: 50, 50, 10', ok === null && JSON.stringify(attached.map((a) => a.length)) === '[50,50,10]' && JSON.stringify(attached.flat()) === JSON.stringify(rest), JSON.stringify(attached.map((a) => a.length)));
+	check('…each batch edits the body the PR has now', calls.map((c) => c[1]).join(',') === 'view,edit,view,edit,view,edit' && bodies[0] === 'body after 1 calls\n' && bodies[2] === 'body after 5 calls\n' && edits.every((c) => c.includes('--body-file') && c.includes(bodyFile)), JSON.stringify(bodies));
+	calls.length = 0;
+	check('…and nothing past the first 50 means no extra gh call', attachRemaining('https://github.com/o/r/pull/1', [], bodyFile, '.', gh) === null && calls.length === 0);
+	const failed = attachRemaining('https://github.com/o/r/pull/1', rest, bodyFile, '.', (args) => (args[1] === 'view' ? { status: 0, stdout: 'b', stderr: '' } : { status: 1, stdout: '', stderr: 'upload failed' }));
+	check('…a failed batch is reported, not ignored', !!failed && failed.includes('upload failed'), String(failed));
 }
 check('an empty agreement gives a commits table of the pushed commits alone', JSON.stringify(commitRows(['- abc1234 one'])) === JSON.stringify(['| abc1234 | one |']) && JSON.stringify(commitRows(['not a commit line'])) === '[]');
 
