@@ -2,12 +2,16 @@
 // The check runs in a temporary detached worktree of the fetched base, removed afterwards even on a
 // failure: the round's worktree holds the untracked paperwork reap keeps (REVIEW.md, the tracker note),
 // and checking the base out there would disturb it. It needs no stack or database, so a plain
-// `git worktree add` is enough (disposable-workspace.ts allocates those). Commands run through
-// runCheckProcess, so a timeout takes the command's whole process tree with it.
+// `git worktree add` is enough (disposable-workspace.ts allocates those), with the project's Git hooks
+// off: JewelryX's post-checkout hook provisions every plain worktree add (install, paraglide compile,
+// svelte-kit sync), which ran past the 120 s git bound and left dev unchecked after #972 and #985
+// (spawnSync git ETIMEDOUT, 2026-11-18/19); the spec's own prepare step installs what the checks need.
+// Commands run through runCheckProcess, so a timeout takes the command's whole process tree with it.
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { withGitHooksDisabled } from '../worktrees/git-hooks.ts';
 import { runCheckProcess } from './check-process.ts';
 import { shellArgv, RUN_MAX_BUFFER } from './check.ts';
 import { lastLines } from './merged-base.ts';
@@ -15,7 +19,7 @@ import type { MergedBaseCheck, MergedBaseCommand, MergedBaseResult } from './mer
 
 const sha40 = /^[a-f0-9]{40}$/;
 const label = (c: MergedBaseCommand) => (c.cwd && c.cwd !== '.' ? `${c.label} (in ${c.cwd})` : c.label);
-const git = (cwd: string, args: string[]) => spawnSync('git', ['-C', cwd, ...args], { encoding: 'utf8', timeout: 120_000 });
+const git = (cwd: string, args: string[], env?: NodeJS.ProcessEnv) => spawnSync('git', ['-C', cwd, ...args], { encoding: 'utf8', timeout: 120_000, env });
 const said = (r: ReturnType<typeof git>) => `${r.stderr ?? ''}${r.error ? r.error.message : ''}`.trim().split('\n').slice(-3).join(' / ');
 
 // The runner supervisor's own Node warning about shell argv on Windows (DEP0190) lands in the
@@ -33,7 +37,8 @@ export async function checkMergedBase(o: { toplevel: string; baseBranch: string;
 	const dir = mkdtempSync(join(tmpdir(), 'wf-merged-base-'));
 	const tree = join(dir, 'tree');
 	try {
-		const added = git(o.toplevel, ['worktree', 'add', '-q', '--detach', tree, sha]);
+		let added!: ReturnType<typeof git>;
+		withGitHooksDisabled((env) => { added = git(o.toplevel, ['worktree', 'add', '-q', '--detach', tree, sha], env); });
 		if (added.status !== 0) return { ...stamp, sha, result: 'not-checked', why: `could not check out ${sha.slice(0, 12)} in a temporary worktree (${said(added)})` };
 		const deadline = Date.now() + o.spec.timeoutMs;
 		const run = async (c: MergedBaseCommand) => {
