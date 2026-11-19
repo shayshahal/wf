@@ -36,7 +36,7 @@ import { mergedBaseLines } from './merged-base.ts';
 import type { DeliveryReceipt } from '../round/delivered-round.ts';
 import { readState, resolveRoundBase, roundOf, toplevelOf, writeState, WF_STATE_VERSION } from '../round/state.ts';
 import { runStep } from '../round/step.ts';
-import type { GhResult } from '../seams.ts';
+import type { Gh, GhResult } from '../seams.ts';
 import type { State } from '../round/state.ts';
 
 // GitHub refuses a PR body over 65,536 characters (JX-1221, 2026-10-08: PLAN.md 61,331 + VALIDATION.md
@@ -104,6 +104,27 @@ export function commitRows(commitLines: string[]) {
 // ASSESSMENT.md's verdict are the reviewer's minimum and are never cut. The agreement's working notes
 // (units, rulings, a repro) fold under `<details>`; over the budget they go first, then the
 // assessment's detail, then the oldest commits — and the body says where the rest is.
+// gh takes at most 50 --attach values per command ("--attach accepts at most 50 values per command",
+// gh 2.103): JX-1266's 30 before/after pairs (60 images) stopped delivery before the PR existed.
+export const GH_ATTACH_LIMIT = 50;
+
+/**
+ * Upload the UI images past the first gh call's GH_ATTACH_LIMIT, GH_ATTACH_LIMIT at a time. Each batch
+ * edits the PR with the body it has now (the earlier batches' references already rewritten by gh), so
+ * gh rewrites only this batch's references. Returns why it failed, or null.
+ */
+export function attachRemaining(prUrl: string, rest: string[], bodyFile: string, toplevel: string, gh: Gh): string | null {
+	for (let i = 0; i < rest.length; i += GH_ATTACH_LIMIT) {
+		const current = gh(['pr', 'view', prUrl, '--json', 'body', '--jq', '.body'], toplevel);
+		if (current.status !== 0) return `gh pr view ${prUrl}: ${(current.stdout ?? '') + (current.stderr ?? '')}`.trimEnd();
+		writeFileSync(bodyFile, current.stdout);
+		const batch = rest.slice(i, i + GH_ATTACH_LIMIT);
+		const edited = gh(['pr', 'edit', prUrl, '--body-file', bodyFile, ...batch.flatMap((a) => ['--attach', a])], toplevel);
+		if (edited.status !== 0) return `gh pr edit ${prUrl} (${batch.length} images after the first ${GH_ATTACH_LIMIT + i}): ${(edited.stdout ?? '') + (edited.stderr ?? '')}`.trimEnd();
+	}
+	return null;
+}
+
 /**
  * The UI evidence's local images, for `gh --attach` (process/SHOW-ME.md#ui-changes-required-pr-images).
  * A `![alt](proof/x.png)` that names a file in the round folder is rewritten to a path from the repo
@@ -1023,7 +1044,7 @@ async function runLockedDelivery(toplevel: string) {
 	const ticket = existsSync(ticketPath) ? readFileSync(ticketPath, 'utf8') : '';
 	const rawBody = prBody({ ticket, agreement: agreementText, commitLines, assessment, agreementPath: `${folder}/${agreementPath(toplevel, state?.class ?? null, folder).split(/[\\/]/).pop()}`, folder });
 	const images = localImageAttachments(rawBody, toplevel, folder);
-	const attachArgs = images.attach.flatMap((a) => ['--attach', a]);
+	const attachArgs = images.attach.slice(0, GH_ATTACH_LIMIT).flatMap((a) => ['--attach', a]);
 	writeFileSync(body, images.body);
 	const title = prTitle({ ticket, agreement: agreementText, commitLines });
 	// An open PR is this delivery's own: edit its body, never create a second one (issue 108).
@@ -1042,6 +1063,11 @@ async function runLockedDelivery(toplevel: string) {
 	const prRepo = prUrl ? githubPrRepo(prUrl) : null;
 	if (!prUrl || !prRepo || !sameRepo(prRepo, repo)) {
 		console.error(`FAILED: gh answered PR url ${JSON.stringify(prUrl)}, which is not a pull request in ${repoName}`);
+		process.exit(1);
+	}
+	const attachFailed = attachRemaining(prUrl, images.attach.slice(GH_ATTACH_LIMIT), body, toplevel, seams.gh);
+	if (attachFailed) {
+		console.error(`FAILED: uploading the UI evidence images past the first ${GH_ATTACH_LIMIT}: ${attachFailed}\nThe PR exists; run wf deliver again to edit it.`);
 		process.exit(1);
 	}
 	// The paperwork commit above moved HEAD since the pre-push lookup, and a create or an OPEN PR can
