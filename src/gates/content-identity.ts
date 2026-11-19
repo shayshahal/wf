@@ -155,9 +155,11 @@ const dropExcluded = (toplevel: string, env: NodeJS.ProcessEnv, excluded: string
 // The writer temps wf's own atomic writes left in the throwaway index. Enumerated from the index and
 // removed by literal path through the one owner predicate (producerTemp), so the working, HEAD and
 // commit hashes exclude exactly what the predicate calls wf's — no glob to drift from. An unreadable
-// index throws, so the identity fails closed rather than hashing without the exclusions.
+// index throws, so the identity fails closed rather than hashing without the exclusions. The whole
+// file list is read, so the buffer is base-freshness.ts's: JewelryX's is 1.68 MB, past Node's 1 MiB
+// default (spawnSync git ENOBUFS failed every wf review, check and deliver, 2026-11-19).
 const dropProducerTemps = (toplevel: string, env: NodeJS.ProcessEnv, notePath: string | null, folder: string | null) => {
-	const owned = execFileSync('git', ['-C', toplevel, 'ls-files', '-z'], { env, encoding: 'utf8' })
+	const owned = execFileSync('git', ['-C', toplevel, 'ls-files', '-z'], { env, encoding: 'utf8', maxBuffer: 1024 * 1024 * 1024 })
 		.split('\0')
 		.filter((file) => file && (producerTemp(file, notePath) || checkpointReviewRecord(file, folder)))
 		.map((file) => `:(literal)${file}`);
