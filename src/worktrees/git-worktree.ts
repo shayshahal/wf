@@ -7,7 +7,7 @@
 import { closeSync, openSync, readFileSync } from 'node:fs';
 import { addWorktree } from './workspace-allocation.ts';
 import { spawn } from 'node:child_process';
-import { setup, teardown } from '../project.ts';
+import { setup, stopCheckoutStack, teardown } from '../project.ts';
 import type { RemovalStep, Seams, Worktree } from '../seams.ts';
 import { stopWorktreeServers } from './serve.ts';
 import { stopShowBrowser } from './show-browser.ts';
@@ -50,6 +50,9 @@ export function removalPlan({ path, slug }: Pick<Parameters<NonNullable<Seams['r
 		{ label: 'stop owned servers', run: async () => {
 			const result = await stopWorktreeServers(path);
 			if (result.kind === 'refused') throw new Error(result.why);
+			// And what the project's own tools started here: it holds the folder the same way (2026-11-19).
+			const stopped = stopCheckoutStack(path);
+			if (stopped) console.log(stopped);
 		} },
 		// The window `wf show` opened outlives wf and holds the folder on Windows: release it before
 		// teardown and rm, or reap's delete fails with EPERM (#180).

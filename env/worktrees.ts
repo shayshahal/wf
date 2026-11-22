@@ -3,7 +3,7 @@
 import { closeSync, existsSync, openSync, readFileSync, realpathSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { withGitHooksDisabled } from '../src/worktrees/git-hooks.ts';
-import { teardown } from '../src/project.ts';
+import { stopCheckoutStack, teardown } from '../src/project.ts';
 import { stopWorktreeServers } from '../src/worktrees/serve.ts';
 import { stopShowBrowser } from '../src/worktrees/show-browser.ts';
 import { excludeFromGit, excludeWfFolder, resolveWorktree, listWorktrees } from '../src/worktrees/worktree.ts';
@@ -59,6 +59,9 @@ export function removalPlan({ branch, path, slug, pid }: Parameters<NonNullable<
 		{ label: 'stop owned servers', run: async () => {
 			const result = await stopWorktreeServers(path);
 			if (result.kind === 'refused') throw new Error(result.why);
+			// And what the project's own tools started here: it holds the folder the same way (2026-11-19).
+			const stopped = stopCheckoutStack(path);
+			if (stopped) console.log(stopped);
 		} },
 		// The window `wf show` opened outlives wf and holds the folder on Windows: release it before
 		// teardown and rm, or reap's delete fails with EPERM (#180).

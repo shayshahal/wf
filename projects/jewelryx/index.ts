@@ -17,7 +17,7 @@ import type { State } from '../../src/round/state.ts';
 import { listWorktrees, mainCheckout, basePortForBranch } from '../../src/worktrees/worktree.ts';
 import { homedir } from 'node:os';
 import { delimiter } from 'node:path';
-import { cjxStackRefusal } from './cjx-stack.ts';
+import { cjxStackRefusal, stopCjxStack } from './cjx-stack.ts';
 import { closeBrowsers, installShim, linkVerifySkill, REPRO_CONFIG, reproConfig, unlinkCompetingSkills, VERIFY_SKILL, verifyStackEnv, writeReproConfig } from './round.ts';
 import type { VerificationProfile, VerificationRequirements } from './readiness.ts';
 export { parseVerificationProfile, probeVerificationEndpoint, verificationEndpoints, waitForVerificationReady } from './readiness.ts';
@@ -296,6 +296,12 @@ export async function serve({ worktree, slug, port, profile }: { worktree: strin
 	const servers = machine().servers?.(slug);
 	return runDev({ worktree, basePort: port, origins: servers?.origins, wrap: servers?.wrap, profile });
 }
+
+// The servers this checkout runs that wf did not start, stopped in reap's "stop owned servers" step
+// before the folder goes: the stack `cjx stack up` recorded (cjx-stack.ts, 2026-11-19). Not a teardown
+// step of its own: reap's recovery journal binds the plan's step names, and a new name would refuse the
+// reaps left half-done under the old plan. Returns what it stopped, or null.
+export const stopCheckoutStack = (worktree: string): string | null => stopCjxStack(worktree);
 
 // What removing a worktree leaves behind, in order: the database's steps, then the machine's own.
 // Each step tolerates "already gone". `worktree` is there only when the steps run before the folder
