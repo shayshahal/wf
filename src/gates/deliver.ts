@@ -31,6 +31,7 @@ import { commitContentSha, headContentSha, trackerNotePath, worktreeContentSha }
 import type { ContentIdentity } from './content-identity.ts';
 import { approvedIdentity, carriedIdentity } from './approval-carry.ts';
 import { freshenBase } from './base-freshness.ts';
+import { foreignApprovalGap } from './foreign-paperwork.ts';
 import { checkMergedBase } from './merged-base-check.ts';
 import { mergedBaseLines } from './merged-base.ts';
 import type { DeliveryReceipt } from '../round/delivered-round.ts';
@@ -911,6 +912,15 @@ async function runLockedDelivery(toplevel: string) {
 		console.error(`wf deliver: ${what} changed the implementation T2 approved (REVIEW.md worktree ${binding.contentSha ?? 'none'}, HEAD ${binding.headSha ?? 'none'}${carried ? `; carried by rebase to worktree ${carried.worktree}` : ''}; now worktree ${now.worktree}, HEAD ${now.head}) — the approval no longer covers it. Commit or revert the change, re-run \`wf check\`, and re-run \`wf review <round>\` + T2`);
 		process.exit(2);
 	};
+	// Another round's approval record in this worktree or branch is refused as that, before T2's
+	// identity reads it as a changed tree (foreign-paperwork.ts, 2026-11-19). A base that does not
+	// resolve is refused below.
+	const roundBase = resolveRoundBase(toplevel, state).base;
+	const foreign = roundBase ? foreignApprovalGap(toplevel, folder, roundBase) : null;
+	if (foreign) {
+		console.error(`wf deliver: ${foreign}`);
+		process.exit(2);
+	}
 	const t2 = t2Gap(state, reviewText, identityNow());
 	if (t2) {
 		console.error(`wf deliver: ${t2}`);

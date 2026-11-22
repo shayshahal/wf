@@ -13,6 +13,7 @@ import { excludeWfFolder, resolveWorktree } from '../worktrees/worktree.ts';
 import { roundWorkspaceGap } from '../worktrees/session-workspace.ts';
 import { appendDatedSection, approvalContentGap, beforeAfterLines, captionFor, devUrlsFor, lastField, needsFreshReviewHeader, proofPairs, readVerdict, renderHeader, renderSkeleton, reviewScopeBinding, scopedApprovalGap } from './review-format.ts';
 import { approvalIdentity, approvalPaperworkExcluded, trackerNotePath } from './content-identity.ts';
+import { foreignApprovalGap } from './foreign-paperwork.ts';
 import type { ContentIdentity } from './content-identity.ts';
 import { seams } from '../seams.ts';
 import { manualCheck } from './check.ts';
@@ -175,6 +176,13 @@ export async function runReview(argv: string[], { stack = ensureServers }: { sta
   // before the stack is started, so a dirty tree does not wait on servers it will not use (#106 review).
   const folder = state.folder ?? null;
   const notePath = trackerNotePath(folder);
+  // Another round's approval record here is not product to commit: it came from that round, most
+  // likely through the shared `git stash` stack (foreign-paperwork.ts, 2026-11-19).
+  const foreign = foreignApprovalGap(worktree, folder, base);
+  if (foreign) {
+    console.error(`wf review: ${foreign}`);
+    process.exit(2);
+  }
   const uncommitted = dirtyProduct(worktree, folder, notePath);
   if (uncommitted.length) {
     console.error(`wf review: ${uncommitted.join(', ')} changed but not committed — the review screen shows the committed branch, so T2 cannot approve it; commit it, then run wf review ${round} again`);

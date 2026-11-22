@@ -31,6 +31,21 @@ const lines = (edit: Record<number, string> = {}) => Array.from({ length: 12 }, 
 const FOLDER = 'bug-reports/x';
 const BRANCH = 'fix/x';
 
+// Another fetch of the shared repository lands between this fetch's read of origin/dev and its update,
+// once (2026-11-19: three fetches of one bare repo's origin/dev at 17:11Z; deliver lost with `cannot lock
+// ref 'refs/remotes/origin/dev': is at … but expected …`). The reference-transaction hook's `preparing`
+// state runs after the old value is read and before the ref is locked, so the race is the same every run.
+const raceNextBaseFetch = (work: string) => writeFileSync(join(work, '.git', 'hooks', 'reference-transaction'), [
+	'#!/bin/sh',
+	'[ "$1" = preparing ] || exit 0',
+	"grep -q ' refs/remotes/origin/dev$' || exit 0",
+	'marker="$(git rev-parse --git-dir)/raced"',
+	'[ -e "$marker" ] && exit 0',
+	': > "$marker"',
+	'git update-ref refs/remotes/origin/dev "$(git commit-tree "$(git rev-parse HEAD^{tree})" -m raced)"',
+	'',
+].join('\n'), { mode: 0o755 });
+
 let seq = 0;
 // origin/dev with app.txt and other.txt; the round's branch changes app.txt line 6 and commits its
 // folder (deliver's round-folder commit). REVIEW.md, the tracker note and .wf/ stay untracked.
@@ -123,6 +138,13 @@ try {
 		check('a failed fetch refuses: freshness unproven', r.kind === 'refused' && /could not fetch dev/.test(r.why) && /cannot be proven/.test(r.why) && f.head() === before, JSON.stringify(r));
 	}
 	{
+		const f = fixture();
+		const tip = f.moveDev('other.txt', 'other, moved on dev\n');
+		raceNextBaseFetch(f.work);
+		const r = f.run();
+		check('a fetch that loses the race for origin/dev to another fetch is retried, not refused', r.kind === 'carried' && r.carry.onto === tip && existsSync(join(f.work, '.git', 'raced')), JSON.stringify(r));
+	}
+	{
 		// The round's earlier push (an interrupted delivery, an open PR): replaced under a lease.
 		const f = fixture();
 		git(f.work, 'push', '-q', 'origin', 'HEAD');
@@ -157,6 +179,7 @@ try {
 		check('a remote branch with commits this worktree lacks: refused before rebasing', r.kind === 'refused' && /does not have/.test(r.why) && f.head() === before, JSON.stringify(r));
 	}
 	check('the hand-rebase refusal names the command and the cost', /git rebase origin\/dev/.test(rebaseByHand('origin/dev', 'a'.repeat(40), 'x')) && /nothing was pushed/.test(rebaseByHand('origin/dev', 'a'.repeat(40), 'x')));
+	check('…and that the uncommitted paperwork stays through it, so nobody stashes it (2026-11-19)', /REVIEW\.md and the other uncommitted paperwork stay in place through the rebase; do not `git stash` them/.test(rebaseByHand('origin/dev', 'a'.repeat(40), 'x')));
 } finally {
 	rmSync(ROOT, { recursive: true, force: true });
 }
