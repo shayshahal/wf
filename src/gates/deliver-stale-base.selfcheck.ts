@@ -157,6 +157,23 @@ try {
 		check('…a later deliver accepts the carried identity and opens the PR', retry.code === 0 && !/rebased onto/.test(retry.out) && f.remoteBranch() === f.head() && !!f.state().pr_handoff, retry.out);
 	}
 	{
+		// 2026-11-19: two rounds delivered at once, and another round's REVIEW.md (its T2 approval) landed in
+		// this worktree through the shared `git stash` stack (foreign-paperwork.ts). Neither T2 nor deliver may
+		// take it for this round's; wf review used to say "commit it".
+		const f = fixture('foreign-review');
+		mkdirSync(join(f.work, 'bug-reports', 'other'), { recursive: true });
+		writeFileSync(join(f.work, 'bug-reports', 'other', 'REVIEW.md'), 'verdict: approved\n');
+		const r = f.wf();
+		check('another round\'s REVIEW.md in the worktree: deliver refuses and names it, nothing pushed or committed', r.code === 2 && /bug-reports\/other\/REVIEW\.md is another round's approval record/.test(r.out) && /git stash/.test(r.out) && !f.remoteBranch() && !git(f.work, 'ls-files', 'bug-reports/other'), r.out);
+		const review = f.wf({ ARGS: JSON.stringify(['review', BRANCH]) });
+		check('…wf review refuses it as another round\'s, and never says to commit it', review.code === 2 && /bug-reports\/other\/REVIEW\.md is another round's approval record/.test(review.out) && !/changed but not committed|commit it, then/.test(review.out), review.out);
+		// Committed on the branch (an agent that followed the old "commit it"): still refused.
+		git(f.work, 'add', 'bug-reports/other/REVIEW.md');
+		git(f.work, 'commit', '-qm', 'carry another round\'s review');
+		const committed = f.wf();
+		check('…committed on the branch, deliver still refuses it', committed.code === 2 && /bug-reports\/other\/REVIEW\.md is another round's approval record/.test(committed.out) && !f.remoteBranch(), committed.out);
+	}
+	{
 		// An open PR on the old base is repaired the same way: rebased, then pushed under a lease.
 		const f = fixture('open-pr');
 		const first = f.wf();

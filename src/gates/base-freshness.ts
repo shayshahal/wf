@@ -12,6 +12,7 @@
 import { spawnSync } from 'node:child_process';
 import { approvalIdentity } from './content-identity.ts';
 import { nextCarry } from './approval-carry.ts';
+import { fetchBase } from './fetch-base.ts';
 import type { ApprovalBound, ApprovalCarry } from './approval-carry.ts';
 
 export type Freshness =
@@ -19,16 +20,19 @@ export type Freshness =
 	| { kind: 'carried'; tip: string; carry: ApprovalCarry; lease: string; line: string }
 	| { kind: 'refused'; why: string };
 
-// A fetch or ls-remote that hangs on the network must not hold the delivery lock forever.
+// An ls-remote that hangs on the network must not hold the delivery lock forever (the fetch is
+// fetch-base.ts's, under the same bound).
 const NETWORK_MS = 120_000;
 const git = (toplevel: string, args: string[], input?: string) =>
-	spawnSync('git', ['-C', toplevel, ...args], { encoding: 'utf8', input, timeout: args[0] === 'fetch' || args[0] === 'ls-remote' ? NETWORK_MS : undefined, maxBuffer: 1024 * 1024 * 1024 });
+	spawnSync('git', ['-C', toplevel, ...args], { encoding: 'utf8', input, timeout: args[0] === 'ls-remote' ? NETWORK_MS : undefined, maxBuffer: 1024 * 1024 * 1024 });
 const out = (r: ReturnType<typeof git>) => (r.stdout ?? '').trim();
 const said = (r: ReturnType<typeof git>) => `${r.stderr ?? ''}${r.stdout ?? ''}${r.error ? r.error.message : ''}`.trim().split('\n').slice(-5).join(' / ');
 
 // Pure: the refusal for a rebase deliver will not carry: what to do by hand, and why it costs a review.
+// It says the uncommitted paperwork stays put: on 2026-11-19 an agent stashed REVIEW.md around this
+// rebase, and the shared stash stack gave it to another round (foreign-paperwork.ts).
 export function rebaseByHand(baseRef: string, tip: string, reason: string): string {
-	return `${baseRef} moved to ${tip.slice(0, 12)} since this round branched, and ${reason}; nothing was pushed. Rebase by hand (\`git rebase ${baseRef}\`), resolve, re-run the checks, then \`wf next\`: a changed patch needs a fresh assessment and T2`;
+	return `${baseRef} moved to ${tip.slice(0, 12)} since this round branched, and ${reason}; nothing was pushed. Rebase by hand (\`git rebase ${baseRef}\`), resolve, re-run the checks, then \`wf next\`: a changed patch needs a fresh assessment and T2. REVIEW.md and the other uncommitted paperwork stay in place through the rebase; do not \`git stash\` them (every worktree shares one stash stack)`;
 }
 
 // Pure: the one line a carried rebase prints.
@@ -70,7 +74,8 @@ function earlierRebasedPush(toplevel: string, branch: string, previous: Approval
 export function freshenBase(o: { toplevel: string; baseBranch: string; branch: string; folder: string; notePath: string | null; bound: ApprovalBound; previous: ApprovalCarry | null | undefined }): Freshness {
 	const { toplevel } = o;
 	const baseRef = `origin/${o.baseBranch}`;
-	const fetched = git(toplevel, ['fetch', '-q', 'origin', `+refs/heads/${o.baseBranch}:refs/remotes/${baseRef}`]);
+	// Retried while another fetch of the shared repository wins the ref (fetch-base.ts, 2026-11-19).
+	const fetched = fetchBase(toplevel, o.baseBranch);
 	if (fetched.status !== 0) return { kind: 'refused', why: `could not fetch ${o.baseBranch} from origin (${said(fetched)}), so whether the branch is behind it cannot be proven; nothing was pushed. Fix the remote and run wf deliver again` };
 	const tip = out(git(toplevel, ['rev-parse', '--verify', `refs/remotes/${baseRef}^{commit}`]));
 	if (!/^[a-f0-9]{40}$/.test(tip)) return { kind: 'refused', why: `${baseRef} does not resolve after the fetch; nothing was pushed` };

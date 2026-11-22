@@ -86,6 +86,23 @@ try {
 	check("the project's post-checkout hook does not run in the check's worktree", hooked.result === 'green' && !existsSync(marker), JSON.stringify(hooked));
 	rmSync(join(work, '.git', 'hooks', 'post-checkout'));
 
+	// Another fetch of the shared repository moves origin/dev between this fetch's read and its update
+	// (2026-11-19, base-freshness.selfcheck.ts says how the hook stages it): retried, then checked.
+	git(work, 'update-ref', 'refs/remotes/origin/dev', `${merged}~1`);
+	writeFileSync(join(work, '.git', 'hooks', 'reference-transaction'), [
+		'#!/bin/sh',
+		'[ "$1" = preparing ] || exit 0',
+		"grep -q ' refs/remotes/origin/dev$' || exit 0",
+		'marker="$(git rev-parse --git-dir)/raced"',
+		'[ -e "$marker" ] && exit 0',
+		': > "$marker"',
+		'git update-ref refs/remotes/origin/dev "$(git commit-tree "$(git rev-parse HEAD^{tree})" -m raced)"',
+		'',
+	].join('\n'), { mode: 0o755 });
+	const raced = await run([], [node('typecheck', 'process.exit(0)', 'pkg')]);
+	check('a fetch that loses the race for origin/dev to another fetch is retried, then checked', raced.result === 'green' && raced.sha === merged && existsSync(join(work, '.git', 'raced')), JSON.stringify(raced));
+	rmSync(join(work, '.git', 'hooks', 'reference-transaction'));
+
 	git(work, 'remote', 'set-url', 'origin', pathToFileURL(join(ROOT, 'missing.git')).href);
 	const offline = await run([], [typecheck]);
 	check('a failed fetch is not checked', offline.result === 'not-checked' && /could not fetch dev/.test(offline.why), JSON.stringify(offline));

@@ -12,6 +12,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { withGitHooksDisabled } from '../worktrees/git-hooks.ts';
+import { fetchBase } from './fetch-base.ts';
 import { runCheckProcess } from './check-process.ts';
 import { shellArgv, RUN_MAX_BUFFER } from './check.ts';
 import { lastLines } from './merged-base.ts';
@@ -30,7 +31,8 @@ const withoutRunnerWarning = (output: string) => output.replace(/^.*\[DEP0190\].
 export async function checkMergedBase(o: { toplevel: string; baseBranch: string; delivered: string; spec: MergedBaseCheck; env: Record<string, string> }): Promise<MergedBaseResult> {
 	const base = `origin/${o.baseBranch}`;
 	const stamp = { base, delivered: o.delivered, at: new Date().toISOString() };
-	const fetched = git(o.toplevel, ['fetch', '-q', 'origin', `+refs/heads/${o.baseBranch}:refs/remotes/${base}`]);
+	// Retried while another fetch of the shared repository wins the ref (fetch-base.ts, 2026-11-19).
+	const fetched = fetchBase(o.toplevel, o.baseBranch);
 	if (fetched.status !== 0) return { ...stamp, sha: '', result: 'not-checked', why: `could not fetch ${o.baseBranch} (${said(fetched)})` };
 	const sha = (git(o.toplevel, ['rev-parse', '--verify', `refs/remotes/${base}^{commit}`]).stdout ?? '').trim();
 	if (!sha40.test(sha)) return { ...stamp, sha: '', result: 'not-checked', why: `${base} does not resolve` };
