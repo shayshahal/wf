@@ -15,6 +15,7 @@ import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { acquireProcessLock } from '../process-lock.ts';
 import { ownedProcessTree, parseProcessIdentities } from '../process-tree.ts';
+import type { ProcessIdentity, ProcessKillFailure } from '../process-tree.ts';
 import { connect } from 'node:net';
 import { defaultVerificationRequirements, parseVerificationProfile, prepareServe, probeVerificationEndpoint, serve, serverDirectUrls, stackUrls, verificationEndpoints, waitForVerificationReady } from '../project.ts';
 import type { VerificationProfile, VerificationRequirements } from '../project.ts';
@@ -23,6 +24,7 @@ import { realProbeStack } from '../round/status.ts';
 import { PROCESS_CWD_PS } from '../process-cwd.ts';
 import { claimRoundPort, roundPort } from './port-claim.ts';
 import { slugForBranch, urlLines } from './worktree.ts';
+import { identities, killFailureText, processInventory, staleServeLeftovers } from './worktree-processes.ts';
 
 export const pidFile = (worktree: string) => join(worktree, '.wf', 'serve.pid');
 
@@ -45,8 +47,8 @@ const alive = (pid: number) => {
 	try { process.kill(pid, 0); return true; } catch (e) { return (e as NodeJS.ErrnoException).code === 'EPERM'; }
 };
 
-/** A stop refuses unknown process ownership instead of trusting a possibly recycled PID. */
-export type ServerStopResult = { readonly kind: 'stopped'; readonly pid: number } | { readonly kind: 'absent' } | { readonly kind: 'refused'; readonly why: string };
+/** A stop refuses unknown process ownership instead of trusting a possibly recycled PID. `leftovers`: the recorded root had exited, and this many processes it left were stopped. */
+export type ServerStopResult = { readonly kind: 'stopped'; readonly pid: number; readonly leftovers?: number } | { readonly kind: 'absent' } | { readonly kind: 'refused'; readonly why: string };
 
 // Only the recorded foreground entry is a server owner; agents and the shared proxy are not.
 // Releasing an idle stack must not end other work in the same worktree (2026-10-14).
@@ -116,6 +118,8 @@ export async function stopWorktreeServers(worktree: string, expectedToken?: stri
 		if (snapshot.kind === 'unknown') return { kind: 'refused', why: 'wf serve: process inventory unavailable; ownership retained' };
 		const original = existsSync(record) ? readFileSync(record, 'utf8') : null;
 		let owners;
+		// Set when the recorded root is gone: what its stack left, the only processes this stop may end.
+		let leftovers: ProcessIdentity[] | undefined;
 		let token: string = randomUUID();
 		let profile: VerificationProfile | undefined;
 		if (original !== null) {
@@ -134,7 +138,17 @@ export async function stopWorktreeServers(worktree: string, expectedToken?: stri
 			// complete that operation without serve.pid; running/partial starts remain refused.
 			if (pid === null && (!('state' in raw) || raw.state !== 'releasing')) return { kind: 'refused', why: 'wf serve: partial startup ownership requires inspection; retained for recovery' };
 			pid ??= owners[0].pid;
-			if (!snapshot.processes.some((p) => p.pid === pid) && (!('state' in raw) || raw.state !== 'releasing')) return { kind: 'refused', why: 'wf serve: owner disappeared before release; possible orphan descendants require inspection' };
+			// The root is gone (or its pid is another process now): the stack stopped by itself or was killed.
+			// This refused until 2026-11-22, when fix/jx-1085's stack exited 3 s after it started and every
+			// stop, deliver and reap refused until the orchestrator inspected by hand. wf inspects now: what
+			// the stack may have left in the worktree is stopped (worktree-processes.ts), and the round's
+			// ports must be closed before the record goes (the wait below).
+			const root = owners[0];
+			if ((!('state' in raw) || raw.state !== 'releasing') && !snapshot.processes.some((p) => p.pid === root.pid && p.born === root.born)) {
+				const seen = processInventory();
+				if (seen.kind === 'unknown') return { kind: 'refused', why: `wf serve: the recorded server ${root.pid} is gone and the process list could not be read to find what it left; ownership retained` };
+				leftovers = identities(staleServeLeftovers(worktree, root, seen.processes));
+			}
 		} else {
 			if (pid === null) return { kind: 'absent' };
 			if (expectedToken !== undefined) return { kind: 'refused', why: 'wf serve: stop handle ownership is missing; retained for recovery' };
@@ -144,13 +158,17 @@ export async function stopWorktreeServers(worktree: string, expectedToken?: stri
 			if (!root) return { kind: 'refused', why: 'wf serve: server disappeared during ownership probe; retained for recovery' };
 			owners = [root];
 		}
-		if (owners.some((owner) => snapshot.processes.some((p) => p.pid === owner.pid && p.born !== owner.born))) return { kind: 'refused', why: 'wf serve: reused PID; ownership retained and no process stopped' };
-		owners = ownedProcessTree(owners, snapshot.processes);
+		if (!leftovers && owners.some((owner) => snapshot.processes.some((p) => p.pid === owner.pid && p.born !== owner.born))) return { kind: 'refused', why: 'wf serve: reused PID; ownership retained and no process stopped' };
+		// A gone root stays in the releasing record, so an interrupted release resumes as one, but it is
+		// neither killed nor waited on: its pid may be another process's now.
+		const recorded = leftovers ? [owners[0], ...leftovers] : ownedProcessTree(owners, snapshot.processes);
+		owners = leftovers ?? recorded;
 		const pidUnchanged = () => (existsSync(pidFile(worktree)) ? readFileSync(pidFile(worktree), 'utf8') : null) === pidBytes;
 		if (!pidUnchanged() || (existsSync(record) ? readFileSync(record, 'utf8') : null) !== original) return { kind: 'refused', why: 'wf serve: ownership changed during stop; retry' };
-		const releasing = JSON.stringify({ token, state: 'releasing', processes: owners, ...(profile ? { verificationProfile: profile } : {}) });
+		const releasing = JSON.stringify({ token, state: 'releasing', processes: recorded, ...(profile ? { verificationProfile: profile } : {}) });
 		writeFileSync(record, releasing);
-		if (!seams.processes.kill(owners)) return { kind: 'refused', why: 'wf serve: could not stop owned processes; ownership retained for retry' };
+		let failure: ProcessKillFailure | undefined;
+		if (!seams.processes.kill(owners, (f) => { failure = f; })) return { kind: 'refused', why: `wf serve: could not stop owned processes (${failure ? killFailureText(failure) : 'no detail'}; pids ${owners.map((o) => o.pid).join(', ')}); ownership retained for retry` };
 		const branch = execFileSync('git', ['-C', worktree, 'rev-parse', '--abbrev-ref', 'HEAD'], { encoding: 'utf8', stdio: 'pipe' }).trim();
 		const urls = serverDirectUrls(roundPort(worktree, branch), profile).flatMap((value) => { const url = new URL(value); if (url.hostname !== 'localhost') return [url]; const ipv4 = new URL(value); ipv4.hostname = '127.0.0.1'; const ipv6 = new URL(value); ipv6.hostname = '[::1]'; return [ipv4, ipv6]; });
 		const until = Date.now() + 3000;
@@ -158,13 +176,18 @@ export async function stopWorktreeServers(worktree: string, expectedToken?: stri
 			if (!pidUnchanged() || readFileSync(record, 'utf8') !== releasing) return { kind: 'refused', why: 'wf serve: ownership changed during shutdown; replacement retained' };
 			const remaining = seams.processes.snapshot();
 			if (remaining.kind === 'unknown') return { kind: 'refused', why: 'wf serve: shutdown probe unavailable; ownership retained' };
-			if (!owners.some((owner) => remaining.processes.some((p) => p.pid === owner.pid && p.born === owner.born || p.parent === owner.pid && Date.parse(p.born) >= Date.parse(owner.born))) && (await Promise.all(urls.map(serverAddressAlive))).every((probe) => probe === 'absent')) break;
-			if (Date.now() >= until) return { kind: 'refused', why: 'wf serve: descendant or endpoint shutdown not confirmed; ownership retained for retry' };
+			const running = remaining.processes.filter((p) => owners.some((owner) => p.pid === owner.pid && p.born === owner.born || p.parent === owner.pid && Date.parse(p.born) >= Date.parse(owner.born)));
+			const probes = await Promise.all(urls.map(serverAddressAlive));
+			if (!running.length && probes.every((probe) => probe === 'absent')) break;
+			if (Date.now() >= until) {
+				const answering = urls.filter((_, i) => probes[i] !== 'absent').map((url) => url.host);
+				return { kind: 'refused', why: `wf serve: descendant or endpoint shutdown not confirmed (${[running.length ? `still running: pids ${running.map((p) => p.pid).join(', ')}` : '', answering.length ? `still answering: ${answering.join(', ')}` : ''].filter(Boolean).join('; ')}); ownership retained for retry` };
+			}
 			await new Promise((resolve) => setTimeout(resolve, 100));
 		}
 		if (pidBytes !== null) unlinkSync(pidFile(worktree));
 		unlinkSync(record);
-		return { kind: 'stopped', pid };
+		return leftovers ? { kind: 'stopped', pid, leftovers: leftovers.length } : { kind: 'stopped', pid };
 	} catch {
 		return { kind: 'refused', why: 'wf serve: could not verify shutdown or update ownership; inspect .wf/serve-owner.json and retry' };
 	} finally { release?.(); }
@@ -331,7 +354,7 @@ export async function runServe(argv: string[]) {
 	if (argv.includes('--stop')) {
 		const stopped = await stopWorktreeServers(worktree);
 		if (stopped.kind === 'refused') { console.error(stopped.why); process.exitCode = 1; }
-		else console.log(stopped.kind === 'stopped' ? `wf serve: stopped server tree ${stopped.pid}` : 'wf serve: no recorded server running');
+		else console.log(stopped.kind === 'absent' ? 'wf serve: no recorded server running' : stopped.leftovers === undefined ? `wf serve: stopped server tree ${stopped.pid}` : `wf serve: the recorded server ${stopped.pid} had exited; stopped ${stopped.leftovers} process(es) it left and released its record`);
 		return;
 	}
 	const branch = git('rev-parse', '--abbrev-ref', 'HEAD');
