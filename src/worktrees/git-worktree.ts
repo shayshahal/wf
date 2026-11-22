@@ -11,6 +11,7 @@ import { setup, stopCheckoutStack, teardown } from '../project.ts';
 import type { RemovalStep, Seams, Worktree } from '../seams.ts';
 import { stopWorktreeServers } from './serve.ts';
 import { stopShowBrowser } from './show-browser.ts';
+import { stopWorktreeProcesses } from './worktree-processes.ts';
 import { basePortForBranch, excludeFromGit, excludeWfFolder, slugForBranch } from './worktree.ts';
 
 // The project's setup steps all at once, as worktrunk runs them: a command runs in a shell, its
@@ -50,9 +51,14 @@ export function removalPlan({ path, slug }: Pick<Parameters<NonNullable<Seams['r
 		{ label: 'stop owned servers', run: async () => {
 			const result = await stopWorktreeServers(path);
 			if (result.kind === 'refused') throw new Error(result.why);
+			if (result.kind === 'stopped' && result.leftovers !== undefined) console.log(`the recorded server ${result.pid} had exited; stopped ${result.leftovers} process(es) it left`);
 			// And what the project's own tools started here: it holds the folder the same way (2026-11-19).
 			const stopped = stopCheckoutStack(path);
 			if (stopped) console.log(stopped);
+			// And what anyone else started from the worktree's own files: a Playwright daemon the round's
+			// agent ran from its node_modules held the folder (2026-11-22).
+			const swept = stopWorktreeProcesses(path);
+			if (swept) console.log(swept);
 		} },
 		// The window `wf show` opened outlives wf and holds the folder on Windows: release it before
 		// teardown and rm, or reap's delete fails with EPERM (#180).
