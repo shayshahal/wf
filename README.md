@@ -394,17 +394,18 @@ Plannotator's **Semantic changes** lists changed entities; **Call flow** adds in
 source navigation and inline comments. Call flow is experimental and opt-in in Settings → Analysis;
 its toggle consents to installing Plannotator's managed runtime and needed language packs. wf does
 not change those settings or install engines. These are navigation aids, not runtime traces or a
-substitute for the independent assessment and proof. An Inbox Guided Review is a walkthrough, not
-the live analysis surface or delivery approval.
+substitute for the independent assessment and proof. A guided review an agent sends to the Inbox
+itself is a walkthrough, not delivery approval; only the review `wf review` sends carries a verdict
+(T2 in the Inbox, above).
 
-The external T2 adapter retains the session's structured decision/message as quoted feedback,
+The review page's adapter (without the Inbox's code review) retains the session's structured decision/message as quoted feedback,
 not automatic approval. Plannotator 0.28.45 does not include the submitted comparison/snapshot in
 that response; its shared archive cannot prove which session submitted a record. Thus even a UI
 Approve leaves `verdict: pending`. The session must verify the displayed comparison and evidence
 with the person and obtain their ruling on the prepared implementation identities before recording
 it. If it cannot, review stays pending. Failed reopens invalidate older approval, and changed content
 or HEAD trees cannot receive the returned feedback's identity. Only `wf review --done` advances
-the human gate. Automatic verdict import needs an upstream session-owned snapshot contract.
+the human gate. The Inbox review (above) is the session-owned snapshot this page lacks.
 Pi's enabled Inbox integration wakes the sending session; after a session ends, `wf inbox` in
 the round's worktree retrieves its replies. The kit without a transport, or an unavailable CLI,
 falls back to asking directly and `wf decide`. No runtime packages are needed.
