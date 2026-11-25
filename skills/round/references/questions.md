@@ -28,7 +28,8 @@ only in chat or in an Inbox message.
    - A skipped, ambiguous or conflicting answer stays open. Ask for clarification in the same thread.
 
 Done when the actual ruling is saved against its original question, and the next action of the
-task shows it. An Inbox reply alone is not a decision record. It is not T1 or T2 approval.
+task shows it. An Inbox reply alone is not a decision record. It is not T1 or T2 approval, except the verdict
+that `wf review --done` reads from the person's reply to a review `wf review` sent.
 
 ## Changed agreement
 

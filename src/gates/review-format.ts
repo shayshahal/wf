@@ -226,6 +226,22 @@ function verdictSection(text: string): { verdict: string; field: (key: string) =
   }
   return null;
 }
+/**
+ * The review the last dated section sent to the person's inbox, or null when that section is not one.
+ * `verdict` is a real verdict already written in the section, `verdictReply` the inbox reply it came
+ * from: a verdict with no reply was written by hand, and an inbox review takes its verdict only from
+ * the person's reply (review.ts).
+ */
+export function inboxReviewSection(text: string) {
+  const section = reviewSections(text).at(-1) ?? '';
+  const ref = lastField(section, 'inbox-review');
+  if (!ref) return null;
+  return {
+    ref, url: lastField(section, 'inbox-url'), patchSha: lastField(section, 'patch-sha'), verdictReply: lastField(section, 'inbox-verdict'),
+    verdict: readVerdict(section), contentSha: lastField(section, 'content-sha'), headSha: lastField(section, 'head-sha'),
+  };
+}
+
 /** The latest T1 verdict (including pending) binds only the sha in its own dated section. */
 export function agreementApprovalBinding(text: string): { verdict: string | null; agreementSha: string | null } {
   const found = reviewSections(text).reverse().find((section) => /^verdict:/m.test(section));

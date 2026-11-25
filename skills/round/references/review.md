@@ -72,7 +72,8 @@ intermediate work.
 The independent final assessment and final T2 walk are not checkpoint prerequisites.
 
 1. Run `wf review <branch> --checkpoint [--base <ref>]`.
-2. Show the prepared material. Keep its identity header.
+2. Show the prepared material. Keep its identity header. With a configured review inbox, follow
+   the inbox steps of the final T2 below.
 3. Record only the actual comments and verdict of the person.
 4. Run `wf review <branch> --checkpoint --done`. Then run `wf next`.
 
@@ -95,7 +96,14 @@ The independent final assessment and final T2 walk are not checkpoint prerequisi
      handoff. After delivery, verify that both images render in the PR description.
 2. **Prepare the record.** Run `wf review <branch>`. It prepares the bound review record and the
    inspection artifacts.
-   - Use the configured UI. A native presentation handoff takes priority: the session opens its
+   - With a configured review inbox, the review goes to the person's inbox. The first run writes
+     the exact diff and prints how to write the guide for it. Write the guide to the file it names,
+     then run `wf review <branch>` again: wf sends the diff and the guide itself. Do not send the
+     review with the inbox tools yourself. After the person asked for changes, the next review
+     still covers the whole diff; its first chapter covers the changes they asked for, whatever an
+     inbox recheck prompt suggests. The person's Approve or Send feedback is their reply to that
+     review. Step 3 reads it; do not write the verdict into the file.
+   - Otherwise use the configured UI. A native presentation handoff takes priority: the session opens its
      review tool and waits for feedback; wf has not opened that tool. Otherwise the configured diff
      adapter can open the review. `WF_NO_OPEN=1` keeps the external launch off.
    - Show the exact committed `base...HEAD` comparison (`merge-base` mode), using the base in the
@@ -110,7 +118,8 @@ The independent final assessment and final T2 walk are not checkpoint prerequisi
    - Keep the reviewed identity header. It does not approve later product or test changes. A new
      review starts pending; a failed launch or unverified comparison cannot reuse older approval.
 3. **Record the verdict.** After the person submits the verdict, run `wf review <branch> --done`.
-   Then run `wf next`. If the person requested changes, the round returns to build. Its corrections
+   For an inbox review it reads the person's reply to the sent review and records it; it refuses
+   an approval when the diff changed after it was sent. Then run `wf next`. If the person requested changes, the round returns to build. Its corrections
    and screenshots stay as obligations.
 
 Done when the verdict is recorded on the actual material that you showed, and the tool accepted it.

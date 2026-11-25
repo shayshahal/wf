@@ -7,7 +7,7 @@ import { herdrOpener } from './adapters/herdr.ts';
 import { herdrWorkspaceHandoff, runHerdrWorkspaces } from './adapters/herdr-workspaces.ts';
 import { processCwds } from './adapters/processes.ts';
 import { annotateFile, isPlannotatorPresent } from './adapters/plannotator.ts';
-import { questionInbox } from './adapters/plannotator-inbox.ts';
+import { questionInbox, reviewInbox } from './adapters/plannotator-inbox.ts';
 import { plannotatorReviewGuidance, reviewDiff } from './adapters/plannotator-review.ts';
 import { piModelsForProvider, resolvePi } from './models.ts';
 import * as jewelryx from './projects/jewelryx/index.ts';
@@ -32,6 +32,7 @@ export async function runEnvWf(entry: string, argv: string[]) {
 		createWorktree,
 		removalPlan,
 		reviewUI: { available: isPlannotatorPresent, annotate: annotateFile, reviewDiff, diffGuidance: plannotatorReviewGuidance },
+		reviewInbox,
 		inbox: questionInbox,
 		opener: herdrOpener,
 		...(workspaceHandoff ? { workspaceHandoff } : {}),

@@ -370,9 +370,23 @@ Each question has a retry-safe message reference in `.wf/state.json`; replies ar
 until the agent records the person's ruling with `wf decide --q <n>`. Agreement changes still
 use `--revise`; T1/T2 still use `wf agree`/`wf review`. `wf next` never polls the Inbox.
 
+## T2 in the Inbox
+
+With Plannotator's Inbox code review on (Settings → Capabilities → Code review, 0.29+), `wf review`
+on Shay's entry sends T2 and checkpoint reviews to the Inbox instead of opening a review page. The
+first run writes the committed `base...HEAD` diff to `.wf/review/diff.patch` and asks the agent for
+a guide (chapters, from the Inbox's guide brief) in `.wf/review/guide.json`; the next run sends that
+exact diff with the guide (`submit_guide`, `review: true`) and records the message id and the diff's
+sha-256 under the identity header. The person's Approve or Send feedback is their reply to that
+message, and only Plannotator's reply route can carry it (`review_verdict`). `wf review --done`
+reads it and records it as the verdict: approved moves on, changes requested returns to build with
+the comments quoted. An approval is refused once `git diff base...HEAD` prints another diff. A
+review after changes covers the whole diff again. `WF_NO_OPEN=1` reviews in the chat instead;
+without the Inbox's code review, the review page below is used.
+
 Inbox and T2 code review use the shared Plannotator data directory; T1 document annotation keeps
 worktree-local logs. T2 therefore sees the person's analysis settings and managed engines.
-`wf review` on Shay's entry opens the repository-backed committed `base...HEAD` comparison
+`wf review` on Shay's entry, without the Inbox's code review, opens the repository-backed committed `base...HEAD` comparison
 (`--diff-type merge-base`), unless native presentation owns the handoff or `WF_NO_OPEN=1` is set.
 Native sessions get the exact base/mode and tool guidance instead of a blocking external launch.
 

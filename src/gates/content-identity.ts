@@ -36,6 +36,7 @@ const WF_METADATA = [
 	'.wf/serve.lock',
 	'.wf/check-processes',
 	'.wf/logs',
+	'.wf/review', // the diff and guide an inbox review sends (review.ts)
 	'.wf/before-after.html',
 	'.wf/AGREEMENT.html',
 	'.wf/AGREEMENT-T1.md',
