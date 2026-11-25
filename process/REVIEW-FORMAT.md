@@ -95,4 +95,7 @@ Verdict mapping:
 - The `verdict: pending …` line of a skeleton is not a verdict. `wf review --done` exits 2 until a
   real verdict is set.
 - A dismissed verdict at `--done` also exits 2. Run the review again.
+- An inbox review's section records `inbox-review: <message>`, `inbox-url:` and `patch-sha:` (the
+  sha-256 of the `base...HEAD` diff wf sent). `--done` writes `inbox-verdict: <reply>`, the reply
+  quoted, and the verdict under them. A hand-written verdict in that section is refused.
 - A dismissed T1 is not approval. Obtain the person's actual verdict, then use `wf agree <round> --verdict <approved|changes-requested|dismissed> --sha <agreement-sha> --note "<the person's words>"`. The sha must match the prepared review and current material.

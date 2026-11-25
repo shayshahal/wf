@@ -10,10 +10,10 @@
 //
 // Upstream contract read from backnotprop/plannotator main (2026-10-12):
 //   packages/server/inbox-mcp.ts, packages/core/inbox-types.ts, packages/shared/inbox/store.ts.
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import type { ChildProcessWithoutNullStreams } from 'node:child_process';
-import type { QuestionInbox } from '../../src/seams.ts';
-import { plannotatorBin } from './plannotator.ts';
+import type { InboxReviewVerdict, QuestionInbox, ReviewInbox } from '../../src/seams.ts';
+import { isPlannotatorPresent, plannotatorBin } from './plannotator.ts';
 
 /** Why a call failed, as a tag a caller can branch on without matching message text. */
 export type InboxErrorReason =
@@ -40,7 +40,7 @@ export class InboxError extends Error {
 	}
 }
 
-export type InboxOperation = 'post' | 'read';
+export type InboxOperation = 'post' | 'read' | 'review' | 'verdict';
 
 /** The executable and arguments that speak the Inbox's stdio MCP. */
 export type InboxCommand = { file: string; args: string[] };
@@ -299,7 +299,7 @@ export function createQuestionInbox(options: InboxOptions): QuestionInbox {
 }
 
 function plannotatorInboxCommand(operation: InboxOperation): InboxCommand {
-	const effect = operation === 'post' ? 'the question was not posted' : 'the Inbox was not read';
+	const effect = { post: 'the question was not posted', review: 'the review was not sent', read: 'the Inbox was not read', verdict: 'the Inbox was not read' }[operation];
 	if (process.env.PLANNOTATOR_DISABLE === '1') {
 		throw new InboxError('unavailable', `Plannotator is disabled (PLANNOTATOR_DISABLE=1), so ${effect}. Unset it to use the Inbox.`);
 	}
@@ -312,3 +312,68 @@ function plannotatorInboxCommand(operation: InboxOperation): InboxCommand {
 
 // 30 s: a call starts the Inbox in the background when it is stopped, which takes seconds, not tens.
 export const questionInbox: QuestionInbox = createQuestionInbox({ command: plannotatorInboxCommand, timeoutMs: 30_000, exitGraceMs: 1000 });
+
+// ── T2 reviews in the Inbox (Plannotator 0.29+, Settings → Capabilities → Code review)
+//
+// Upstream contract read from backnotprop/plannotator main (2026-11-25): submit_guide with `review: true`
+// keeps the patch as sent; the person's Approve / Send feedback is their reply, stored with
+// `review_verdict: { of: <review message id>, verdict: "approved" | "changes_requested", comments }`
+// (packages/core/inbox-review.ts, packages/shared/inbox/store.ts planReviewVerdict). Only the person's
+// reply route sets it: an agent's send_message cannot. `read_thread` with `format: "full"` returns it.
+
+/** The person's latest verdict on review `ref` in a full read_thread result, or null without one. */
+export function verdictOn(content: Json, ref: string): InboxReviewVerdict | null {
+	const { thread } = content;
+	if (!isRecord(thread) || !Array.isArray(thread.messages)) throw new InboxError('unexpected-reply', 'read_thread answered without a thread and its messages');
+	if (!thread.messages.some((m: unknown) => isRecord(m) && m.id === ref)) throw new InboxError('unexpected-reply', `read_thread's thread does not contain review ${ref}`);
+	let latest: InboxReviewVerdict | null = null;
+	for (const m of thread.messages as unknown[]) {
+		if (!isRecord(m) || !isRecord(m.author) || m.author.kind !== 'person' || !isRecord(m.review_verdict) || m.review_verdict.of !== ref) continue;
+		const { verdict } = m.review_verdict;
+		if (verdict !== 'approved' && verdict !== 'changes_requested') throw new InboxError('unexpected-reply', `reply ${String(m.id)} carries an unknown review verdict ${JSON.stringify(verdict)}`);
+		if (typeof m.id !== 'string' || typeof m.body !== 'string') throw new InboxError('unexpected-reply', 'read_thread answered a verdict reply without an id and body');
+		latest = { reply: m.id, verdict: verdict === 'approved' ? 'approved' : 'changes-requested', text: m.body };
+	}
+	return latest;
+}
+
+const GUIDE_HANDOFF = (o: { patchFile: string; guideFile: string; rerun: string }) => [
+	"T2 goes to the person's Plannotator Inbox as a guided review they approve or send feedback on. Write its guide, then run the same command again:",
+	"1. Call the Inbox tool get_guide_brief for the method and the guide's JSON shape (title, intent, sections, unplacedFiles).",
+	`2. Read the diff wf will send: ${o.patchFile}. Copy every \`diffs[].file\` from it exactly.`,
+	`3. Write the guide JSON to ${o.guideFile}. Chapters hold what needs the person's judgment (logic, data, security, public interfaces, anything you are unsure of), the one you are least sure of first. Renames, formatting, generated and lock files go in unplacedFiles, and the overview names them in one line per kind. After the person asked for changes, the first chapter covers the changes they asked for; the review still covers the whole diff.`,
+	`4. Run ${o.rerun}`,
+	"Do not call submit_guide yourself: wf sends the guide with the exact diff and reads the verdict from the person's reply.",
+].join('\n');
+
+/** A ReviewInbox over the given command. Exported for the selfcheck, which runs a fake server. */
+export function createReviewInbox(options: InboxOptions & { available: () => boolean }): ReviewInbox {
+	return {
+		available: options.available,
+		guideHandoff: GUIDE_HANDOFF,
+		async send({ worktree, thread, subject, body, guide, patch, key }) {
+			assertThreadName(thread);
+			const content = await callTool(options, 'review', worktree, 'submit_guide', { guide, patch, body, review: true, subject, thread, idempotency_key: key, project_path: worktree });
+			return parseSent(content);
+		},
+		async verdict({ worktree, ref }) {
+			return verdictOn(await callTool(options, 'verdict', worktree, 'read_thread', { message_id: ref, format: 'full', project_path: worktree }), ref);
+		},
+	};
+}
+
+/** Whether the person has the Inbox's code review on: `plannotator inbox capability` prints the switches as JSON. */
+function inboxCodeReviewOn(): boolean {
+	if (!isPlannotatorPresent()) return false;
+	const result = spawnSync(plannotatorBin()!, ['inbox', 'capability'], { encoding: 'utf8', timeout: 30_000, windowsHide: true });
+	if (result.status !== 0) return false;
+	try {
+		const parsed: unknown = JSON.parse(result.stdout);
+		return isRecord(parsed) && isRecord(parsed.capabilities) && isRecord(parsed.capabilities.code_review) && parsed.capabilities.code_review.on === true;
+	} catch {
+		return false;
+	}
+}
+
+// 120 s: a review's patch can be megabytes, and a call may first start the Inbox in the background.
+export const reviewInbox: ReviewInbox = createReviewInbox({ command: plannotatorInboxCommand, timeoutMs: 120_000, exitGraceMs: 1000, available: inboxCodeReviewOn });

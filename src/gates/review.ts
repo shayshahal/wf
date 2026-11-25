@@ -1,9 +1,10 @@
 #!/usr/bin/env node
-// wf review <round> [--base dev] — T2: skeleton REVIEW.md, browser diff review, fold → REVIEW.md.
+// wf review <round> [--base dev] — T2: skeleton REVIEW.md, inbox or browser diff review, fold → REVIEW.md.
 // wf review <round> --done — verdict → step implement (changes-requested) | pr (approved).
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { createHash } from 'node:crypto';
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { basename, dirname, join } from 'node:path';
 import { refuseCaller } from '../refusal.ts';
 import { CLASSIFY } from '../paths.ts';
 import { dirtyFiles } from '../dirty-files.ts';
@@ -11,7 +12,7 @@ import { baseBranch, ticketChanges } from '../project.ts';
 import { ensureServers } from '../worktrees/serve.ts';
 import { excludeWfFolder, resolveWorktree } from '../worktrees/worktree.ts';
 import { roundWorkspaceGap } from '../worktrees/session-workspace.ts';
-import { appendDatedSection, approvalContentGap, beforeAfterLines, captionFor, devUrlsFor, lastField, needsFreshReviewHeader, proofPairs, readVerdict, renderHeader, renderSkeleton, reviewScopeBinding, scopedApprovalGap } from './review-format.ts';
+import { appendDatedSection, approvalContentGap, beforeAfterLines, captionFor, devUrlsFor, inboxReviewSection, lastField, needsFreshReviewHeader, proofPairs, readVerdict, renderHeader, renderSkeleton, reviewScopeBinding, scopedApprovalGap } from './review-format.ts';
 import { approvalIdentity, approvalPaperworkExcluded, trackerNotePath } from './content-identity.ts';
 import { foreignApprovalGap } from './foreign-paperwork.ts';
 import type { ContentIdentity } from './content-identity.ts';
@@ -51,6 +52,19 @@ const changedFiles = (worktree: string, base: string): string[] => {
     process.exit(1);
   }
 };
+// The committed diff an inbox review sends, exactly as `git diff <base>...HEAD` prints it. Its sha binds
+// the person's verdict: --done refuses an approval once the same command prints another diff.
+const reviewPatch = (worktree: string, base: string): string => {
+  try {
+    return execFileSync('git', ['-C', worktree, 'diff', `${base}...HEAD`], { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
+  } catch (e) {
+    console.error(`wf review: git diff ${base}...HEAD failed in ${worktree}: ${e instanceof Error ? e.message : String(e)}`);
+    process.exit(1);
+  }
+};
+const sha256 = (text: string) => createHash('sha256').update(text).digest('hex');
+// Quote every external line so the person's words cannot inject a verdict or identity field.
+const quoted = (text: string) => text.split(/\r?\n/).map((line) => `> ${line}`).join('\n');
 const classify = (worktree: string, base: string): string => {
   try {
     return JSON.parse(execFileSync('node', [CLASSIFY, '--base', base, '--json'], { cwd: worktree, encoding: 'utf8' })).class;
@@ -227,10 +241,28 @@ export async function runReview(argv: string[], { stack = ensureServers }: { sta
   // HEAD (#106 final review). A checkpoint's range may change without changing either identity;
   // its requested base must still be the one the native handoff tells the person to review.
   const previousBinding = previous === null ? null : { contentSha: lastField(previous, 'content-sha'), headSha: lastField(previous, 'head-sha') };
-  if (previous === null || readVerdict(previous) !== null || (needsFreshReviewHeader(previousBinding, contentSha, headSha) || lastField(previous, 'base') !== base)) {
+  // A review the person is asked for in the chat instead (WF_NO_OPEN=1) gets its own section: the inbox
+  // review's section waits on the inbox reply and takes no hand-written verdict.
+  const pendingInbox = previous !== null && inboxReviewSection(previous) !== null;
+  const inbox = seams.reviewInbox && process.env.WF_NO_OPEN !== '1' && seams.reviewInbox.available() ? seams.reviewInbox : null;
+  if (previous === null || readVerdict(previous) !== null || (needsFreshReviewHeader(previousBinding, contentSha, headSha) || lastField(previous, 'base') !== base) || (pendingInbox && !inbox)) {
     appendDatedSection(file, renderSkeleton({ round, klass, base, contentSha, headSha, scope: target.scope, urls: devUrlsFor(worktree), files, beforeAfter, assessment, manual }));
   }
   console.log(`review comparison: ${base}...HEAD (merge-base; committed changes only)`);
+  if (inbox) {
+    const rerun = `wf review ${round}${checkpoint ? ` --checkpoint${bi !== -1 ? ` --base ${base}` : ''}` : ''}`;
+    const urls = devUrlsFor(worktree);
+    const body = [
+      checkpoint
+        ? `Checkpoint review of \`${round}\`. Approve lets the build go on; it never approves delivery.`
+        : `T2 review of \`${round}\`. Approve approves this round for delivery: wf opens its pull request.`,
+      `Comparison: \`${base}...HEAD\` (committed changes only).`,
+      ...[...assessment, ...manual].map((line) => `- ${line}`),
+      ...(urls ? ['', 'Pages:', '```', urls, '```'] : []),
+      ...shots.files.map((picture) => `![${basename(picture)}](${picture.replace(/\\/g, '/')})`),
+    ].join('\n');
+    return sendInboxReview({ inbox, worktree, round, file, header, base, contentSha, headSha, subject: `${checkpoint ? 'Checkpoint review' : 'T2 review'}: ${round}`, body, rerun });
+  }
   if (seams.reviewUI?.diffGuidance) console.log(seams.reviewUI.diffGuidance);
   if (seams.presentation) {
     console.log(seams.presentation.guidance);
@@ -249,8 +281,7 @@ export async function runReview(argv: string[], { stack = ensureServers }: { sta
         console.error(`wf review: implementation changed while the review was open — no verdict recorded; re-run wf review ${round}`);
         process.exit(2);
       }
-      // Quote every external line so rendered feedback cannot inject a verdict or identity field.
-      const feedback = result.message.split(/\r?\n/).map((line) => `> ${line}`).join('\n');
+      const feedback = quoted(result.message);
       appendDatedSection(file, `${header()}UI decision (unbound): ${result.decision}\n\n${feedback}\n\nverdict: pending (verify the shown comparison and obtain the person's ruling on this identity)\n`);
       console.log(`review feedback: ${file}\n${result.message}\nThe UI result has no verified submitted snapshot. Keep the verdict pending until the person rules on this record's comparison and implementation identities.`);
       return;
@@ -261,6 +292,80 @@ export async function runReview(argv: string[], { stack = ensureServers }: { sta
   // Without a configured diff UI, or after dismissal, the person can rule in the chat.
   console.log(`review file: ${file}
   The proof is above. The person gives the comments and the verdict in the chat; write both into this file (round skill, T2)`);
+}
+
+// T2 in the person's inbox: wf sends the committed diff it computed, with the guide the agent wrote, and
+// records the sent message beside the identity header. The person's Approve or Send feedback is read by
+// --done from their reply to that message only, so the verdict is bound to the diff that was shown.
+async function sendInboxReview(o: { inbox: NonNullable<typeof seams.reviewInbox>; worktree: string; round: string; file: string; header: () => string; base: string; contentSha: string; headSha: string; subject: string; body: string; rerun: string }) {
+  const { inbox, worktree, round, file } = o;
+  const patch = reviewPatch(worktree, o.base);
+  const patchSha = sha256(patch);
+  const sent = existsSync(file) ? inboxReviewSection(readFileSync(file, 'utf8')) : null;
+  if (sent && !sent.verdict && sent.patchSha === patchSha && sent.contentSha === o.contentSha && sent.headSha === o.headSha) {
+    console.log(`review already sent to the person's Inbox: ${sent.url}\nIts verdict comes from their reply there. After they answer, run wf review ${round} --done.`);
+    return;
+  }
+  const dir = join(worktree, '.wf', 'review');
+  mkdirSync(dir, { recursive: true });
+  const patchFile = join(dir, 'diff.patch');
+  const guideFile = join(dir, 'guide.json');
+  writeFileSync(patchFile, patch);
+  if (!existsSync(guideFile)) {
+    console.log(inbox.guideHandoff({ patchFile, guideFile, rerun: o.rerun }));
+    return;
+  }
+  let guide: unknown;
+  try {
+    guide = JSON.parse(readFileSync(guideFile, 'utf8'));
+  } catch (e) {
+    console.error(`wf review: ${guideFile} is not JSON (${(e as Error).message}); fix it, then run ${o.rerun}`);
+    process.exit(2);
+  }
+  let result: { ref: string; url: string };
+  try {
+    // The key makes a retried send answer with the first message instead of posting the review twice.
+    result = await inbox.send({ worktree, thread: `wf review ${round}`, subject: o.subject, body: o.body, guide, patch, key: `wf-review-${sha256(`${patchSha}\n${JSON.stringify(guide)}\n${o.subject}`).slice(0, 32)}` });
+  } catch (e) {
+    console.error(`wf review: ${(e as Error).message}\nNothing was sent. Fix the guide and run ${o.rerun} again, or review in the chat: WF_NO_OPEN=1 ${o.rerun}`);
+    process.exit(2);
+  }
+  appendDatedSection(file, `${o.header()}inbox-review: ${result.ref}\ninbox-url: ${result.url}\npatch-sha: ${patchSha}\n\nverdict: pending (from the person's reply to the Inbox review; run wf review ${round} --done)\n`);
+  // A sent guide is spent: the next review (after changes) needs a guide for its own diff.
+  renameSync(guideFile, join(dir, `guide.${result.ref}.json`));
+  console.log(`review sent to the person's Inbox: ${result.url}\nTheir Approve or Send feedback comes back as their reply. Then run wf review ${round} --done.`);
+}
+
+// --done on an inbox review: the verdict is the person's reply to the sent review, written into its own
+// section. A hand-written verdict there is refused; an approval of a diff that has since changed too.
+async function importInboxVerdict(worktree: string, round: string, target: ReviewTarget, file: string) {
+  const sent = inboxReviewSection(readFileSync(file, 'utf8'));
+  if (!sent || sent.verdictReply) return;
+  if (sent.verdict) {
+    console.error(`wf review --done: this review was sent to the person's Inbox, so its verdict comes from their reply there, not from ${file}. Remove the hand-written verdict line, or review in the chat: WF_NO_OPEN=1 wf review ${round}${target.kind === 'checkpoint' ? ' --checkpoint' : ''}`);
+    process.exit(2);
+  }
+  if (!seams.reviewInbox) {
+    console.error(`wf review --done: this review was sent to the person's Inbox, and this wf entry cannot read it; run the entry that made the round`);
+    process.exit(2);
+  }
+  let found: Awaited<ReturnType<NonNullable<typeof seams.reviewInbox>['verdict']>>;
+  try {
+    found = await seams.reviewInbox.verdict({ worktree, ref: sent.ref });
+  } catch (e) {
+    console.error(`wf review --done: ${(e as Error).message}`);
+    process.exit(2);
+  }
+  if (!found) {
+    console.error(`wf review --done: no verdict yet: the person has not approved or sent feedback on the Inbox review ${sent.url ?? sent.ref}`);
+    process.exit(2);
+  }
+  if (found.verdict === 'approved' && sha256(reviewPatch(worktree, target.base)) !== sent.patchSha) {
+    console.error(`wf review --done: the person approved the diff that was sent, but \`git diff ${target.base}...HEAD\` is different now (new commits, or the base moved); re-run wf review ${round}${target.kind === 'checkpoint' ? ' --checkpoint' : ''}`);
+    process.exit(2);
+  }
+  appendFileSync(file, `\ninbox-verdict: ${found.reply}\n\n${quoted(found.text)}\n\nverdict: ${found.verdict}\n`);
+  console.log(`The person's reply to the Inbox review (${found.verdict}):\n${found.text}`);
 }
 
 async function runReviewDone(worktree: string, round: string, target: ReviewTarget) {
@@ -275,6 +380,7 @@ async function runReviewDone(worktree: string, round: string, target: ReviewTarg
     console.error(`no ${file} — run wf review ${round}${target.kind === 'checkpoint' ? ' --checkpoint' : ''} first`);
     process.exit(2);
   }
+  await importInboxVerdict(worktree, round, target, file);
   const text = readFileSync(file, 'utf8');
   // The review must be of the diff this target names: the header base and (with the adapter) the base
   // plannotator actually showed must equal it — a checkpoint's own range, or the round base for the

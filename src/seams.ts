@@ -33,6 +33,21 @@ export type ReviewUI = {
 	/** Open the committed merge-base diff; unbound UI decisions remain feedback, not gate approval. */
 	reviewDiff?: (o: { worktree: string; base: string }) => DiffReviewResult;
 };
+/** The person's verdict on an inbox review, read from their reply that names the sent review message. */
+export type InboxReviewVerdict = { readonly reply: string; readonly verdict: 'approved' | 'changes-requested'; readonly text: string };
+/**
+ * T2 and checkpoint reviews in the person's inbox. wf sends the diff it computed itself, with a guide
+ * the agent wrote, and reads the verdict back only from the person's reply to that exact message: the
+ * inbox keeps the diff as sent, so the verdict is bound to it (unlike an unbound diff UI result).
+ */
+export type ReviewInbox = {
+	available: () => boolean;
+	/** What the agent does to write the guide for the diff in `patchFile` into `guideFile`, then `rerun`. */
+	guideHandoff: (o: { patchFile: string; guideFile: string; rerun: string }) => string;
+	send: (o: { worktree: string; thread: string; subject: string; body: string; guide: unknown; patch: string; key: string }) => Promise<{ ref: string; url: string }>;
+	/** The person's latest verdict on review `ref`, or null while they have not given one. */
+	verdict: (o: { worktree: string; ref: string }) => Promise<InboxReviewVerdict | null>;
+};
 // A question inbox carries messages, not round decisions or human gate approvals.
 export type QuestionInbox = {
 	post: (o: { worktree: string; key: string; subject: string; body: string }) => Promise<{ ref: string; url: string }>;
@@ -67,6 +82,7 @@ export type Seams = {
 	createWorktree: ((o: { branch: string; base: string; log: string; path: string; repository?: string; setup?: 'project' | 'none'; port?: number }) => Worktree | Promise<Worktree>) | null;
 	removalPlan: ((o: { branch: string; path: string; slug: string; pid: number }) => RemovalStep[] | Promise<RemovalStep[]>) | null;
 	reviewUI: ReviewUI | null;
+	reviewInbox: ReviewInbox | null;
 	presentation: NativePresentation | null;
 	/** Native session binding; null means no native session, unavailable must refuse, never downgrade. */
 	sessionWorkspace: (() => Promise<{ kind: 'bound'; path: string; branch: string | null } | { kind: 'unavailable'; why: string }> | null) | null;
@@ -99,6 +115,9 @@ export const seams: Seams = {
 	// { available(), annotate({ worktree, file, since }) }
 	// → the one feedback line T1/T2 fold, or null. Without one, T1/T2 open the file in an editor.
 	reviewUI: null,
+	// T2 and checkpoint reviews sent to the person's inbox, verdict bound to the sent diff. Takes
+	// precedence over presentation and reviewUI when available; null: the kit has none.
+	reviewInbox: null,
 	// Native tool instructions take precedence over an external review UI; null keeps kit defaults.
 	presentation: null,
 	// A shell's cwd is not a native session binding; the kit has no native reader.
