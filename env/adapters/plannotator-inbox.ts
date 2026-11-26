@@ -362,10 +362,22 @@ export function createReviewInbox(options: InboxOptions & { available: () => boo
 	};
 }
 
+/**
+ * `plannotator inbox capability`'s arguments. In a T3 Code thread the shell carries both T3CODE_THREAD_ID and the
+ * agent's own session (a Pi thread: PI_SESSION_ID), and the CLI refuses with session_ambiguous unless told which
+ * one it runs as; wf would then fall back to the review page without saying so. Name the T3 thread, as the stdio
+ * server wf sends through does on its own (inboxHostSessionFromEnv: T3 first). Seen live in a T3 Pi thread,
+ * plannotator 0.29.4, 2026-11-26.
+ */
+export function inboxCapabilityArgs(env: NodeJS.ProcessEnv): string[] {
+	const t3Thread = env.T3CODE_THREAD_ID?.trim();
+	return ['inbox', 'capability', ...(t3Thread ? ['--session', `t3:${t3Thread}`] : [])];
+}
+
 /** Whether the person has the Inbox's code review on: `plannotator inbox capability` prints the switches as JSON. */
 function inboxCodeReviewOn(): boolean {
 	if (!isPlannotatorPresent()) return false;
-	const result = spawnSync(plannotatorBin()!, ['inbox', 'capability'], { encoding: 'utf8', timeout: 30_000, windowsHide: true });
+	const result = spawnSync(plannotatorBin()!, inboxCapabilityArgs(process.env), { encoding: 'utf8', timeout: 30_000, windowsHide: true });
 	if (result.status !== 0) return false;
 	try {
 		const parsed: unknown = JSON.parse(result.stdout);
