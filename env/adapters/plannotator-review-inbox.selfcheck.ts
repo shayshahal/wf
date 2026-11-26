@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createReviewInbox, verdictOn } from './plannotator-inbox.ts';
+import { createReviewInbox, inboxCapabilityArgs, verdictOn } from './plannotator-inbox.ts';
 
 const dir = mkdtempSync(join(tmpdir(), 'wf-review-inbox-adapter-'));
 const server = join(dir, 'server.cjs');
@@ -24,6 +24,11 @@ readline.createInterface({ input: process.stdin }).on('line', (line) => {
   out({ id: m.id, result: { content: [{ type: 'text', text: 'ok' }], structuredContent: JSON.parse(fs.readFileSync(process.env.FAKE_ANSWER, 'utf8')) } });
 });
 `);
+// A T3 thread names itself, or the CLI refuses as session_ambiguous next to the agent's own session.
+assert.deepEqual(inboxCapabilityArgs({}), ['inbox', 'capability']);
+assert.deepEqual(inboxCapabilityArgs({ T3CODE_THREAD_ID: 'mcp:2ff7', PI_SESSION_ID: '01a2' }), ['inbox', 'capability', '--session', 't3:mcp:2ff7']);
+assert.deepEqual(inboxCapabilityArgs({ T3CODE_THREAD_ID: ' ' }), ['inbox', 'capability']);
+
 const inbox = createReviewInbox({ command: () => ({ file: process.execPath, args: [server] }), timeoutMs: 15_000, exitGraceMs: 1000, available: () => true, env: { ...process.env, FAKE_CALLS: calls, FAKE_ANSWER: answer } });
 const person = (id: string, of: string, verdict: string, body = 'words') => ({ id, author: { kind: 'person' }, reply_to: of, body, review_verdict: { of, verdict, comments: 0 } });
 const review = { id: 'msg_review', author: { kind: 'agent' }, reply_to: null, body: 'T2 review' };
