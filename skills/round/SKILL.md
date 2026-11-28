@@ -22,6 +22,9 @@ By default, `wf` below means `node "<absolute path to this skill folder>/scripts
 
 Use the worktree of the round as the command cwd and as the session workspace. `wf notes` links the
 binding rules for start, resume and cleanup.
+- If the host gave this session a checkout of its own (a subagent's worktree), make that checkout
+  the round with `wf new <branch> --here`. Do not cut a second worktree beside it: this session can
+  never be bound to that one.
 - Keep the entry that created the worktree. `wf status --inspect` and the entry refusals name it.
 - A different harness can use the same entry.
 - A different machine configuration is not automatically interchangeable.

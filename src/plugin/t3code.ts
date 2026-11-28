@@ -29,9 +29,12 @@ export function t3Presentation(env: NodeJS.ProcessEnv): NativePresentation | nul
 			'Use the tools exposed in this session; discover their names and input schemas before calling them.',
 			// 2026-10-19: JX-1426 linked .wf/ from a separate wf worktree into T3's chat workspace.
 			'Workspace binding: this thread\'s worktree_status path must be the round checkout; verify its actual branch with Git. A shell cd does not move chat/Files. If mismatched, open/resume a session bound to that exact checkout before continuing.',
-			'wf owns worktree creation and cleanup. Bind with thread_launch using workspaceStrategy.type existing_worktree and its exact worktreePath; discover the actual tool schema first. A running T3 thread cannot rebind. Keep the wf round branch unchanged: omit optional branch metadata, which T3 may auto-rename for temporary-looking names.',
+			// 2026-11-28: a subagent can only get the project root or a fresh T3 worktree; an existing-worktree
+			// top-level thread never woke its parent. wf new --here makes the subagent's own worktree the round.
+			'A round in a subagent: the parent calls delegate_task with isolation "worktree" (a project with a normal checkout; T3 cannot make worktrees in a bare-repository project). The child, in its own T3 worktree, runs wf new <branch> --here --class A|B|C [--id <id>] there, then wf next. wf renames T3\'s branch to <branch>, fast-forwards a stale fresh checkout to the base, and runs the project setup; T3 keeps showing its old branch name, which wf accepts at that path only.',
+			'A running T3 thread cannot rebind. Without delegation (a bare-repository project, or no delegate_task), use the fallback: wf new <branch> from the project root, then thread_launch with workspaceStrategy.type existing_worktree and its exact worktreePath; discover the actual tool schema first. Keep the wf round branch unchanged there: omit optional branch metadata, which T3 may auto-rename for temporary-looking names. That launch does not wake its parent: read it with thread_wait.',
 			'Existing-worktree launch reruns T3 project setup scripts: verify they are empty or safely repeatable before launching. Resume never runs wf new or repeats round initialization.',
-			'Before reap, finish posting and archive/leave all round-bound threads. Launch a root-workspace cleanup session and run reap there; moving this shell is insufficient. The binding check knows only the calling thread, not sibling threads.',
+			'Before reap, finish posting. A wf-made checkout: archive/leave all round-bound threads, launch a root-workspace cleanup session and run reap there; moving this shell is insufficient. The binding check knows only the calling thread, not sibling threads. An adopted checkout (wf new --here): reap may run in the bound thread itself; it releases the stack and project resources and removes .wf/, and leaves the T3 worktree and its branch for T3 to remove with the thread.',
 			'Keep absolute paths in handoffs and verify each file target exists before linking it. Native round presentation belongs in the session bound to that same worktree.',
 			'Plans/agreements and reviews: show the compact decision sheet and relevant generated view inline in this chat. Use html_preview to inspect layout/console, then html_render before asking for a verdict. A file path or printed handoff is not a presentation.',
 			'Live app: preview_open, then preview_navigate to the project URL or its environment-port target. Keep the returned tabId for subsequent actions; operate only your own tab.',
@@ -68,6 +71,7 @@ export function t3WorkspaceHandoff(env: NodeJS.ProcessEnv): Seams['workspaceHand
 		'Before launch, save the complete request and scope answers in the round folder\'s TICKET.md (folder and entry are recorded in .wf/state.json).',
 		'Discover the session\'s thread_launch input schema. Verify T3 project setup scripts are empty or safely repeatable: existing-worktree launch runs them again.',
 		'Launch on this existing checkout, not a new worktree. Omit optional branch metadata so T3 preserves the Git branch. Carry any unsaved context into the launch message.',
+		'This is the fallback route. Where delegation works (a project with a normal checkout), a subagent is better: delegate_task with isolation "worktree", and the child runs wf new <branch> --here in its own worktree; it wakes the parent when done, which this launch does not.',
 		JSON.stringify({
 			title: `wf ${basename(worktree)}`,
 			workspaceStrategy: { type: 'existing_worktree', worktreePath: worktree },

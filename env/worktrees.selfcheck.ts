@@ -23,6 +23,9 @@ check('verified owned releases precede project teardown and directory removal', 
 check('the show browser is released before the folder, by identity', plan.slice(0, 2).every((step) => Boolean(step.run) && !step.cmd));
 check('release uses the identity-verifying operation, never a path sweep', Boolean(plan[0].run) && !plan[0].cmd);
 check('wt remove preserves the local branch', plan.find((step) => step.label === 'wt remove')?.args?.includes('--no-delete-branch'));
+// wf new --here: the host made the checkout; its plan releases and tears down, and never removes it.
+const kept = removalPlan({ branch: 'fix/bjew-1', path: 'C:/t3/t3-abcd', slug: 'fix-bjew-1', pid: 4242, checkout: 'keep' }, 'win32').map((step) => step.label);
+check('a host-owned checkout keeps its folder and registration: no wt remove, rm or prune', kept.join('|') === ['stop owned servers', 'close the show browser', ...down.map((step) => step.label)].join('|'), kept.join('|'));
 const served = mkdtempSync(join(tmpdir(), 'wf-served-'));
 mkdirSync(join(served, '.wf'));
 writeFileSync(join(served, '.wf', 'serve.pid'), '5150');

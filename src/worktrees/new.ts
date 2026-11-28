@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-// new.ts — wf new <branch> [--base <ref>] [--class B|C] [--check] [--id <token>]...
-// Create the worktree (worktree.ts createWorktree), then classify it. --class asserts the class at creation (sticky,
+// new.ts — wf new <branch> [--base <ref>] [--class B|C] [--check] [--id <token>]... [--here]
+// Create the worktree (worktree.ts createWorktree), or with --here adopt the checkout the session
+// host created for this session (adopt.ts), then classify it. --class asserts the class at creation (sticky,
 // see step.ts). --id <ticket id> refuses to cut the worktree when a
 // round for that id already exists (a round folder or a commit naming it) —
 // BJEW-585 was fixed under a sibling item and the round burned 26 min rediscovering
@@ -19,7 +20,9 @@ import { WF_ROOT } from '../paths.ts';
 import { chooseNewPort } from './port-claim.ts';
 import { createWorktree, excludeFromGit, listWorktrees, mainCheckout, slugForBranch, urlLines } from './worktree.ts';
 import { seams } from '../seams.ts';
-import { writeState, WF_STATE_VERSION } from '../round/state.ts';
+import { toplevelOf, writeState, WF_STATE_VERSION } from '../round/state.ts';
+import { adoptCheckout, adoptionGap, checkoutFacts, ownCheckoutGap } from './adopt.ts';
+import type { Adoption } from './adopt.ts';
 
 type LaunchJson = { version?: string; configurations?: { name?: string; url?: string }[] };
 
@@ -123,7 +126,7 @@ export function ownEntryHint(exists: (path: string) => boolean = existsSync): st
 export async function runNew(argv: string[]) {
 	const branch = argv[0];
 	// A flag first is not a branch: `wf new --help` went to git as one and printed git branch's usage (TJEW-670).
-	if (!branch || branch.startsWith('-')) { console.error('usage: wf new <branch> --class A|B|C [--base <ref>] [--check] [--id <token>]...'); refuseCaller(); }
+	if (!branch || branch.startsWith('-')) { console.error('usage: wf new <branch> --class A|B|C [--base <ref>] [--check] [--id <token>]... [--here]'); refuseCaller(); }
 	// wt defaults --base to the repo's default branch; rounds branch off the project's base branch.
 	const bi = argv.indexOf('--base');
 	const base = bi === -1 ? `origin/${baseBranch}` : argv[bi + 1];
@@ -137,6 +140,23 @@ export async function runNew(argv: string[]) {
 		refuseCaller();
 	}
 	const ids = argv.flatMap((a, i) => (a === '--id' && argv[i + 1] ? [argv[i + 1]] : []));
+	// The session's bound workspace decides whether this checkout is adopted (--here) or a new one is
+	// cut, before anything is fetched or created (adopt.ts). A terminal has no binding: unchanged.
+	const binding = (await seams.sessionWorkspace?.()) ?? null;
+	let adoption: Extract<Adoption, { kind: 'adopt' }> | null = null;
+	if (argv.includes('--here')) {
+		let judged: Adoption;
+		try { judged = adoptionGap({ binding, facts: checkoutFacts(process.cwd()), branch }); } catch (e) {
+			judged = { kind: 'refused', why: `cannot read this checkout (${(e as Error).message.split('\n')[0]})` };
+		}
+		if (judged.kind === 'refused') { console.error(`wf new --here: nothing changed — ${judged.why}`); process.exit(1); }
+		adoption = judged;
+	} else {
+		let top: string | null = null;
+		try { top = toplevelOf(); } catch { /* not in a git tree: creation reports its own error */ }
+		const own = ownCheckoutGap(binding, top);
+		if (own) { console.error(`wf new: nothing created — ${own}`); process.exit(1); }
+	}
 	// What a round copies its secrets from is a machine fact, so it is asked before anything is fetched or
 	// cut. 2026-10-25: the bare kit entry ran in a repository with no main checkout (a bare layout) and
 	// setup's env step was the last of six to fail — after the worktree, the database and two pnpm builds.
@@ -171,12 +191,15 @@ export async function runNew(argv: string[]) {
 	const port = chosen.port;
 	let path;
 	try {
-		({ path } = await createWorktree({ branch, base, log, port }));
+		if (adoption) {
+			await adoptCheckout({ adoption, base, port, log });
+			path = adoption.path;
+		} else ({ path } = await createWorktree({ branch, base, log, port }));
 	} catch (e) {
-		console.error(`wf new: ${(e as Error).message}`);
+		console.error(`wf new${adoption ? ' --here' : ''}: ${(e as Error).message}`);
 		process.exit(1);
 	}
-	console.log(`wf new: worktree ready (hook log: ${log})`);
+	console.log(`wf new: ${adoption ? 'checkout adopted' : 'worktree ready'} (hook log: ${log})`);
 	// The wf that was invoked (seams.entry: the env's or the kit's), not the round's copy: a round is
 	// cut from dev, which may not carry wf at all (BJEW-603, 2026-09-23: MODULE_NOT_FOUND after every
 	// hook had passed).
@@ -185,7 +208,8 @@ export async function runNew(argv: string[]) {
 	mkdirSync(join(path, folder), { recursive: true });
 	const notes = newRound({ worktree: path, folder, port });
 	const openedBy = seams.opener?.() ?? null;
-	writeState(path, () => ({ wf_version: WF_STATE_VERSION, id: ids[0] ?? branch, ...(ids.length > 1 ? { ids } : {}), folder, made_by: seams.madeBy, entry: seams.entry.replace(/\\/g, '/'), ...(openedBy ? { opened_by: openedBy } : {}), ...(argv.includes('--check') ? { check: true } : {}), ...(chosen.moved ? { port } : {}) }));
+	const adopted = adoption ? { from: adoption.from, branch, at: new Date().toISOString() } : null;
+	writeState(path, () => ({ wf_version: WF_STATE_VERSION, id: ids[0] ?? branch, ...(ids.length > 1 ? { ids } : {}), folder, made_by: seams.madeBy, entry: seams.entry.replace(/\\/g, '/'), ...(openedBy ? { opened_by: openedBy } : {}), ...(argv.includes('--check') ? { check: true } : {}), ...(chosen.moved ? { port } : {}), ...(adopted ? { adopted } : {}) }));
 	if (reopen && dupes.length) {
 		const decisions = (folder: string) => ['AGREEMENT.md', 'TICKET.md', 'PLAN.md'].flatMap((file) => {
 			try { return decisionsOf(execFileSync('git', ['show', `${base}:${folder}/${file}`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })); }
@@ -202,6 +226,10 @@ export async function runNew(argv: string[]) {
 	console.log(urlLines(urls));
 	for (const line of notes) console.log(line);
 	console.log(`Worktree: ${path}`);
+	if (adoption) {
+		console.log(`Workspace owner: the session host (adopted with --here). This session is already bound here: run wf next from this checkout. Reap releases the stack and the project's resources and leaves this checkout and branch ${branch} to the host.`);
+		return;
+	}
 	console.log('Workspace owner: wf — bind the session to this existing checkout; resume here, and reap from a surviving session after leaving it.');
 	if (seams.workspaceHandoff) console.log(seams.workspaceHandoff(path));
 }

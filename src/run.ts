@@ -57,6 +57,7 @@ export async function run(argv: string[], pieces: Partial<Seams> = {}) {
 	process.noDeprecation = true;
 	await logRefusals(argv);
 	let roundWorktree: string | null = null;
+	let adopted: { from: string; branch: string } | null = null;
 	// Environment hooks/update and skill packaging are not round mutations.
 	// Releasing a verified stack needs no round schema/entry permission: old rounds leak too.
 	if (!['hook', 'update', 'skill'].includes(cmd) && !(cmd === 'serve' && rest.includes('--stop'))) {
@@ -66,6 +67,7 @@ export async function run(argv: string[], pieces: Partial<Seams> = {}) {
 			const top = toplevelOf();
 			const state = readState(top);
 			if (state) roundWorktree = top;
+			adopted = state?.adopted ?? null;
 			// A state from the old runtime is refused before any mutating command reads it (finish-before-
 			// release, #110): `wf next` steps the round and records questions, so it refuses too. `status`
 			// and `classify` are read-only and may still inspect an old round. `entryGap` (a round made by
@@ -88,7 +90,7 @@ export async function run(argv: string[], pieces: Partial<Seams> = {}) {
 	// Keep this outside the Git/state catch: a binding reader failure is never "not in a git tree".
 	if (roundWorktree && !['status', 'classify', 'notes', 'models', 'new', 'reap', 'agree', 'review'].includes(cmd)) {
 		const { roundWorkspaceGap } = await import('./worktrees/session-workspace.ts');
-		const gap = await roundWorkspaceGap(roundWorktree);
+		const gap = await roundWorkspaceGap(roundWorktree, { adopted });
 		if (gap) {
 			console.error(`wf: ${gap}`);
 			process.exit(1);

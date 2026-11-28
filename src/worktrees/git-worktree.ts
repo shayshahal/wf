@@ -31,22 +31,40 @@ export { addWorktree } from './workspace-allocation.ts';
 export async function createWorktree({ branch, base, log, path, repository, setup: setupMode, port }: Parameters<NonNullable<Seams['createWorktree']>>[0]): Promise<Worktree> {
 	addWorktree({ branch, path, base, cwd: repository, hooks: setupMode === 'none' ? 'disabled' : undefined });
 	if (setupMode === 'none') return { path, branch };
+	await setupCheckout({ path, branch, port: port ?? basePortForBranch(branch), log });
+	return { path, branch };
+}
+
+/** The project's setup in an existing checkout: a created worktree's, and an adopted one's (`wf new --here`). */
+export async function setupCheckout({ path, branch, port, log }: Parameters<NonNullable<Seams['setupCheckout']>>[0]): Promise<void> {
 	excludeWfFolder(path);
 	// The person's clone must not show the rounds as untracked files: JewelryX's main branch ignores
 	// no .claude/ (its .gitignore was five weeks behind dev's, 2026-09-27), and a clone on main is
 	// where a teammate starts.
 	excludeFromGit(path, '/.claude/worktrees/');
 	const fd = openSync(log, 'w');
-	const failed = await runSetup({ worktree: path, slug: slugForBranch(branch), port: port ?? basePortForBranch(branch), fd });
+	const failed = await runSetup({ worktree: path, slug: slugForBranch(branch), port, fd });
 	closeSync(fd);
 	if (failed.length) throw new Error(`${readFileSync(log, 'utf8').trimEnd().split('\n').slice(-40).join('\n')}\nsetup failed: ${failed.join(', ')} (log: ${log}; worktree left at ${path})`);
-	return { path, branch };
 }
 
 // Pure but for the pid file: the ordered steps. The project's teardown runs before the folder goes:
 // dropping the database takes the worktree's own python. No `git worktree remove`: rm and prune do
-// the same without a path through the shell reap runs commands in.
-export function removalPlan({ path, slug }: Pick<Parameters<NonNullable<Seams['removalPlan']>>[0], 'path' | 'slug' | 'pid'>): RemovalStep[] {
+// the same without a path through the shell reap runs commands in. `checkout: 'keep'` (a checkout a
+// session host created, adopted by `wf new --here`) ends after the teardown: the host owns the folder.
+export function removalPlan({ path, slug, checkout }: Pick<Parameters<NonNullable<Seams['removalPlan']>>[0], 'path' | 'slug' | 'pid' | 'checkout'>): RemovalStep[] {
+	return [
+		...releaseCheckoutSteps(path),
+		...teardown({ slug, worktree: path }),
+		...(checkout === 'keep' ? [] : [
+			{ label: 'rm -rf worktree', rm: path },
+			{ label: 'git worktree prune', cmd: 'git', args: ['worktree', 'prune'] },
+		]),
+	];
+}
+
+/** What a round started from its checkout, stopped before the project's teardown: every machine's plan opens with these. */
+export function releaseCheckoutSteps(path: string): RemovalStep[] {
 	return [
 		{ label: 'stop owned servers', run: async () => {
 			const result = await stopWorktreeServers(path);
@@ -68,8 +86,5 @@ export function removalPlan({ path, slug }: Pick<Parameters<NonNullable<Seams['r
 			// The step's own say is just "ok": name what it stopped, so a reap shows the window is gone.
 			if (result.kind === 'stopped' && result.stopped) console.log(`closed ${result.stopped} browser process(es) wf show opened`);
 		} },
-		...teardown({ slug, worktree: path }),
-		{ label: 'rm -rf worktree', rm: path },
-		{ label: 'git worktree prune', cmd: 'git', args: ['worktree', 'prune'] },
 	];
 }

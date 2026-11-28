@@ -26,6 +26,10 @@ const native = t3Presentation({ T3_MCP_URL: 'http://localhost/session', T3_MCP_B
 assert.ok(native);
 assert.ok(!native.guidance.includes('secret-not-for-output'));
 assert.match(native.guidance, /discover their names and input schemas/);
+// 2026-11-28: the subagent route first, the existing-worktree launch as the fallback.
+assert.match(native.guidance, /delegate_task with isolation "worktree".*wf new <branch> --here .*then wf next/);
+assert.match(native.guidance, /fallback: wf new <branch> from the project root, then thread_launch with workspaceStrategy\.type existing_worktree/);
+assert.match(native.guidance, /adopted checkout \(wf new --here\): reap may run in the bound thread itself/);
 assert.equal(t3WorkspaceHandoff({}), null);
 assert.equal(t3WorkspaceHandoff({ T3CODE_PROJECT_ROOT: '/project-script' }), null);
 for (const credentials of [
@@ -43,6 +47,7 @@ for (const credentials of [
 	assert.ok(!('branch' in launch.workspaceStrategy), 'native metadata must not trigger T3 branch renaming');
 	assert.match(instructions, /not opened by wf/);
 	assert.match(instructions, /setup scripts.*safely repeatable/);
+	assert.match(instructions, /fallback route.*delegate_task with isolation "worktree".*wf new <branch> --here/);
 	assert.match(launch.message, /Read .wf\/state.json/);
 	assert.ok(!instructions.includes('secret-not-for-output'));
 }

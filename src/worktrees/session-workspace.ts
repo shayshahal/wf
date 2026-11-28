@@ -4,12 +4,28 @@ import { realpathSync } from 'node:fs';
 import { isAbsolute, relative, sep } from 'node:path';
 import { seams } from '../seams.ts';
 
-/** Refuse round work outside the native session's bound workspace; ordinary terminals have no gap. */
-export async function roundWorkspaceGap(worktree: string): Promise<string | null> {
+/**
+ * A session the host gave a checkout of its own (T3's subagent worktree) can run a round there:
+ * `wf new <branch> --here` adopts it. Named in every refusal such a session gets, because a separate
+ * `wf new` checkout can never be bound to it (2026-11-28: T3's delegate_task offers only the project
+ * root or a fresh T3 worktree, so a subagent that ran plain `wf new` was refused by every next step).
+ */
+export const adoptGuidance = (bound: string) => `this session has its own host checkout (${bound}): to run the round in it, run wf new <branch> --here --class A|B|C [--id <id>] from that checkout instead of a separate wf new`;
+
+/**
+ * Refuse round work outside the native session's bound workspace; ordinary terminals have no gap.
+ * `adopted` (state.adopted): `wf new --here` renamed the host's branch `from` to the round's `branch`.
+ * The host keeps reporting the old name (T3, measured 2026-11-28: still the old name 20 s after
+ * `git branch -m`), so at the adopted path that one stale name is accepted while Git is on the
+ * round's branch; any other difference still refuses. The path match is what JX-1426 needed.
+ */
+export async function roundWorkspaceGap(worktree: string, { adopted }: { adopted?: { from: string; branch: string } | null } = {}): Promise<string | null> {
 	const binding = await seams.sessionWorkspace?.();
 	if (!binding) return null;
 	const guidance = `open or resume a session bound to this exact round path: ${worktree}. Changing the shell directory does not rebind the chat workspace`;
 	if (binding.kind === 'unavailable') return `native session workspace unavailable — cannot verify the round workspace; ${guidance}`;
+	// The route for a round not yet started: a subagent the host gives its own checkout adopts it.
+	const subagent = binding.attached ? adoptGuidance(binding.path) : 'for a round not started yet, a subagent the host gives its own checkout (T3: delegate_task with isolation "worktree") can instead run it there with wf new <branch> --here';
 	let target: string;
 	let bound: string;
 	try {
@@ -23,10 +39,12 @@ export async function roundWorkspaceGap(worktree: string): Promise<string | null
 		target = target.toLowerCase();
 		bound = bound.toLowerCase();
 	}
-	if (target !== bound) return `native session workspace does not match the round workspace (session: ${binding.path}); ${guidance}`;
+	if (target !== bound) return `native session workspace does not match the round workspace (session: ${binding.path}); ${guidance}; ${subagent}`;
 	const branch = spawnSync('git', ['-C', worktree, 'branch', '--show-current'], { encoding: 'utf8' });
 	if (branch.status !== 0) return `cannot verify the round workspace: Git branch unavailable; ${guidance}`;
-	if (binding.branch !== null && binding.branch !== branch.stdout.trim()) return `native session branch does not match the round's actual Git branch; ${guidance}`;
+	const actual = branch.stdout.trim();
+	const renamed = Boolean(adopted) && binding.attached === true && binding.branch === adopted?.from && actual === adopted?.branch;
+	if (binding.branch !== null && binding.branch !== actual && !renamed) return `native session branch does not match the round's actual Git branch; ${guidance}`;
 	return null;
 }
 

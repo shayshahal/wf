@@ -68,6 +68,12 @@ export type NativePresentation = {
 	readonly guidance: string;
 	readonly reviewHandoff: (review: ReviewPresentation) => string;
 };
+/**
+ * A native session's bound workspace. `attached` says the host created a checkout of its own for this
+ * session (T3's subagent worktree), as against the project root; absent: the host does not say.
+ * `branch` is the host's metadata, not proof of Git's current branch.
+ */
+export type SessionWorkspace = { kind: 'bound'; path: string; branch: string | null; attached?: boolean } | { kind: 'unavailable'; why: string };
 export type Command = (argv: string[]) => unknown;
 // One `gh` call for the remote wf delivers to: argv, the folder to run it in, and what it printed.
 // The kit's default shells out to gh; a delivery test plugs a faithful fake so a retry can be proven
@@ -80,12 +86,15 @@ export type Seams = {
 	entry: string;
 	madeBy: string;
 	createWorktree: ((o: { branch: string; base: string; log: string; path: string; repository?: string; setup?: 'project' | 'none'; port?: number }) => Worktree | Promise<Worktree>) | null;
-	removalPlan: ((o: { branch: string; path: string; slug: string; pid: number }) => RemovalStep[] | Promise<RemovalStep[]>) | null;
+	/** The project's setup in a checkout wf did not create (`wf new --here`); throws with the log on failure. */
+	setupCheckout: ((o: { path: string; branch: string; port: number; log: string }) => void | Promise<void>) | null;
+	/** `checkout: 'keep'`: release what the round started there but leave the checkout and its registration (a host owns it). */
+	removalPlan: ((o: { branch: string; path: string; slug: string; pid: number; checkout?: 'remove' | 'keep' }) => RemovalStep[] | Promise<RemovalStep[]>) | null;
 	reviewUI: ReviewUI | null;
 	reviewInbox: ReviewInbox | null;
 	presentation: NativePresentation | null;
 	/** Native session binding; null means no native session, unavailable must refuse, never downgrade. */
-	sessionWorkspace: (() => Promise<{ kind: 'bound'; path: string; branch: string | null } | { kind: 'unavailable'; why: string }> | null) | null;
+	sessionWorkspace: (() => Promise<SessionWorkspace> | null) | null;
 	/** Session-owned binding instructions, never a second workspace allocation or a claim it opened. */
 	workspaceHandoff: ((worktree: string) => string) | null;
 	inbox: QuestionInbox | null;
@@ -109,7 +118,10 @@ export const seams: Seams = {
 	// ({ branch, base, log, path }) → { path, branch }: allocates at wf's destination and sets it up.
 	// null: the kit's plain git (git-worktree.ts).
 	createWorktree: null,
-	// ({ branch, path, slug, pid }) → the ordered steps `wf reap` runs (reap.ts runs them).
+	// ({ path, branch, port, log }) → the project's setup in an adopted checkout (`wf new --here`).
+	// null: the kit's (git-worktree.ts setupCheckout), the same steps a created worktree gets.
+	setupCheckout: null,
+	// ({ branch, path, slug, pid, checkout }) → the ordered steps `wf reap` runs (reap.ts runs them).
 	// null: the kit's plain git (git-worktree.ts).
 	removalPlan: null,
 	// { available(), annotate({ worktree, file, since }) }
