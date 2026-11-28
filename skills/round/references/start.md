@@ -28,6 +28,13 @@ the project and the class guidance that it links.
    paths as `paths: <repo-relative paths>` in `## Scope`.
 4. **Prepare the workspace.**
    - Run `wf new <branch> --class <A|B|C> --id <id>`. For a repro investigation, add `--check`.
+   - In a session the host gave a checkout of its own (a subagent's worktree, for example T3's
+     `delegate_task` with `isolation: "worktree"`), add `--here` and run it from that checkout. It
+     makes this checkout the round: it brings a fresh checkout up to the base, renames the branch to
+     `<branch>` and runs the project setup. Then run `wf next` there. A refusal names what to fix.
+   - To give a round to a subagent from a host that has one, delegate it with its own worktree and
+     tell it to start with `wf new <branch> --here`. Where the host cannot (a bare-repository
+     project), use `wf new` here and the existing-checkout launch that it prints.
    - Keep each intake draft outside the protected base checkout until the command gives you the
      round folder.
    - Before you work in that checkout, follow the workspace binding rules that `wf notes` links.

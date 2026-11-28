@@ -59,6 +59,10 @@ export type State = {
 	// the parent session. A reference, never the transcript's content.
 	session?: { harness: string; id: string; transcript: string | null; step: string | null; at: string };
 	entry?: string;
+	// `wf new --here` made a checkout the session host created (T3's subagent worktree) the round:
+	// `from` is the branch the host named it, `branch` the round's name wf renamed it to. The host owns
+	// the folder: reap releases the stack and the project's resources and leaves the checkout.
+	adopted?: { from: string; branch: string; at: string };
 	// The base port this round's stack uses when the one its branch hashes to was held by another
 	// process (worktrees/port-claim.ts); absent while the hashed port is the round's.
 	port?: number;

@@ -17,6 +17,8 @@ const check = (name: string, cond: unknown, detail = '') =>
 const tree = mkdtempSync(join(tmpdir(), 'wf-gw-'));
 const labels = () => removalPlan({ path: tree, slug: 'fix-a' } as Parameters<typeof removalPlan>[0]).map((s) => s.label).join(' → ');
 check('no stack started: both owned releases, teardown, then the folder and prune', labels() === 'stop owned servers → close the show browser → close this checkout\'s browsers → drop database → drop stranded test databases → rm -rf worktree → git worktree prune', labels());
+const keepLabels = removalPlan({ path: tree, slug: 'fix-a', checkout: 'keep' } as Parameters<typeof removalPlan>[0]).map((s) => s.label).join(' → ');
+check('a host-owned checkout (wf new --here): the same releases and teardown, and the folder stays', keepLabels === 'stop owned servers → close the show browser → close this checkout\'s browsers → drop database → drop stranded test databases', keepLabels);
 mkdirSync(join(tree, '.wf'));
 writeFileSync(join(tree, '.wf', 'serve.pid'), '31337\n');
 check('a stack started: it stops first', labels().startsWith('stop owned servers → close the show browser'), labels());

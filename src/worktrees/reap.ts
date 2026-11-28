@@ -8,7 +8,7 @@
 // `wf reap <branch>`, it only printed its plan, and Claude Code's auto mode refused the flag.
 // Every step tolerates "already gone": a reap that is re-run is a no-op, not an error.
 import { execFileSync, spawnSync } from 'node:child_process';
-import { appendFileSync, copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
+import { appendFileSync, copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { createHash } from 'node:crypto';
 import { dirname, join, resolve } from 'node:path';
@@ -23,6 +23,8 @@ import type { RemovalStep } from '../seams.ts';
 import { listWorktrees, removalPlan, resolveWorktree, slugForBranch } from './worktree.ts';
 import { readWorkspaceCleanup, runWorkspaceCleanup } from './workspace-cleanup.ts';
 import { reapWorkspaceGap } from './session-workspace.ts';
+import { acquireProcessLock } from '../process-lock.ts';
+import { runRemovalStep } from './removal.ts';
 
 // Pure: the uncommitted round paperwork in `git status --porcelain --untracked-files=all` output.
 // The root REVIEW.md is written after deliver commits the round folder, so it is uncommitted on
@@ -58,10 +60,12 @@ function filesUnder(dir: string, within = ''): string[] {
 // Pure: what reap says when it is done, for the person who reads it later: where the kept copy is and what
 // is in it, what stayed in git instead (the round folder's commits are in the history, not in the copy), and
 // whether the worktree is gone. `committed` is null when git could not list them.
-export function reapSummary({ slug, dest, files, committed, folder, worktree, worktreeGone }: { slug: string; dest: string; files: string[]; committed: string[] | null; folder: string | undefined; worktree: string; worktreeGone: boolean }): string {
+export function reapSummary({ slug, dest, files, committed, folder, worktree, worktreeGone, hostOwned = false }: { slug: string; dest: string; files: string[]; committed: string[] | null; folder: string | undefined; worktree: string; worktreeGone: boolean; hostOwned?: boolean }): string {
 	const proof = files.filter((f) => folder && f.startsWith(`${folder}/proof/`)).length;
 	return [
-		`reaped ${slug}: worktree ${worktree}: ${worktreeGone ? 'deleted' : 'NOT deleted (still there)'}`,
+		hostOwned
+			? `reaped ${slug}: checkout ${worktree}: kept — the session host created it (adopted with wf new --here); remove it from the host once no session needs it`
+			: `reaped ${slug}: worktree ${worktree}: ${worktreeGone ? 'deleted' : 'NOT deleted (still there)'}`,
 		files.length ? `kept copy: ${dest} — ${files.length} file(s): ${proof} proof artifact(s), ${files.length - proof} other (uncommitted paperwork, round record)` : 'kept copy: none (nothing uncommitted or ignored to keep)',
 		committed === null ? 'in git: could not list the committed round files (git ls-files failed)' : `in git, not copied: ${committed.length} committed file(s) under ${folder ?? '(no round folder)'}/ — they stay in the branch's commits, not in the kept copy`,
 	].join('\n');
@@ -174,9 +178,12 @@ export async function runReap(argv: string[]) {
 	const rememberedMerged = recovery.kind === 'recovery' && recovery.record.merged;
 	const path = resolve(recovery.kind === 'recovery' ? recovery.record.path : resolveWorktree(branch, trees).path);
 	const recovering = recovery.kind === 'recovery';
+	// An adopted checkout is never removed, so the session bound to it survives its reap: the guard
+	// below protects a session whose folder goes. A recovery journal is only ever a removal's.
+	const adopted = recovering ? null : adoptedRecord(path);
 	// A shell cd/force flag cannot free a native chat's workspace. Check the resolved recovery
 	// path too, before even constructing teardown steps or acquiring/reclaiming a cleanup lock.
-	const workspaceGap = await reapWorkspaceGap(path, { recovering });
+	const workspaceGap = adopted ? null : await reapWorkspaceGap(path, { recovering });
 	if (workspaceGap) {
 		console.error(`wf reap: ${workspaceGap}; nothing removed`);
 		process.exitCode = 1;
@@ -198,6 +205,10 @@ export async function runReap(argv: string[]) {
 		return;
 	}
 	const force = recovering || reapRuns(process.env, state);
+	if (adopted && state) {
+		process.exitCode = await reapAdopted({ branch, path, slug, state, force, lock: `${journal}.lock` });
+		return;
+	}
 	// Paperwork first: when it cannot be listed, reap stops, and ROUNDS.md gets no line for a round
 	// that is still there (2026-10-04, a broken .git: the line was written, then reap stopped).
 	// Read before the worktree goes: the repository the branch lives in.
@@ -232,6 +243,64 @@ export async function runReap(argv: string[]) {
 	console.log('launch.json entries: ok');
 	console.log(branchKeptLine(state, branch, deleteBranch !== null));
 	if (archive.kept) console.log(reapSummary({ slug, dest: join(homedir(), '.cache', 'wf-reaped', slug), ...archive.kept, folder: state?.folder, worktree: path, worktreeGone: !existsSync(path) }));
+}
+
+// The adoption record of the round at `path`, or null. Unreadable state is not an adoption: the
+// ordinary path reports it.
+function adoptedRecord(path: string): State['adopted'] | null {
+	try { return readState(path)?.adopted ?? null; } catch {
+		// readState throws on a corrupt state; the ordinary reap below reads it again and says so.
+		return null;
+	}
+}
+
+// Marks that an adopted round's record was already archived and its friction line written, so a
+// retried reap after a failed step does not add a second ROUNDS.md line.
+const ARCHIVED = 'reap-archived';
+
+/**
+ * Reap a round whose checkout the session host created (`wf new --here`, adopt.ts): stop what the
+ * round started, run the project's teardown (its database, the stack's routes), archive the round
+ * record and remove `.wf/`, so the checkout is no longer a round. The folder and its branch stay:
+ * the host made them, the host's thread may still be bound there, and the branch is checked out in
+ * it (`git branch -D` refuses). Each step is repeat-safe and `.wf/` goes last, so a failed reap is
+ * retried by running it again. Returns the exit code.
+ */
+export async function reapAdopted({ branch, path, slug, state, force, lock }: { branch: string; path: string; slug: string; state: State; force: boolean; lock: string }): Promise<number> {
+	const steps = await removalPlan({ branch, path, slug, pid: process.pid, checkout: 'keep' });
+	if (!force) {
+		for (const step of steps) console.log(`would: ${step.rm ? `rm -rf ${step.rm}` : step.run ? step.label : `${step.cmd} ${step.args!.join(' ')}`}`);
+		console.log(`would: take ${slug}'s entries out of the clone's .claude/launch.json`);
+		console.log(`would: archive the round record and remove ${join(path, '.wf')}; keep the checkout and branch ${branch} (the session host owns them)`);
+		console.log('(dry run: the round is not merged. WF_FORCE_REAP=1 wf reap does it anyway)');
+		return 0;
+	}
+	const held = acquireProcessLock(lock);
+	if (held.kind === 'refused') { console.error(`wf reap: ${held.why}`); return 1; }
+	try {
+		const marker = join(path, '.wf', ARCHIVED);
+		let kept: ReturnType<typeof keepRoundPaperwork> | null = null;
+		if (!existsSync(marker)) {
+			kept = keepRoundPaperwork(path, slug, state.folder);
+			recordFriction(path, state);
+			writeFileSync(marker, `${new Date().toISOString()}\n`);
+		}
+		for (const step of steps) {
+			const outcome = await runRemovalStep(step);
+			console.log(outcome.say);
+			if (!outcome.ok) {
+				console.error(`wf reap: incomplete at "${step.label}"; the round record stays in ${join(path, '.wf')}. Every step is repeat-safe: run wf reap ${branch} again`);
+				return 1;
+			}
+		}
+		writeCloneLaunch(slug, null);
+		rmSync(join(path, '.wf'), { recursive: true, force: true });
+		console.log('launch.json entries: ok');
+		console.log(`round record ${join(path, '.wf')}: removed — this checkout is no longer a round`);
+		console.log(`local branch ${branch}: kept — it is checked out in the session host's checkout; it goes when the host removes that checkout, or delete it by hand after`);
+		console.log(reapSummary({ slug, dest: join(homedir(), '.cache', 'wf-reaped', slug), ...(kept ?? { files: [], committed: [] }), folder: state.folder, worktree: path, worktreeGone: false, hostOwned: true }));
+		return 0;
+	} finally { held.release(); }
 }
 
 if (process.argv[1]?.endsWith('reap.ts')) runReap(process.argv.slice(2));

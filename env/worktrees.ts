@@ -3,10 +3,8 @@
 import { closeSync, existsSync, openSync, readFileSync, realpathSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { withGitHooksDisabled } from '../src/worktrees/git-hooks.ts';
-import { stopCheckoutStack, teardown } from '../src/project.ts';
-import { stopWorktreeServers } from '../src/worktrees/serve.ts';
-import { stopShowBrowser } from '../src/worktrees/show-browser.ts';
-import { stopWorktreeProcesses } from '../src/worktrees/worktree-processes.ts';
+import { teardown } from '../src/project.ts';
+import { releaseCheckoutSteps } from '../src/worktrees/git-worktree.ts';
 import { excludeFromGit, excludeWfFolder, resolveWorktree, listWorktrees } from '../src/worktrees/worktree.ts';
 import type { RemovalStep, Seams, Worktree } from '../src/seams.ts';
 
@@ -53,33 +51,18 @@ export function createWorktree({ branch, base, log, path, repository, setup: set
 // Pure: the ordered steps. `rm` is done in-process (fs.rmSync), so it carries no cmd. `platform` is
 // kept in the signature so the selfcheck can check Windows's plan on any machine (it read
 // process.platform and was red everywhere but Windows, 2026-10-03).
-export function removalPlan({ branch, path, slug, pid }: Parameters<NonNullable<Seams['removalPlan']>>[0], platform: NodeJS.Platform = process.platform): RemovalStep[] {
+export function removalPlan({ branch, path, slug, checkout }: Parameters<NonNullable<Seams['removalPlan']>>[0], platform: NodeJS.Platform = process.platform): RemovalStep[] {
 	// Verified release must succeed before the project's teardown can remove scenario data.
 	// The safe cwd and recovery journal belong to reap, outside the directory wt may unregister.
+	// `checkout: 'keep'`: a session host's checkout adopted by `wf new --here`. wt never made it, and
+	// the host owns its folder and branch, so the plan ends after the teardown.
 	return [
-		{ label: 'stop owned servers', run: async () => {
-			const result = await stopWorktreeServers(path);
-			if (result.kind === 'refused') throw new Error(result.why);
-			if (result.kind === 'stopped' && result.leftovers !== undefined) console.log(`the recorded server ${result.pid} had exited; stopped ${result.leftovers} process(es) it left`);
-			// And what the project's own tools started here: it holds the folder the same way (2026-11-19).
-			const stopped = stopCheckoutStack(path);
-			if (stopped) console.log(stopped);
-			// And what anyone else started from the worktree's own files: a Playwright daemon the round's
-			// agent ran from its node_modules held the folder (2026-11-22).
-			const swept = stopWorktreeProcesses(path);
-			if (swept) console.log(swept);
-		} },
-		// The window `wf show` opened outlives wf and holds the folder on Windows: release it before
-		// teardown and rm, or reap's delete fails with EPERM (#180).
-		{ label: 'close the show browser', run: async () => {
-			const result = await stopShowBrowser(path);
-			if (result.kind === 'refused') throw new Error(result.why);
-			// The step's own say is just "ok": name what it stopped, so a reap shows the window is gone.
-			if (result.kind === 'stopped' && result.stopped) console.log(`closed ${result.stopped} browser process(es) wf show opened`);
-		} },
+		...releaseCheckoutSteps(path),
 		...teardown({ slug, worktree: path }),
-		{ label: 'wt remove', cmd: 'wt', args: ['remove', branch, '--no-delete-branch', '--force', '--foreground', '-y'] },
-		{ label: 'rm -rf worktree', rm: path },
-		{ label: 'git worktree prune', cmd: 'git', args: ['worktree', 'prune'] },
+		...(checkout === 'keep' ? [] : [
+			{ label: 'wt remove', cmd: 'wt', args: ['remove', branch, '--no-delete-branch', '--force', '--foreground', '-y'] },
+			{ label: 'rm -rf worktree', rm: path },
+			{ label: 'git worktree prune', cmd: 'git', args: ['worktree', 'prune'] },
+		]),
 	];
 }

@@ -75,6 +75,10 @@ try {
 		unchanged(repo);
 	}
 
+	// 2026-11-28: the refusal names the route a session that cannot rebind can still take.
+	assert.match(cli(repo, ['next'], bound(other, 'round/two')).stderr, /for a round not started yet, a subagent .*wf new <branch> --here/);
+	assert.match(cli(repo, ['next'], { kind: 'bound', path: other, branch: 'round/two', attached: true }).stderr, /this session has its own host checkout .*run wf new <branch> --here/);
+	unchanged(repo);
 	// The shell can cd into the round, but the native binding still names the other worktree.
 	mkdirSync(join(repo, 'nested'));
 	refused(cli(join(repo, 'nested'), ['step', 'build'], bound(other, 'round/two')), /workspace does not match/);

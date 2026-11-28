@@ -32,10 +32,57 @@ evidence all refer to that exact worktree and its actual Git branch.
 - Existing rounds keep their registered paths. This policy does not migrate them. It does not
   change the host-wide worktree settings.
 
+### A host's own checkout (`wf new <branch> --here`)
+
+A session host can give a session a checkout of its own: T3's `delegate_task` with
+`isolation: "worktree"` gives the child `~/.t3/worktrees/<project>/t3-<id>` on a branch T3 named.
+A running thread cannot rebind, and the host cannot bind a subagent to a checkout wf made
+(measured 2026-11-28). So the round goes to the checkout instead:
+
+```mermaid
+sequenceDiagram
+  participant P as Parent thread
+  participant C as Child (T3 subagent)
+  participant W as wf
+  P->>C: delegate_task, isolation "worktree"
+  Note over C: bound to its own T3 worktree, branch T3 named
+  C->>W: wf new <branch> --here --class A|B|C [--id <id>]
+  W->>W: check binding, fetch base, fast-forward, rename branch, setup, classify
+  C->>W: wf next ... wf deliver
+  C->>W: wf reap <branch> (stack, database, .wf/; the checkout stays)
+  C-->>P: finishes; T3 wakes the parent
+```
+
+- Run it from the bound checkout. It refuses, before any change: no native session or an
+  unavailable binding; a session bound to the project root; a shell outside the bound checkout; the
+  repository's main checkout; a detached HEAD or a base/release branch; a checkout that is already a
+  round; uncommitted changes; a host branch name that Git no longer shows.
+- The base: wf fetches it first. A checkout with no commits of its own is fast-forwarded to it (T3
+  cut a subagent's checkout from a local base branch months behind its remote, 2026-11-28). One with
+  commits of its own is refused with `git rebase <base>`: those commits are the agent's work.
+- The branch: wf renames the host's branch to `<branch>`. Ports, stack hostnames, the database and
+  the PR branch derive from the branch name, and so do the project's branch rules. T3 keeps showing
+  its old name (`t3_worktree_status`, measured). `.wf/state.json` records both as `adopted`, and the
+  binding check accepts that one old name at this exact path, while Git is on the round's branch.
+  The path match is the JX-1426 protection.
+- Then the same as a created round: the project's setup, `wf step classify`, the round folder, the
+  state, the clone's `launch.json`. No existing-worktree handoff: the session is already bound.
+- A failed setup leaves the renamed checkout. Run the same command again to repeat the setup.
+- Plain `wf new` from a host checkout bound to this session is refused: its new worktree could
+  never be this session's.
+- Reap of an adopted round may run in the bound session itself. It stops what the round started,
+  runs the project's teardown, archives the round record and removes `.wf/`. The checkout and its
+  branch stay: the host made them, its thread may still be bound there, and Git cannot delete a
+  branch that is checked out. Remove them through the host (T3: delete the thread's worktree). A
+  failed step keeps `.wf/`; run reap again (each step is repeat-safe).
+- Without delegation (a bare-repository project, where T3 cannot make worktrees), the fallback is
+  the existing-worktree launch above. It does not wake its parent.
+
 ## Create and prepare
 
 Create worktrees only with:
 `wf new <branch> --class A|B|C [--base <ref>] [--check] [--id <token>]...`
+(or adopt a session host's own checkout with `--here`, above).
 
 - The default base is `origin/<the project's base branch>`.
 - The command makes the worktree, runs the setup of the project, then runs `wf step classify`.
